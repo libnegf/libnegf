@@ -14,12 +14,10 @@ module GreenDftb
   use precision
   use constants 
   use allocation
-  !use parameters, only : verbose, iatm, iatc, cluster, Efermi, mu, Readold, &
-  !                       ncdim, Temp, N_omega, Np, LmbMax, delta, mbound_end, &
-  !                       Elow 
+  use parameters, only : Tparam, MAXNCONT
   use mat_def
   use sparsekit_drv
-  !use structure, only : ind,nbl,cstartblk,cblk,indblk
+  use structure, only : TStruct_Info
   use contselfenergy
   use iterative
   use fermi_dist
@@ -61,34 +59,34 @@ contains
     
     !% Local Array and variables    
     type(z_CSR) :: HM,SM                   ! molecular HAM and OVR
-    type(z_CSR) :: TM(10),ST(10)           ! contact-mol HAM and OVR
-    type(z_CSR) :: GS(10)                  ! surface Green functions
-    type(z_CSR) :: SelfEneR(10)            ! 
-    type(z_CSR) :: Tlc(10),Tcl(10)         ! Temporary matrices E ST - TM
+    type(z_CSR) :: TM(MAXNCONT),ST(MAXNCONT)           ! contact-mol HAM and OVR
+    type(z_CSR) :: GS(MAXNCONT)                  ! surface Green functions
+    type(z_CSR) :: SelfEneR(MAXNCONT)            ! 
+    type(z_CSR) :: Tlc(MAXNCONT),Tcl(MAXNCONT)         ! Temporary matrices E ST - TM
     type(z_CSR) :: GreenR                  ! Green's Function
     
 #ifdef MPI
-    real(kind=dp), dimension(:), allocatable :: Mat_st      ! MPI mat storage
-    real(kind=dp), dimension(:), allocatable :: Mat_rcv     ! MPI mat storage
+    real(dp), dimension(:), allocatable :: Mat_st      ! MPI mat storage
+    real(dp), dimension(:), allocatable :: Mat_rcv     ! MPI mat storage
 #endif
     
-    type(z_DNS) :: HC_d(10),SC_d(10),GS_d(10),M_d           ! Contact H and S
+    type(z_DNS) :: HC_d(MAXNCONT),SC_d(MAXNCONT),GS_d(MAXNCONT),M_d           ! Contact H and S
 
-    real(kind=dp), ALLOCATABLE, DIMENSION(:) :: wght,pnts   ! Gauss-quadrature points
-    real(kind=dp), ALLOCATABLE, DIMENSION(:) :: t_wght,t_pnts ! Gauss-quadrature points
+    real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
+    real(dp), DIMENSION(:), ALLOCATABLE :: t_wght,t_pnts ! Gauss-quadrature points
 
-    integer :: cstart(10),cend(10),mstart,mend,nmdim        ! Structure specifications 
-    integer :: err, sgflag, tmp,ncol, nc, npid, nn          ! Assistence variables
+    integer :: cstart(MAXNCONT),cend(MAXNCONT),nmdim        ! Structure specifications
+    integer :: ncdim(MAXNCONT)
+    integer :: err, sgflag, tmp,ncol, nc, npid, nn, ncont   ! Assistence variables
     integer :: i, k, l, i1, i2, j1, j2                      ! Assistence variables
-    integer :: Nstep, imin, imax, NumPoles,istart,iend      ! Integration counters
-    integer :: nc_vec(1), ibsize, npT, Np(4)
-    real(kind=dp) :: ncyc, avncyc                           ! Average num. decimations
-    real(kind=dp) :: frm_f(10)
-    real(kind=dp) :: E, qhelp,dd,mumin, mumax               ! 
-    real(kind=dp) :: Rad, Centre, Lambda, Omega
-    real(kind=dp) :: c1,c2,T,teta,dt,alpha
-    real(kind=dp) :: qtot
-
+    integer :: imin, imax, NumPoles, istart,iend            ! Integration counters
+    integer :: nc_vec(1), ibsize, npT, Np(4), N_omega
+    real(dp) :: ncyc, avncyc                           ! Average num. decimations
+    real(dp) :: Efermi(MAXNCONT), frm_f(MAXNCONT), mu(MAXNCONT)
+    real(dp) :: E, dd, mumin, mumax                
+    real(dp) :: Rad, Centre, Lambda, Omega
+    real(dp) :: c1,c2,T,teta,dt,alpha
+    logical :: cluster
     complex(kind=dp) :: Ec,Pc,z1,z2,z_diff,zt                  ! Integration variables
 
     character(2) :: of
@@ -97,8 +95,36 @@ contains
 
     ! Trasferimento variabili locali dal contenitore
     ! ------------------------------------------------------------------------
+
     Np = param%Np
-    
+    NumPoles = param%nPoles
+    Temp = param%Temp
+    Efermi = param%Efermi
+    mu = param%mu
+    N_omega = param%N_omega
+    cluster = param%cluster
+
+    ncont = struct%num_conts
+    do i=1,ncont
+      cstart(i)=struct%mat_C_start(i)
+      cend(i)  =struct%mat_C_end(i)
+      ncdim(i) =cend(i)-cstart(i)+1
+    enddo
+    nmdim = struct%central_dim
+   
+
+    if (Temp.ne.0.d0) then
+
+      if (NumPoles.ne.0) then
+        Lambda = 2.d0*NumPoles*Kb*Temp*pi
+      else
+        Lambda = 0.d0
+      end if
+
+    else   
+      NumPoles = 0
+      Lambda = 0.d0
+    end if
 
     !**************************
     ! COMPUTE DENSITY MATRIX
@@ -111,13 +137,7 @@ contains
     !---------------------------------------------------------------
     !if(id0.and.verbose.gt.60) write(*,'(73("*"))')
     !-------------------------------------------------------------------- 
-    do i=1,ncont
-      cstart(i)=ind(iatc(1,i))+1
-      cend(i)=ind(iatc(2,i)+1)
-    enddo
-    nmdim=ind(iatm(2)+1)-ind(iatm(1))
-    mstart=ind(iatm(1))+1
-    mend=ind(iatm(2)+1) 
+
 
     !if(id0) then
     !   call writeMemInfo(6)
@@ -179,7 +199,7 @@ contains
       do i=1,ncont
         !call destroy(TM(i))
         i1=cstartblk(i); i2=indblk(cblk(i)+1)-1 
-        j1=cstart(i); j2=j1+(ncdim(i)+mbound_end(i))/2-1
+        j1=cstart(i); j2=j1+ncdim(i)/2 - 1
         !if(id0) write(*,*) 'Interaction block:',i1,i2,j1,j2
         call zextract(H,i1,i2,j1,j2,TM(i))         
         call zextract(S,i1,i2,j1,j2,ST(i))
@@ -221,7 +241,7 @@ contains
 
     !If ReadOldSGF is true then flag is forced to 0, so it reads
 
-    if (Readold) then 
+    if (param%Readold) then 
       sgflag = 0
     endif
 
@@ -231,22 +251,6 @@ contains
     ! ***************************************************************************
     ! 1.  INTEGRATION OVER THE CIRCLE FROM ALPHA TO PI ...Np(1)
     ! ***************************************************************************
-
-    if (Temp.ne.0.d0) then
-
-      !NumPoles = idnint(LmbMax/(2.d0*Kb*Temp*pi))
-      NumPoles=int(LmbMax/(2.0*Kb*Temp*pi))
-      
-      if (NumPoles.ne.0) then
-        Lambda = 2.d0*NumPoles*Kb*Temp*pi
-      else
-        Lambda = LmbMax
-      end if
-
-    else   
-      NumPoles = 0
-      Lambda = 0.d0
-    end if
 
     Omega = N_omega*Kb*Temp
 
@@ -353,9 +357,9 @@ contains
       call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then 
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR) 
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR) 
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR)
+         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -392,13 +396,6 @@ contains
       !   call writePeakInfo(6)
       !   write(*,*) '----------------------------------------------------'
       !endif  
-
-      ! Compute partial charges with Mulliken:
-      !!nn=natoms; natoms=iatm(2)
-      !!call mulliken(ndim,DensMat,S,qmulli,qtot)
-      !!natoms=nn;
-      !!if(id0) write(47,*) Ec,dt,qtot 
-
     end do
     ! *******************************************************************************
     !   END OF INTEGRATION OVER THE CIRCLE ...Np(1)
@@ -500,9 +497,9 @@ contains
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ') 
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR)
+         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -543,10 +540,6 @@ contains
 
       if (id0.and.verbose.gt.VBT) call write_clock      
 
-      !!nn=natoms; natoms=iatm(2)
-      !!call mulliken(ndim,DensMat,S,qmulli,qtot)
-      !!natoms=nn
-      !!if(id0) write(47,*) Ec,dt,qtot
 
     end do
 
@@ -604,9 +597,9 @@ contains
       call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR);
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR);
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,nc,GreenR)
+         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -628,10 +621,6 @@ contains
 
     end do
 
-    !!nn=natoms; natoms=iatm(2)
-    !!call mulliken(ndim,DensMat,S,qmulli,qtot)
-    !!natoms=nn
-    !!if(id0) write(47,*) 'PARTIAL CHARGE:',qtot
     ! *******************************************************************************
     ! END OF SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR
     ! *******************************************************************************                  
@@ -740,11 +729,6 @@ contains
         if (id0.and.verbose.gt.VBT) call write_clock
 
         !Charge computation
-
-        !!nn=natoms; natoms=iatm(2)
-        !!call mulliken(ndim,DensMat,S,qmulli,qtot)
-        !!natoms=nn;
-        !!if(id0) write(47,*) Ec,dt,qtot
 
       enddo
 

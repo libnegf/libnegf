@@ -13,12 +13,14 @@ type TStruct_Info
    integer, dimension(:), Pointer :: PL_start      !iatm(1)
    integer, dimension(:), Pointer :: PL_end        !iatm(2)
    integer, dimension(:), Pointer :: mat_PL_start  !ind(..)
-   integer, dimension(:), Pointer :: mat_PL_end    !ind(..)    
-   integer, dimension(:), Pointer :: cont_start    !iatc(3,cont)
-   integer, dimension(:), Pointer :: cont_end      !iatc(2,cont)
-   integer, dimension(:), Pointer :: mat_C_start   !ind(cont_start)+1 
-   integer, dimension(:), Pointer :: mat_C_end     !ind(cont_end+1)
+   integer, dimension(:), Pointer :: mat_PL_end    !ind(..)
+
+   integer, dimension(:), Pointer :: mat_S_start  !    
+   integer, dimension(:), Pointer :: mat_C_start  !
+   integer, dimension(:), Pointer :: mat_C_end    !
+
    integer, dimension(:), Pointer :: cblk          !contact int block
+   integer :: central_dim
    integer :: num_PLs
    integer :: num_conts
    integer :: active_cont
@@ -54,17 +56,17 @@ contains
     
     str%num_conts = ncont
     str%active_cont = 1
-    allocate(str%cont_start(ncont))
-    allocate(str%cont_end(ncont))
+    !allocate(str%cont_start(ncont))
+    !allocate(str%cont_end(ncont))
     allocate(str%mat_C_start(ncont))
     allocate(str%mat_C_end(ncont))
     allocate(str%cblk(ncont))
     
     do i=1,ncont
-       str%cont_start(i) = iatc(3,i)
-       str%cont_end(i) = iatc(2,i)
-       str%mat_C_start(i) = ind(str%cont_start(i))+1
-       str%mat_C_end(i) = ind(str%cont_end(i)+1)
+       !str%cont_start(i) = iatc(3,i)
+       !str%cont_end(i) = iatc(2,i)
+       !str%mat_C_start(i) = ind(str%cont_start(i))+1
+       !str%mat_C_end(i) = ind(str%cont_end(i)+1)
        str%cblk(i) = cblk(i)
     enddo
     
@@ -91,8 +93,8 @@ contains
   subroutine kill_TStruct(str)
     type(TStruct_Info) :: str
     
-    deallocate(str%cont_start)
-    deallocate(str%cont_end)
+    !deallocate(str%cont_start)
+    !deallocate(str%cont_end)
     deallocate(str%mat_C_start)
     deallocate(str%mat_C_end)
     deallocate(str%cblk)

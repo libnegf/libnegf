@@ -14,16 +14,9 @@ private
      real(dp)  :: hartree         ! 
      real(dp)  :: a_u             ! 
      integer   :: verbose         ! livello di verbosita`
-     integer   :: ncont           ! Numero di contatti
      integer   :: Np(4)           ! Numero di punti di quadratura
      integer   :: nPoles          ! Numero di poli inclusi
      integer   :: N_omega         ! Numero di kT per l'integrazione (10)  
-
-     integer   :: iatm(2)         ! 1 e ultimo atomo zona centrale    
-     integer   :: iatc(3,MAXNCONT)! 1 e ultimo atomo dei contatti
-
-     integer   :: ncdim(MAXNCONT)      ! dimensione matrice contatti
-     integer   :: mbound_end(MAXNCONT) ! serve ? 
 
      real(dp)  :: Temp            ! Temperatura (Fermi)
      real(dp)  :: Efermi(MAXNCONT)! Energia di Fermi dei contatti
@@ -34,7 +27,8 @@ private
      
      logical   :: cluster         
      logical   :: Readold         
-     logical   :: FictCont(MAXNCONT)   
+     logical   :: FictCont(MAXNCONT)
+   
   end type Tparam
 
 
@@ -46,10 +40,6 @@ subroutine init_defaults(param)
   type(Tparam) :: param
 
  param%verbose=0
- param%iatc(:,:)=0
- param%iatm(:)=0
- param%ncdim(:)=0
- param%mbound_end(:)=0
  param%Np(:)=20
  param%N_omega=10
  param%nPoles=0
@@ -57,7 +47,6 @@ subroutine init_defaults(param)
  param%hartree=HAR      ! this sets the conversion factors as set 
  param%a_u=ATU           ! in constants.F90
  param%Temp=0.0_dp
- param%LmbMax=0.50_dp
  param%Efermi(:)=0.0_dp
  param%Elow=-50.0_dp
  param%DOS(:)=0.0_dp

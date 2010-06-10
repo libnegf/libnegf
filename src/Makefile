@@ -42,7 +42,7 @@ endif
 
 .F90.o:
 	@$(FPP) $*.F90 > $*.f90
-	#./rmhash $*.f90
+	@#./rmhash $*.f90
 	$(FC90) $(FFLAGS) -c $*.f90
 	\rm -f $*.f90
 

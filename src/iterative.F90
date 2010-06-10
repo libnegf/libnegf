@@ -21,7 +21,7 @@ MODULE iterative
   USE sparsekit_drv
   USE inversions
   !USE parameters, only : ncont, ncdim
-  !use structure, only : nbl, indblk, cblk, cindblk, cstartblk
+  !use structure, only : nbl, indblk, cblk, cindblk
   !use clock
 
   private
@@ -83,7 +83,7 @@ CONTAINS
   !
   !**********************************************************************
 
-  SUBROUTINE sub_ESH(ESH_tot,ESH)
+  SUBROUTINE sub_ESH(ESH_tot,ESH,nbl,indblk)
 
     !**********************************************************************
     !Input:
@@ -98,7 +98,10 @@ CONTAINS
 
     INTEGER :: ierr, i
     TYPE(z_CSR) :: ESH_tot
+    INTEGER :: nbl
     TYPE(z_CSR), DIMENSION(nbl,nbl) :: ESH
+    INTEGER :: indblk(nbl)
+
 
     DO i=1,nbl
 
@@ -2909,7 +2912,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_eq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,min,Aout,lower_outer)
+  SUBROUTINE calls_eq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,Aout,lower_outer)
 
     !****************************************************************************
     !
@@ -2935,7 +2938,6 @@ CONTAINS
     TYPE(z_CSR) :: H, S, Aout
     TYPE(z_CSR), DIMENSION(ncont) :: SelfEneR, Tlc, Tcl, gsurfR 
     COMPLEX(8) :: E
-    INTEGER :: min
     LOGICAL, OPTIONAL :: lower_outer
 
     !Work
@@ -2958,7 +2960,7 @@ CONTAINS
     ALLOCATE(ESH(nbl,nbl),stat=ierr)
     IF (ierr.EQ.1) STOP 'Error in ESH allocation'
 
-    CALL sub_ESH(ESH_tot,ESH)
+    CALL sub_ESH(ESH_tot,ESH,nbl,indblk)
     !CALL destroy(ESH_tot)
 
     DO i=1,ncont
