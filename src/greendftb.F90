@@ -39,7 +39,7 @@ module GreenDftb
 
 contains
   
-  subroutine contour_int(H,S,param,DensMat,EnMat,param, struct)     
+  subroutine contour_int(H,S,param,struct,DensMat,EnMat)     
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     !% Subroutine GreenDftb ver. 5.0

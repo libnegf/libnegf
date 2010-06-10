@@ -20,8 +20,8 @@ MODULE iterative
   USE mat_def
   USE sparsekit_drv
   USE inversions
-  USE parameters, only : ncont, ncdim
-  use structure, only : nbl, indblk, cblk, cindblk, cstartblk
+  !USE parameters, only : ncont, ncdim
+  !use structure, only : nbl, indblk, cblk, cindblk, cstartblk
   !use clock
 
   private

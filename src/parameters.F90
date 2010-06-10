@@ -11,30 +11,29 @@ private
   integer, public, parameter :: MAXNCONT=10
 
   type Tparam
-     real(dp)  :: hartree
-     real(dp)  :: a_u
-     integer   :: verbose
-     integer   :: ncont
-     integer   :: iatm(2)
-     integer   :: N_omega
-     integer   :: Np(4)
-     integer   :: nPoles
-     integer   :: niter
+     real(dp)  :: hartree         ! 
+     real(dp)  :: a_u             ! 
+     integer   :: verbose         ! livello di verbosita`
+     integer   :: ncont           ! Numero di contatti
+     integer   :: Np(4)           ! Numero di punti di quadratura
+     integer   :: nPoles          ! Numero di poli inclusi
+     integer   :: N_omega         ! Numero di kT per l'integrazione (10)  
 
-     integer   :: iatc(3,MAXNCONT)
-     integer   :: ncdim(MAXNCONT)
-     integer   :: mbound_end(MAXNCONT)
+     integer   :: iatm(2)         ! 1 e ultimo atomo zona centrale    
+     integer   :: iatc(3,MAXNCONT)! 1 e ultimo atomo dei contatti
 
-     real(dp)  :: Temp   
-     real(dp)  :: Efermi(MAXNCONT)
-     real(dp)  :: mu(MAXNCONT)
+     integer   :: ncdim(MAXNCONT)      ! dimensione matrice contatti
+     integer   :: mbound_end(MAXNCONT) ! serve ? 
+
+     real(dp)  :: Temp            ! Temperatura (Fermi)
+     real(dp)  :: Efermi(MAXNCONT)! Energia di Fermi dei contatti
+     real(dp)  :: mu(MAXNCONT)    ! Potenziale elettrico
      real(dp)  :: DOS(MAXNCONT)
-     real(dp)  :: LmbMax
-     real(dp)  :: delta
-     real(dp)  :: Elow
+     real(dp)  :: delta           ! delta per le G.F. (1e-5)
+     real(dp)  :: Elow            ! Lowest energy (-50 eV)
      
-     logical   :: cluster
-     logical   :: Readold
+     logical   :: cluster         
+     logical   :: Readold         
      logical   :: FictCont(MAXNCONT)   
   end type Tparam
 
@@ -52,7 +51,7 @@ subroutine init_defaults(param)
  param%ncdim(:)=0
  param%mbound_end(:)=0
  param%Np(:)=20
- param%N_omega=35
+ param%N_omega=10
  param%nPoles=0
 
  param%hartree=HAR      ! this sets the conversion factors as set 
