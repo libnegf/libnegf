@@ -53,10 +53,10 @@ endif
 # The real stuff
 ######################################################################
 
-MODULES = allocation.o constants.o precision.o mat_def.o  \
-          clock.o fermi.o iterative.o complexbands.o \
-          sparsekit_drv.o structure.o inversions.o outmatrix.o \
-          scattstates.o mpi_globals.o    
+MODULES = mpi_globals.o constants.o precision.o allocation.o \
+	  mat_def.o clock.o fermi.o iterative.o complexbands.o \
+          sparsekit_drv.o structure.o inversions.o outmatrix.o 
+              
 
 all: $(TARGET)
 
@@ -92,8 +92,8 @@ greendftb.o: 	 constants.o parameters.o sparsekit_drv.o neighbours.o
 greendftb.o:     mat_def.o structure.o contselfenergy.o clock.o fermi.o
 greendftb.o:     iterative.o 
 
-scattstates.o:   precision.o constants.o mat_def.o sparsekit_drv.o
-scattstates.o:   allocation.o contselfenergy.o complexbands.o inversions.o
+#scattstates.o:   precision.o constants.o mat_def.o sparsekit_drv.o
+#scattstates.o:   allocation.o contselfenergy.o complexbands.o inversions.o
 
 
 ######################################################################

@@ -17,6 +17,7 @@ private
      integer   :: Np(4)           ! Numero di punti di quadratura
      integer   :: nPoles          ! Numero di poli inclusi
      integer   :: N_omega         ! Numero di kT per l'integrazione (10)  
+     integer   :: activecont      ! Active contact
 
      real(dp)  :: Temp            ! Temperatura (Fermi)
      real(dp)  :: Efermi(MAXNCONT)! Energia di Fermi dei contatti
@@ -26,9 +27,13 @@ private
      real(dp)  :: Elow            ! Lowest energy (-50 eV)
      
      logical   :: cluster         
-     logical   :: Readold         
+     logical   :: ReadoldSGF         
      logical   :: FictCont(MAXNCONT)
+     character(1) :: DorE           !Density or En.Density
    
+     integer :: contdim(MAXNCONT)  !contact dimension
+     integer :: surfdim(MAXNCONT)  !surface dimension
+
   end type Tparam
 
 
@@ -54,8 +59,9 @@ subroutine init_defaults(param)
  param%mu(:)=0.0_dp
 
  param%FictCont(:)=.false.
- param%Readold=.false.
+ param%ReadoldSGF=.false.
  param%cluster=.false.
+ param%DorE='D'
 
 end subroutine
 

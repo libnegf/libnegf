@@ -13,6 +13,7 @@ module GreenDftb
 
   use precision
   use constants 
+  use mpi_globals
   use allocation
   use parameters, only : Tparam, MAXNCONT
   use mat_def
@@ -22,7 +23,7 @@ module GreenDftb
   use iterative
   use fermi_dist
   use clock
-  use mpi_globals
+
   
   implicit none
   private
@@ -49,7 +50,7 @@ contains
     !% Input arrays and variables
     type(z_CSR), intent(in) :: H           ! hamiltonian
     type(z_CSR), intent(in) :: S	   ! overlap
-    type(Tparam), intent(in) :: param
+    type(Tparam), intent(inout) :: param
     type(TStruct_Info), intent(in) :: struct 
 
     !% Output arrays
@@ -58,13 +59,13 @@ contains
     
     
     !% Local Array and variables    
-    type(z_CSR) :: HM,SM                   ! molecular HAM and OVR
+    type(z_CSR) :: HM,SM                               ! molecular HAM and OVR
     type(z_CSR) :: TM(MAXNCONT),ST(MAXNCONT)           ! contact-mol HAM and OVR
-    type(z_CSR) :: GS(MAXNCONT)                  ! surface Green functions
-    type(z_CSR) :: SelfEneR(MAXNCONT)            ! 
+    type(z_CSR) :: GS(MAXNCONT)                        ! surface Green functions
+    type(z_CSR) :: SelfEneR(MAXNCONT)                  ! 
     type(z_CSR) :: Tlc(MAXNCONT),Tcl(MAXNCONT)         ! Temporary matrices E ST - TM
-    type(z_CSR) :: GreenR                  ! Green's Function
-    
+    type(z_CSR) :: GreenR                              ! Green's Function
+    type(z_CSR) :: TpMt                                ! Temporary matrix    
 #ifdef MPI
     real(dp), dimension(:), allocatable :: Mat_st      ! MPI mat storage
     real(dp), dimension(:), allocatable :: Mat_rcv     ! MPI mat storage
@@ -198,8 +199,9 @@ contains
     if (.not.cluster) then
       do i=1,ncont
         !call destroy(TM(i))
-        i1=cstartblk(i); i2=indblk(cblk(i)+1)-1 
-        j1=cstart(i); j2=j1+ncdim(i)/2 - 1
+        i1=struct%mat_PL_start(struct%cblk(i))
+        i2=struct%mat_PL_end(struct%cblk(i)) 
+        j1=cstart(i); j2=cend(i)
         !if(id0) write(*,*) 'Interaction block:',i1,i2,j1,j2
         call zextract(H,i1,i2,j1,j2,TM(i))         
         call zextract(S,i1,i2,j1,j2,ST(i))
@@ -232,21 +234,18 @@ contains
     !if(id0) open(47,file='partial.dat')
 
     !If at first SCC cycle save surf. green's else load
-
-    if (param%iter.eq.1) then 
-      sgflag = 2
-    else
-      sgflag = 0
-    endif
-
     !If ReadOldSGF is true then flag is forced to 0, so it reads
 
-    if (param%Readold) then 
+    if (param%iter.eq.1) then 
+      param%ReadOldSGF = 2
+    else
+      param%ReadOldSGF = 0
+    endif
+    if (param%ReadoldSGF) then 
       sgflag = 0
     endif
 
-    avncyc = 0.0       !average number of decimation iteration for SGFs computation
-
+    avncyc = 0.0   !average number of decimation iteration for SGFs computation     
 
     ! ***************************************************************************
     ! 1.  INTEGRATION OVER THE CIRCLE FROM ALPHA TO PI ...Np(1)
@@ -292,26 +291,25 @@ contains
     ! ***********************************************************************
     !  INTEGRATION OVER THE CIRCLE ...Np(1)
     ! ***********************************************************************
-    ! OLD INTEGRATION FOR REAL DENSITY:
+    ! NEW INTEGRATION FOR COMPLEX DENSITY:
     !----------------------------------------------------
-    !    2   [ /           ]     2    [ /        it   ] 
-    ! - ---Im[ | Gr(z) dz  ] = - -- Re[ | Gr(t)Re  dt ]  
-    !    pi  [ /           ]     pi   [ /             ]
-    !----------------------------------------------------
+    !   2  [ /           ]     1  [ /         it   ] 
+    !  --- [ | Gr(z) dz  ] =   -- [ | iGr(t)Re  dt ]  
+    !  2pi [ /           ]     pi [ /              ]
+    !---------------------------------------------------
+
     do i = istart,iend
 
       if (verbose.gt.VBT) then 
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point # ',i,'/',iend,'  CPU=&
+        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
             &', id
-        
-        !call flush(6)          
       endif
 
       teta = pnts(i)
 
       Pc = Rad*exp(j*teta)
       Ec = Centre+Pc
-      dt = -2.d0*wght(i)/pi  ! 2.0 for spin  
+      dt = 1.d0*wght(i)/pi  ! 2.0 for spin  
 
       ! -----------------------------------------------------------------------
       !  Calculation of contact self-energies
@@ -321,7 +319,8 @@ contains
       ! -----------------------------------------------------------------------
       if (.not.cluster) then
          do l=1,ncont
-            call surface_green(Ec,l,HC_d(l),SC_d(l),sgflag,i,ncyc,GS_d(l),GS(l))
+            param%activecont=l
+            call surface_green(Ec,HC_d(l),SC_d(l),param,i,ncyc,GS_d(l),GS(l))
             avncyc = avncyc + ncyc
          enddo
       endif
@@ -336,19 +335,15 @@ contains
       !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact)
 
       do i1=1,ncont
-        ncol = ncdim(i1)
-
-        !if(id0) write(*,*) 'ncdim:',ncdim(i1)
         
         call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
 
-        !if(id0) write(*,*) 'Tlc:',Tlc(i1)%nrow,Tlc(i1)%ncol
+        call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
 
-        ! Make transposition. Transpose is not good for k-points.
-        call ztransp2_st(Tlc(i1),Tcl(i1))
+        call zdagacsr(TpMt,Tcl(i1))
 
-        !if(id0) write(*,*) 'Tcl:',Tcl(i1)%nrow,Tcl(i1)%ncol
-        !if(id0) write(*,*) 'GS:',GS(i1)%nrow,GS(i1)%ncol
+        call destroy(TpMt)
+
       enddo
 
     
@@ -382,9 +377,12 @@ contains
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------
-      CALL concat(DensMat,dt*Pc,GreenR,'R',1,1)
-
-      CALL concat(EnMat,dt*Pc*Ec,GreenR,'R',1,1)
+      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+         CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
+      endif
+      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+         CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
+      endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
 
@@ -414,6 +412,12 @@ contains
     ! 2. INTEGRATION OVER THE SEGMENT [mumin+Omega+j*Lambda,mumin-Omega+j*Lambda]
     ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
     ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
+    !----------------------------------------------------
+    !   2  [ /           ]     1  [ /                  ] 
+    !  --- [ |  Gr(z) dz ] =   -- [ | Gr(z)*(z2-z1)*dt ]  
+    !  2pi [ /           ]     pi [ /                  ]
+    !----------------------------------------------------
 
     if (Temp.eq.0.d0) then                        ! Circle integration T=0
 
@@ -447,7 +451,7 @@ contains
     do i = istart,iend
 
       if (verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point # ',i,'/',iend,'  CPU=&
+        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
             &', id
         
         !call flush(6)
@@ -459,12 +463,12 @@ contains
 
         Pc = Rad*exp(j*teta)
         Ec = Centre+Pc
-        dt = -2.d0*wght(i)/pi
+        dt = 1.d0*wght(i)/pi
 
       else                                        ! Segment integration T>0
 
         Ec = z1 + teta*z_diff
-        dt = -2.d0*wght(i)/pi
+        dt = 1.d0*wght(i)/pi
 
       endif
 
@@ -486,10 +490,15 @@ contains
       !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact) 
 
       do i1=1,ncont
-        ncol = ncdim(i1)
+
         call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-        ! Make transposition in place. Transpose is not good for k-points.
-        call ztransp2_st(Tlc(i1),Tcl(i1))
+
+        call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),conjg(Ec),TpMT)
+
+        call zdagacsr(TpMt,Tcl(i1))
+
+        call destroy(TpMt)
+
       enddo
 
       call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
@@ -524,15 +533,23 @@ contains
       ! ------------------------------------------------------------------------------  
       if (Temp.eq.0.d0) then
 
-        CALL concat(DensMat,dt*Pc,GreenR,'R',1,1)
-        CALL concat(EnMat,dt*Pc*Ec,GreenR,'R',1,1)
+         if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+            CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
+         endif
+         if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+            CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
+         endif
 
       else
 
         zt=z_diff*fermi_fc(Ec,mumin,Kb*Temp)*dt
-        CALL concat(DensMat,zt,GreenR,'I',1,1)
+        if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+           CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
+        endif
         zt=zt*Ec
-        CALL concat(EnMat,zt,GreenR,'I',1,1)
+        if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+           CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
+        endif
 
       endif
  
@@ -559,6 +576,12 @@ contains
     ! *******************************************************************************
     ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR
     ! *******************************************************************************          
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
+    !---------------------------------------------------------------------
+    !             [ 2                  ]    1      
+    !  2 pi j* Res[ -- *Gr(z_k)f(z_k)  ] =  -- *2*pi*j*(-kb T)* Gr(z_k)     
+    !             [ 2pi                ]    pi     
+    !---------------------------------------------------------------------
     npid = int(NumPoles/numprocs)
     istart = id*npid+1
     if(id.ne.(numprocs-1)) then 
@@ -571,7 +594,6 @@ contains
 
       if (verbose.gt.VBT) then
         write(6,'(a17,i3,a1,i3,a6,i3)') 'POLES: point #',i,'/',iend,'  CPU=', id
-        !call flush(6)
       endif
 
       Ec = mumin + j*Kb*Temp*pi*(2.d0*i-1)       
@@ -586,10 +608,15 @@ contains
 
       ! -- GF Calculation ----------------------------------------------------
       do i1=1,ncont
-        ncol = ncdim(i1)
+
         call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-        ! Make transposition in place. Transpose is not good for k-points.
-        call ztransp2_st(Tlc(i1),Tcl(i1))
+
+        call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
+
+        call zdagacsr(TpMt,Tcl(i1))
+
+        call destroy(TpMt)
+
       enddo
 
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
@@ -610,10 +637,17 @@ contains
 
       if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
-      zt=4.d0*Kb*Temp*(1.d0,0.d0) ! -2.0/pi * (2*pi*j)  * (-kb*T) <- Residue
-      CALL concat(DensMat,zt,GreenR,'R',1,1)
+      zt= -j*2.d0*Kb*Temp*(1.d0,0.d0) ! -2.0/pi * (2*pi*j)  * (-kb*T) <- Residue
+
+      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+         CALL concat(DensMat,zt,GreenR,1,1)
+      endif
+
       zt=zt*Ec
-      CALL concat(EnMat,zt,GreenR,'R',1,1)
+
+      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+         CALL concat(EnMat,zt,GreenR,1,1)
+      endif
 
       CALL destroy(GreenR) 
 
@@ -631,10 +665,37 @@ contains
     !   call writePeakInfo(6)
     !   write(*,*) '----------------------------------------------------'
     !endif 
+    ! -------------------------------------------------------------------------   
+    ! Build Specral density, i(Gr-Ga), for the equilibrium part
+    ! -------------------------------------------------------------------------
+    
+    if(flag.eq.'D'.or.flag.eq.'B') then
+      call zspectral(DensMat,DensMat,0,TpMt)
+      ! To do: check outer blocks of DensMat !
+      call destroy(DensMat)
+      call clone(TpMt,DensMat)
+      call destroy(TpMt)
+    end if
+    if(flag.eq.'E'.or.flag.eq.'B') then
+      call zspectral(EnMat,EnMat,0,TpMt)
+      ! To do: check outer blocks of DensMat !
+      call destroy(EnMat)
+      call clone(TpMt,EnMat)
+      call destroy(TpMt)
+    end if
+
+
 
     ! *******************************************************************************
     ! 4. INTEGRATION OVER THE REAL SEGMENT ...Np(3)
     ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
+    !----------------------------------------------------------
+    !    2    [ /           ]     1  /                  
+    !  ------ [ | G<(E) dE  ] =   -- | Gr(E)*GAM_c(E)*Ga(E)*dE   
+    !  2 pi i [ /           ]     pi /                  
+    !----------------------------------------------------------
+    
     if (mumax.gt.mumin) then 
       ! Real segment integration
       deallocate(pnts,wght)
@@ -664,23 +725,19 @@ contains
       do i = istart,iend
 
         if (verbose.gt.VBT) then
-          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point # ',i,'/',iend,'  CP&
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point #',i,'/',iend,'  CP&
               &U=', id
-          
-          !call flush(6)
         endif
 
-        Ec = pnts(i)+j * param%delta
+        Ec = pnts(i) + j * param%delta
         dt = wght(i)/pi
 
         do j1=1,ncont
-          !write(*,*) dreal(Ec), Efermi(j1)-mu(j1), Temp
           frm_f(j1)=fermi_f(dreal(Ec),Efermi(j1)-mu(j1),Kb*Temp)
         enddo
 
         ! Real segment integration
         if (.not.cluster) then
-          !write(*,*) 'SGF'
            do l=1,ncont
               call surface_green(Ec,l,HC_d(l),SC_d(l),sgflag,&
                    Np(1)+Np(2)+i,ncyc,GS_d(l),GS(l))
@@ -695,10 +752,13 @@ contains
         !Array di GS sparse.
 
         do i1=1,ncont
-          ncol = ncdim(i1)
           call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-          ! Make transposition in place. Transpose is not good for k-points.
-          call ztransp2_st(Tlc(i1),Tcl(i1))
+
+          call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),congj(Ec),TpMt)          
+
+          call zdagacsr(TpMt,Tcl(i1))
+          
+          call destroy(TpMt)
         enddo
 
         if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
@@ -720,9 +780,14 @@ contains
         if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
         zt=dt*(1.d0,0.d0)
-        CALL concat(DensMat,zt,GreenR,'R',1,1)
+        if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+           CALL concat(DensMat,zt,GreenR,1,1)
+        endif
+
         zt=zt*Ec
-        CALL concat(EnMat,zt,GreenR,'R',1,1)
+        if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+           CALL concat(DensMat,zt,GreenR,1,1)
+        endif
 
         call destroy(GreenR)         
 
@@ -766,39 +831,49 @@ contains
 
 #ifdef MPI
     if ((id0).and.verbose.gt.VBT) call message_clock('MPI gather masking ') 
-    !Masking DensMat for MPI 
-    !CALL mask_dens2(DensMat,S)
-    CALL  msort(DensMat)
-    !CALL mask_dens2(EnMat,S)
-    CALL  msort(EnMat)
+    !sorting DensMat for MPI 
+    if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+       CALL  msort(DensMat)
+    endif
+    if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+       CALL  msort(EnMat)
+    endif
 
     call MPI_BARRIER( mpi_comm, ierr)
 
-    ibsize=DensMat%nnz
-    call log_allocate(Mat_st,ibsize)
-    Mat_st(1:ibsize)=DensMat%nzval(1:ibsize)
-    call log_allocate(Mat_rcv,ibsize)
-    Mat_rcv(1:ibsize)=0.d0
+    if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+       ibsize=DensMat%nnz
+       call log_allocate(Mat_st,ibsize)
+       call log_allocate(Mat_rcv,ibsize)
 
-    call MPI_ALLREDUCE(Mat_st,Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,MPI_SUM,mpi_comm,ierr)
-    call log_deallocate(Mat_st)
-    !call MPI_BCAST(Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,0,mpi_comm,ierr)
+       Mat_st(1:ibsize)=DensMat%nzval(1:ibsize)
+       Mat_rcv(1:ibsize)=0.d0
+       
+       call MPI_ALLREDUCE(Mat_st,Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,&
+                                               MPI_SUM,mpi_comm,ierr)
 
-    DensMat%nzval(1:ibsize)=Mat_rcv(1:ibsize)
-    call log_deallocate(Mat_rcv)
+       DensMat%nzval(1:ibsize)=Mat_rcv(1:ibsize)
 
-    ibsize=EnMat%nnz
-    call log_allocate(Mat_st,ibsize)
-    Mat_st(1:ibsize)=EnMat%nzval(1:ibsize)
-    call log_allocate(Mat_rcv,ibsize)
-    Mat_rcv(1:ibsize)=0.d0
+       call log_deallocate(Mat_st)
+       call log_deallocate(Mat_rcv)
+    endif
 
-    call MPI_ALLREDUCE(Mat_st,Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,MPI_SUM,mpi_comm,ierr)
-    call log_deallocate(Mat_st)
-    !call MPI_BCAST(Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,0,mpi_comm,ierr)
+    if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+       ibsize=EnMat%nnz
+       call log_allocate(Mat_st,ibsize)
+       call log_allocate(Mat_rcv,ibsize)
 
-    EnMat%nzval(1:ibsize)=Mat_rcv(1:ibsize)
-    call log_deallocate(Mat_rcv)
+       Mat_st(1:ibsize)=EnMat%nzval(1:ibsize)
+       Mat_rcv(1:ibsize)=0.d0
+       
+       call MPI_ALLREDUCE(Mat_st,Mat_rcv,ibsize,MPI_DOUBLE_PRECISION,&
+                                               MPI_SUM,mpi_comm,ierr)
+
+       EnMat%nzval(1:ibsize)=Mat_rcv(1:ibsize)
+
+       call log_deallocate(Mat_st)
+       call log_deallocate(Mat_rcv)
+    endif
 
     if (id0.and.verbose.gt.VBT) call write_clock
 #endif
@@ -806,7 +881,7 @@ contains
     if (id0.and.verbose.gt.VBT) then
       write(*,'(73("="))')
       write(*,'(A,f8.3)') 'Average number of decimation iter.:', &
-                            avncyc*1.0*numprocs/(Np(1)+Np(2)+Np(3)+NumPoles)
+           avncyc*1.0*numprocs/(Np(1)+Np(2)+Np(3)+2*npT+NumPoles)
     endif
 
     if(id0.and.verbose.gt.70) then
