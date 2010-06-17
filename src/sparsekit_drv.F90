@@ -1671,6 +1671,7 @@ CONTAINS
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        WRITE(*,*) 'WARNING (zmult_csr): matrices don''t match';
+       WRITE(*,*) 'A%ncol=',A_csr%ncol,'B%nrow=',B_csr%nrow       
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0)) THEN
@@ -1756,7 +1757,8 @@ CONTAINS
     integer :: ierr,A_ncol,B_ncol,nnz
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-       WRITE(*,*) 'WARNING (zmult_csr): matrices don''t match';
+       WRITE(*,*) 'WARNING (zmultccsr): matrices don''t match';
+       WRITE(*,*) 'A%ncol=',A_csr%ncol,'B%nrow=',B_csr%nrow  
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -1846,7 +1848,7 @@ CONTAINS
     complex(dp), parameter :: beta =(0.d0,0.d0)
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zmult_csr): matrices don''t match';
+       WRITE(*,*) 'WARNING (zmultdns): matrices don''t match';
     ENDIF
 
     M = A_dns%nrow
@@ -1890,7 +1892,7 @@ CONTAINS
     complex(dp), parameter :: beta =(0.d0,0.d0)
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zmult_csr): matrices don''t match';
+       WRITE(*,*) 'WARNING (zmultdnss): matrices don''t match';
     ENDIF
 
     M = A_dns%nrow

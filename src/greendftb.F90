@@ -54,8 +54,8 @@ contains
     type(TStruct_Info), intent(in) :: struct 
 
     !% Output arrays
-    type(r_CSR), intent(out) :: DensMat                 ! Density Matrix
-    type(r_CSR), intent(out) :: EnMat                   ! Energy wighted Density Matrix
+    type(z_CSR), intent(inout) :: DensMat              ! Density Matrix
+    type(z_CSR), intent(inout) :: EnMat                ! Energy wighted Density Matrix
     
     
     !% Local Array and variables    
@@ -78,16 +78,15 @@ contains
 
     integer :: cstart(MAXNCONT),cend(MAXNCONT),nmdim        ! Structure specifications
     integer :: ncdim(MAXNCONT)
-    integer :: err, sgflag, tmp,ncol, nc, npid, nn, ncont   ! Assistence variables
+    integer :: err, tmp,ncol, nc, npid, nn, ncont           ! Assistence variables
     integer :: i, k, l, i1, i2, j1, j2                      ! Assistence variables
-    integer :: imin, imax, NumPoles, istart,iend            ! Integration counters
-    integer :: nc_vec(1), ibsize, npT, Np(4), N_omega
+    integer :: imin, imax, NumPoles, istart, iend, npc      ! Integration counters
+    integer :: nc_vec(1), ibsize, npT, Np(4), N_omega, verbose
     real(dp) :: ncyc, avncyc                           ! Average num. decimations
     real(dp) :: Efermi(MAXNCONT), frm_f(MAXNCONT), mu(MAXNCONT)
     real(dp) :: E, dd, mumin, mumax                
-    real(dp) :: Rad, Centre, Lambda, Omega
+    real(dp) :: Rad, Centre, Lambda, Omega, Temp, Elow
     real(dp) :: c1,c2,T,teta,dt,alpha
-    logical :: cluster
     complex(kind=dp) :: Ec,Pc,z1,z2,z_diff,zt                  ! Integration variables
 
     character(2) :: of
@@ -96,30 +95,37 @@ contains
 
     ! Trasferimento variabili locali dal contenitore
     ! ------------------------------------------------------------------------
-
+    verbose = param%verbose
     Np = param%Np
     NumPoles = param%nPoles
     Temp = param%Temp
     Efermi = param%Efermi
     mu = param%mu
     N_omega = param%N_omega
-    cluster = param%cluster
+    Elow = param%Elow
 
     ncont = struct%num_conts
     do i=1,ncont
-      cstart(i)=struct%mat_C_start(i)
-      cend(i)  =struct%mat_C_end(i)
-      ncdim(i) =cend(i)-cstart(i)+1
+      cstart(i) = struct%mat_B_start(i)
+      cend(i)   = struct%mat_C_end(i)
+      ncdim(i)  = cend(i)-cstart(i)+1
+
+      param%contdim(i) = ncdim(i)
+      param%surfdim(i) = struct%mat_C_start(i) - struct%mat_B_start(i)
+
+      write(*,*) '(int)',i,cstart(i),cend(i),param%surfdim(i),ncdim(i)
     enddo
     nmdim = struct%central_dim
-   
-
+  
+    write(*,*) '(int) nmdim=',nmdim
+    
+    ! ------------------------------------------------------------------------
     if (Temp.ne.0.d0) then
 
       if (NumPoles.ne.0) then
         Lambda = 2.d0*NumPoles*Kb*Temp*pi
       else
-        Lambda = 0.d0
+        Lambda = 0.5d0*Kb*Temp*pi
       end if
 
     else   
@@ -139,7 +145,7 @@ contains
     !if(id0.and.verbose.gt.60) write(*,'(73("*"))')
     !-------------------------------------------------------------------- 
 
-
+    print*, '(int) extract central'
     !if(id0) then
     !   call writeMemInfo(6)
     !   call writePeakInfo(6)
@@ -154,24 +160,23 @@ contains
     ! -------------------------------------------------------------
     !  Extract Device-Contact blocks
     ! -------------------------------------------------------------
-    if (.not.cluster) then
-      do i=1,ncont
 
-        call zextract_dns(H,cstart(i),cend(i),cstart(i),cend(i),HC_d(i))
-
-        !write(of,'(i2.2)') i  
-        !open(50,file='./contacts/HC_'//of//'.dat')
-        !do k = 1, ncdim(i)
-        !   do l = 1, k
-        !      write(50,'(2i8,f20.10)') k, l, real(HC_d(i)%val(k,l))
-        !   enddo
-        !enddo
-        !close(50)
-
-        call zextract_dns(S,cstart(i),cend(i),cstart(i),cend(i),SC_d(i))
-
-      enddo
-    endif
+    do i=1,ncont
+       print*, '(int) extract contact',i
+       call zextract_dns(H,cstart(i),cend(i),cstart(i),cend(i),HC_d(i))
+       
+       !write(of,'(i2.2)') i  
+       !open(50,file='./contacts/HC_'//of//'.dat')
+       !do k = 1, ncdim(i)
+       !   do l = 1, k
+       !      write(50,'(2i8,f20.10)') k, l, real(HC_d(i)%val(k,l))
+       !   enddo
+       !enddo
+       !close(50)
+       
+       call zextract_dns(S,cstart(i),cend(i),cstart(i),cend(i),SC_d(i))
+       
+    enddo
 
     ! Set blocks interacting with contacts.
     ! ...............................................................
@@ -196,29 +201,27 @@ contains
     !  endif
     !endif
 
-    if (.not.cluster) then
-      do i=1,ncont
-        !call destroy(TM(i))
-        i1=struct%mat_PL_start(struct%cblk(i))
-        i2=struct%mat_PL_end(struct%cblk(i)) 
-        j1=cstart(i); j2=cend(i)
-        !if(id0) write(*,*) 'Interaction block:',i1,i2,j1,j2
-        call zextract(H,i1,i2,j1,j2,TM(i))         
-        call zextract(S,i1,i2,j1,j2,ST(i))
-
-        !if(id0.and.verbose.gt.VBT) then
-        !   write(*,*) 'TM:',TM(i)%nnz,TM(i)%nrow
-        !   write(*,*) 'ST:',ST(i)%nnz,ST(i)%nrow
-        !endif
-      enddo
-    endif
-
+    do i=1,ncont
+       print*, '(int) extract central-contact',i
+       !call destroy(TM(i))
+       i1=struct%mat_PL_start(struct%cblk(i))
+       i2=struct%mat_PL_end(struct%cblk(i)) 
+       j1=cstart(i); j2=j1+(ncdim(i)+param%surfdim(i))/2-1
+       print*, 'Interaction block:',i1,i2,j1,j2
+       call zextract(H,i1,i2,j1,j2,TM(i))         
+       call zextract(S,i1,i2,j1,j2,ST(i))
+       
+       !if(id0.and.verbose.gt.VBT) then
+       !   write(*,*) 'TM:',TM(i)%nnz,TM(i)%nrow
+       !   write(*,*) 'ST:',ST(i)%nnz,ST(i)%nrow
+       !endif
+    enddo
 
     !********************************************************************
     !****** MAIN LOOP OF GDFTB -> CHARGE or TUNNELING COMPUTATIONS ******
     !********************************************************************
 
-    if (cluster) then
+    if (ncont.eq.0) then
       mumin=Efermi(1)
       mumax=mumin
     else  
@@ -241,15 +244,18 @@ contains
     else
       param%ReadOldSGF = 0
     endif
-    if (param%ReadoldSGF) then 
-      sgflag = 0
-    endif
 
     avncyc = 0.0   !average number of decimation iteration for SGFs computation     
 
     ! ***************************************************************************
-    ! 1.  INTEGRATION OVER THE CIRCLE FROM ALPHA TO PI ...Np(1)
+    ! 1.  INTEGRATION OVER THE CIRCLE FROM PI...ALPHA  Np(1)
     ! ***************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY:
+    !----------------------------------------------------
+    !   2  [ /           ]     1  [ /         it   ] 
+    !  --- [ | Gr(z) dz  ] =   -- [ | iGr(t)Re  dt ]  
+    !  2pi [ /           ]     pi [ /              ]
+    !---------------------------------------------------
 
     Omega = N_omega*Kb*Temp
 
@@ -288,15 +294,6 @@ contains
     ! -----------------------------------------------------------------------
     !  Integration loop starts here
     ! -----------------------------------------------------------------------
-    ! ***********************************************************************
-    !  INTEGRATION OVER THE CIRCLE ...Np(1)
-    ! ***********************************************************************
-    ! NEW INTEGRATION FOR COMPLEX DENSITY:
-    !----------------------------------------------------
-    !   2  [ /           ]     1  [ /         it   ] 
-    !  --- [ | Gr(z) dz  ] =   -- [ | iGr(t)Re  dt ]  
-    !  2pi [ /           ]     pi [ /              ]
-    !---------------------------------------------------
 
     do i = istart,iend
 
@@ -317,13 +314,11 @@ contains
       ! For the time HC and SC are dense, GS is sparse (already allocated)
       ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
       ! -----------------------------------------------------------------------
-      if (.not.cluster) then
-         do l=1,ncont
-            param%activecont=l
-            call surface_green(Ec,HC_d(l),SC_d(l),param,i,ncyc,GS_d(l),GS(l))
-            avncyc = avncyc + ncyc
-         enddo
-      endif
+      do l=1,ncont
+         param%activecont=l
+         call surface_green(Ec,HC_d(l),SC_d(l),param,i,ncyc,GS_d(l),GS(l))
+         avncyc = avncyc + ncyc
+      enddo
 
       ! -- GF Calculation ----------------------------------------------------
       ! 
@@ -345,16 +340,16 @@ contains
         call destroy(TpMt)
 
       enddo
+print *, 'SelfEnergies'
+      call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
     
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-      call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
-
       if (mem) then 
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR) 
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct) 
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
+         !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -377,6 +372,8 @@ contains
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------
+  print *, DensMat%nrow, GreenR%nrow
+
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
          CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
       endif
@@ -410,7 +407,7 @@ contains
 
     ! *******************************************************************************
     ! 2. INTEGRATION OVER THE SEGMENT [mumin+Omega+j*Lambda,mumin-Omega+j*Lambda]
-    ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
+    ! (Temp /= 0) OR OVER THE CIRCLE  ALPHA..0   (Temp == 0)          Np(2)
     ! *******************************************************************************
     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
     !----------------------------------------------------
@@ -453,8 +450,6 @@ contains
       if (verbose.gt.VBT) then
         write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
             &', id
-        
-        !call flush(6)
       endif
 
       teta = pnts(i)
@@ -472,13 +467,12 @@ contains
 
       endif
 
-      if (.not.cluster) then
-         do l=1,ncont
-            call surface_green(Ec,l,HC_d(l),SC_d(l),sgflag,Np(1)+i,&
-                 ncyc,GS_d(l),GS(l))
-            avncyc = avncyc + ncyc
-         enddo
-      endif
+      do l=1,ncont
+         param%activecont=l
+         npc = Np(1) + i
+         call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))
+         avncyc = avncyc + ncyc
+      enddo
 
       ! -- GF Calculation ----------------------------------------------------
       ! 
@@ -501,14 +495,14 @@ contains
 
       enddo
 
-      call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
+      call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ') 
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
+         !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -560,9 +554,6 @@ contains
 
     end do
 
-    ! *******************************************************************************
-    !   END OF INTEGRATION OVER THE CIRCLE ...Np(2)
-    ! *******************************************************************************
     IF (profile) then
       CALL SYSTEM_CLOCK(t2g,crg,cmg)
       WRITE(*,*) '----- GREENDFTB: INTEGRATION OVER THE SEGMENT (2) --, CPU #',id
@@ -574,7 +565,7 @@ contains
 
 
     ! *******************************************************************************
-    ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR
+    ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
     ! *******************************************************************************          
     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
     !---------------------------------------------------------------------
@@ -597,15 +588,14 @@ contains
       endif
 
       Ec = mumin + j*Kb*Temp*pi*(2.d0*i-1)       
-
-      if (.not.cluster) then
-         do l=1,ncont
-            call surface_green(Ec,l,HC_d(l),SC_d(l),sgflag,&
-                 Np(1)+Np(2)+Np(3)+i,ncyc,GS_d(l),GS(l))
-            avncyc = avncyc + ncyc
-         enddo
-      endif
-
+      
+      do l=1,ncont
+         param%activecont=l
+         npc =  Np(1)+Np(2)+i
+         call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))
+         avncyc = avncyc + ncyc
+      enddo
+      
       ! -- GF Calculation ----------------------------------------------------
       do i1=1,ncont
 
@@ -621,12 +611,12 @@ contains
 
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-      call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
+      call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR);
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       else
-         call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR)
+         !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -669,14 +659,14 @@ contains
     ! Build Specral density, i(Gr-Ga), for the equilibrium part
     ! -------------------------------------------------------------------------
     
-    if(flag.eq.'D'.or.flag.eq.'B') then
+    if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
       call zspectral(DensMat,DensMat,0,TpMt)
       ! To do: check outer blocks of DensMat !
       call destroy(DensMat)
       call clone(TpMt,DensMat)
       call destroy(TpMt)
     end if
-    if(flag.eq.'E'.or.flag.eq.'B') then
+    if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
       call zspectral(EnMat,EnMat,0,TpMt)
       ! To do: check outer blocks of DensMat !
       call destroy(EnMat)
@@ -687,7 +677,7 @@ contains
 
 
     ! *******************************************************************************
-    ! 4. INTEGRATION OVER THE REAL SEGMENT ...Np(3)
+    ! 4. INTEGRATION OVER THE REAL SEGMENT mumin-Omega...mumax+Omega   Np(3)+2*npT
     ! *******************************************************************************
     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
     !----------------------------------------------------------
@@ -737,14 +727,13 @@ contains
         enddo
 
         ! Real segment integration
-        if (.not.cluster) then
-           do l=1,ncont
-              call surface_green(Ec,l,HC_d(l),SC_d(l),sgflag,&
-                   Np(1)+Np(2)+i,ncyc,GS_d(l),GS(l))
-              avncyc = avncyc + ncyc
-           enddo
-        endif
-
+        do l=1,ncont
+           param%activecont=l
+           npc = Np(1)+Np(2)+NumPoles+i
+           call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))            
+           avncyc = avncyc + ncyc
+        enddo
+        
         ! -- GF Calculation ----------------------------------------------------
         ! 
         !Tlc= Ec*ST - TM 
@@ -754,7 +743,7 @@ contains
         do i1=1,ncont
           call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
 
-          call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),congj(Ec),TpMt)          
+          call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)          
 
           call zdagacsr(TpMt,Tcl(i1))
           
@@ -763,12 +752,12 @@ contains
 
         if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-        call SelfEnergies(Ec,GS,Tlc,Tcl,SelfEneR)
+        call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
         if (mem) then
-           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,frm_f,nc,GreenR,i)
+           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR,i)
         else 
-           call calls_neq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,frm_f,nc,GreenR)
+           !call calls_neq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR)
         endif
 
         if (id0.and.verbose.gt.VBT) call write_clock      
@@ -797,9 +786,6 @@ contains
 
       enddo
 
-      ! *****************************************************************************
-      ! END OF INTEGRATION OVER THE REAL SEGMENT ...Np(3)
-      ! *****************************************************************************
       IF (profile) then
         CALL SYSTEM_CLOCK(t2g,crg,cmg)
         WRITE(*,*) '------ GREENDFTB: INTEGRATION OVER REAL SEGMENT ----'
@@ -825,11 +811,13 @@ contains
        call destroy(HC_d(i),SC_d(i))
        call destroy(TM(i),ST(i))
     enddo
-    !        
-    !MPI now we sum up all the contributions        
-    !
+
 
 #ifdef MPI
+    ! *******************************************************************************
+    !  MPI REDUCE ALL  (REDUCE D.M. ON ALL NODES) 
+    ! *******************************************************************************
+
     if ((id0).and.verbose.gt.VBT) call message_clock('MPI gather masking ') 
     !sorting DensMat for MPI 
     if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then

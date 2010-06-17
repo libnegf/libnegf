@@ -18,6 +18,7 @@ private
      integer   :: nPoles          ! Numero di poli inclusi
      integer   :: N_omega         ! Numero di kT per l'integrazione (10)  
      integer   :: activecont      ! Active contact
+     integer   :: iter
 
      real(dp)  :: Temp            ! Temperatura (Fermi)
      real(dp)  :: Efermi(MAXNCONT)! Energia di Fermi dei contatti
@@ -48,13 +49,14 @@ subroutine init_defaults(param)
  param%Np(:)=20
  param%N_omega=10
  param%nPoles=0
+ param%iter=1
 
  param%hartree=HAR      ! this sets the conversion factors as set 
  param%a_u=ATU           ! in constants.F90
  param%Temp=0.0_dp
  param%Efermi(:)=0.0_dp
  param%Elow=-50.0_dp
- param%DOS(:)=0.0_dp
+ param%DOS(:)=0.05_dp
  param%delta=1e-4_dp
  param%mu(:)=0.0_dp
 

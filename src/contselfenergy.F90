@@ -34,7 +34,7 @@ module ContSelfEnergy
 
   public :: surface_green !surface_green_2 
   public :: SelfEnergy
-  ! public :: SelfEnergies
+  public :: SelfEnergies
 
 contains
   !--------------------------------------------------------------------
@@ -293,20 +293,19 @@ contains
 
 
   !--------------------------------------------------------------------
-  !subroutine SelfEnergies(E,GS,Tlc,Tcl,SelfEneR)
-  !  complex(kind=dp) :: E
-  !  type(z_CSR) :: GS(10),Tlc(10),Tcl(10)
-
+  subroutine SelfEnergies(E,ncont,GS,Tlc,Tcl,SelfEneR)
+    complex(dp) :: E
+    integer :: ncont
+    type(z_CSR) :: GS(MAXNCONT),Tlc(MAXNCONT),Tcl(MAXNCONT)
     !OUTPUT
-  !  type(z_CSR) :: SelfEneR(10)
-
-  !  integer :: i 
-
-  !  do i = 1,ncont
-  !     call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
-  !  end do
-
-  !end subroutine SelfEnergies
+    type(z_CSR) :: SelfEneR(MAXNCONT)
+    integer :: i 
+    
+    do i = 1,ncont
+       call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
+    end do
+    
+  end subroutine SelfEnergies
 
   ! -------------------------------------------------------------
   subroutine SelfEnergy(GS,Tlc,Tcl,SelfEneR)
@@ -327,9 +326,11 @@ contains
        if (id0) write(*,*) 'SelfEne= 0'    
        return
     endif
-    
+
+    !print*, 'Tlc GS = TG', Tlc%ncol,GS%nrow    
+
     call prealloc_mult(Tlc,GS,TG)
-    !if (id0) write(*,*) 'Tlc GS', TG%nrow,TG%nnz
+    !print *, 'TG', TG%nrow,TG%nnz
     
     call prealloc_mult(TG,Tcl,SelfEneR)
     

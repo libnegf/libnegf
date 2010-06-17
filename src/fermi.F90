@@ -100,7 +100,7 @@ contains
     logical tzero
 
     ! machine accuracy
-    racc=get_machineacc()
+    racc=get_machine_prec()
     ! start defining occupation numbers and their derivatives 
     !
     do i = 1,ndim 

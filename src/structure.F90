@@ -3,7 +3,7 @@ module structure
 implicit none
 private
 
-public ::  TStruct_info, create_TStruct, kill_TStruct
+public ::  TStruct_info, create_TStruct, print_TStruct, kill_TStruct
 
 
 type TStruct_Info
@@ -44,7 +44,7 @@ contains
     integer :: i
     
     str%num_conts = ncont
-    str$num_PLs = nbl
+    str%num_PLs = nbl
     str%active_cont = 1
 
     allocate(str%mat_B_start(ncont))
@@ -55,15 +55,16 @@ contains
     str%mat_B_start(1) =  PL_end(nbl)+1   
     str%mat_C_start(1) =  surf_end(1)+1 
     str%mat_C_end(1)   =  cont_end(1)    
+    str%cblk(1) = cblk(1)
 
     do i=2,ncont
        str%mat_B_start(i) = cont_end(i-1) + 1  
-       str%mat_C_start(i) = surf_end(i-1) + 1 
-       str%mat_C_end(i)   = cont_end(i-1)
+       str%mat_C_start(i) = surf_end(i) + 1 
+       str%mat_C_end(i)   = cont_end(i)
        str%cblk(i) = cblk(i)
     enddo
 
-    allocate(str%mat_PL_start(nbl))
+    allocate(str%mat_PL_start(nbl+1))
     allocate(str%mat_PL_end(nbl))
     
     str%mat_PL_start(1) = 1
@@ -73,6 +74,7 @@ contains
        str%mat_PL_start(i) = PL_end(i-1)+1
        str%mat_PL_end(i) = PL_end(i)
     enddo
+    str%mat_PL_start(nbl+1)= PL_end(nbl)+1
 
     str%central_dim = PL_end(nbl)
     str%total_dim = cont_end(ncont)
@@ -90,7 +92,30 @@ contains
     deallocate(str%mat_PL_start)
     deallocate(str%mat_PL_end)
   end subroutine kill_TStruct
-  
-  
+
+  ! --------------------------------------------------------  
+  subroutine print_Tstruct(str)
+    type(Tstruct_Info) :: str
+    integer :: i
+
+    write(*,*) 'Hamiltonian Structure:'
+    write(*,*) 'num contacts:',str%num_conts 
+    write(*,*) 'num layers:',str%num_Pls
+    
+    do i=1,str%num_PLs
+       write(*,*) 'PL:',i, str%mat_PL_start(i), str%mat_PL_end(i)
+    enddo
+
+    write(*,*) 'central dim:',str%central_dim
+
+    do i=1,str%num_conts
+      write(*,*) 'S: ',i, str%mat_B_start(i), str%mat_C_start(i)-1      
+      write(*,*) 'C: ',i, str%mat_C_start(i), str%mat_C_end(i)
+      write(*,*) 'cont dim:',str%mat_C_end(i)-str%mat_C_start(i)+1
+    enddo  
+   
+    write(*,*) 'total dim:',str%total_dim
+
+  end subroutine print_Tstruct
 
 end module structure

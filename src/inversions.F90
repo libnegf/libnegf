@@ -16,7 +16,10 @@ INTEGER :: t1_i,t2_I,cr_i,cm_i,t1_ii,t2_ii,cr_ii,cm_ii
 LOGICAL, PARAMETER :: timing=.FALSE.
 
 public :: ZMSKINVP_LA,  ZMSKINVP_MA, zINVP_MA
-public :: zINV_LU, zINV_LAPACK
+public :: zINV_LAPACK
+#ifdef __SUPERLU
+public :: zINV_LU
+#endif
 #ifdef __PARDISO
 public :: zINV_PARDISO
 #endif
@@ -334,7 +337,7 @@ write(*,*) "Allocations and initializations for PGMRES solver"
 
 end subroutine zINVP_MA
 
-
+#ifdef __SUPERLU
 !*********************************************
 !                                            |
 !  SuperLU based inversion without masking   |
@@ -399,6 +402,7 @@ subroutine zINV_LU(A_csr, INV)
 
 end subroutine zINV_LU
 
+#endif
 
 !!$!************************************************
 !!$!                                               |
