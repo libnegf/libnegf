@@ -1,0 +1,32 @@
+        call zcsrcsc(n, job, ipos, a, ja, ia, ao, jao, iao)  ORDERINGS/zccn.f 
+        call zcsrcsc(n, job, ipos, ao, jao, iao, a, ja, ia)  ORDERINGS/zccn.f
+ 
+        call zskyline(n,sym,ja,ia,jao,iao,nsky)
+        call znonz_lud(n,ja,ia,nlower, nupper, ndiag) 
+        call zavnz_col(n,ja,ia,iao, ndiag, av, st)
+        call znonz(n,sym, ja, ia, iao, nzmaxc, nzminc,
+        call zdiag_domi(n,sym,valued,a, ja,ia,ao, jao, iao,
+        call zfrobnorm(n,sym,a,ja,ia,Fnorm)   
+        call zansym(n,sym,a,ja,ia,ao,jao,iao,imatch,av,fas,fan)
+        call zdistaij(n,nnz,sym,ja,ia,dist, std)
+        call zbandwidth(n,ja, ia, ml, mu, iband, bndav)
+c       call zpercentage_matrix(n,nnz,ja,ia,jao,90,jb2)
+        call zdistdiag(nrow,ncol,ja,ia,jao)
+        call zbandpart(n,ja,ia,jao,90,jb2)
+        call zn_imp_diag(n,nnz,jao,ipar1, ndiag,ioff,dcount)
+
+        call zblkfnd(n, ja, ia, nblk)               FORMATS/zunary.f    
+ 
+      subroutine zbandwidth(n,ja, ia, ml, mu, iband, bndav)
+      subroutine znonz(n,sym, ja, ia, iao, nzmaxc, nzminc, 
+      subroutine zdiag_domi(n,sym,valued,a, ja,ia,ao,jao, iao, 
+      subroutine zfrobnorm(n,sym,a,ja,ia,Fnorm)
+      subroutine zansym(n,sym,a,ja,ia,ao,jao,iao,imatch,
+      subroutine zdistaij(n,nnz,sym,ja,ia,dist, std)
+      subroutine zskyline(n,sym,ja,ia,jao,iao,nsky)
+      subroutine zdistdiag(nrow,ncol,ja,ia,dist)
+      subroutine zbandpart(n,ja,ia,dist,nper,band)
+      subroutine zn_imp_diag(n,nnz,dist, ipar1,ndiag,ioff,dcount)
+      subroutine znonz_lud(n,ja,ia,nlower, nupper, ndiag)
+      subroutine zavnz_col(n,ja,ia,iao, ndiag, av, st)
+      subroutine zvbrinfo(nr, nc, kvstr, kvstc, ia, ja, ka, iwk, iout)

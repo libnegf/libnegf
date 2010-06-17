@@ -1,0 +1,218 @@
+SUBROUTINES AFFECTED.
+
+BLASSM/zblassm.f:      complex*16 a(*), b(*), c(*) 
+BLASSM/zmatvec.f:      complex*16  x(*), y(*), a(*) 
+
+FORMATS/zformats.f:      complex*16 dns(ndns,*),a(*)
+FORMATS/zunary.f:      complex*16  a(*)
+
+INFO/zinfofun.f:      complex*16 a(*), ao(*) 
+INFO/zinfo13.f:        complex*16 a(*),ao(*)
+
+INOUT/zinout.f:      complex*16 a(nzmax), rhs(*) 
+
+ITSOL/zilut.f:      complex*16 a(*),alu(*),w(n+1)
+ITSOL/ziters.f:      complex*16 fpar(16), r(n), delx(n), sx, distdot
+ITSOL/zitaux.f:      complex*16 distdot, x(*), y(*), zdot
+
+ORDERINGS/zccn.f:      complex*16 amat(*)
+
+UNSUPP/MATEXP/exppro.f:      complex*16   wkc(mmax+1) 
+UNSUPP/MATEXP/phipro.f:      complex*16   wkc(mmax+1)
+---------------------------------------------------------------------------------------
+
+COMMENTS:
+
+zilut.f contains subroutine pgmres() and iluk() used by our codes.
+
+ziters.f contains other routines, including GMRES and FGMRES not used.
+---------------------------------------------------------------------------------------
+
+LIST OF SUBROUTINES:
+
+BLASSM/zblassm.f:      subroutine zamub (nrow,ncol,job,a,ja,ia,b,jb,ib,
+BLASSM/zblassm.f:      subroutine zaplb (nrow,ncol,job,a,ja,ia,b,jb,ib,
+BLASSM/zblassm.f:      subroutine zaplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
+BLASSM/zblassm.f:      subroutine zaplsb (nrow,ncol,a,ja,ia,s,b,jb,ib,c,jc,ic,
+BLASSM/zblassm.f:      subroutine zaplsb1 (nrow,ncol,a,ja,ia,s,b,jb,ib,c,jc,ic,
+BLASSM/zblassm.f:      subroutine zapmbt (nrow,ncol,job,a,ja,ia,b,jb,ib,
+BLASSM/zblassm.f:      subroutine zaplsbt(nrow,ncol,a,ja,ia,s,b,jb,ib,
+BLASSM/zblassm.f:      subroutine zdiamua (nrow,job, a, ja, ia, diag, b, jb, ib)
+BLASSM/zblassm.f:      subroutine zamudia (nrow,job, a, ja, ia, diag, b, jb, ib)
+BLASSM/zblassm.f:      subroutine zaplsca (nrow, a, ja, ia, scal,iw) 
+BLASSM/zblassm.f:      subroutine zapldia (nrow, job, a, ja, ia, diag, b, jb, ib, iw) 
+BLASSM/zmatvec.f:      subroutine zamux (n, x, y, a,ja,ia) 
+BLASSM/zmatvec.f:      subroutine zamuxms (n, x, y, a,ja)
+BLASSM/zmatvec.f:      subroutine zatmux (n, x, y, a, ja, ia)
+BLASSM/zmatvec.f:      subroutine zatmuxr (m, n, x, y, a, ja, ia)
+BLASSM/zmatvec.f:      subroutine zamuxe (n,x,y,na,ncol,a,ja) 
+BLASSM/zmatvec.f:      subroutine zamuxd (n,x,y,diag,ndiag,idiag,ioff) 
+BLASSM/zmatvec.f:      subroutine zamuxj (n, x, y, jdiag, a, ja, ia)
+BLASSM/zmatvec.f:      subroutine zvbrmv(nr, nc, ia, ja, ka, a, kvstr, kvstc, x, b)
+BLASSM/zmatvec.f:      subroutine zlsol (n,x,y,al,jal,ial)
+BLASSM/zmatvec.f:      subroutine zldsol (n,x,y,al,jal) 
+BLASSM/zmatvec.f:      subroutine zlsolc (n,x,y,al,jal,ial)
+BLASSM/zmatvec.f:      subroutine zldsolc (n,x,y,al,jal) 
+BLASSM/zmatvec.f:      subroutine zldsoll (n,x,y,al,jal,nlev,lev,ilev) 
+BLASSM/zmatvec.f:      subroutine zusol (n,x,y,au,jau,iau)
+BLASSM/zmatvec.f:      subroutine zudsol (n,x,y,au,jau) 
+BLASSM/zmatvec.f:      subroutine zusolc (n,x,y,au,jau,iau)
+BLASSM/zmatvec.f:      subroutine zudsolc (n,x,y,au,jau) 
+  
+FORMATS/zformats.f:      subroutine zcsrdns(nrow,ncol,a,ja,ia,dns,ndns,ierr) 
+FORMATS/zformats.f:      subroutine zdnscsr(nrow,ncol,nzmax,dns,ndns,a,ja,ia,ierr)
+FORMATS/zformats.f:      subroutine zcoocsr(nrow,nnz,a,ir,jc,ao,jao,iao)
+FORMATS/zformats.f:      subroutine zcoicsr (n,nnz,job,a,ja,ia,iwk)
+FORMATS/zformats.f:c this subroutine zconverts a matrix stored in coordinate format into 
+FORMATS/zformats.f:      subroutine zcsrcoo (nrow,job,nzmax,a,ja,ia,nnz,ao,ir,jc,ierr)
+FORMATS/zformats.f:      subroutine zcsrssr (nrow,a,ja,ia,nzmax,ao,jao,iao,ierr)
+FORMATS/zformats.f:      subroutine zssrcsr(job, value2, nrow, a, ja, ia, nzmax,
+FORMATS/zformats.f:      subroutine zxssrcsr (nrow,a,ja,ia,nzmax,ao,jao,iao,indu,ierr)
+FORMATS/zformats.f:      subroutine zcsrell (nrow,a,ja,ia,maxcol,coef,jcoef,ncoef,
+FORMATS/zformats.f:      subroutine zellcsr(nrow,coef,jcoef,ncoef,ndiag,a,ja,ia,nzmax,ierr)
+FORMATS/zformats.f:      subroutine zcsrmsr (n,a,ja,ia,ao,jao,wk,iwk)
+FORMATS/zformats.f:      subroutine zmsrcsr (n,a,ja,ao,jao,iao,wk,iwk)
+FORMATS/zformats.f:      subroutine zcsrcsc (n,job,ipos,a,ja,ia,ao,jao,iao)
+FORMATS/zformats.f:      subroutine zcsrcsc2 (n,n2,job,ipos,a,ja,ia,ao,jao,iao)
+FORMATS/zformats.f:      subroutine zcsrlnk (n,a,ja,ia,link) 
+FORMATS/zformats.f:      subroutine zlnkcsr (n, a, jcol, istart, link, ao, jao, iao) 
+FORMATS/zformats.f:      subroutine zcsrdia (n,idiag,job,a,ja,ia,ndiag,
+FORMATS/zformats.f:      subroutine zdiacsr (n,job,idiag,diag,ndiag,ioff,a,ja,ia)
+FORMATS/zformats.f:      subroutine zbsrcsr (job, n, m, na, a, ja, ia, ao, jao, iao)
+FORMATS/zformats.f:      subroutine zcsrbsr (job,nrow,m,na,a,ja,ia,ao,jao,iao,iw,ierr)
+FORMATS/zformats.f:      subroutine zcsrbnd (n,a,ja,ia,job,abd,nabd,lowd,ml,mu,ierr)
+FORMATS/zformats.f:      subroutine zbndcsr (n,abd,nabd,lowd,ml,mu,a,ja,ia,len,ierr)
+FORMATS/zformats.f:      subroutine zcsrssk (n,imod,a,ja,ia,asky,isky,nzmax,ierr)
+FORMATS/zformats.f:      subroutine zsskssr (n,imod,asky,isky,ao,jao,iao,nzmax,ierr)
+FORMATS/zformats.f:      subroutine zcsrjad (nrow, a, ja, ia, idiag, iperm, ao, jao, iao) 
+FORMATS/zformats.f:      subroutine zjadcsr (nrow, idiag, a, ja, ia, iperm, ao, jao, iao) 
+FORMATS/zformats.f:      subroutine zcooell(job,n,nnz,a,ja,ia,ao,jao,lda,ncmax,nc,ierr)
+FORMATS/zformats.f:      subroutine zxcooell(n,nnz,a,ja,ia,ac,jac,nac,ner,ncmax,ierr)
+FORMATS/zformats.f:      subroutine zcsruss (nrow,a,ja,ia,diag,al,jal,ial,au,jau,iau) 
+FORMATS/zformats.f:      subroutine zusscsr (nrow,a,ja,ia,diag,al,jal,ial,au,jau,iau) 
+FORMATS/zformats.f:      subroutine zcsrsss (nrow,a,ja,ia,sorted,diag,al,jal,ial,au)
+FORMATS/zformats.f:      subroutine zssscsr (nrow,a,ja,ia,diag,al,jal,ial,au) 
+FORMATS/zformats.f:      subroutine zcsrvbr(n,ia,ja,a,nr,nc,kvstr,kvstc,ib,jb,kb,
+FORMATS/zformats.f:      subroutine zvbrcsr(ia, ja, a, nr, kvstr, kvstc, ib, jb, kb,
+
+FORMATS/zunary.f:      subroutine zsubmat (n,job,i1,i2,j1,j2,a,ja,ia,nr,nc,ao,jao,iao)
+FORMATS/zunary.f:      subroutine zfilter(n,job,drptol,a,ja,ia,b,jb,ib,len,ierr)
+FORMATS/zunary.f:      subroutine zfilterm (n,job,drop,a,ja,b,jb,len,ierr)
+FORMATS/zunary.f:      subroutine zcsort (n,a,ja,ia,iwork,values) 
+FORMATS/zunary.f:      subroutine zclncsr(job,value2,nrow,a,ja,ia,indu,iwk)
+FORMATS/zunary.f:      subroutine zcopmat (nrow,a,ja,ia,ao,jao,iao,ipos,job) 
+FORMATS/zunary.f:      subroutine zmsrcop (nrow,a,ja,ao,jao,job) 
+FORMATS/zunary.f:      subroutine zgetdia (nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
+FORMATS/zunary.f:      subroutine ztransp (nrow,ncol,a,ja,ia,iwk,ierr)
+FORMATS/zunary.f:      subroutine zgetl (n,a,ja,ia,ao,jao,iao)
+FORMATS/zunary.f:      subroutine zgetu (n,a,ja,ia,ao,jao,iao)
+FORMATS/zunary.f:      subroutine zlevels (n, jal, ial, nlev, lev, ilev, levnum)
+FORMATS/zunary.f:      subroutine zamask (nrow,ncol,a,ja,ia,jmask,imask,
+FORMATS/zunary.f:      subroutine zrperm (nrow,a,ja,ia,ao,jao,iao,perm,job)
+FORMATS/zunary.f:      subroutine zcperm (nrow,a,ja,ia,ao,jao,iao,perm,job) 
+FORMATS/zunary.f:      subroutine zdperm (nrow,a,ja,ia,ao,jao,iao,perm,qperm,job)
+FORMATS/zunary.f:      subroutine zdperm1 (i1,i2,a,ja,ia,b,jb,ib,perm,ipos,job)
+FORMATS/zunary.f:      subroutine zdperm2 (i1,i2,a,ja,ia,b,jb,ib,cperm,rperm,istart,
+FORMATS/zunary.f:      subroutine zdmperm (nrow,a,ja,ao,jao,perm,job)
+FORMATS/zunary.f:      subroutine zdvperm (n, x, perm) 
+FORMATS/zunary.f:      subroutine zivperm (n, ix, perm) 
+FORMATS/zunary.f:      subroutine zretmx (n,a,ja,ia,dd)
+FORMATS/zunary.f:      subroutine zdiapos  (n,ja,ia,idiag) 
+FORMATS/zunary.f:      subroutine zdscaldg (n,a,ja,ia,diag,job)
+FORMATS/zunary.f:      subroutine zextbdg (n,a,ja,ia,bdiag,nblk,ao,jao,iao)
+FORMATS/zunary.f:      subroutine zgetbwd(n,a,ja,ia,ml,mu)
+FORMATS/zunary.f:      subroutine zblkfnd (nrow,ja,ia,nblk)
+FORMATS/zunary.f:      subroutine zblkchk (nrow,ja,ia,nblk,imsg)
+FORMATS/zunary.f:      subroutine zamubdg (nrow,ncol,ncolb,ja,ia,jb,ib,ndegr,nnz,iw) 
+FORMATS/zunary.f:      subroutine zaplbdg (nrow,ncol,ja,ia,jb,ib,ndegr,nnz,iw) 
+FORMATS/zunary.f:      subroutine zrnrms   (nrow, nrm, a, ja, ia, diag) 
+FORMATS/zunary.f:      subroutine zcnrms   (nrow, nrm, a, ja, ia, diag) 
+FORMATS/zunary.f:      subroutine zroscal(nrow,job,nrm,a,ja,ia,diag,b,jb,ib,ierr) 
+FORMATS/zunary.f:      subroutine zcoscal(nrow,job,nrm,a,ja,ia,diag,b,jb,ib,ierr) 
+FORMATS/zunary.f:      subroutine zaddblk(nrowa, ncola, a, ja, ia, ipos, jpos, job,
+FORMATS/zunary.f:      subroutine zget1up (n,ja,ia,ju)
+FORMATS/zunary.f:      subroutine zxtrows (i1,i2,a,ja,ia,ao,jao,iao,iperm,job)
+
+FORMATS/zunary.f:      double precision function getelm (i,j,a,ja,ia,iadd,sorted)
+---------------------------------------------------------------------------------------
+
+
+INFO/zinfofun.f:       subroutine zdiag_domi(n,sym,valued,a, ja,ia,ao,jao, iao, 
+INFO/zinfofun.f:       subroutine zfrobnorm(n,sym,a,ja,ia,Fnorm)
+
+INOUT/zinout.f:        subroutine zreadmt (nmax,nzmax,job,iounit,a,ja,ia,rhs,nrhs,
+INOUT/zinout.f:        subroutine zprtmt (nrow,ncol,a,ja,ia,rhs,guesol,title,key,type,
+INOUT/zinout.f:        subroutine zdump (i1,i2,values,a,ja,ia,iout)
+INOUT/zinout.f:        subroutine zsmms (n,first,last,mode,a,ja,ia,iout)
+INOUT/zinout.f:        subroutine zreadsm (nmax,nzmax,n,nnz,ia,ja,a,iout,ierr)
+INOUT/zinout.f:        subroutine zreadsk (nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
+INOUT/zinout.f:        subroutine zskit (n, a, ja, ia, ifmt, iounit, ierr)
+INOUT/zinout.f:        subroutine zprtunf(n, a, ja, ia, iout, ierr)
+INOUT/zinout.f:        subroutine zreadunf(nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
+--------------------------------------------------------------------------------------------
+
+
+./ITSOL/zilut.f:      subroutine zilut(n,a,ja,ia,lfil,droptol,alu,jlu,ju,iwk,w,jw,ierr)
+./ITSOL/zilut.f:      subroutine zilutp(n,a,ja,ia,lfil,droptol,permtol,mbloc,alu,
+./ITSOL/zilut.f:      subroutine zilud(n,a,ja,ia,alph,tol,alu,jlu,ju,iwk,w,jw,ierr)
+./ITSOL/zilut.f:      subroutine ziludp(n,a,ja,ia,alph,droptol,permtol,mbloc,alu,
+./ITSOL/zilut.f:      subroutine ziluk(n,a,ja,ia,lfil,alu,jlu,ju,levs,iwk,w,jw,ierr)
+./ITSOL/zilut.f:      subroutine zilu0(n, a, ja, ia, alu, jlu, ju, iw, ierr)
+./ITSOL/zilut.f:      subroutine zmilu0(n, a, ja, ia, alu, jlu, ju, iw, ierr)
+./ITSOL/zilut.f:      subroutine zpgmres(n, im, rhs, sol, vv, eps, maxits, iout,
+./ITSOL/zilut.f:      subroutine zlusol(n, y, x, alu, jlu, ju)
+./ITSOL/zilut.f:      subroutine zlutsol(n, y, x, alu, jlu, ju) 
+./ITSOL/zilut.f:      subroutine zqsplit(a,ind,n,ncut)
+
+./ITSOL/zitaux.f:     subroutine zrunrc(n,rhs,sol,ipar,fpar,wk,guess,a,ja,ia,
+./ITSOL/zitaux.f:     subroutine zafunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zbfunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zcfunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zdfunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zefunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zffunbl (nfree,x,y,z,coeff)
+./ITSOL/zitaux.f:     subroutine zgfunbl (nfree,x,y,z,coeff)
+./ITSOL/ziters.f:c    subroutine solver(n, rhs, sol, ipar, fpar, w)
+
+./ITSOL/ziters.f:c$$$      subroutine zcg(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:c$$$      subroutine zcgnr(n,rhs,sol,ipar,fpar,wk)
+./ITSOL/ziters.f:c$$$      subroutine zbcg(n,rhs,sol,ipar,fpar,w)
+./ITSOL/ziters.f:c$$$      subroutine zbcgstab(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:c$$$      subroutine ztfqmr(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:c$$$      subroutine zfom(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:c$$$      subroutine zgmres(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:c$$$      subroutine zdqgmres(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:      subroutine zfgmres(n, rhs, sol, ipar, fpar, w)
+./ITSOL/ziters.f:      subroutine zdbcg (n,rhs,sol,ipar,fpar,w)
+./ITSOL/ziters.f:      subroutine zimplu(np,umm,beta,ypiv,u,permut,full)
+./ITSOL/ziters.f:      subroutine zuppdir(n,p,np,lbp,indp,y,u,usav,flops)
+./ITSOL/ziters.f:      subroutine zgivens(x,y,c,s)
+./ITSOL/ziters.f:      subroutine ztidycg(n,ipar,fpar,sol,delx)
+./ITSOL/ziters.f:      subroutine zbisinit(ipar,fpar,wksize,dsc,lp,rp,wk)
+./ITSOL/ziters.f:      subroutine zmgsro(full,lda,n,m,ind,ops,vec,hh,ierr)
+....................................................................................
+
+./ITSOL/ziters.f:c     real*8 function distdot(n,x,ix,y,iy)
+./ITSOL/ziters.f:c     same functionality as DDOT on a single processor machine. On a
+
+./ITSOL/ziters.f:      logical function zstopbis(n,ipar,mvpi,fpar,r,delx,sx)
+./ITSOL/ziters.f:      logical function zbrkdn(alpha, ipar)
+
+ITSOL/zitaux.f:      function zdistdot(n,x,ix,y,iy)
+ITSOL/zitaux.f:      function zafun (x,y,z)
+ITSOL/zitaux.f:      function zbfun (x,y,z)
+ITSOL/zitaux.f:      function zcfun (x,y,z)
+ITSOL/zitaux.f:      function zdfun (x,y,z)
+ITSOL/zitaux.f:      function zefun (x,y,z)
+ITSOL/zitaux.f:      function zffun (x,y,z)
+ITSOL/zitaux.f:      function zgfun (x,y,z)
+ITSOL/zitaux.f:      function zhfun (x,y,z)
+ITSOL/zitaux.f:      function zbetfun(side, x, y, z)
+ITSOL/zitaux.f:      function zgamfun(side, x, y, z)
+
+----------------------------------------------------------------------------------------
+
+
+INOUT/zinout.f:      integer function lenstr(s)
+
+

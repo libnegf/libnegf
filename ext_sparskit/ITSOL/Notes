@@ -1,0 +1,10 @@
+Hilbert dot product
+
+replace BLAS1 ddot -> zdotc
+              daxpy -> zaxpy
+              dnrm2 -> dznrm2
+
+Matrix-vector mult.
+        BLAS2 ope ->  ?
+
+

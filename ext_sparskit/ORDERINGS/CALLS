@@ -1,0 +1,29 @@
+zccn.f
+
+subroutine ZBLCCNX(n, nbloc, nblcmx, nsbloc, job, lpw, amat, ja,
+
+call BLCCN1(n, nbloc, nblcmx, nsbloc, izs(ilpw), izs(ikpw), ia,
+call tbzero(izs(ikpw), nfree)
+call ccnicopy(n+1, ia, izs(iiat))
+call zcopy(ntb, amat, 1, izs(iamat), 1)
+call zdperm(n, izs(iamat), izs(ijat), izs(iiat), amat,
+call zcsrcsc(n, job, ipos, amat, ja, ia, izs(iamat),                 FORMATS
+call zcsrcsc(n, job, ipos, izs(iamat), izs(ijat), izs(iiat),         FORMATS
+call compos(n, lpw, izs(ilpw))
+call NEWCNX(n, mccnex, iccnex, index, kpw, mark)
+call ANCCNX(n, iccnex, mccnex, mark, nwindx)
+call NUMINI(n, kpw)
+call cconex(ins0, ik0, nccnex, lccnex(ilccnx), kpw(kpibl+1), 
+call invlpw(ins0, kpw(kpibl+1), lpw(ik0+1))
+call iplusa(ins0, ik0, 1, lpw(ik0+1))
+
+subroutine CCONEX(n, icol0, mxccnx, lccnex, kpw, ia, ja, mark,
+subroutine ANCCNX(n, mccnex, iccnex, mark, ncount)
+subroutine NEWCNX(n, mccnex, iccnex, index, kpw, mark)
+subroutine BLCCN1(n, nbloc, nblcmx, nsbloc, lpw, kpw, ia, ja,
+subroutine NUMINI(n, lpw)
+SUBROUTINE CCNICOPY(N,IX,IY)
+SUBROUTINE COMPOS(n, lpw0, lpw1)
+SUBROUTINE INVLPW(n, lpw, kpw)
+SUBROUTINE TBZERO(M,NMOT)
+SUBROUTINE IPLUSA (n, nalpha, nbeta, ia)

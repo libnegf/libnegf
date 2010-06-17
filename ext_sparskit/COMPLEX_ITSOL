@@ -1,0 +1,70 @@
+
+./ITSOL/zilut.f:         call zqsplit (w,jw,lenl,len)
+./ITSOL/zilut.f:         call zqsplit (w(ii+1), jw(ii+1), lenu-1,len)
+./ITSOL/zilut.f:         call zqsplit (w,jw,lenl,len)
+./ITSOL/zilut.f:         call zqsplit (w(ii+1), jw(ii+1), lenu-1,len)
+
+./ITSOL/zilut.f:         call zamux (n, sol, vv, aa, ja, ia)
+./ITSOL/zilut.f:         call zlusol(n, vv(1,i), rhs, alu, jlu, ju)
+./ITSOL/zilut.f:         call zamux(n, rhs, vv(1,i1), aa, ja, ia)
+./ITSOL/zilut.f:         call zdaxpy(n, -t, vv(1,j), 1, vv(1,i1), 1)
+
+./ITSOL/zilut.f:         call zlusol (n, rhs, rhs, alu, jlu, ju)
+./ITSOL/zilut.f:         call zdaxpy (n, t, vv(1,j), 1,  vv, 1)
+
+
+./ITSOL/zitaux.f:  10    call zsolver(n,rhs,sol,ipar,fpar,wk)
+./ITSOL/zitaux.f:        call zamux(n, wk(ipar(8)), wk(ipar(9)), a, ja, ia)
+./ITSOL/zitaux.f:        call zatmux(n, wk(ipar(8)), wk(ipar(9)), a, ja, ia)
+./ITSOL/zitaux.f:        call zlusol(n,wk(ipar(8)),wk(ipar(9)),au,jau,ju)
+./ITSOL/zitaux.f:        call zlutsol(n,wk(ipar(8)),wk(ipar(9)),au,jau,ju)
+./ITSOL/zitaux.f:        call zamux(n,sol,wk,a,ja,ia)
+
+
+./ITSOL/ziters.f:c 10      call zbcg(n,rhs,sol,ipar,fpar,w)
+./ITSOL/ziters.f:c         call zamux(n,w(ipar(8)),w(ipar(9)),a,ja,ia)
+./ITSOL/ziters.f:c         call zatmux(n,w(ipar(8)),w(ipar(9)),a,ja,ia)
+
+
+./ITSOL/ziters.f:c$$$         call zbisinit(ipar,fpar,5*n,1,lp,rp,w)
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,4))
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,5))
+
+./ITSOL/ziters.f:c$$$         call zbisinit(ipar,fpar,5*n,1,lp,rp,wk)
+
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,wk(1,4))
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,wk(1,5))
+./ITSOL/ziters.f:c$$$         call zbisinit(ipar,fpar,7*n,1,lp,rp,w)
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,6))
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,7))
+
+./ITSOL/ziters.f:c$$$         call zbisinit(ipar,fpar,8*n,1,lp,rp,w)
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,7))
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,8))
+
+./ITSOL/ziters.f:c$$$         call zbisinit(ipar,fpar,11*n,2,lp,rp,w)
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,10))
+./ITSOL/ziters.f:c$$$         call ztidycg(n,ipar,fpar,sol,w(1,11))
+
+./ITSOL/ziters.f:c$$$      call zbisinit(ipar,fpar,i,1,lp,rp,w)
+./ITSOL/ziters.f:c$$$      call zmgsro(.false.,n,n,k+1,k+1,fpar(11),w,w(ptr+1),ipar(12))
+./ITSOL/ziters.f:c$$$      call zgivens(w(p2), w(p2+1), c, s)
+
+./ITSOL/ziters.f:c$$$      call zbisinit(ipar,fpar,i,1,lp,rp,w)
+./ITSOL/ziters.f:c$$$      call zmgsro(.false.,n,n,k+1,k+1,fpar(11),w,w(ptr+1),ipar(12))
+./ITSOL/ziters.f:c$$$      call zgivens(w(p2), w(p2+1), c, s)
+./ITSOL/ziters.f:c$$$      call zbisinit(ipar,fpar,i,1,lp,rp,w)
+
+./ITSOL/ziters.f:c$$$      call zmgsro(full,n,n,lb,jp1,fpar(11),w(iv+1),w(ihm+1),ipar(12))
+./ITSOL/ziters.f:c$$$      call zgivens(w(ihm+j), beta, c, s)
+
+./ITSOL/ziters.f:      call zbisinit(ipar,fpar,i,1,lp,rp,w)
+./ITSOL/ziters.f:      call zmgsro(.false.,n,n,k+1,k+1,fpar(11),w,w(ptr+1),ipar(12))
+./ITSOL/ziters.f:      call zgivens(w(p2), w(p2+1), c, s)
+
+./ITSOL/ziters.f:      call zbisinit(ipar,fpar,11*n,1,lp,rp,w)
+./ITSOL/ziters.f:      call zimplu(np, umm, beta, ypiv, u, perm, full)
+./ITSOL/ziters.f:      call zuppdir(n, w(1,7), np, lb, indp, w, u, usav, fpar(11))
+./ITSOL/ziters.f:         call ztidycg(n,ipar,fpar,sol,w(1,11))
+./ITSOL/ziters.f:         call ztidycg(n,ipar,fpar,sol,w(1,10))
+

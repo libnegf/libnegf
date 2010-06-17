@@ -1,0 +1,54 @@
+zilut.f:      subroutine zilut(n,a,ja,ia,lfil,droptol,alu,jlu,ju,iwk,w,jw,ierr)
+zilut.f:      subroutine zilutp(n,a,ja,ia,lfil,droptol,permtol,mbloc,alu,
+zilut.f:      subroutine zilud(n,a,ja,ia,alph,tol,alu,jlu,ju,iwk,w,jw,ierr)
+zilut.f:      subroutine ziludp(n,a,ja,ia,alph,droptol,permtol,mbloc,alu,
+zilut.f:      subroutine ziluk(n,a,ja,ia,lfil,alu,jlu,ju,levs,iwk,w,jw,ierr)
+zilut.f:      subroutine zilu0(n, a, ja, ia, alu, jlu, ju, iw, ierr)
+zilut.f:      subroutine zmilu0(n, a, ja, ia, alu, jlu, ju, iw, ierr)
+zilut.f:      subroutine zpgmres(n, im, rhs, sol, vv, eps, maxits, iout,
+zilut.f:      subroutine zlusol(n, y, x, alu, jlu, ju)
+zilut.f:      subroutine zlutsol(n, y, x, alu, jlu, ju) 
+zilut.f:      subroutine zqsplit(a,ind,n,ncut)
+
+zilut.f:       call zqsplit (w,jw,lenl,len)                   : THIS
+zilut.f:       call zamux (n, sol, vv, aa, ja, ia)            : BLASSM/zmatvect.f 
+zilut.f:       call zlusol(n, vv(1,i), rhs, alu, jlu, ju)     : THIS
+zilut.f:       call zdaxpy(n, -t, vv(1,j), 1, vv(1,i1), 1)    : BLAS1/blas1.f
+
+---------------------------------------------------------------
+NOT FULLY EXTENDED:
+
+ziters.f:      subroutine zfgmres(n, rhs, sol, ipar, fpar, w)
+ziters.f:      subroutine zdbcg (n,rhs,sol,ipar,fpar,w)
+ziters.f:      subroutine zimplu(np,umm,beta,ypiv,u,permut,full)
+ziters.f:      subroutine zuppdir(n,p,np,lbp,indp,y,u,usav,flops)
+ziters.f:      subroutine zgivens(x,y,c,s)
+ziters.f:      subroutine ztidycg(n,ipar,fpar,sol,delx)
+ziters.f:      subroutine zbisinit(ipar,fpar,wksize,dsc,lp,rp,wk)
+ziters.f:      subroutine zmgsro(full,lda,n,m,ind,ops,vec,hh,ierr)
+
+ziters.f:      call zbisinit(ipar,fpar,i,1,lp,rp,w)                           : THIS
+ziters.f:      call zmgsro(.false.,n,n,k+1,k+1,fpar(11),w,w(ptr+1),ipar(12))  : THIS
+ziters.f:      call zgivens(w(p2), w(p2+1), c, s)                             : THIS
+ziters.f:      call zbisinit(ipar,fpar,11*n,1,lp,rp,w)                        : THIS
+ziters.f:      call zimplu(np, umm, beta, ypiv, u, perm, full)                : THIS
+ziters.f:      call zuppdir(n, w(1,7), np, lb, indp, w, u, usav, fpar(11))    : THIS
+ziters.f:      call ztidycg(n,ipar,fpar,sol,w(1,11))                          : THIS
+ziters.f:      call ztidycg(n,ipar,fpar,sol,w(1,10))                          : THIS
+----------------------------------------------------------------
+NOT FULLY EXTENDED:
+zitaux.f:      subroutine zrunrc(n,rhs,sol,ipar,fpar,wk,guess,a,ja,ia,
+zitaux.f:      subroutine zafunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zbfunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zcfunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zdfunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zefunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zffunbl (nfree,x,y,z,coeff)
+zitaux.f:      subroutine zgfunbl (nfree,x,y,z,coeff)
+
+zitaux.f: 10   call zsolver(n,rhs,sol,ipar,fpar,wk)                      :ziters.f YET UNSUPPORTED
+zitaux.f:      call zamux(n, wk(ipar(8)), wk(ipar(9)), a, ja, ia)        :BLASSM
+zitaux.f:      call zatmux(n, wk(ipar(8)), wk(ipar(9)), a, ja, ia)       :BLASSM
+zitaux.f:      call zlusol(n,wk(ipar(8)),wk(ipar(9)),au,jau,ju)          :zilut.f
+zitaux.f:      call zlutsol(n,wk(ipar(8)),wk(ipar(9)),au,jau,ju)         :zilut.f
+
