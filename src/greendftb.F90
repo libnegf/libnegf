@@ -84,7 +84,7 @@ contains
     integer :: nc_vec(1), ibsize, npT, Np(4), N_omega, verbose
     real(dp) :: ncyc, avncyc                           ! Average num. decimations
     real(dp) :: Efermi(MAXNCONT), frm_f(MAXNCONT), mu(MAXNCONT)
-    real(dp) :: E, dd, mumin, mumax                
+    real(dp) :: E, dd, mumin, mumax, muref                
     real(dp) :: Rad, Centre, Lambda, Omega, Temp, Elow
     real(dp) :: c1,c2,T,teta,dt,alpha
     complex(kind=dp) :: Ec,Pc,z1,z2,z_diff,zt                  ! Integration variables
@@ -227,9 +227,11 @@ contains
     else  
       mumin=minval(Efermi(1:ncont)-mu(1:ncont))
       mumax=maxval(Efermi(1:ncont)-mu(1:ncont))
-      nc_vec=minloc(Efermi(1:ncont)-mu(1:ncont))
+      nc_vec=maxloc(Efermi(1:ncont)-mu(1:ncont))
       nc=nc_vec(1)
     endif
+
+    muref = mumax
 
 #ifdef MPI 
    call MPI_BARRIER(mpi_comm,ierr)   
@@ -251,19 +253,21 @@ contains
     ! 1.  INTEGRATION OVER THE CIRCLE FROM PI...ALPHA  Np(1)
     ! ***************************************************************************
     ! NEW INTEGRATION FOR COMPLEX DENSITY:
-    !----------------------------------------------------
+    !---------------------------------------------------------
     !   2  [ /           ]     1  [ /         it   ] 
     !  --- [ | Gr(z) dz  ] =   -- [ | iGr(t)Re  dt ]  
     !  2pi [ /           ]     pi [ /              ]
-    !---------------------------------------------------
+    !
+    ! The factor 2 is for spin, later we compute rho=i[Gr-Ga]
+    !---------------------------------------------------------
 
     Omega = N_omega*Kb*Temp
 
-    Centre = (Lambda**2-Elow**2+(mumin-Omega)**2)/(2.d0*(mumin-Omega-Elow))
+    Centre = (Lambda**2-Elow**2+(muref-Omega)**2)/(2.d0*(muref-Omega-Elow))
     Rad = Centre - Elow
 
     if (Temp.ne.0.d0) then        
-      alpha = datan(Lambda/(mumin-Centre-Omega)) 
+      alpha = datan(Lambda/(muref-Centre-Omega)) 
     else
       alpha = 0.1d0*pi             
     end if
@@ -306,7 +310,7 @@ contains
 
       Pc = Rad*exp(j*teta)
       Ec = Centre+Pc
-      dt = 1.d0*wght(i)/pi  ! 2.0 for spin  
+      dt = 1.d0*wght(i)/pi 
 
       ! -----------------------------------------------------------------------
       !  Calculation of contact self-energies
@@ -340,14 +344,13 @@ contains
         call destroy(TpMt)
 
       enddo
-print *, 'SelfEnergies'
-      call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
-
     
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
+      call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
+
       if (mem) then 
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct) 
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.) 
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -360,11 +363,7 @@ print *, 'SelfEnergies'
 
       ! ------------------------------------------------------------------------------
       if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
-      ! ------------------------------------------------------------------------------
-      ! Integration of G< on the complex plane. 
-      ! The real part comes from Im{Int{Gr(E)dE}}=Im{Int{Gr(z) R exp(iO) i dO}}=
-      !                                          =Im{ Sum{ iGr(zi) Pc Wi } }   =
-      !                                          =Sum{ Re{Gr(zi) Pc Wi} }  
+ 
       ! ------------------------------------------------------------------------------
       ! Note: the extra parts of G<, needed to correct for the charges 
       ! due to the overlap with the contacts are now included in GreenR
@@ -372,8 +371,6 @@ print *, 'SelfEnergies'
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------
-  print *, DensMat%nrow, GreenR%nrow
-
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
          CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
       endif
@@ -406,7 +403,7 @@ print *, 'SelfEnergies'
     ENDIF
 
     ! *******************************************************************************
-    ! 2. INTEGRATION OVER THE SEGMENT [mumin+Omega+j*Lambda,mumin-Omega+j*Lambda]
+    ! 2. INTEGRATION OVER THE SEGMENT [muref+Omega+j*Lambda,muref-Omega+j*Lambda]
     ! (Temp /= 0) OR OVER THE CIRCLE  ALPHA..0   (Temp == 0)          Np(2)
     ! *******************************************************************************
     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
@@ -422,8 +419,8 @@ print *, 'SelfEnergies'
 
     else                                          ! Segment integration T>0
 
-      z1 = mumin + Omega + j*Lambda
-      z2 = mumin - Omega + j*Lambda
+      z1 = muref + Omega + j*Lambda
+      z2 = muref - Omega + j*Lambda
 
       z_diff = z2 - z1
 
@@ -455,17 +452,13 @@ print *, 'SelfEnergies'
       teta = pnts(i)
 
       if (Temp.eq.0.d0) then                      ! Circle integration T=0            
-
         Pc = Rad*exp(j*teta)
         Ec = Centre+Pc
-        dt = 1.d0*wght(i)/pi
-
       else                                        ! Segment integration T>0
-
         Ec = z1 + teta*z_diff
-        dt = 1.d0*wght(i)/pi
-
       endif
+      
+      dt = 1.d0*wght(i)/pi
 
       do l=1,ncont
          param%activecont=l
@@ -500,7 +493,7 @@ print *, 'SelfEnergies'
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ') 
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.)
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -536,13 +529,13 @@ print *, 'SelfEnergies'
 
       else
 
-        zt=z_diff*fermi_fc(Ec,mumin,Kb*Temp)*dt
+        zt=z_diff*fermi_fc(Ec,muref,Kb*Temp)*dt
         if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
-           CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
+           CALL concat(DensMat,zt,GreenR,1,1)
         endif
         zt=zt*Ec
         if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-           CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
+           CALL concat(EnMat,zt,GreenR,1,1)
         endif
 
       endif
@@ -572,6 +565,7 @@ print *, 'SelfEnergies'
     !             [ 2                  ]    1      
     !  2 pi j* Res[ -- *Gr(z_k)f(z_k)  ] =  -- *2*pi*j*(-kb T)* Gr(z_k)     
     !             [ 2pi                ]    pi     
+    !                                                  (-kb*T) <- Residue
     !---------------------------------------------------------------------
     npid = int(NumPoles/numprocs)
     istart = id*npid+1
@@ -587,7 +581,7 @@ print *, 'SelfEnergies'
         write(6,'(a17,i3,a1,i3,a6,i3)') 'POLES: point #',i,'/',iend,'  CPU=', id
       endif
 
-      Ec = mumin + j*Kb*Temp*pi*(2.d0*i-1)       
+      Ec = muref + j*Kb*Temp*pi* (2.d0*i - 1.d0)       
       
       do l=1,ncont
          param%activecont=l
@@ -614,7 +608,7 @@ print *, 'SelfEnergies'
       call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.)
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -627,7 +621,7 @@ print *, 'SelfEnergies'
 
       if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
-      zt= -j*2.d0*Kb*Temp*(1.d0,0.d0) ! -2.0/pi * (2*pi*j)  * (-kb*T) <- Residue
+      zt= -2.d0*j*Kb*Temp*(1.d0,0.d0)
 
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)
@@ -719,7 +713,7 @@ print *, 'SelfEnergies'
               &U=', id
         endif
 
-        Ec = pnts(i) + j * param%delta
+        Ec = cmplx(pnts(i),0.0,dp) 
         dt = wght(i)/pi
 
         do j1=1,ncont
@@ -730,32 +724,28 @@ print *, 'SelfEnergies'
         do l=1,ncont
            param%activecont=l
            npc = Np(1)+Np(2)+NumPoles+i
-           call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))            
+           call surface_green(Ec+j*param%delta,HC_d(l),SC_d(l),param,npc,ncyc,&
+                                                                  GS_d(l),GS(l))            
            avncyc = avncyc + ncyc
         enddo
         
         ! -- GF Calculation ----------------------------------------------------
         ! 
         !Tlc= Ec*ST - TM 
-        !Tcl= (conjg(Ec)*ST - TM )
-        !Array di GS sparse.
+        !Tcl= (Ec*ST - TM )^+    Ec is real !
 
         do i1=1,ncont
           call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
 
-          call prealloc_sum(TM(i1),ST(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)          
-
-          call zdagacsr(TpMt,Tcl(i1))
-          
-          call destroy(TpMt)
-        enddo
+          call zdagacsr(Tlc(i1),Tcl(i1))
+       enddo
 
         if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
         call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
         if (mem) then
-           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR,i)
+           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR)
         else 
            !call calls_neq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR)
         endif

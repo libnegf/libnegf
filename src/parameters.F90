@@ -55,9 +55,9 @@ subroutine init_defaults(param)
  param%a_u=ATU           ! in constants.F90
  param%Temp=0.0_dp
  param%Efermi(:)=0.0_dp
- param%Elow=-50.0_dp
+ param%Elow=-50.0_dp/HAR
  param%DOS(:)=0.05_dp
- param%delta=1e-4_dp
+ param%delta=1e-4_dp/HAR
  param%mu(:)=0.0_dp
 
  param%FictCont(:)=.false.

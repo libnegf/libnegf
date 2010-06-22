@@ -2,6 +2,7 @@ program test1
 
   use precision
   use parameters
+  use allocation
   use structure
   use mat_def
   use load
@@ -36,10 +37,10 @@ program test1
   read(*,*) ncont
   read(*,*) nbl
   
-  allocate(PL_end(nbl))
-  allocate(cblk(ncont))
-  allocate(cont_end(ncont))
-  allocate(surf_end(ncont))
+  call log_allocate(PL_end,nbl)
+  call log_allocate(cblk,ncont)
+  call log_allocate(cont_end,ncont)
+  call log_allocate(surf_end,ncont)
 
   read(*,*) PL_end(1:nbl)
   read(*,*) cblk(1:ncont)
@@ -52,6 +53,10 @@ program test1
   endif
 
   param%Efermi = param%Efermi/param%hartree
+
+  read(*,*) param%Np(1:3)
+  read(*,*) param%Temp
+  read(*,*) param%nPoles
  
   !write(*,*) PL_end
   !write(*,*) cblk
@@ -69,6 +74,7 @@ program test1
   print *, 'create DensMat, dim',str%total_dim
 
   call create(DensMat,str%total_dim,str%total_dim,str%total_dim)
+  DensMat%nzval=0.d0
 
   write(*,*) '(test) start integration...'  
 
@@ -76,8 +82,8 @@ program test1
 
   ! -------------------------------------------------------------
   nrow = DensMat%nrow
-  allocate(qmulli(nrow))
-
+  call log_allocate(qmulli,nrow)
+  qmulli=0.d0
 
   do ii=1, nrow 
      do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
@@ -87,20 +93,32 @@ program test1
         do kb=S%rowpnt(jj),S%rowpnt(jj+1)-1
            jcol = S%colind(kb)
            if (jcol .eq. ii) then
-              qmulli(jcol) = qmulli(jcol) + dreal(dd*S%nzval(kb))
+              qmulli(jcol) = qmulli(jcol) + real(dd*S%nzval(kb))
            endif
         enddo
      enddo
   enddo
   
+  open(11,file='qmulli.dat')
   qtot = 0.d0
-  do ii = 1, nrow
+  do ii = 1, str%central_dim
+     write(11,*) ii,qmulli(ii)
      qtot = qtot+qmulli(ii)
   enddo
+  close(11)
 
   write(*,*) 'qtot=',qtot
+  write(*,*) 'should be',1.d0*str%central_dim 
 
+  call destroy(H,S,DensMat)
+  call log_deallocate(qmulli)
+  call log_deallocate(PL_end)
+  call log_deallocate(cblk)
+  call log_deallocate(cont_end)
+  call log_deallocate(surf_end)
 
+  call writeMemInfo(6)
+  call writePeakInfo(6)
 
 end program test1
 

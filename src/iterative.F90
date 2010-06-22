@@ -236,7 +236,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,it)
+  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout)
 
     !****************************************************************************
     !
@@ -264,7 +264,7 @@ CONTAINS
     COMPLEX(8) :: E
     TYPE(Tstruct_info) :: struct
     REAL(8), DIMENSION(:) :: frm
-    INTEGER :: min,it
+    INTEGER :: min
 
     !Work
     INTEGER :: i,ierr,i1,ncont,nbl
@@ -1400,7 +1400,8 @@ CONTAINS
     INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb, nbl, ncont
     INTEGER :: oldx, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
-    
+    COMPLEX(dp) :: frmdiff
+
     ncont = struct%num_conts    
     nbl = struct%num_PLs
     cblk => struct%cblk
@@ -1437,7 +1438,7 @@ CONTAINS
           !***
           !Iterazione sui blocchi 
           !***
-
+          frmdiff = cmplx(frm(j)-frm(min))
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
           nrow=indblk(2)-indblk(1)
           CALL prealloc_mult(Gr(1,cb),Gam,work1)
@@ -1445,7 +1446,7 @@ CONTAINS
 
           !G(1,j) va tenuta per la prima iterazione blocco sopradiagonale
 
-          CALL prealloc_mult(work1,Ga,dcmplx(frm(j)-frm(min)),Glsub(1,1))
+          CALL prealloc_mult(work1,Ga,frmdiff,Glsub(1,1))
           CALL destroy(work1)
           CALL destroy(Ga)
 
@@ -1465,7 +1466,7 @@ CONTAINS
 
              CALL zdagacsr(Gr(i,cb),Ga)
 
-             CALL prealloc_mult(work1,Ga,dcmplx(frm(j)-frm(min)),Glsub(i-1,i))
+             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
              CALL zmask_realloc(Glsub(i-1,i), ESH(i-1,i))
              CALL destroy(work1)
              !Teniamo Ga per il calcolo del blocco diagonale
@@ -1479,7 +1480,7 @@ CONTAINS
              !Calcolo blocchi diagonali
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
 
-             CALL prealloc_mult(work1,Ga,dcmplx(frm(j)-frm(min)),Glsub(i,i))
+             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i))
              CALL zmask_realloc(Glsub(i,i), ESH(i,i))
              CALL destroy(work1)
              call destroy(Ga)
@@ -1491,7 +1492,7 @@ CONTAINS
              !Calcolo diretto blocchi sottodiagonali
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
              CALL zdagacsr(Gr(i-1,cb),Ga)
-             CALL prealloc_mult(work1,Ga,dcmplx(frm(j)-frm(min)),Glsub(i,i-1))
+             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
              CALL zmask_realloc(Glsub(i,i-1), ESH(i,i-1))
 
              CALL destroy(work1)
@@ -1879,6 +1880,7 @@ CONTAINS
     INTEGER :: j,k,cb,cbj,i1,j1,nrow_tot,i,nrow_cb,nrow_cbj
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
+    COMPLEX(dp) :: frmdiff
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
@@ -1916,6 +1918,7 @@ CONTAINS
           !Calcolo del contributo sulla proria regione
           !***          
           !Primo addendo
+          frmdiff=cmplx(frm(min)-frm(k))
 
           !work1=j(gsurfR-gsurfA)
           CALL zspectral(gsurfR(k),gsurfR(k),0,work1)
@@ -1925,7 +1928,7 @@ CONTAINS
           CALL destroy(work1)
 
           !work1=-Gr(cb,cb)*work2=-Gr(cb,cb)*Tlc*j(gsurfR-gsurfA)
-          CALL prealloc_mult(Gr(cb,cb),work2,dcmplx(frm(min)-frm(k)),work1)
+          CALL prealloc_mult(Gr(cb,cb),work2,frmdiff,work1)
           CALL destroy(work2)
 
           !if (debug) write(*,*) 'cont',k,'primo addendo ok'
@@ -1948,7 +1951,7 @@ CONTAINS
           CALL destroy(work3)
 
           !work3=-Gr*work2=-Gr*Gam*Ga*Tlc*gsurfA        
-          CALL prealloc_mult(Gr(cb,cb),work2,dcmplx(frm(min)-frm(k)),work3)
+          CALL prealloc_mult(Gr(cb,cb),work2,frmdiff,work3)
           CALL destroy(work2)
 
           !if (debug) write(*,*) 'cont',k,'secondo addendo ok'
@@ -2009,7 +2012,7 @@ CONTAINS
                 !if (debug) write(*,*) 'Gr',Gr(cbj,cb)%nrow,Gr(cbj,cb)%ncol,Gr(cbj,cb)%nnz
 
                 !Glsub=-Gr*work1=-Gr*Gam*Ga*Tlc*gsurfA  
-                CALL prealloc_mult(Gr(cbj,cb),work1,dcmplx(frm(min)-frm(k)),Glsub)
+                CALL prealloc_mult(Gr(cbj,cb),work1,frmdiff,Glsub)
                 CALL destroy(work1)
 
                 CALL zmask_realloc(Glsub, Tlc(j))
