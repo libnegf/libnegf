@@ -57,7 +57,7 @@ endif
 ######################################################################
 
 MODULES = mpi_globals.o constants.o precision.o allocation.o \
-	  parameters.o contselfenergy.o \
+	  parameters.o contselfenergy.o population.o \
 	  mat_def.o clock.o fermi.o iterative.o complexbands.o \
           sparsekit_drv.o structure.o inversions.o outmatrix.o \
 	  load.o greendftb.o 
@@ -100,6 +100,8 @@ sparekit_drv.o:  mat_def.o allocation.o
 
 greendftb.o: 	 constants.o parameters.o sparsekit_drv.o iterative.o
 greendftb.o:     mat_def.o structure.o contselfenergy.o clock.o fermi.o
+
+population.o:    precision.o mat_def.o 
 
 test1: load.o structure.o greendftb.o
 #scattstates.o:   precision.o constants.o mat_def.o sparsekit_drv.o

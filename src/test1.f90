@@ -6,6 +6,7 @@ program test1
   use structure
   use mat_def
   use load
+  use population
   use greendftb
 
   implicit none
@@ -17,15 +18,13 @@ program test1
   integer :: ncont, nbl
   integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
   
-  integer :: ii, ka, jj, kb, jcol, nrow
-  complex(dp) :: dd
-  real(dp) :: qtot
   real(dp), dimension(:), allocatable :: qmulli
 
   call init_defaults(param)
   write(*,*) '(test) loading H,S...'
 
   call load_HS(H,S,.false.)
+
 
   write(*,*) '(test) H%nrow=',H%nrow
   write(*,*) '(test) H%ncol=',H%ncol
@@ -63,7 +62,7 @@ program test1
   !write(*,*) cont_end
   !write(*,*) surf_end
 
-  param%verbose=91
+  param%verbose=51
 
   write(*,*) '(test) create struct...'
   
@@ -80,35 +79,9 @@ program test1
 
   call contour_int(H,S,param,str,DensMat,EnMat)
 
-  ! -------------------------------------------------------------
-  nrow = DensMat%nrow
-  call log_allocate(qmulli,nrow)
-  qmulli=0.d0
+  call log_allocate(qmulli,str%central_dim)
 
-  do ii=1, nrow 
-     do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
-        dd = DensMat%nzval(ka)
-        jj = DensMat%colind(ka)
-        
-        do kb=S%rowpnt(jj),S%rowpnt(jj+1)-1
-           jcol = S%colind(kb)
-           if (jcol .eq. ii) then
-              qmulli(jcol) = qmulli(jcol) + real(dd*S%nzval(kb))
-           endif
-        enddo
-     enddo
-  enddo
-  
-  open(11,file='qmulli.dat')
-  qtot = 0.d0
-  do ii = 1, str%central_dim
-     write(11,*) ii,qmulli(ii)
-     qtot = qtot+qmulli(ii)
-  enddo
-  close(11)
-
-  write(*,*) 'qtot=',qtot
-  write(*,*) 'should be',1.d0*str%central_dim 
+  call mulliken(S,DensMat,qmulli)
 
   call destroy(H,S,DensMat)
   call log_deallocate(qmulli)
@@ -118,7 +91,6 @@ program test1
   call log_deallocate(surf_end)
 
   call writeMemInfo(6)
-  call writePeakInfo(6)
 
 end program test1
 

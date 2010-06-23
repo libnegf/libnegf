@@ -89,9 +89,8 @@ contains
     real(dp) :: c1,c2,T,teta,dt,alpha
     complex(kind=dp) :: Ec,Pc,z1,z2,z_diff,zt                  ! Integration variables
 
-    character(2) :: of
-    character(1) :: fm
     INTEGER :: t1g,t2g,crg,cmg
+    logical, parameter :: low = .true.
 
     ! Trasferimento variabili locali dal contenitore
     ! ------------------------------------------------------------------------
@@ -141,15 +140,6 @@ contains
       write(*,*) '          COMPUTING DENSITY MATRIX - Complex Integration'
       write(*,'(73("="))') 
     endif
-    !---------------------------------------------------------------
-    !if(id0.and.verbose.gt.60) write(*,'(73("*"))')
-    !-------------------------------------------------------------------- 
-
-    print*, '(int) extract central'
-    !if(id0) then
-    !   call writeMemInfo(6)
-    !   call writePeakInfo(6)
-    !endif
 
     !-------------------------------------------------------
     ! Separates blocks of H and S
@@ -163,58 +153,19 @@ contains
 
     do i=1,ncont
        print*, '(int) extract contact',i
-       call zextract_dns(H,cstart(i),cend(i),cstart(i),cend(i),HC_d(i))
-       
-       !write(of,'(i2.2)') i  
-       !open(50,file='./contacts/HC_'//of//'.dat')
-       !do k = 1, ncdim(i)
-       !   do l = 1, k
-       !      write(50,'(2i8,f20.10)') k, l, real(HC_d(i)%val(k,l))
-       !   enddo
-       !enddo
-       !close(50)
-       
+       call zextract_dns(H,cstart(i),cend(i),cstart(i),cend(i),HC_d(i))       
        call zextract_dns(S,cstart(i),cend(i),cstart(i),cend(i),SC_d(i))
        
     enddo
-
-    ! Set blocks interacting with contacts.
-    ! ...............................................................
     
-    !if(id0.and.verbose.gt.VBT) then
-    !  write(*,*) 'H:',H%nnz,H%nrow
-    !  write(*,*) 'S:',S%nnz,S%nrow 
-    !  write(*,*) 'HM:',HM%nnz,HM%nrow
-    !  write(*,*) 'SM:',SM%nnz,SM%nrow
-    !endif
-    !Simple check on position of cblk for 2 contacts
-    !if(ncont.eq.2.and.contdir(1).eq.-contdir(2)) then
-    !  if(cblk(1).ne.1.AND.cblk(1).ne.nbl) then
-    !    if (id0) write(*,*)     
-    !    if (id0) write(*,*) 'WARNING: CONTACT 1 INTERACTS WITH BLOCK',cblk(1)
-    !    pause
-    !  endif
-    !  if(cblk(2).ne.1.AND.cblk(2).ne.nbl) then
-    !    if (id0) write(*,*)     
-    !    if (id0) write(*,*) 'WARNING: CONTACT 2 INTERACTS WITH BLOCK',cblk(2)
-    !    pause
-    !  endif
-    !endif
-
     do i=1,ncont
        print*, '(int) extract central-contact',i
-       !call destroy(TM(i))
        i1=struct%mat_PL_start(struct%cblk(i))
        i2=struct%mat_PL_end(struct%cblk(i)) 
        j1=cstart(i); j2=j1+(ncdim(i)+param%surfdim(i))/2-1
        print*, 'Interaction block:',i1,i2,j1,j2
        call zextract(H,i1,i2,j1,j2,TM(i))         
-       call zextract(S,i1,i2,j1,j2,ST(i))
-       
-       !if(id0.and.verbose.gt.VBT) then
-       !   write(*,*) 'TM:',TM(i)%nnz,TM(i)%nrow
-       !   write(*,*) 'ST:',ST(i)%nnz,ST(i)%nrow
-       !endif
+       call zextract(S,i1,i2,j1,j2,ST(i))       
     enddo
 
     !********************************************************************
@@ -311,6 +262,8 @@ contains
       Pc = Rad*exp(j*teta)
       Ec = Centre+Pc
       dt = 1.d0*wght(i)/pi 
+      zt = dt*Pc*j
+      if (.not.low) zt = zt*2.d0*j
 
       ! -----------------------------------------------------------------------
       !  Calculation of contact self-energies
@@ -350,7 +303,7 @@ contains
       call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then 
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.) 
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,low) 
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -372,10 +325,10 @@ contains
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
-         CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
+         CALL concat(DensMat,zt,GreenR,1,1)
       endif
       if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-         CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
+         CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
 
       if (id0.and.verbose.gt.VBT) call write_clock
@@ -451,14 +404,19 @@ contains
 
       teta = pnts(i)
 
-      if (Temp.eq.0.d0) then                      ! Circle integration T=0            
-        Pc = Rad*exp(j*teta)
-        Ec = Centre+Pc
-      else                                        ! Segment integration T>0
-        Ec = z1 + teta*z_diff
-      endif
-      
       dt = 1.d0*wght(i)/pi
+
+      if (Temp.eq.0.d0) then                      ! Circle integration T=0            
+         Pc = Rad*exp(j*teta)
+         Ec = Centre+Pc
+         zt = dt*Pc*j
+      else                                         ! Segment integration T>0
+         Ec = z1 + teta*z_diff
+         zt = z_diff*fermi_fc(Ec,muref,Kb*Temp)*dt
+      endif
+
+      if(.not.low) zt = zt*2.d0*j
+      
 
       do l=1,ncont
          param%activecont=l
@@ -493,7 +451,7 @@ contains
       if (id0.and.verbose.gt.VBT) call message_clock('Compute Green`s funct ') 
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,low)
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -518,26 +476,11 @@ contains
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------  
-      if (Temp.eq.0.d0) then
-
-         if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
-            CALL concat(DensMat,j*dt*Pc,GreenR,1,1)
-         endif
-         if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-            CALL concat(EnMat,j*dt*Pc*Ec,GreenR,1,1)
-         endif
-
-      else
-
-        zt=z_diff*fermi_fc(Ec,muref,Kb*Temp)*dt
-        if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
-           CALL concat(DensMat,zt,GreenR,1,1)
-        endif
-        zt=zt*Ec
-        if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-           CALL concat(EnMat,zt,GreenR,1,1)
-        endif
-
+      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+         CALL concat(DensMat,zt,GreenR,1,1)
+      endif
+      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+         CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
  
       call destroy(GreenR)  
@@ -608,7 +551,7 @@ contains
       call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
       if (mem) then
-         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,.true.)
+         call calls_eq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct,low)
       else
          !call calls_eq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,struct)
       endif
@@ -622,15 +565,13 @@ contains
       if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
       zt= -2.d0*j*Kb*Temp*(1.d0,0.d0)
+      if(.not.low) zt = zt*2.d0*j
 
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)
       endif
-
-      zt=zt*Ec
-
       if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-         CALL concat(EnMat,zt,GreenR,1,1)
+         CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
 
       CALL destroy(GreenR) 
@@ -715,6 +656,7 @@ contains
 
         Ec = cmplx(pnts(i),0.0,dp) 
         dt = wght(i)/pi
+        zt = dt*(1.d0,0.d0)
 
         do j1=1,ncont
           frm_f(j1)=fermi_f(dreal(Ec),Efermi(j1)-mu(j1),Kb*Temp)
@@ -745,7 +687,7 @@ contains
         call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
         if (mem) then
-           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR)
+           call calls_neq_mem(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR,low)
         else 
            !call calls_neq_dsk(HM,SM,Ec,SelfEneR,Tlc,Tcl,GS,struct,frm_f,nc,GreenR)
         endif
@@ -758,14 +700,11 @@ contains
 
         if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
-        zt=dt*(1.d0,0.d0)
         if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
            CALL concat(DensMat,zt,GreenR,1,1)
         endif
-
-        zt=zt*Ec
         if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
-           CALL concat(DensMat,zt,GreenR,1,1)
+           CALL concat(DensMat,zt*Ec,GreenR,1,1)
         endif
 
         call destroy(GreenR)         

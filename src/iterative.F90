@@ -236,7 +236,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout)
+  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,low_out)
 
     !****************************************************************************
     !
@@ -265,6 +265,7 @@ CONTAINS
     TYPE(Tstruct_info) :: struct
     REAL(8), DIMENSION(:) :: frm
     INTEGER :: min
+    LOGICAL, OPTIONAL :: low_out
 
     !Work
     INTEGER :: i,ierr,i1,ncont,nbl
@@ -379,9 +380,13 @@ CONTAINS
     !if (debug) write(*,*) '----------------------------------------------------'
 
     !Calcolo degli outer blocks 
-    !if (debug) write(*,*) 'Compute Outer_Gless'   
-    CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,Glout)
-
+    !if (debug) write(*,*) 'Compute Outer_Gless' 
+    IF ( (PRESENT (low_out)).AND.(low_out) ) THEN  
+       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
+    ELSE
+       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.false.,Glout)
+    ENDIF
+    
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
@@ -1845,7 +1850,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,Glout)
+  SUBROUTINE Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,lower,Glout)
 
     !****************************************************************************
     !Input:
@@ -1873,6 +1878,7 @@ CONTAINS
     REAL(8), DIMENSION(:) :: frm
     TYPE(Tstruct_info), intent(in) :: struct
     INTEGER :: min  
+    LOGICAL :: lower
     TYPE(z_CSR) :: Glout
 
     !Work
@@ -1967,6 +1973,15 @@ CONTAINS
           i1=indblk(cb)
           j1=struct%mat_B_start(k)-struct%central_dim+indblk(nbl+1)-1
           CALL concat(Glout,Glsub,i1,j1)
+
+          ! compute lower outer part using (iG<)+ = iG<    
+          IF (lower) THEN
+             call zdagacsr(Glsub,work1)
+             call concat(Glout,work1,j1,i1)
+             call destroy(work1)
+          ENDIF
+
+
           CALL destroy(Glsub)
 
           !if (debug) write(*,*) 'cont',k,'concat ok'
@@ -2023,6 +2038,13 @@ CONTAINS
                 i1=indblk(cbj)
                 j1=struct%mat_B_start(j)-struct%central_dim+indblk(nbl+1)-1
                 CALL concat(Glout,Glsub,i1,j1)
+
+                ! compute lower outer part using (iG<)+ = iG<    
+                IF (lower) THEN
+                   call zdagacsr(Glsub,work1)
+                   call concat(Glout,work1,j1,i1)
+                   call destroy(work1)
+                ENDIF
                 CALL destroy(Glsub)
 
                 !if (debug) write(*,*) 'cont',k,'concat ok'
