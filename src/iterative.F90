@@ -48,15 +48,9 @@ MODULE iterative
   !Dropout value
   REAL(8), PARAMETER :: drop=1e-20
 
-  INTEGER :: t11,t21,cr1,cm1
-  REAL(8) :: total_time,partial_time
-
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsmr
-  INTEGER, DIMENSION(:), ALLOCATABLE :: gsmr_dim
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsml
-  INTEGER, DIMENSION(:), ALLOCATABLE :: gsml_dim
   TYPE(z_CSR), DIMENSION(:,:), ALLOCATABLE :: Gr
-  INTEGER, DIMENSION(:,:), ALLOCATABLE :: Gr_dim
 
 CONTAINS
 
