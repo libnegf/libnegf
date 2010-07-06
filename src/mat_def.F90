@@ -12,6 +12,7 @@ public :: print_mat, read_mat, writemem
 
 interface create
    module procedure zcreate_CSR
+   module procedure zcreate_id_CSR
    module procedure rcreate_CSR
    module procedure zcreate_CSC
    module procedure rcreate_CSC
@@ -186,6 +187,23 @@ subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   call log_allocate(mat%rowpnt,nrow+1)
     
 end subroutine zcreate_CSR
+
+! ------------------------------------------------------------------
+subroutine zcreate_id_CSR(mat,nrow)
+  type(z_CSR) :: mat
+  integer nrow, i
+
+  call zcreate_CSR(mat,nrow,nrow,nrow)
+  do i=1,nrow
+     mat%nzval(i)=1.d0
+     mat%rowpnt(i)=i
+     mat%colind(i)=i
+  enddo
+  mat%rowpnt(nrow+1)=nrow+1
+
+end subroutine zcreate_id_CSR
+
+
 ! ------------------------------------------------------------------
 subroutine zrecreate_CSR(mat)
   type(z_CSR) :: mat
