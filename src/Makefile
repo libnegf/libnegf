@@ -5,10 +5,11 @@
 #########################################################################
 include ../Makefile.user
 
-FC90 = ifort-11.1
+FC90 = ifort
 CC = gcc
 FPP = fpp
-
+LIBNEGFSRC=$(shell pwd)
+SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
 FC90OPT = -O2
 CFLAGS = -O2
@@ -17,9 +18,9 @@ FPPFLAGS = -D__PARDISO
 
 TARGET_BASE = libnegf
 
-LIB_SPARSEKIT = ../ext_sparskit/zlibskit.x86_64-linux-ifort.a
+LIB_SPARSEKIT = ../ext_sparskit/zlibskit.i686-linux-ifort.a
 
-LIBS = $(LIB_SPARSEKIT) -L$(MKL_LIBDIR) $(LIB_BLAS)
+LIBS = -L$(MKL_LIBDIR) $(LIB_BLAS)
 #########################################################################
 
 
@@ -62,9 +63,18 @@ MODULES = mpi_globals.o constants.o precision.o allocation.o \
           sparsekit_drv.o structure.o inversions.o outmatrix.o \
 	  load.o greendftb.o 
               
+SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o	\
+	zinfofun.o zinout.o zccn.o zcolor.o	\
+	zdsepart.o blassm.o matvec.o formats.o	\
+	unary.o	sort.o infofun.o inout.o ilut.o	\
+	zilut.o iters.o	ccn.o color.o dsepart.o
 
 all: $(TARGET) test1
 
+$(SPARSEKITMODULES): 
+	(cd $(SPARSEKITDIR); make objects ; cd $(LIBNEGFSRC)  )
+
+MODULES: SPARSEKITMODULES
 
 #########################################################################
 # Main
@@ -72,9 +82,9 @@ all: $(TARGET) test1
 
 test1: test1.f90 
 	$(FC90) $(FFLAGS) -c test1.f90
-	$(FC) -o $@  test1.o $(MODULES) $(LIBS)
+	$(FC) -o $@  test1.o $(TARGET) $(LIBS)
 
-$(TARGET): $(MODULES) 
+$(TARGET): $(MODULES) $(SPARSEKITMODULES)
 	ar -r $@ $^
 
 ######################################################################
@@ -112,6 +122,7 @@ test1: load.o structure.o greendftb.o
 # other make options 
 ######################################################################
 clean: 
-	rm -f $(TARGET) ! ifc* work* core .f90 *.mod *.o
+	(rm -f $(TARGET) ! ifc* work* core .f90 *.mod *.o; \
+	cd $(SPARSEKITDIR); make clean; cd $(LIBNEGFSRC); )
 
 ## END ###############################################################

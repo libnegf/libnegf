@@ -39,7 +39,7 @@
 
 ROOT = ..
 include $(ROOT)/Makefile.user
-
+LIBNEGFSRC = /home/gpenazzi/LIBNEGF/src
 F77 = $(FC90)
 AR = ar -rcv 
 OPT = -O3 -c
@@ -127,6 +127,12 @@ clean:
           echo cleaning $$dir ;\
           (cd $$dir; rm -f *~ *.o *.ex .,* fort.* ftn?? *.mat *.pic *.ps *.trace core) ;\
           done
+
+objects: $(OBJ)
+	@for obj in $(OBJ) ;\
+	  do \
+	(cp $$obj $(LIBNEGFSRC)) ;\
+         done 
 
 distclean: clean
 	rm -f $(TARGET)
