@@ -57,10 +57,10 @@ ifeq ($(ARCH1),i686)
     FC90=ifort-9.1 
    MPI_DIR = /usr/pack/mpich2-1.0.8-gp/i686-debian-linux4.0/bin
    # OLD MKL (Better for AMD ?) 
-   MKL_LIBDIR = /usr/pack/intel_mkl-8.0-ma/lib/32
+   MKL_LIBDIR = /usr/pack/intel_mkl-10.2-gp/lib/32
    STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/libmkl_lapack.a $(MKL_LIBDIR)/libmkl_ia32.a -Wl,--end-group -lguide
    #MKL_LIBDIR = /usr/pack/intel_mkl-10.2-gp/lib/32
-   #LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lguide 
+   LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lguide -lpthread
    #STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/libmkl_intel.a $(MKL_LIBDIR)/libmkl_intel_thread.a $(MKL_LIBDIR)/libmkl_core.a -Wl,--end-group -liomp5 -lguide
    #MKL_LIBDIR = /home/pecchia/projects/LAPACK/lapack-3.2.1
    #STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/lapack_LINUX.a $(MKL_LIBDIR)/blas_LINUX.a -Wl,--end-group 
