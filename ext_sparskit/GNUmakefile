@@ -38,8 +38,8 @@
 # Last Updated:  May 9, 1994.
 
 ROOT = ..
+LIBNEGFSRC = $(ROOT)/src
 include $(ROOT)/Makefile.user
-LIBNEGFSRC = /home/gpenazzi/LIBNEGF/src
 F77 = $(FC90)
 AR = ar -rcv 
 OPT = -O3 -c

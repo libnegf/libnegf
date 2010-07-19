@@ -18,8 +18,6 @@ FPPFLAGS = -D__PARDISO
 
 TARGET_BASE = libnegf
 
-LIB_SPARSEKIT = ../ext_sparskit/zlibskit.i686-linux-ifort.a
-
 LIBS = -L$(MKL_LIBDIR) $(LIB_BLAS)
 #########################################################################
 
