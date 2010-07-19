@@ -19,7 +19,7 @@ ARCH = $(ARCH1)-linux-ifort
 DEBUG=0
 
 # Include system specific settings
-include $(ROOT)/sysmakes/make.$(ARCH)
+#include $(ROOT)/sysmakes/make.$(ARCH)
 
 ############################################################################
 # Overriding standard options:
