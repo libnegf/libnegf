@@ -59,7 +59,7 @@ MODULES = mpi_globals.o constants.o precision.o allocation.o \
 	  parameters.o contselfenergy.o population.o \
 	  mat_def.o clock.o fermi.o iterative.o complexbands.o \
           sparsekit_drv.o structure.o inversions.o outmatrix.o \
-	  load.o greendftb.o 
+	  load.o greendftb.o input_output.o 
               
 SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o	\
 	zinfofun.o zinout.o zccn.o zcolor.o	\
@@ -67,7 +67,7 @@ SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o	\
 	unary.o	sort.o infofun.o inout.o ilut.o	\
 	zilut.o iters.o	ccn.o color.o dsepart.o
 
-all: $(TARGET) test1
+all: $(TARGET) testdos
 
 $(SPARSEKITMODULES): 
 	(cd $(SPARSEKITDIR); make objects ; cd $(LIBNEGFSRC)  )
@@ -82,6 +82,10 @@ test1: test1.f90
 	$(FC90) $(FFLAGS) -c test1.f90
 	$(FC) -o $@  test1.o $(TARGET) $(LIBS)
 
+testdos: Testdos.F90
+	$(FC90) $(FFLAGS) -c Testdos.F90 
+	$(FC) -o $@  Testdos.o $(TARGET) $(LIBS)
+
 $(TARGET): $(MODULES) $(SPARSEKITMODULES)
 	ar -r $@ $^
 
@@ -95,7 +99,7 @@ mat_def.o:       allocation.o
 
 iterative.o:     allocation.o parameters.o mat_def.o sparsekit_drv.o 
 iterative.o:     inversions.o structure.o
-
+input_output.o:  precision.o allocation.o mat_def.o sparekit_drv.o 
 inversions.o:    allocation.o mat_def.o sparsekit_drv.o
 
 complexbands.o:    precision.o constants.o inversions.o	
