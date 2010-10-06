@@ -61,7 +61,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_eq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,Aout,struct,lower_outer)
+  SUBROUTINE calls_eq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,Aout,struct,outer)
 
     !****************************************************************************
     !
@@ -88,7 +88,7 @@ CONTAINS
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR, Tlc, Tcl, gsurfR 
     COMPLEX(8) :: E
     TYPE(Tstruct_info) :: struct
-    LOGICAL, OPTIONAL :: lower_outer
+    INTEGER :: outer
 
     !Work
     TYPE(z_CSR), DIMENSION(:,:), ALLOCATABLE :: ESH
@@ -164,13 +164,14 @@ CONTAINS
 
     !Chiamata di Outer_A_mem
     !CALL Outer_A_mem(Tlc,Tcl,gsurfR,Aout) 
-
-    IF ( (PRESENT (lower_outer)).AND.(lower_outer) ) THEN
+    SELECT CASE (outer)
+    CASE(0)
+    CASE(1)
+       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.FALSE.,Aout)   
+    CASE(2)
        CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.TRUE.,Aout) 
-    ELSE
-       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.FALSE.,Aout) 
-    ENDIF
-
+    END SELECT
+     
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writePeakInfo(6)
@@ -208,9 +209,13 @@ CONTAINS
 
     !Concatenazioone di A in Aout
 
-    call concat(Aout,A,1,1)
-    call destroy(A)
-
+    SELECT CASE(outer)
+    CASE(0)
+       call clone(A,Aout)
+    CASE(1:2)
+       call concat(Aout,A,1,1)
+       call destroy(A)
+    END SELECT
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writeMemInfo(6)
@@ -230,7 +235,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,low_out)
+  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,out)
 
     !****************************************************************************
     !
@@ -259,7 +264,7 @@ CONTAINS
     TYPE(Tstruct_info) :: struct
     REAL(8), DIMENSION(:) :: frm
     INTEGER :: min
-    LOGICAL, OPTIONAL :: low_out
+    INTEGER :: out
 
     !Work
     INTEGER :: i,ierr,i1,ncont,nbl
@@ -375,11 +380,14 @@ CONTAINS
 
     !Calcolo degli outer blocks 
     !if (debug) write(*,*) 'Compute Outer_Gless' 
-    IF ( (PRESENT (low_out)).AND.(low_out) ) THEN  
-       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
-    ELSE
+    SELECT CASE (out)
+    CASE(0)
+    CASE(1)
        CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.false.,Glout)
-    ENDIF
+    CASE(2)
+       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
+    END SELECT
+
     
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writePeakInfo(6)
@@ -413,8 +421,13 @@ CONTAINS
     DEALLOCATE(ESH)
 
     !Concatenazione di Gl in Glout
-    CALL concat(Glout,Gl,1,1)
-    CALL destroy(Gl)
+    SELECT CASE(out)
+    CASE(0)
+       call clone(Gl,Glout)
+    CASE(1:2)
+       call concat(Glout,Gl,1,1)
+       call destroy(Gl)
+    END SELECT
 
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)

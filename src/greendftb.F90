@@ -90,7 +90,7 @@ contains
     complex(kind=dp) :: Ec,Pc,z1,z2,z_diff,zt                  ! Integration variables
 
     INTEGER :: t1g,t2g,crg,cmg
-    logical, parameter :: low = .true.
+    integer, parameter :: low = 2
 
     ! Trasferimento variabili locali dal contenitore
     ! ------------------------------------------------------------------------
@@ -263,7 +263,7 @@ contains
       Ec = Centre+Pc
       dt = 1.d0*wght(i)/pi 
       zt = dt*Pc*j
-      if (.not.low) zt = zt*2.d0*j
+      if (low.lt.2) zt = zt*2.d0*j
 
       ! -----------------------------------------------------------------------
       !  Calculation of contact self-energies
@@ -415,7 +415,7 @@ contains
          zt = z_diff*fermi_fc(Ec,muref,Kb*Temp)*dt
       endif
 
-      if(.not.low) zt = zt*2.d0*j
+      if(low.lt.2) zt = zt*2.d0*j
       
 
       do l=1,ncont
@@ -565,7 +565,7 @@ contains
       if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
       zt= -2.d0*j*Kb*Temp*(1.d0,0.d0)
-      if(.not.low) zt = zt*2.d0*j
+      if(low.lt.2) zt = zt*2.d0*j
 
       if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)

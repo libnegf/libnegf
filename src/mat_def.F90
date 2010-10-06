@@ -7,12 +7,11 @@ Module mat_def
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS
 
-public :: create, recreate, destroy
+public :: create, init, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 
 interface create
    module procedure zcreate_CSR
-   module procedure zcreate_id_CSR
    module procedure rcreate_CSR
    module procedure zcreate_CSC
    module procedure rcreate_CSC
@@ -25,10 +24,20 @@ interface create
    module procedure rcreate_DNS
 end interface
 
+interface create_id
+   module procedure zcreate_id_CSR
+end interface
+
 interface recreate
    module procedure zrecreate_CSR
    module procedure rrecreate_CSR
 end interface
+
+interface init
+   module procedure zinit_CSR
+end interface
+
+
 
 interface destroy
    module procedure zdestroy_CSR
@@ -187,7 +196,23 @@ subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   call log_allocate(mat%rowpnt,nrow+1)
     
 end subroutine zcreate_CSR
+! ------------------------------------------------------------------
 
+subroutine zinit_CSR(mat)
+  type(z_CSR) :: mat
+
+  integer :: k
+
+  if(mat%nnz.ne.mat%nrow) STOP 'cannot initialize matrix (nnz != nrow)' 
+
+  do k=1,Mat%nrow
+     Mat%nzval(k)=0.d0
+     Mat%colind(k)=k
+     Mat%rowpnt(k)=k
+  enddo
+  Mat%rowpnt(mat%nrow+1)=mat%nrow+1
+  
+end subroutine zinit_CSR
 ! ------------------------------------------------------------------
 subroutine zcreate_id_CSR(mat,nrow)
   type(z_CSR) :: mat

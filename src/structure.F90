@@ -7,14 +7,14 @@ public ::  TStruct_info, create_TStruct, print_TStruct, kill_TStruct
 
 
 type TStruct_Info
-   integer, dimension(:), Pointer :: mat_PL_start  !ind(..)
-   integer, dimension(:), Pointer :: mat_PL_end    !ind(..)
+   integer, dimension(:), Pointer :: mat_PL_start => NULL() !ind(..)
+   integer, dimension(:), Pointer :: mat_PL_end => NULL()    !ind(..)
 
-   integer, dimension(:), Pointer :: mat_B_start  ! starting bound    
-   integer, dimension(:), Pointer :: mat_C_start  ! starting real contact
-   integer, dimension(:), Pointer :: mat_C_end    ! end real contact
+   integer, dimension(:), Pointer :: mat_B_start => NULL()  ! starting bound    
+   integer, dimension(:), Pointer :: mat_C_start => NULL()  ! starting real contact
+   integer, dimension(:), Pointer :: mat_C_end => NULL()  ! end real contact
 
-   integer, dimension(:), Pointer :: cblk          !contact int block
+   integer, dimension(:), Pointer :: cblk => NULL()        !contact int block
    integer :: central_dim
    integer :: total_dim
    integer :: num_PLs
@@ -47,15 +47,20 @@ contains
     str%num_PLs = nbl
     str%active_cont = 1
 
-    allocate(str%mat_B_start(ncont))
-    allocate(str%mat_C_start(ncont))
-    allocate(str%mat_C_end(ncont))
-    allocate(str%cblk(ncont))
+    if(ncont.gt.0) then
+       allocate(str%mat_B_start(ncont))
+       allocate(str%mat_C_start(ncont))
+       allocate(str%mat_C_end(ncont))
+       allocate(str%cblk(ncont))
+    endif
     
-    str%mat_B_start(1) =  PL_end(nbl)+1   
-    str%mat_C_start(1) =  surf_end(1)+1 
-    str%mat_C_end(1)   =  cont_end(1)    
-    str%cblk(1) = cblk(1)
+    if(ncont.gt.0) then
+       str%mat_B_start(1) =  PL_end(nbl)+1
+       str%mat_C_start(1) =  surf_end(1)+1 
+       str%mat_C_end(1)   =  cont_end(1)    
+       str%cblk(1) = cblk(1)
+    endif
+       
 
     do i=2,ncont
        str%mat_B_start(i) = cont_end(i-1) + 1  
@@ -77,20 +82,26 @@ contains
     str%mat_PL_start(nbl+1)= PL_end(nbl)+1
 
     str%central_dim = PL_end(nbl)
-    str%total_dim = cont_end(ncont)
     
+    if(ncont.gt.0) then
+       str%total_dim = cont_end(ncont)
+    else
+       str%total_dim = str%central_dim
+    endif
+
   end subroutine create_TStruct
   
   ! --------------------------------------------------------
   subroutine kill_TStruct(str)
     type(TStruct_Info) :: str
     
-    deallocate(str%mat_B_start)
-    deallocate(str%mat_C_start)
-    deallocate(str%mat_C_end)
-    deallocate(str%cblk)
-    deallocate(str%mat_PL_start)
-    deallocate(str%mat_PL_end)
+    if(associated(str%mat_B_start)) deallocate(str%mat_B_start) 
+    if(associated(str%mat_C_start)) deallocate(str%mat_C_start)
+    if(associated(str%mat_C_end))   deallocate(str%mat_C_end)
+    if(associated(str%cblk))  deallocate(str%cblk)
+
+    if(associated(str%mat_PL_start)) deallocate(str%mat_PL_start)
+    if(associated(str%mat_PL_end)) deallocate(str%mat_PL_end)
   end subroutine kill_TStruct
 
   ! --------------------------------------------------------  

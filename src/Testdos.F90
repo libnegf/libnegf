@@ -38,7 +38,7 @@ print*, Emin,Emax
  
 print*, 'N=',N
 
-  call create(Id,zmat%nrow)
+  call create_id(Id,zmat%nrow)
   call create(Inv,zmat%nrow,zmat%nrow)
 
   open(101,file='dos.dat')

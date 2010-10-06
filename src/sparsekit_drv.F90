@@ -9,7 +9,7 @@ MODULE sparsekit_drv
   public :: dns2csr, csr2dns, coo2csr, csr2coo, csr2csc, csc2dns, dns2csc
   public :: clone, concat, msort, mask
   public :: prealloc_sum, prealloc_mult
-  public :: check_nnz, nzdrop
+  public :: check_nnz, nzdrop, trace
 
   public :: zsumcsr1
   public :: ramub_st
@@ -162,6 +162,9 @@ MODULE sparsekit_drv
   end interface
   interface check_nnz
      module procedure zcheck_nnz
+  end interface
+  interface trace
+     module procedure ztrace_csr
   end interface
 
 CONTAINS
@@ -2748,7 +2751,7 @@ end subroutine zcooxcsr_st
   end subroutine zcooxcsr
   !------------- end of coocsr ------------------------------------------- 
   !----------------------------------------------------------------------- 
-  subroutine zgetdiag(A_csr,D_vec,nrow)
+  subroutine zgetdiag(A_csr,D_vec)
 
     !************************************************************************
     !
@@ -2762,10 +2765,14 @@ end subroutine zcooxcsr_st
 
     type(z_CSR) :: A_csr
     integer :: nrow
-    complex(kind=dp) :: D_vec(nrow)
+    complex(kind=dp), dimension(:) :: D_vec
 
     integer :: len
     integer, allocatable, dimension(:) :: idiag
+
+    IF(SIZE(D_vec).lt.A_csr%nrow) THEN
+       STOP 'Error in zgetdiag. D_vec has dimension lower than nrow'
+    ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
 
@@ -2775,8 +2782,26 @@ end subroutine zcooxcsr_st
     call log_deallocate(idiag)
 
   end subroutine zgetdiag
+
+  !---------------------------------------------
     
- 
+  function ztrace_csr(mat) result(trace)
+    type(z_CSR) :: mat
+    complex(dp) :: trace
+
+    integer :: i, nrow
+    complex(kind=dp), dimension(:), allocatable :: D_vec
+    
+    call log_allocate(D_vec,mat%nrow)
+
+    call zgetdiag(mat,D_vec)
+
+    trace = sum(D_vec)
+
+    call log_deallocate(D_vec)
+
+  end function ztrace_csr
+
 end module sparsekit_drv
 
 

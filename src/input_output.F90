@@ -14,6 +14,8 @@ module input_output
 subroutine read_H(idR,idI, zmat)
   Integer :: idR, idI 
   Type(z_CSR) :: zmat
+
+  !locals
   Type(r_COO) :: mat, mat1
   Type(z_COO) :: mat2
   Integer i, count
@@ -87,7 +89,6 @@ subroutine read_H(idR,idI, zmat)
 
   CALL coo2csr(mat2,zmat)
   
-
   call destroy(mat2)               !deallocation Hcomplex
 
   write(*,*) 'matrix H read'
