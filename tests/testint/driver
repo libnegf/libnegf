@@ -1,18 +1,18 @@
 0     ! ncont
 1     !n blocchi
-10    !
+100    !
 0     
 0
 0
 4.d0        !mu_n
 -4.d0        !mu_p
--2.d0       !Ec
-2.d0        !Ev
--1.d0       !DeltaEc
-1.d0       !DeltaEv
--2.d0       !Emin
-2.d0        !Emax
-1.d-3        !Estep
+1.d0       !Ec
+-1.d0        !Ev
+0.d0       !DeltaEc
+0.d0       !DeltaEv
+-4.d0       !Emin
+4.d0        !Emax
+5.d-3        !Estep
 40.d0      !Temp
 500       !Np_n(1)
 500       !Np_n(2)
