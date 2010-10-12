@@ -214,8 +214,9 @@ CONTAINS
        call clone(A,Aout)
     CASE(1:2)
        call concat(Aout,A,1,1)
-       call destroy(A)
     END SELECT
+
+    call destroy(A)
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writeMemInfo(6)
@@ -426,8 +427,9 @@ CONTAINS
        call clone(Gl,Glout)
     CASE(1:2)
        call concat(Glout,Gl,1,1)
-       call destroy(Gl)
     END SELECT
+
+    call destroy(Gl)
 
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)

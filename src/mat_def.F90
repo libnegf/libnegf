@@ -5,7 +5,7 @@ Module mat_def
   private
 
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
-public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS
+public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 
 public :: create, init, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
@@ -127,6 +127,16 @@ Type z_DNS
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type z_DNS 
 
+Type z_vec
+   integer :: len
+   complex(dp), dimension(:), allocatable :: val 
+   integer, dimension(:), allocatable :: ind 
+end Type z_vec
+
+Type z_RGM
+   integer :: nrow
+   type(z_vec), dimension(:), allocatable :: row
+end Type z_RGM
 
 
  

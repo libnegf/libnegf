@@ -20,7 +20,7 @@ program Testint
 
   pnegf => negf
 
-  print*,'(main) testdos'
+  print*,'(main) testint'
 
   negf%file_re_H='H_real.dat'
   negf%file_im_H='H_imm.dat'

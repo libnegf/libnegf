@@ -165,6 +165,7 @@ MODULE sparsekit_drv
   end interface
   interface trace
      module procedure ztrace_csr
+     module procedure ztrace_dns
   end interface
 
 CONTAINS
@@ -2801,6 +2802,19 @@ end subroutine zcooxcsr_st
     call log_deallocate(D_vec)
 
   end function ztrace_csr
+
+  function ztrace_dns(mat) result(trace)
+     type(z_DNS) :: mat
+     complex(dp) :: trace
+        
+     integer :: i
+
+     trace = (0.d0,0.d0)
+     do i = 1,mat%nrow
+        trace = trace + mat%val(i,i)
+     end do 
+
+  end function ztrace_dns        
 
 end module sparsekit_drv
 

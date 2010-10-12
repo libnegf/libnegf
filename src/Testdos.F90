@@ -1,76 +1,51 @@
-program Testdos
+program Testint
 
   use precision
   use constants
   use mat_def
   use allocation
+  use structure
   use input_output
   use sparsekit_drv
   use inversions
+  use iterative
+  use libnegf
+  use lib_param
 
   implicit none
 
-  Type(z_CSR) :: zmat, Id, ESH
-  Type(z_DNS) :: Inv
-  real(dp) :: delta
-  Integer :: i, k,  N
-  real(dp) :: Emin, Emax, Estep, dos
-  Complex(dp) :: E
-  !Complex(dp), dimension(:,:), allocatable :: Inv
-
-  open(101, file='H_real.dat', form='formatted')
-  open(102, file='H_imm.dat', form='formatted')   !open imaginary part of H
-
-  call read_H(101,102,zmat)
-
-  close(101)
-  close(102)
-
-  Emin = -2.d0
-  Emax = 2.d0
-  Estep = 1.d-3
-
-  delta = 3.d-3
-
-print*, Emin,Emax
-
-  N = nint((Emax-Emin)/Estep)
- 
-print*, 'N=',N
-
-  call create_id(Id,zmat%nrow)
-  call create(Inv,zmat%nrow,zmat%nrow)
-
-  open(101,file='dos.dat')
-
-  do i=1,N
-     
-     E=(Emin+i*Estep)+delta*(0.d0,1.d0)
-
-     !call zcreate_id_CSR(Id, zmat%nrow)
-
-     call prealloc_sum(Id,zmat,E,(-1.d0,0.d0),ESH)
+  Type(Tnegf), target :: negf
+  Type(Tnegf), pointer :: pnegf
 
 
-     call zINV_PARDISO(ESH,zmat%nrow,Inv%val)
-     
+  pnegf => negf
 
-     dos = 0.d0
-     do k=1,zmat%nrow
-        dos = dos - aimag(Inv%val(k,k))/pi
-     enddo
+  print*,'(main) testdos'
 
-     write(101,*) real(E), dos
-     write(*,*) real(E), dos
+  negf%file_re_H='H_real.dat'
+  negf%file_im_H='H_imm.dat'
+  negf%file_struct='driver'
+  negf%verbose = 10
+  negf%eneconv = HAR  ! to convert Kb 
+  negf%isSid = .true.  
 
-     call destroy(ESH)
-     
-  enddo
-  
-  close(101)
+  print*,'(main) init'
 
-  call destroy(Id)
-  call destroy(Inv)
+  call init_negf(pnegf)
+
+  print*,'(main) computing dos'
+
+  call compute_dos(pnegf)
+
+  print*,'(main) destroy negf'
+
+  call destroy_negf(pnegf)
+
+  call writememinfo(6)
 
 
-end program Testdos
+end program Testint
+
+
+! negf:0 XXXXXXXXXXXX  negf:END
+! pointer 
