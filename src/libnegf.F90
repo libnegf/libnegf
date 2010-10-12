@@ -143,16 +143,10 @@ contains
 
        call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,Gr,negf%str,outer)
             
-       !call csr2dns(Gr,Inv)
-       !negf%dos=0.d0
-       !do k = 1,negf%H%nrow
-       !   negf%dos = negf%dos - aimag( Inv%val(k,k) )/pi
-       !end do
-                       
        negf%dos = -aimag( trace(Gr) )/pi
 
        write(101,*) real(Ec), negf%dos
-       print*, real(Ec), negf%dos
+       print*, real(Ec), negf%dos, Gr%nnz
 
        call destroy(Gr)
 
@@ -403,7 +397,7 @@ contains
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call init(TmpMt)
 
-!1. INTEGRATION OVER THE SEGMENT
+    !1. INTEGRATION OVER THE SEGMENT
 
     z1 = negf%Ev + negf%DeltaEv + j*Lambda
     z2 = negf%Ev + negf%DeltaEv
@@ -448,7 +442,7 @@ contains
     deallocate(wght)
     deallocate(pnts)
 
-! 2. INTEGRATION OVER THE SEGMENT 
+    ! 2. INTEGRATION OVER THE SEGMENT 
 
     allocate(wght(negf%Np_p(2)))
     allocate(pnts(negf%Np_p(2)))

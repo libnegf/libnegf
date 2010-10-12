@@ -430,7 +430,6 @@ CONTAINS
     END SELECT
 
     call destroy(Gl)
-
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)
     !if (debug) call writePeakInfo(6)
@@ -578,10 +577,10 @@ CONTAINS
 
        nrow=ESH(sbl,sbl)%nrow    !indblk(nbl+1)-indblk(nbl)
 
-       CALL create(gsmr_d,nrow,nrow)
+       !CALL create(gsmr_d,nrow,nrow)
 
 #ifdef __PARDISO
-       CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsmr_d%val)
+       CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsmr(sbl))
 #endif
 #ifdef __SUPERLU
        CALL zINV_LU(ESH(sbl,sbl), gsmr_d%val)  
@@ -590,11 +589,11 @@ CONTAINS
        CALL zINV_LAPACK(ESH(sbl,sbl), gsmr_d%val)
 #endif
 
-       CALL create( gsmr(sbl),nrow,nrow,nzdrop(gsmr_d,drop) )
+       !CALL create( gsmr(sbl),nrow,nrow,nzdrop(gsmr_d,drop) )
 
-       CALL dns2csr(gsmr_d,gsmr(sbl))
+       !CALL dns2csr(gsmr_d,gsmr(sbl))
 
-       CALL destroy(gsmr_d)
+       !CALL destroy(gsmr_d)
 
     endif
 
@@ -615,10 +614,10 @@ CONTAINS
        CALL prealloc_sum(ESH(i,i),work2,work1)
        CALL destroy(work2)
 
-       CALL create(gsmr_d,nrow,nrow)
+       !CALL create(gsmr_d,nrow,nrow)
 
 #ifdef __PARDISO
-       CALL zINV_PARDISO(work1, nrow, gsmr_d%val)
+       CALL zINV_PARDISO(work1, nrow, gsmr(i))
 #endif 
 #ifdef __SUPERLU
        CALL zINV_LU(work1, gsmr_d%val)  
@@ -629,11 +628,11 @@ CONTAINS
 
        CALL destroy(work1)
 
-       CALL create(gsmr(i),nrow,nrow,nzdrop(gsmr_d,drop) )
+       !CALL create(gsmr(i),nrow,nrow,nzdrop(gsmr_d,drop) )
 
-       CALL dns2csr(gsmr_d,gsmr(i))
+       !CALL dns2csr(gsmr_d,gsmr(i))
 
-       CALL destroy(gsmr_d)
+       !CALL destroy(gsmr_d)
 
     ENDDO
 
@@ -690,10 +689,10 @@ CONTAINS
     nbl = size(ESH,1)
     nrow=ESH(sbl,sbl)%nrow  !indblk(2)-indblk(1)
 
-    CALL create(gsml_d,nrow,nrow)
+    !CALL create(gsml_d,nrow,nrow)
 
 #ifdef __PARDISO
-       CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsml_d%val)
+       CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsml(sbl))
 #endif 
 #ifdef __SUPERLU
        CALL zINV_LU(ESH(sbl,sbl), gsml_d%val)  
@@ -702,11 +701,11 @@ CONTAINS
        CALL zINV_LAPACK(ESH(sbl,sbl), gsml_d%val)
 #endif
 
-    CALL create(gsml(sbl),nrow,nrow,nzdrop(gsml_d,drop))
+    !CALL create(gsml(sbl),nrow,nrow,nzdrop(gsml_d,drop))
 
-    CALL dns2csr(gsml_d,gsml(sbl))
+    !CALL dns2csr(gsml_d,gsml(sbl))
 
-    CALL destroy(gsml_d)
+    !CALL destroy(gsml_d)
 
     !***
     !gsml(sbl+1):gsml(ebl)
@@ -726,10 +725,10 @@ CONTAINS
 
        CALL destroy(work2)
 
-       CALL create(gsml_d,nrow,nrow)
+       !CALL create(gsml_d,nrow,nrow)
 
 #ifdef __PARDISO
-       CALL zINV_PARDISO(work1, nrow, gsml_d%val)
+       CALL zINV_PARDISO(work1, nrow, gsml(i))
 #endif 
 #ifdef __SUPERLU
        CALL zINV_LU(work1, gsml_d%val)  
@@ -740,11 +739,11 @@ CONTAINS
 
        CALL destroy(work1)
 
-       CALL create(gsml(i),nrow,nrow,nzdrop(gsml_d,drop))
+       !CALL create(gsml(i),nrow,nrow,nzdrop(gsml_d,drop))
 
-       CALL dns2csr(gsml_d,gsml(i))
+       !CALL dns2csr(gsml_d,gsml(i))
 
-       CALL destroy(gsml_d)
+       !CALL destroy(gsml_d)
 
     ENDDO
 
@@ -818,10 +817,10 @@ CONTAINS
 
     endif
 
-    CALL create(Gr_d,nrow,nrow)
+    !CALL create(Gr_d,nrow,nrow)
 
 #ifdef __PARDISO
-       CALL zINV_PARDISO(work1, nrow, Gr_d%val)
+       CALL zINV_PARDISO(work1, nrow, Gr(1,1))
 #endif 
 #ifdef __SUPERLU
        CALL zINV_LU(work1, Gr_d%val)  
@@ -832,11 +831,11 @@ CONTAINS
 
     CALL destroy(work1)
 
-    CALL create(Gr(1,1),nrow,nrow,nzdrop(Gr_d,drop))
+    !CALL create(Gr(1,1),nrow,nrow,nzdrop(Gr_d,drop))
 
-    CALL dns2csr(Gr_d,Gr(1,1))
+    !CALL dns2csr(Gr_d,Gr(1,1))
 
-    CALL destroy(Gr_d)
+    !CALL destroy(Gr_d)
 
     !***
     !Diagonal, Subdiagonal and Superdiagonal blocks

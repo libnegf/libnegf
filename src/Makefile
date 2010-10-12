@@ -69,7 +69,9 @@ SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o \
 	zilut.o iters.o	ccn.o color.o dsepart.o
 
 
-all: $(TARGET) testdos 
+all: $(TARGET) 
+
+tests: $(TARGET) testdos testint	
  
 clean: 
 	(rm -f $(TARGET) ! ifc* work* core .f90 *.mod *.o; \

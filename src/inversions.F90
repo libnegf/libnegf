@@ -496,45 +496,60 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   type(z_CSR) :: A_csr
   integer :: ndim
-  complex(kind=dp), DIMENSION(:,:) :: INV
-  COMPLEX(kind=dp), ALLOCATABLE, DIMENSION(:,:) :: B
+  type(z_CSR) :: INV
+
+  COMPLEX(dp), ALLOCATABLE, DIMENSION(:,:) :: X,B
+  TYPE(z_vec), ALLOCATABLE, DIMENSION(:) :: RM
   INTEGER :: i1,i2, mem
 
-  integer(4) :: MTYPE,NRHS
+  integer(4) :: MTYPE,NRHS,cnt,indx,nnz
   INTEGER(4) :: info,MSGLVL,PHASE,MAXFCT,MNUM
-  INTEGER(4), DIMENSION(:), ALLOCATABLE :: PT,IPARM,PERM
+  INTEGER(4) :: PT(64)
+  INTEGER(4) :: IPARM(64)
 
-  INTEGER, DIMENSION(:), ALLOCATABLE :: iwork
+  INTEGER, DIMENSION(:), ALLOCATABLE :: PERM, iwork, wind
   INTEGER :: iwork_lenght
 
-  if (timing) call SYSTEM_CLOCK(t1_i,cr_i,cm_i)
-  if (timing) call SYSTEM_CLOCK(t1_ii,cr_ii,cm_ii)
 
   iwork_lenght=MAX(A_csr%nrow+1,2*A_csr%nnz)
   CALL log_allocate(iwork,iwork_lenght)
   CALL zcsort(A_csr%nrow,A_csr%nzval,A_csr%colind,A_csr%rowpnt,iwork,.TRUE.) 
   CALL log_deallocate(iwork) 
 
-  NRHS = ndim  ! Number or RHS
+  NRHS = 1  ! Number or RHS
  
-  CALL log_allocate(PT,64)
-  CALL log_allocate(IPARM,64)
   CALL log_allocate(PERM,ndim)
-  CALL log_allocate(B,NRHS,NRHS)
+  CALL log_allocate(B,ndim,NRHS)
+  CALL log_allocate(X,ndim,NRHS)
+  CALL log_allocate(wind,ndim)
 
-  MTYPE=13 !Complex, Non symmetric 
+  MTYPE=13 ! 6: Complex, symmetric; 13: Complex, non symmetric 
 
   IPARM(:)=0
   PT(:)=0
-  PERM(:)=0
-
-  !IPARM(3) is number of processors - must be set
-  IPARM(3)=1
+  do i1=1,ndim
+     PERM(i1)=i1
+  enddo
 
   !Setting IPARM
-  IPARM(1)=1;IPARM(2)=2;IPARM(3)=1;IPARM(4)=0;
-  IPARM(5)=0;IPARM(6)=0;IPARM(8)=0;IPARM(10)=13;
-  IPARM(11)=1;IPARM(18)=0;IPARM(19)=0;
+  IPARM(1)=1;  ! 0 sets all default values
+  IPARM(2)=2;  ! 0 MDA, 2 ND (metis)
+  IPARM(3)=1;  ! is number of processors - must be set
+  IPARM(4)=0;  ! 10*L+K; K=0: LU; K=1: CGS; K=2: CG  acc (1E-L) 
+  IPARM(5)=0;  ! 1 if user supplies permutation (PERM)
+  IPARM(6)=0;  ! 1 => the solution in on B
+  IPARM(8)=0;  ! input: max num of iterative refinement steps
+  IPARM(7)=0;  ! output: num of iterative steps
+  IPARM(10)=13;! |A|*1.0E-IPARM(10) pivot threshold
+  IPARM(11)=1; ! Scaling vectors (For unsym or indef sym mat) 
+  IPARM(13)=1; ! move large close to diag (use for highly indef)
+  IPARM(18)=0; ! if <0 the solver will report nnz in L U
+  IPARM(19)=0; ! if <0 the solver will report factoring MFlops
+  IPARM(21)=0; ! (for sym indef) 0: 1x1 diagonal; 1: 2x2 pivoting
+  IPARM(27)=0; ! 1 checks sorting within the rows
+  IPARM(28)=0; ! 1 switch to single precision
+  IPARM(60)=0; ! 0: in-core; 1|2: out-of-core (disk)
+
 
   MSGLVL = 0   ! No output prints
 
@@ -542,23 +557,14 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   MNUM = 1     ! Actual matrix to factorize: 0<MNUM<=MAXFCT
 
-  DO i1=1,NRHS
-     DO i2=1,NRHS
-        B(i1,i2)=(0.d0 , 0.d0)
-     ENDDO
-  ENDDO
+  B = (0.d0, 0.d0)
+  B(1,1) = (1.D0, 0.D0)
 
-  DO i1=1,NRHS 
-     B(i1,i1)=(1.D0,0.D0)
-  ENDDO
-
-  if (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_ii)
-  IF (timing) WRITE(*,*) 'Pardiso pre-inversion operations ',(t2_ii-t1_ii)*1.0/cr_ii,'sec'
-
+  if (timing) call SYSTEM_CLOCK(t2_i,cr_i,cm_i)
   ! ----------------------------------------------------------------------------------------
-  PHASE = 13 ! Analysis, numerical factorization, solve
+  PHASE = 12 ! Analysis, numerical factorization
   call PARDISO(PT, MAXFCT, MNUM, MTYPE, PHASE, ndim, A_csr%nzval,A_csr%rowpnt,A_csr%colind, &
-       PERM, NRHS, IPARM, MSGLVL, B, INV, info)
+       PERM, NRHS, IPARM, MSGLVL, B, X, info)
 
   IF(info.NE.0) THEN 
      WRITE(*,*) 'PARDISO Inversion error number ',info, ' in phase ',PHASE
@@ -582,6 +588,66 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
      END SELECT
   ENDIF
 
+  if (timing) call SYSTEM_CLOCK(t2_i,cr_i,cm_i)
+  IF (timing) WRITE(*,*) 'Pardiso LU done in ',(t2_i-t1_i)*1.0/cr_i,'sec'
+  if (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_ii)
+
+  ! --------------------------------------------------------------------------------------
+  ! SOLVE ndim linear systems and compress the results in a CSR matrix
+  allocate(RM(ndim))  
+  PHASE = 33 ! solve
+  nnz = 0
+
+  do i1 = 1, ndim
+
+     B(i1,1)=(1.d0,0.d0)  ! set rhs column
+        
+     call PARDISO(PT, MAXFCT, MNUM, MTYPE, PHASE, ndim, A_csr%nzval,A_csr%rowpnt, &
+          A_csr%colind, PERM, NRHS, IPARM, MSGLVL, B, X, info)
+
+     IF(info.NE.0) THEN
+         WRITE(*,*) 'Error in solve'
+         STOP
+     ENDIF  
+     ! counts all non-zero elements in this column 
+     cnt = 0
+     do i2=1,ndim
+        if(ABS(X(i2,1)).gt.EPS) then
+            cnt = cnt + 1
+            wind(cnt)=i2
+         end if
+     end do
+     ! store the column in the ragged matrix RM
+     call log_allocate(RM(i1)%val,cnt)
+     call log_allocate(RM(i1)%ind,cnt)     
+     RM(i1)%len=cnt 
+     do i2=1,cnt
+         nnz = nnz + 1
+         RM(i1)%ind(i2) = wind(i2)
+         RM(i1)%val(i2) = X(wind(i2),1)
+     end do            
+
+     B(i1,1)=(0.d0,0.d0)  ! unset rhs column
+
+  end do
+
+  ! unroll the ragged matrix into the CSR matrix.
+  call create(INV,ndim,ndim,nnz)
+  INV%rowpnt(1)=1
+  indx = 0
+  do i1 = 1, ndim
+     do i2 = 1,RM(i1)%len   
+        indx = indx + 1
+        INV%colind(indx) = RM(i1)%ind(i2)
+        INV%nzval(indx) = RM(i1)%val(i2)
+     end do
+     INV%rowpnt(i1+1) = indx+1
+     call log_deallocate(RM(i1)%ind)
+     call log_deallocate(RM(i1)%val)
+  enddo
+  deallocate(RM)
+
+  ! -----------------------------------------------------------------------------------------
   alloc_mem=alloc_mem+IPARM(15)*1024
    if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
    alloc_mem=alloc_mem-IPARM(15)*1024
@@ -591,35 +657,13 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   call PARDISO(PT, MAXFCT, MNUM, MTYPE, PHASE, ndim, A_csr%nzval,A_csr%rowpnt,A_csr%colind, &
        PERM, NRHS, IPARM, MSGLVL, B, INV, info)
 
-  IF(info.NE.0) THEN
-     WRITE(*,*) 'PARDISO Inversion error number ',info, ' in phase ',PHASE
-     SELECT CASE (info)
-     CASE (-1) 
-        WRITE(*,*) 'Input inconsistent'
-     CASE (-2)
-        WRITE(*,*) 'Not enough memory'
-     CASE (-3)
-        WRITE(*,*) 'Reordering problem'
-     CASE (-4) 
-        WRITE(*,*) 'Zero pivot'
-     CASE (-5)
-        WRITE(*,*) 'Unclassified internal error'
-     CASE (-6)
-        WRITE(*,*) 'Preordering failed'
-     CASE (-7)
-        WRITE(*,*) 'Diagonal matrix problem'
-     CASE default
-        WRITE(*,*) 'Invalid info value returned'
-     END SELECT
-  ENDIF
-
   CALL log_deallocate(B)
-  CALL log_deallocate(IPARM)
-  CALL log_deallocate(PT)
+  CALL log_deallocate(X)
   CALL log_deallocate(PERM)
+  CALL log_deallocate(wind)
 
-if (timing) call SYSTEM_CLOCK(t2_i,cr_i,cm_i)
-IF (timing) WRITE(*,*) 'Pardiso inversions done in ',(t2_i-t1_i)*1.0/cr_i,'sec'
+  if (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_ii)
+  IF (timing) WRITE(*,*) 'Pardiso inversions done in ',(t2_ii-t1_ii)*1.0/cr_ii,'sec'
 
 END SUBROUTINE zINV_PARDISO
 

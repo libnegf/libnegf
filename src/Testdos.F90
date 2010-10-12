@@ -41,6 +41,7 @@ program Testint
 
   call destroy_negf(pnegf)
 
+  call writepeakinfo(6)
   call writememinfo(6)
 
 
