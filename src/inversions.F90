@@ -509,7 +509,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   INTEGER, DIMENSION(:), ALLOCATABLE :: PERM, iwork, wind
   INTEGER :: iwork_lenght
-
+  real(dp), parameter :: EPS10 = 1.d-10
 
   iwork_lenght=MAX(A_csr%nrow+1,2*A_csr%nnz)
   CALL log_allocate(iwork,iwork_lenght)
@@ -612,7 +612,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
      ! counts all non-zero elements in this column 
      cnt = 0
      do i2=1,ndim
-        if(ABS(X(i2,1)).gt.EPS) then
+        if(ABS(X(i2,1)).gt.EPS10) then
             cnt = cnt + 1
             wind(cnt)=i2
          end if
@@ -749,5 +749,7 @@ subroutine rinv(inA,A,n)
   return
   
 end subroutine rinv
+
+
 
 END MODULE

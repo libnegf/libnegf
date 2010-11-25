@@ -4,7 +4,7 @@ implicit none
 private
 
 public ::  TStruct_info, create_TStruct, print_TStruct, kill_TStruct
-
+public :: neighbor_map
 
 type TStruct_Info
    integer, dimension(:), Pointer :: mat_PL_start => NULL() !ind(..)
@@ -23,6 +23,12 @@ type TStruct_Info
 end type TStruct_Info
 
 
+type neighbor_map
+   integer, DIMENSION(:), ALLOCATABLE :: nn
+end type neighbor_map
+
+
+
 contains
   
   ! INIT TStructure_Info:
@@ -37,7 +43,7 @@ contains
   subroutine create_TStruct(ncont,nbl, PL_end, cont_end, surf_end, cblk, str)
     integer, intent(in) :: ncont
     integer, intent(in) :: nbl
-    integer :: PL_end(*), cont_end(*), surf_end(*), cblk(*)   
+    integer, dimension(:) :: PL_end, cont_end, surf_end, cblk   
     type(TStruct_Info), intent(out) :: str
 
     

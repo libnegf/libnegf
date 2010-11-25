@@ -6,92 +6,241 @@ module input_output
   implicit none
   private
 
-  public :: read_H, read_S 
+  public :: read_H, read_S, format
 
+  type format
+     character(5) :: type ! 'PETSc','UPT'  
+     logical :: formatted ! formatted/unformatted
+     character(1) :: fmt  ! U,L,F
+  end type format
 
   contains
 
-subroutine read_H(idR,idI, zmat)
+subroutine read_H(idR,idI, zmat,fmt)
   Integer :: idR, idI 
   Type(z_CSR) :: zmat
+  Type(format) :: fmt
 
   !locals
-  Type(r_COO) :: mat, mat1
+  Type(r_COO) :: matr, mati
   Type(z_COO) :: mat2
-  Integer i, count
+  Integer :: i, count, k, nnz
   Character(10) :: tmp1, tmp2, tmp3, tmp4
 
+  if (trim(fmt%type).eq.'PETSc') then
 
-  read (idR,*) tmp1, tmp2, tmp3, mat%nrow, mat%ncol
-  read (idR,*) tmp1, tmp4, tmp3, mat%nnz
-  read (idR,*)
-  read (idR,*)
-  write(*,*) 'The number of rows (Hreal) is', mat%nrow
-  write(*,*) 'The number of columns (Hreal) is', mat%ncol
-  write(*,*) 'The number of non zero elements (Hreal) is', mat%nnz
+     read (idR,*) tmp1, tmp2, tmp3, matr%nrow, matr%ncol
+     read (idR,*) tmp1, tmp4, tmp3, nnz
+     read (idR,*)
+     read (idR,*)
+     write(*,*) 'The number of rows (Hreal) is', matr%nrow
+     write(*,*) 'The number of columns (Hreal) is', matr%ncol
+     write(*,*) 'The number of non zero elements (Hreal) is', nnz
 
-  call create(mat,mat%nrow, mat%ncol, mat%nnz)
-  call create(mat1,mat%nrow, mat%ncol, mat%nnz)
+  elseif (trim(fmt%type).eq.'UPT') then
+
+     if (fmt%formatted) then
+        read(idR,*) matr%nrow, nnz
+     else
+        read(idR) matr%nrow, nnz
+     endif
+     write(*,*) 'The number of rows (Hreal) is', matr%nrow
+     write(*,*) 'The number of non zero elements (Hreal) is', nnz
+
+  end if
+
+  select case(fmt%fmt)
+  case('F')
+     call create(matr,matr%nrow, matr%nrow, nnz)
+     call create(mati,matr%nrow, matr%nrow, nnz)
+  case('L','U')
+     call create(matr,matr%nrow, matr%nrow, 2*nnz-matr%nrow)
+     call create(mati,matr%nrow, matr%nrow, 2*nnz-matr%nrow) 
+  end select
+
+  if (fmt%formatted) then
+     if (trim(fmt%type).eq.'PETSc') then  
+
+        k = 0
+        do i=1,nnz
+           k=k+1
+           read(idR,*) matr%index_j(k), matr%index_i(k), matr%nzval(k)
+         
+           select case(fmt%fmt)
+           case('U','L') 
+              if(matr%index_j(k).ne. matr%index_i(k)) then
+                 k = k + 1
+                 matr%index_i(k) =  matr%index_j(k-1)
+                 matr%index_j(k) =  matr%index_i(k-1)
+                 matr%nzval(k) = matr%nzval(k-1) 
+              endif
+           case('F')
+           end select
+        enddo
+
+     elseif (trim(fmt%type).eq.'UPT') then
+        print*,'Read Formatted UPT'
+        k = 0
+        do i=1,nnz
+           k = k + 1           
+           read(idR,*) matr%index_i(k), matr%index_j(k), matr%nzval(k)
+           
+           select case(fmt%fmt)
+           case('U','L') 
+              if(matr%index_j(k).ne. matr%index_i(k)) then
+                 k = k + 1
+                 matr%index_i(k) =  matr%index_j(k-1)
+                 matr%index_j(k) =  matr%index_i(k-1)
+                 matr%nzval(k) = matr%nzval(k-1)
+              endif
+           case('F')
+           end select
+        enddo     
+
+     endif
+print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
+  else
+     if (trim(fmt%type).eq.'PETSc') then  
+
+        k = 0
+        do i=1,nnz
+
+           k = k + 1
+           read(idR) matr%index_j(k), matr%index_i(k), matr%nzval(k)
+          
+           select case(fmt%fmt)
+           case('U','L') 
+              if(matr%index_j(k).ne. matr%index_i(k)) then
+                 k = k + 1
+                 matr%index_i(k) =  matr%index_j(k-1)
+                 matr%index_j(k) =  matr%index_i(k-1)
+                 matr%nzval(k) = matr%nzval(k-1)
+              endif
+           case('F')
+           end select
+        enddo
+
+     elseif (trim(fmt%type).eq.'UPT') then
+        k = 0
+        do i=1,nnz
+           k = k + 1
+           read(idR) matr%index_i(k), matr%index_j(k), matr%nzval(k)
+           
+           select case(fmt%fmt)
+           case('U','L') 
+              if(matr%index_j(k).ne. matr%index_i(k)) then
+                 k = k + 1
+                 matr%index_i(k) =  matr%index_j(k-1)
+                 matr%index_j(k) =  matr%index_i(k-1)
+                 matr%nzval(k) = matr%nzval(k-1)
+              endif
+           case('F')
+           end select
+        enddo     
+
+     endif
+
+  endif
+
+print*,'(init) read Im.dat'
+     !write(*,*) matr%index_j, matr%index_i, matr%nzval
+  ! =============================================================================
+  !  Imaginary part
+  ! =============================================================================
+  if (trim(fmt%type).eq.'PETSc') then
+
+     read (idI,*) tmp1, tmp2, tmp3, mati%nrow, mati%ncol
+     read (idI,*) tmp1, tmp4, tmp3, nnz
+     read (idI,*)
+     read (idI,*)
+     write(*,*) 'The number of rows (Himm) is', mati%nrow
+     write(*,*) 'The number of columns (Himm) is', mati%ncol
+     write(*,*) 'The number of non zero elements (Himm) is', nnz
+
+  elseif (trim(fmt%type).eq.'UPT') then
+
+     if (fmt%formatted) then
+        read(idI,*) matr%nrow, nnz
+     else
+        read(idI) matr%nrow, nnz
+     endif
+     write(*,*) 'The number of rows (Himm) is', matr%nrow
+     write(*,*) 'The number of non zero elements (Hreal) is', nnz
+
+  end if
   
-  do i=1,mat%nnz
-     read(idR,*) mat%index_j(i), mat%index_i(i), mat%nzval(i)
+  if(mati%nrow.ne.matr%nrow) stop 'nrow Error'  
+  if(matr%nnz.ne.mati%nnz) stop 'nnz Error' 
+  if(matr%nnz.eq.0) stop 'nnz Error'   
+
+  k = 0
+  do i=1,nnz
+
+     k = k + 1
+     if (fmt%formatted) then   
+        if (trim(fmt%type).eq.'PETSc') then    
+           read(idI,*) mati%index_j(k), mati%index_i(k), mati%nzval(k)
+        elseif (trim(fmt%type).eq.'UPT') then
+           read(idI,*) mati%index_i(k), mati%index_j(k), mati%nzval(k)
+        endif
+     else
+        if (trim(fmt%type).eq.'PETSc') then
+           read(idI) mati%index_j(k), mati%index_i(k), mati%nzval(k)
+        elseif (trim(fmt%type).eq.'UPT') then
+           read(idI) mati%index_i(k), mati%index_j(k), mati%nzval(k)
+        endif
+     endif
+
+     if(mati%index_j(k).ne.matr%index_j(k)) stop 'Index Error'
+     if(mati%index_i(k).ne.matr%index_i(k)) stop 'Index Error'
+
+     select case(fmt%fmt)
+     case('U','L') 
+        if(mati%index_j(k).ne. mati%index_i(k)) then
+           k = k + 1
+           mati%index_i(k) =  mati%index_j(k-1)
+           mati%index_j(k) =  mati%index_i(k-1)
+           mati%nzval(k) = - mati%nzval(k-1)
+        endif
+     case('F')
+     end select
   enddo
-  !write(*,*) mat%index_j, mat%index_i, mat%nzval
-  
-  
-  read (idI,*) tmp1, tmp2, tmp3, mat1%nrow, mat1%ncol
-  read (idI,*) tmp1, tmp4, tmp3, mat1%nnz
-  read (idI,*)
-  read (idI,*)
-  write(*,*) 'The number of rows (Himm) is', mat1%nrow
-  write(*,*) 'The number of columns (Himm) is', mat1%ncol
-  write(*,*) 'The number of non zero elements (Himm) is', mat1%nnz
+  !write(*,*) mat%index_j, mat%index_i, mati%nzval
 
-
-  if(mat1%nrow.ne.mat%nrow) stop 'nrow Error'  
-  if(mat%nnz.ne.mat1%nnz) stop 'nnz Error' 
-  if(mat%nnz.eq.0) stop 'nnz Error'   
-
-  do i=1,mat%nnz
-     read(idI,*) mat1%index_j(i), mat1%index_i(i), mat1%nzval(i)
-     if(mat1%index_j(i).ne.mat%index_j(i)) stop 'Index Error'
-     if(mat1%index_i(i).ne.mat%index_i(i)) stop 'Index Error'     
-  enddo
-  !write(*,*) mat%index_j, mat%index_i, mat1%nzval
-  
   !write(*,*) 'Hcomplex is'
-
-  count = 0
-  do i=1,mat%nnz  
-     if(  abs(mat%nzval(i)).gt.EPS .or. abs(mat1%nzval(i)).gt.EPS  ) then
-        count = count + 1
-     endif
-  enddo
+print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
+  
+  count = k
+  !do i = 1, k  
+  !   if(  abs(matr%nzval(i)).gt.EPS .or. abs(mati%nzval(i)).gt.EPS  ) then
+  !      count = count + 1
+  !   endif
+  !enddo
    
-  call create(mat2,mat%nrow,mat%ncol,count)
+  call create(mat2,matr%nrow,matr%nrow,count)
 
   count = 0
-  do i=1,mat%nnz  
-     if(  abs(mat%nzval(i)).gt.EPS .or. abs(mat1%nzval(i)).gt.EPS  ) then
+  do i = 1, k  
+  !   if(  abs(matr%nzval(i)).gt.EPS .or. abs(mati%nzval(i)).gt.EPS  ) then
        count = count + 1
-       mat2%index_i(count) = mat%index_i(i)
-       mat2%index_j(count) = mat%index_j(i)
-       mat2%nzval(count)=(1.0_dp,0.0_dp)*mat%nzval(i)+(0.0_dp,1.0_dp)*mat1%nzval(i)        
-     endif
+       mat2%index_i(count) = matr%index_i(i)
+       mat2%index_j(count) = matr%index_j(i)
+       mat2%nzval(count)= cmplx(matr%nzval(i), mati%nzval(i), dp)        
+  !   endif
   enddo
-  !write(*,*) mat2%nzval                                    
+  
 
-  call destroy(mat,mat1)
+  call destroy(matr,mati)
 
-!conversione COO-CSR 
-
+  !COO-CSR conversion 
   CALL create(zmat,mat2%nrow,mat2%ncol,mat2%nnz)
 
   CALL coo2csr(mat2,zmat)
-  
+
   call destroy(mat2)               !deallocation Hcomplex
 
   write(*,*) 'matrix H read'
+
 
 end subroutine read_H
 

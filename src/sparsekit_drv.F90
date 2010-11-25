@@ -25,7 +25,7 @@ MODULE sparsekit_drv
   private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st 
   private :: zcooxcsr 
   private :: rclone_st, zclone_st
-  private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2
+  private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs 
 
   external :: zcsort, csort, amask, zamask 
@@ -144,7 +144,9 @@ MODULE sparsekit_drv
      module procedure rsumcsrs
      module procedure zsumcsr
      module procedure zsumcsrs
-     module procedure zsumcsrs1s2     
+     module procedure zsumcsrs1s2  
+     module procedure zsumdns
+     module procedure zsumdnss   
   end interface
   interface prealloc_mult
      module procedure zmultcsr
@@ -1020,32 +1022,27 @@ CONTAINS
     integer :: i,j,A_ncol,ierr,iofile
     character(1) :: flag
 
-    type(z_DNS) :: A
+    type(z_COO) :: A
 
-    call create(A,A_csr%nrow,A_csr%ncol)
+    call create(A,A_csr%nrow,A_csr%ncol,A_csr%nnz)
 
-    A%val=(0.d0,0.d0)
+    A%nzval=(0.d0,0.d0)
 
-    call zcsrdns_st(A_csr,A)
+    call csr2coo(A_csr,A)
 
-    write (iofile,*) '# matrix dimension = ', A%nrow, ' x ', A%ncol
-    write (iofile,*) '#'
+    !write (iofile,*) '# matrix dimension = ', A%nrow, ' x ', A%ncol
+    !write (iofile,*) '#'
 
-    do i = 1, A%nrow 
-       do j = 1, i
-
-          !write(*,*) i,j,A%val(i,j)
-
-          if (abs(A%val(i,j))>EPS) then
-             if (flag.eq.'r') then
-                write(iofile,'(2i8,f20.10)') i, j, dreal(A%val(i,j))
-             elseif (flag.eq.'i') then
-                write(iofile,'(2i8,f20.10)') i, j, dimag(A%val(i,j))
-             elseif (flag.eq.'c') then
-                write(iofile,'(2i8,(f20.10,f20.10))') i, j, A%val(i,j)
-             endif
-          endif
-       enddo
+    do k = 1, A%nnz 
+     
+       if (flag.eq.'r') then
+          write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), dreal(A%nzval(k))
+       elseif (flag.eq.'i') then
+          write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), aimag(A%nzval(k))
+       elseif (flag.eq.'c') then
+          write(iofile,'(2i8,(f20.10,f20.10))')  A%index_i(k), A%index_j(k), A%nzval(k)
+       endif
+     
     enddo
 
     call destroy(A)
@@ -2164,12 +2161,14 @@ CONTAINS
        !call zas1pls2b (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
        !     B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
        !     (A_csr%nnz+B_csr%nnz),iw,ierr)
-
+       ierr=0
        call zaplb (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in zsumcsrs1s2 subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) then 
+          write(*,*) 'Error in zsumcsrs1s2 subroutine: exceeding C%nnz dimension',ierr
+       endif
        !write(*,*) 'Pre-allocation done'
 
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
@@ -2187,12 +2186,71 @@ CONTAINS
             C_csr%nnz,iw,ierr)
 
        !write(*,*) 'Sum done'
-       if (ierr.ne.0) write(*,*) 'Error in zas1pls2b subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) then 
+          write(*,*) 'Error in zas1pls2b subroutine: exceeding C%nnz dimension',ierr
+          stop
+       endif
        call log_deallocate(iw)    
 
     ENDIF
 
   end subroutine zsumcsrs1s2
+
+    !***********************************************************************
+    !
+    !  Subroutine di somma densa
+    !
+    !***********************************************************************
+  
+  subroutine zsumdns(A_dns,B_dns,C_dns)
+
+    !*****************************************************************
+    !
+    !Input:
+    !A_dns: primo fattore in formato DNS
+    !B_dns: secondo fattore in formato  DNS
+    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !nella subroutine
+    !
+    !****************************************************************
+
+    implicit none
+
+    type(z_DNS) :: A_dns,B_dns,C_dns
+
+    IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
+       WRITE(*,*) 'WARNING (zsumdns): matrices don''t match';
+    ENDIF
+  
+
+    CALL create(C_dns,A_dns%nrow,B_dns%ncol)
+
+    C_dns%val = A_dns%val + B_dns%val
+
+  end subroutine zsumdns
+  
+  !***********************************************************************
+  subroutine zsumdnss(A_dns,B_dns,s,C_dns)
+
+    implicit none
+
+    type(z_DNS) :: A_dns,B_dns,C_dns
+    complex(dp) :: s
+
+    IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
+       WRITE(*,*) 'WARNING (zsumdns): matrices don''t match';
+    ENDIF
+
+
+    CALL create(C_dns,A_dns%nrow,B_dns%ncol)
+
+    C_dns%val = A_dns%val + s * B_dns%val
+
+  end subroutine zsumdnss
+
+
+  !***********************************************************************
 
   !**************************************************************************
   !

@@ -12,13 +12,16 @@ module libnegf
  use inversions
  use iterative
  use mat_def
-
+ use rcm_module
+ use clock
 
  implicit none
  private
 
- public :: init_negf, destroy_negf, compute_dos, contour_int_n, contour_int_p
-
+ public :: init_negf, destroy_negf
+ public :: compute_dos, contour_int_n, contour_int_p
+ public :: reorder, partition, partition2
+ public :: sort, swap
 
 contains
   
@@ -26,21 +29,27 @@ contains
     type(Tnegf), pointer :: negf
     Integer :: ncont, nbl
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
+    character(11) :: fmtstring
 
-    open(101, file=negf%file_re_H, form='formatted')
-    open(102, file=negf%file_im_H, form='formatted')   !open imaginary part of H
+    if(negf%form%formatted) then
+       fmtstring = 'formatted'
+    else
+       fmtstring = 'unformatted'
+    endif
 
-    call read_H(101,102,negf%H)
+    open(101, file=negf%file_re_H, form=trim(fmtstring))
+    open(102, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
+
+    call read_H(101,102,negf%H,negf%form)
 
     close(101)
     close(102)
 
     if(.not.negf%isSid) then
+       open(101, file=negf%file_re_S, form=trim(fmtstring))
+       open(102, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
 
-       open(101, file=negf%file_re_S, form='formatted')
-       open(102, file=negf%file_im_S, form='formatted')   !open imaginary part of H
-
-       call read_H(101,102,negf%S)
+       call read_H(101,102,negf%S,negf%form)
 
        close(101)
        close(102)
@@ -133,7 +142,6 @@ contains
     call create(Tlc(1),0,0,0)
     call create(Tcl(1),0,0,0)
     call create(gsurfR(1),0,0,0)
-    !call create(Inv,negf%H%nrow,negf%H%nrow)
 
     open(101,file='dos.dat')
 
@@ -141,8 +149,12 @@ contains
   
        Ec=(negf%Emin+i*negf%Estep)+negf%delta*(0.d0,1.d0)
 
+       call message_clock('Compute Green`s function')
+
        call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,Gr,negf%str,outer)
-            
+
+       call write_clock
+ 
        negf%dos = -aimag( trace(Gr) )/pi
 
        write(101,*) real(Ec), negf%dos
@@ -157,7 +169,6 @@ contains
     call destroy(Tlc(1))
     call destroy(gsurfR(1))
 
-    !call destroy(Inv)
 
     call writememinfo(6)
 
@@ -575,6 +586,273 @@ contains
     return
     
   end subroutine gauleg
+
+
+!--------------------------------------------------------------------  
+  
+  subroutine reorder(mat)
+    type(z_CSR) :: mat
+    
+
+    type(z_CSR) :: P, Tmp
+
+    integer, dimension(:), allocatable :: perm
+    integer :: i, nrow
+
+    nrow=mat%nrow
+
+    call log_allocate(perm,nrow)
+
+    call genrcm(nrow, mat%nnz, mat%rowpnt, mat%colind, perm)
+
+    call create(P,nrow,nrow,nrow)
+
+    do i=1,nrow
+       P%nzval(i)=1
+       P%colind(i)=cmplx(perm(i),dp)
+       P%rowpnt(i)=i
+    enddo
+    P%rowpnt(nrow+1)=nrow+1
+
+    
+    call create(Tmp,nrow,nrow,mat%nnz)
+
+    call zamub_st(P,mat,Tmp)
+
+    call ztransp_st(P)
+
+    call zamub_st(Tmp,P,mat)   
+
+    call destroy(P,Tmp)
+
+    call log_deallocate(perm)
+ 
+  end subroutine reorder
+
+!----------------------------------------------------------------------------
+
+  subroutine partition(mat,nbl,part)
+    type(z_CSR) :: mat
+    
+    integer :: nbl
+    integer :: n
+    
+    integer :: volume
+    integer :: numflag
+    integer :: wghts
+    integer :: wgtflag
+
+    integer, dimension(:) :: part
+
+
+    integer, dimension(:), allocatable :: options
+    integer, dimension(:), allocatable :: vwgt  
+    integer, dimension(:), allocatable :: vsize
+    
+
+    external METIS_PartGraphVKway
+
+    numflag = 1
+    wghts = 0
+    wgtflag = 0
+    n = mat%nrow
+
+    call log_allocate(vwgt, 0)
+    call log_allocate(vsize, 0)
+    call log_allocate(options, 5)
+    options(1) = 0
+
+
+    !call METIS_PartGraphVKway(n, mat%rowpnt, mat%colind, vwgt, vsize, wgtflag, &
+    !                          numflag, nbl, options, volume, part)
+
+    call METIS_PartGraphKway(n, mat%rowpnt, mat%colind, vwgt, vsize, wgtflag, &
+                              numflag, nbl, options, volume, part)    
+
+    call log_deallocate(vwgt)
+    call log_deallocate(vsize)
+    call log_deallocate(options)
+    
+
+  end subroutine partition
+
+!----------------------------------------------------------------------
+
+  
+  subroutine partition2(mat,nbl,blks)
+    type(z_CSR), intent(in) :: mat
+    integer, intent(out) :: nbl
+    integer, dimension(:), intent(inout) :: blks 
+
+    integer :: j, k
+    integer :: i1, i2
+
+    integer :: rn, rnold, tmax, rmax,  nrow, maxmax
+    integer :: dbuff, minsize
+
+    nrow = mat%nrow
+    
+    ! Find maximal stancil of the matrix and on which row
+    !  ( Xx     )
+    !  ( xXxx   )  
+    !  (  xXxxx )  <- maxmax = 3 ; rmax = 3
+    !  (   xXx  )
+    maxmax = 0
+    do j=1,nrow
+
+       i1 = mat%rowpnt(j)
+       i2 = mat%rowpnt(j+1) - 1
+       tmax = maxval(mat%colind(i1:i2)) - j
+
+       if(tmax .gt. maxmax) then 
+          maxmax = tmax
+          rmax = j
+       endif
+
+       dbuff = maxmax   ! dbuff should be linked to maxmax
+       minsize = dbuff  ! minsize bisogna identificarlo meglio. 
+    enddo
+
+    ! Define central block 
+    rn = rmax - maxmax/2 - dbuff 
+
+    if(rn-dbuff.ge.0) then 
+
+       blks(1) = rn-1  ! fine del blocco precedente
+
+       nbl = 1
+
+       do 
+          
+          do j = rn, dbuff, -1
+
+             rnold = rn
+             i1 = mat%rowpnt(j-dbuff+1)
+             i2 = mat%rowpnt(j+1) - 1
+             k = maxval(mat%colind(i1:i2))
+       
+             if(k.lt.rn) then
+                rn = j       
+                nbl = nbl + 1
+                blks(nbl) = j-1 ! fine del blocco precedente
+                exit
+             endif
+          enddo
+
+          if(rn.le.minsize .or. rnold.eq.rn) then
+             exit
+          endif
+          
+       enddo
+
+       rn = rmax - maxmax/2 - dbuff
+
+    else
+       nbl= 0
+       rn = 1
+
+    endif
+
+    do 
+
+       do j = rn, nrow-dbuff+1, 1
+
+          rnold = rn
+          i1 = mat%rowpnt(j)
+          i2 = mat%rowpnt(j+dbuff) - 1
+          k = minval(mat%colind(i1:i2)) 
+
+          if(k.gt.rn) then  
+             rn = j
+             nbl = nbl + 1 
+             blks(nbl) = j-1 ! fine del blocco 
+             exit
+          endif
+       enddo
+
+       if(nrow-rn.le.minsize .or. rnold.eq.rn) then
+          exit
+       endif
+    enddo
+
+    nbl = nbl + 1
+    blks(nbl) = nrow
+
+    print*, 'done. blks:',blks(1:nbl)
+
+
+  end subroutine partition2
+
+  !----------------------------------------------------------
+
+
+  Subroutine sort(blks, Ipt)
+    ! *
+    ! ***********************************
+    ! * Sort Array X(:) in ascendent order.
+! * If present Ipt, a pointer with the 
+! * changes is returned in Ipt. 
+! ***********************************
+ 
+    Integer, Intent (inout) :: blks(:)
+    Integer, Intent (out), Optional :: Ipt(:)
+ 
+    Integer :: Rtmp
+    Integer :: i, j
+ 
+    If (Present(Ipt)) Then
+       Forall (i=1:Size(blks)) Ipt(i) = i
+ 
+       Do i = 2, Size(blks)
+          Rtmp = blks(i)
+          Do j = i-1, 1, -1
+             If (Rtmp < blks(j)) Then
+                blks(j+1) = blks(j)
+                call Swap(blks, j, j+1)
+             Else
+                Exit
+             End If
+          End Do
+          blks(j+1) = Rtmp
+       End Do
+    Else
+       Do i = 2, Size(blks)
+          Rtmp = blks(i)
+          Do j = i-1, 1, -1
+             If (Rtmp < blks(j)) Then
+                blks(j+1) = blks(j)
+             Else
+                Exit
+             End If
+          End Do
+          blks(j+1) = Rtmp
+       End Do
+    End If
+ 
+    Return
+  End Subroutine sort
+ 
+! ***********************************
+! *
+  Subroutine Swap(X, i, j)
+! *
+! ***********************************
+! * Swaps elements I and J of array X(:). 
+! ***********************************
+ 
+    Integer, Intent (inout) :: X(:)
+    Integer, Intent (in) :: i, j
+ 
+    Integer :: Itmp
+ 
+    Itmp = X(I)
+    X(I) = X(J)
+    X(J) = Itmp
+ 
+    Return
+  End Subroutine Swap
+         
+!-----------------------------------------------------       
 
 
 

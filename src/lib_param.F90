@@ -4,6 +4,7 @@ module lib_param
   use globals
   use mat_def
   use structure
+  use input_output
 
   implicit none
   private
@@ -20,6 +21,7 @@ module lib_param
      character(LST) :: file_re_S
      character(LST) :: file_im_S
      character(LST) :: file_struct
+     type(format) :: form
      real(dp) :: mu_n
      real(dp) :: mu_p
      real(dp) :: Ec

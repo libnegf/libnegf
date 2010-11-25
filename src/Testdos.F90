@@ -1,4 +1,4 @@
-program Testint
+program Testdos
 
   use precision
   use constants
@@ -24,10 +24,15 @@ program Testint
 
   negf%file_re_H='H_real.dat'
   negf%file_im_H='H_imm.dat'
+  negf%file_re_S='S_real.dat'
+  negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = HAR  ! to convert Kb 
-  negf%isSid = .true.  
+  negf%eneconv = 1.d0 ! HAR  ! to convert Kb 
+  negf%isSid = .false.
+  negf%form%formatted = .false.
+  negf%form%type = 'UPT'
+  negf%form%fmt = 'F'
 
   print*,'(main) init'
 
@@ -45,7 +50,7 @@ program Testint
   call writememinfo(6)
 
 
-end program Testint
+end program Testdos
 
 
 ! negf:0 XXXXXXXXXXXX  negf:END
