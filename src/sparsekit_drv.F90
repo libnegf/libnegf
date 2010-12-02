@@ -1570,7 +1570,7 @@ CONTAINS
 
     !Check i1, i2, j1, j2 validity
     if ((i1.lt.1).or.(i2.gt.A_csr%nrow).or.(j2.lt.j1) &
-         .or.(i2.lt.i1).or.(j1.lt.1).or.(j2.gt.A_csr%ncol)) then
+        & .or.(i2.lt.i1).or.(j1.lt.1).or.(j2.gt.A_csr%ncol)) then
        STOP 'Error in check_nzval: wrong row or column specification'
     endif
 
