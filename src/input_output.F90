@@ -65,7 +65,7 @@ subroutine read_H(idR,idI, zmat,fmt)
         do i=1,nnz
            k=k+1
            read(idR,*) matr%index_j(k), matr%index_i(k), matr%nzval(k)
-         
+      
            select case(fmt%fmt)
            case('U','L') 
               if(matr%index_j(k).ne. matr%index_i(k)) then
@@ -234,6 +234,8 @@ print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
 
   !COO-CSR conversion 
   CALL create(zmat,mat2%nrow,mat2%ncol,mat2%nnz)
+
+  zmat%nzval=(0.d0,0.d0)
 
   CALL coo2csr(mat2,zmat)
 

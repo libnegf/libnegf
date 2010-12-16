@@ -16,7 +16,7 @@ module ContSelfEnergy
 
  use precision
  use constants
- use parameters, only : Tparam, MAXNCONT
+ use lib_param
  use structure, only : Tstruct_info
  use allocation
  use mat_def
@@ -40,14 +40,14 @@ contains
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------  
-  subroutine surface_green(E,HC,SC,param,pnt,avncyc,GS,GS_sp)
+  subroutine surface_green(E,HC,SC,pnegf,pnt,avncyc,GS)
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
-    type(Tparam), intent(in) :: param
+    type(Tnegf), pointer :: pnegf
     real(dp), intent(inout) :: avncyc  ! Average num. cycles
     integer, intent(in)     :: pnt     ! Step of the energy integration
     type(z_DNS), intent(out) :: GS
-    type(z_CSR), intent(out), optional :: GS_sp
+
 
     complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co
     type(z_DNS) :: gt
@@ -61,15 +61,17 @@ contains
                                ! flag=2 Compute and save
     real(kind=dp) :: dens,re_mat,im_mat
     character(2) :: ofcont,ofproc
-    character(3) :: ofpnt
+    character(5) :: ofpnt
    
     logical :: lex
 
-    i = param%activecont
-    flag = param%ReadOldSGF
-    verbose = param%verbose
-    contdim = param%contdim(i)
-    surfdim = param%surfdim(i)
+    i = pnegf%activecont
+    flag = pnegf%ReadOldSGF
+    verbose = pnegf%verbose
+    contdim = pnegf%str%mat_C_end(i) - pnegf%str%mat_C_start(i) + 1
+    surfdim = pnegf%str%mat_C_Start(i) - pnegf%str%mat_B_Start(i)
+    ! ngs space for surface + 1 PL
+    ngs = (contdim + surfdim)/2
 
     avncyc=0.0
     ncyc=0
@@ -77,7 +79,7 @@ contains
 
     write(ofproc,'(i2.2)') id
     write(ofcont,'(i2.2)') i
-    write(ofpnt,'(i3.3)') pnt  
+    write(ofpnt,'(i5.5)') pnt  
 
     inquire(file='./GS/GS'//ofcont//'_'//ofpnt//'_'//ofproc//'.dat',EXIST=lex)
 
@@ -92,15 +94,13 @@ contains
       if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF')
     endif
 
-    ngs = (contdim+surfdim)/2
-
     call create(GS,ngs,ngs)
     GS%val=(0.D0,0.D0)
-    
-    !.......... Ficticious contact ....................
-    if(param%FictCont(i)) then
 
-       dens=pi*param%DOS(i)
+    !.......... Ficticious contact ....................
+    if(pnegf%FictCont(i)) then
+
+       dens=pi*pnegf%contact_DOS(i)
        nfc=nfc+1
        do i1 = 1,contdim 
           GS%val(i1,i1)=-j*dens
@@ -132,9 +132,11 @@ contains
           !   call decimation2(E,GS,HC%val,SC%val,Co,n5,n1,n2,ncyc)
           !   call log_deallocate(Co)
           !else
+
           call log_allocate(Ao,npl,npl)
           call log_allocate(Bo,npl,npl)
           call log_allocate(Co,npl,npl)
+
           Ao=E*SC%val(n1:n2,n1:n2)-HC%val(n1:n2,n1:n2)
           Bo=E*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
@@ -145,7 +147,7 @@ contains
           call log_deallocate(Ao)
           call log_deallocate(Bo)
           call log_deallocate(Co)
-          
+         
           ! Fill up remaining bits of the surface green's function 
           ! Add green's function of the bound layer.....
           if (n0.gt.0) then
@@ -168,6 +170,8 @@ contains
           !...............................................            
           !*** save in file ***
           if (flag.eq.2) then  
+
+ 
              open (66,file='./GS/GS'//ofcont//'_'//ofpnt//'_'//ofproc//'.dat', &
                   form='UNFORMATTED')
              call outmat_c(66,.false.,GS%val(:,:),ngs,ngs)
@@ -193,12 +197,7 @@ contains
        
     end if !(Fict Contact or not)
 
-    if (present(GS_sp)) then
-       call create(GS_sp,ngs,ngs,nzdrop(GS,EPS))
-       call dns2csr(GS,GS_sp)
-       call destroy(GS)
-    endif
-    
+      
     if (id0.and.verbose.gt.VBT) call write_clock
     
     !if (avncyc.gt.0.and.id0.and.verbose.gt.VBT) then
@@ -323,7 +322,7 @@ contains
     if(Tlc%nnz.eq.0) then
        call create(SelfEneR,Tlc%nrow,Tlc%nrow,1)
        SelfEneR%nnz=0
-       if (id0) write(*,*) 'SelfEne= 0'    
+       if (id0) write(*,*) '(SelfEnergy) WARNING: SelfEne= 0'    
        return
     endif
 

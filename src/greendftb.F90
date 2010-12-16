@@ -15,7 +15,7 @@ module GreenDftb
   use constants 
   use mpi_globals
   use allocation
-  use parameters, only : Tparam, MAXNCONT
+  use lib_param
   use mat_def
   use sparsekit_drv
   use structure, only : TStruct_Info
@@ -38,7 +38,7 @@ module GreenDftb
 
 contains
   
-  subroutine contour_int(H,S,param,struct,DensMat,EnMat)     
+  subroutine contour_int(H,S,pnegf,struct,DensMat,EnMat)     
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     !% Subroutine GreenDftb ver. 5.0
@@ -50,7 +50,7 @@ contains
     !% Input arrays and variables
     type(z_CSR), intent(in) :: H           ! hamiltonian
     type(z_CSR), intent(in) :: S	   ! overlap
-    type(Tparam), intent(inout) :: param
+    type(Tnegf), pointer :: pnegf
     type(TStruct_Info), intent(in) :: struct 
 
     !% Output arrays
@@ -94,14 +94,14 @@ contains
 
     ! Trasferimento variabili locali dal contenitore
     ! ------------------------------------------------------------------------
-    verbose = param%verbose
-    Np = param%Np
-    NumPoles = param%nPoles
-    Temp = param%Temp
-    Efermi = param%Efermi
-    mu = param%mu
-    N_omega = param%N_omega
-    Elow = param%Elow
+    verbose = pnegf%verbose
+    Np = pnegf%Np
+    NumPoles = pnegf%n_poles
+    Temp = pnegf%Temp
+    Efermi = pnegf%Efermi
+    mu = pnegf%mu
+    N_omega = pnegf%N_omega
+    Elow = pnegf%Emin
 
     ncont = struct%num_conts
     do i=1,ncont
@@ -109,10 +109,10 @@ contains
       cend(i)   = struct%mat_C_end(i)
       ncdim(i)  = cend(i)-cstart(i)+1
 
-      param%contdim(i) = ncdim(i)
-      param%surfdim(i) = struct%mat_C_start(i) - struct%mat_B_start(i)
+      pnegf%contdim(i) = ncdim(i)
+      pnegf%surfdim(i) = struct%mat_C_start(i) - struct%mat_B_start(i)
 
-      write(*,*) '(int)',i,cstart(i),cend(i),param%surfdim(i),ncdim(i)
+      write(*,*) '(int)',i,cstart(i),cend(i),pnegf%surfdim(i),ncdim(i)
     enddo
     nmdim = struct%central_dim
   
@@ -162,7 +162,7 @@ contains
        print*, '(int) extract central-contact',i
        i1=struct%mat_PL_start(struct%cblk(i))
        i2=struct%mat_PL_end(struct%cblk(i)) 
-       j1=cstart(i); j2=j1+(ncdim(i)+param%surfdim(i))/2-1
+       j1=cstart(i); j2=j1+(ncdim(i)+pnegf%surfdim(i))/2-1
        print*, 'Interaction block:',i1,i2,j1,j2
        call zextract(H,i1,i2,j1,j2,TM(i))         
        call zextract(S,i1,i2,j1,j2,ST(i))       
@@ -192,10 +192,10 @@ contains
     !If at first SCC cycle save surf. green's else load
     !If ReadOldSGF is true then flag is forced to 0, so it reads
 
-    if (param%iter.eq.1) then 
-      param%ReadOldSGF = 2
+    if (pnegf%iteration.eq.1) then 
+      pnegf%ReadOldSGF = 2
     else
-      param%ReadOldSGF = 0
+      pnegf%ReadOldSGF = 0
     endif
 
     avncyc = 0.0   !average number of decimation iteration for SGFs computation     
@@ -272,8 +272,8 @@ contains
       ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
       ! -----------------------------------------------------------------------
       do l=1,ncont
-         param%activecont=l
-         call surface_green(Ec,HC_d(l),SC_d(l),param,i,ncyc,GS_d(l),GS(l))
+         pnegf%activecont=l
+         call surface_green(Ec,HC_d(l),SC_d(l),pnegf,i,ncyc,GS_d(l),GS(l))
          avncyc = avncyc + ncyc
       enddo
 
@@ -324,10 +324,10 @@ contains
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------
-      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'D'.or.pnegf%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)
       endif
-      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'E'.or.pnegf%DorE.eq.'B') then
          CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
 
@@ -419,9 +419,9 @@ contains
       
 
       do l=1,ncont
-         param%activecont=l
+         pnegf%activecont=l
          npc = Np(1) + i
-         call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))
+         call surface_green(Ec,HC_d(l),SC_d(l),pnegf,npc,ncyc,GS_d(l),GS(l))
          avncyc = avncyc + ncyc
       enddo
 
@@ -476,10 +476,10 @@ contains
       ! GMk< =   G< Tk gk* + i Gr Tk gk - i Gr Tk gk*
       !      = ... = -2 Im{ Gr Tk gk }   
       ! ------------------------------------------------------------------------------  
-      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'D'.or.pnegf%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)
       endif
-      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'E'.or.pnegf%DorE.eq.'B') then
          CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
  
@@ -527,9 +527,9 @@ contains
       Ec = muref + j*Kb*Temp*pi* (2.d0*i - 1.d0)       
       
       do l=1,ncont
-         param%activecont=l
+         pnegf%activecont=l
          npc =  Np(1)+Np(2)+i
-         call surface_green(Ec,HC_d(l),SC_d(l),param,npc,ncyc,GS_d(l),GS(l))
+         call surface_green(Ec,HC_d(l),SC_d(l),pnegf,npc,ncyc,GS_d(l),GS(l))
          avncyc = avncyc + ncyc
       enddo
       
@@ -567,10 +567,10 @@ contains
       zt= -2.d0*j*Kb*Temp*(1.d0,0.d0)
       if(low.lt.2) zt = zt*2.d0*j
 
-      if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'D'.or.pnegf%DorE.eq.'B') then
          CALL concat(DensMat,zt,GreenR,1,1)
       endif
-      if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+      if(pnegf%DorE.eq.'E'.or.pnegf%DorE.eq.'B') then
          CALL concat(EnMat,zt*Ec,GreenR,1,1)
       endif
 
@@ -594,14 +594,14 @@ contains
     ! Build Specral density, i(Gr-Ga), for the equilibrium part
     ! -------------------------------------------------------------------------
     
-    if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+    if(pnegf%DorE.eq.'D'.or.pnegf%DorE.eq.'B') then
       call zspectral(DensMat,DensMat,0,TpMt)
       ! To do: check outer blocks of DensMat !
       call destroy(DensMat)
       call clone(TpMt,DensMat)
       call destroy(TpMt)
     end if
-    if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+    if(pnegf%DorE.eq.'E'.or.pnegf%DorE.eq.'B') then
       call zspectral(EnMat,EnMat,0,TpMt)
       ! To do: check outer blocks of DensMat !
       call destroy(EnMat)
@@ -664,9 +664,9 @@ contains
 
         ! Real segment integration
         do l=1,ncont
-           param%activecont=l
+           pnegf%activecont=l
            npc = Np(1)+Np(2)+NumPoles+i
-           call surface_green(Ec+j*param%delta,HC_d(l),SC_d(l),param,npc,ncyc,&
+           call surface_green(Ec+j*pnegf%delta,HC_d(l),SC_d(l),pnegf,npc,ncyc,&
                                                                   GS_d(l),GS(l))            
            avncyc = avncyc + ncyc
         enddo
@@ -700,10 +700,10 @@ contains
 
         if (id0.and.verbose.gt.VBT) call message_clock('Density matrix update ') 
 
-        if(param%DorE.eq.'D'.or.param%DorE.eq.'B') then
+        if(pnegf%DorE.eq.'D'.or.pnegf%DorE.eq.'B') then
            CALL concat(DensMat,zt,GreenR,1,1)
         endif
-        if(param%DorE.eq.'E'.or.param%DorE.eq.'B') then
+        if(pnegf%DorE.eq.'E'.or.pnegf%DorE.eq.'B') then
            CALL concat(DensMat,zt*Ec,GreenR,1,1)
         endif
 

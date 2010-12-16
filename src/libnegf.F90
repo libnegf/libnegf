@@ -11,15 +11,18 @@ module libnegf
  use sparsekit_drv
  use inversions
  use iterative
+ use iterative_dns
  use mat_def
  use rcm_module
  use clock
+ use extract
+ use contselfenergy
 
  implicit none
  private
 
  public :: init_negf, destroy_negf
- public :: compute_dos, contour_int_n, contour_int_p
+ public :: compute_dos, contour_int_n, contour_int_p, compute_contacts
  public :: reorder, partition, partition2
  public :: sort, swap
 
@@ -70,9 +73,9 @@ contains
     call log_allocate(surf_end,ncont)
 
     read(101,*) PL_end(1:nbl)
-    read(101,*) cblk(1:ncont)
     read(101,*) cont_end(1:ncont)
     read(101,*) surf_end(1:ncont)
+    read(101,*) cblk(1:ncont)
 
     read(101,*) negf%mu_n
     read(101,*) negf%mu_p
@@ -106,12 +109,24 @@ contains
 
   end subroutine init_negf
 
+!--------------------------------------------------------------------
 
   subroutine destroy_negf(negf)
     type(Tnegf), pointer :: negf   
+    integer :: i
 
     if (allocated(negf%H%nzval)) call destroy(negf%H) 
     if (allocated(negf%S%nzval)) call destroy(negf%S)
+
+    if (allocated(negf%HM%nzval)) call destroy(negf%HM)
+    if (allocated(negf%SM%nzval)) call destroy(negf%SM)
+
+    do i=1,negf%str%num_conts
+       if (allocated(negf%HC(i)%val)) call destroy(negf%HC(i))
+       if (allocated(negf%SC(i)%val)) call destroy(negf%SC(i))
+       if (allocated(negf%HMC(i)%nzval)) call destroy(negf%HMC(i))
+       if (allocated(negf%SMC(i)%nzval)) call destroy(negf%SMC(i))
+    enddo
 
     if (allocated(negf%rho%nzval)) call destroy(negf%rho)
     if (allocated(negf%rho_eps%nzval)) call destroy(negf%rho_eps)
@@ -120,17 +135,25 @@ contains
 
   end subroutine destroy_negf
 
+!--------------------------------------------------------------------
 
   subroutine compute_dos(negf) 
     type(Tnegf), pointer :: negf
 
-    integer :: outer, N, k, i
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_CSR) ::  Gr
+
+    integer :: N, k, i, i1, it
+    integer :: outer, nbl, ncont
+
+    real(dp) :: ncyc
     complex(dp) :: Ec
-    Type(z_CSR) :: SelfEneR(1), Tlc(1), Tcl(1), gsurfR(1), Gr
-    Type(z_DNS) :: Inv   
 
+    outer = 1
 
-    outer = 0
+    it = negf%iteration
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
 
     N = nint((negf%Emax-negf%Emin)/negf%Estep)
 
@@ -138,37 +161,28 @@ contains
     print*,'delta=',negf%delta
 
 
-    call create(SelfEneR(1),0,0,0)
-    call create(Tlc(1),0,0,0)
-    call create(Tcl(1),0,0,0)
-    call create(gsurfR(1),0,0,0)
-
     open(101,file='dos.dat')
 
     do i=1,N
   
        Ec=(negf%Emin+i*negf%Estep)+negf%delta*(0.d0,1.d0)
 
-       call message_clock('Compute Green`s function')
+       call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+   
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
-       call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,Gr,negf%str,outer)
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
-       call write_clock
- 
        negf%dos = -aimag( trace(Gr) )/pi
 
        write(101,*) real(Ec), negf%dos
-       print*, real(Ec), negf%dos, Gr%nnz
+    !   print*, real(Ec), negf%dos, Gr%nnz
 
        call destroy(Gr)
 
     enddo
-
-    call destroy(SelfEneR(1))
-    call destroy(Tcl(1))
-    call destroy(Tlc(1))
-    call destroy(gsurfR(1))
-
 
     call writememinfo(6)
 
@@ -176,24 +190,97 @@ contains
 
   end subroutine compute_dos
 
+!-------------------------------------------------------------------------------
+
+  subroutine compute_contacts(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+    Type(Tnegf), pointer :: pnegf
+    integer, intent(in) :: pnt
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+
+
+    Type(z_DNS) :: GS_d
+    Type(z_CSR) :: TpMt
+
+    Integer :: nbl, ncont, l, i1
+    Real(dp) :: ncyc, avncyc
+    complex(dp) :: Ec
+
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    avncyc = 0
+       ! -----------------------------------------------------------------------
+       !  Calculation of contact self-energies
+       ! -----------------------------------------------------------------------
+       ! For the time HC and SC are dense, GS is sparse (already allocated)
+       ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
+       ! -----------------------------------------------------------------------
+
+       do l=1,ncont
+          pnegf%activecont=l
+          call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
+  
+          i1 = nzdrop(GS_d,EPS)
+  
+          call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
+       
+          call dns2csr(GS_d,GS(l))
+          call destroy(GS_d)
+     
+          avncyc = avncyc + ncyc
+
+       enddo
+
+ 
+       ! -- GF Calculation ----------------------------------------------------
+       ! 
+       !Tlc= Ec*ST - TM 
+       !Tcl= (conjg(Ec)*ST - TM )
+       !Array di GS sparse.
+       
+       !Tlc: matrici di interazione (ES-H) device-contatti (l=layer,c=contact)
+       !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
+
+       do i1=1,ncont
+          call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
+        
+          call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
+          
+          call zdagacsr(TpMt,Tcl(i1))
+
+          call destroy(TpMt)
+          
+       enddo
+       
+       if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
+       call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
+
+     end subroutine compute_contacts
+
+!-------------------------------------------------------------------------------
 
   subroutine contour_int_n(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR) :: SelfEneR(1), Tlc(1), Tcl(1), gsurfR(1)
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, NumPoles
-    integer :: i, outer
+    integer :: i, i1, outer, it, ncont, nbl
 
     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, Lambda
     real(dp) :: muref, kbT
+    real(dp) :: ncyc
 
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
 
     open(101, file='dos.dat', form='formatted')
+
+    it = negf%iteration
+    ncont = negf%str%num_conts
+    nbl = negf%str%num_PLs
 
     muref = negf%mu_n
 
@@ -203,11 +290,7 @@ contains
     Lambda = 2.d0* negf%n_poles * KbT * pi
     NumPoles = negf%n_poles
 
-    call create(SelfEneR(1),0,0,0)
-    call create(Tlc(1),0,0,0)
-    call create(Tcl(1),0,0,0)
-    call create(gsurfR(1),0,0,0)
-    outer = 0 !no contacts no outer
+    outer = 1 !no contacts no outer
 
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call init(TmpMt)
@@ -240,7 +323,6 @@ contains
        iend = negf%Np_n(1)
     end if
 
-
     do i = istart,iend
 
        if (negf%verbose.gt.80) then
@@ -254,11 +336,17 @@ contains
 
        zt = z_diff * ff * wght(i) / (2.d0 *pi)
 
-       call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer)
+       call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        call concat(TmpMt,zt,GreenR,1,1) 
 
-       call destroy(GreenR)      
+       call destroy(GreenR) 
+
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
@@ -309,11 +397,17 @@ contains
 
        zt = z_diff * ff * wght(i) / (2.d0 *pi)
 
-       call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer) 
+       call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
 
        call concat(TmpMt,zt,GreenR,1,1)  !TmpMt=TmpMt+GreenR
 
        call destroy(GreenR)
+
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
@@ -351,44 +445,51 @@ contains
 
        zt= -j*KbT*(1.d0,0.d0) 
 
-       call calls_eq_mem(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer)
+       call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        call concat(TmpMt,zt,GreenR,1,1) 
 
        call destroy(GreenR)   
+
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
     call zspectral(TmpMt,TmpMt,0,negf%rho)
 
     call destroy(TmpMt)
-    call destroy(SelfEneR(1))
-    call destroy(Tcl(1))
-    call destroy(Tlc(1))
-    call destroy(gsurfR(1)) 
 
   end subroutine contour_int_n
 
 
-
+!--------------------------------------------------------------------------------
 
   subroutine contour_int_p(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR) :: SelfEneR(1), Tlc(1), Tcl(1), gsurfR(1)
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, NumPoles
-    integer :: i, outer
+    integer :: i, i1, outer, it, ncont, nbl
 
     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, Lambda
     real(dp) :: muref, kbT
+    real(dp) :: ncyc
 
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ev, ff
 
     open(101, file='dos.dat', form='formatted')
+
+    it = negf%iteration
+    ncont = negf%str%num_conts
+    nbl = negf%str%num_PLs
 
     muref = negf%mu_p
 
@@ -397,13 +498,8 @@ contains
     Omega = negf%n_kt * kbT
     Lambda = 2.d0* negf%n_poles * KbT * pi
     NumPoles = negf%n_poles
-
-    call create(SelfEneR(1),0,0,0)
-    call create(Tlc(1),0,0,0)
-    call create(Tcl(1),0,0,0)
-    call create(gsurfR(1),0,0,0)
     
-    outer = 0 !no contacts no outer
+    outer = 1 !no contacts no outer
 
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call init(TmpMt)
@@ -442,11 +538,17 @@ contains
 
        zt = z_diff * ff * wght(i) / (2.d0 *pi)
 
-       call calls_eq_mem(negf%H,negf%S,Ev,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer)
+       call compute_contacts(Ev,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        call concat(TmpMt,zt,GreenR,1,1) 
 
-       call destroy(GreenR)      
+       call destroy(GreenR) 
+
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
@@ -487,11 +589,17 @@ contains
 
        zt = z_diff * ff * wght(i) / (2.d0 *pi)
 
-       call calls_eq_mem(negf%H,negf%S,Ev,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer) 
+       call compute_contacts(Ev,negf,negf%Np_p(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
 
        call concat(TmpMt,zt,GreenR,1,1)  !TmpMt=TmpMt+GreenR
 
        call destroy(GreenR)
+
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
@@ -518,24 +626,27 @@ contains
 
        zt= j*KbT*(1.d0,0.d0) 
 
-       call calls_eq_mem(negf%H,negf%S,Ev,SelfEneR,Tlc,Tcl,gsurfR,GreenR,negf%str,outer)
+       call compute_contacts(Ev,negf,negf%Np_p(1)+negf%Np_p(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        call concat(TmpMt,zt,GreenR,1,1) 
 
-       call destroy(GreenR)   
+       call destroy(GreenR)  
+
+        do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
 
     enddo
 
     call zspectral(TmpMt,TmpMt,0,negf%rho)
 
     call destroy(TmpMt)
-    call destroy(SelfEneR(1))
-    call destroy(Tcl(1))
-    call destroy(Tlc(1))
-    call destroy(gsurfR(1))
 
   end subroutine contour_int_p
 
+!------------------------------------------------------------------------------------
 
   subroutine gauleg(x1,x2,x,w,n)
 

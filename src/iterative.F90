@@ -119,6 +119,7 @@ CONTAINS
     CALL sub_ESH(ESH_tot,ESH,indblk)
     !CALL destroy(ESH_tot)
 
+
     DO i=1,ncont
        CALL concat(ESH(cblk(i),cblk(i)),(-1.d0,0.d0),SelfEneR(i),1,1)
     ENDDO
@@ -130,13 +131,17 @@ CONTAINS
     !   write(*,*) '----------------------------------------------------'
     !endif
 
+
+
     !Allocazione delle gsmr
     ALLOCATE(gsmr(nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate gsmr'
 
     !Chiamata di Make_gsmr_mem
 
+
     CALL Make_gsmr_mem(ESH,nbl,2)
+
 
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
@@ -149,7 +154,9 @@ CONTAINS
     ALLOCATE(Gr(nbl,nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gr'
 
+
     CALL Make_Grdiag_mem(ESH,indblk)
+
 
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
@@ -173,7 +180,7 @@ CONTAINS
     CASE(2)
        CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.TRUE.,Aout) 
     END SELECT
-     
+
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writePeakInfo(6)
@@ -1269,7 +1276,6 @@ CONTAINS
     A%rowpnt(:)=P%rowpnt(:)
     A%colind(:)=P%colind(:)
 
-
     !If only one block is present, concatenation is not needed 
     !and it's implemented in a more trivial way
     IF (nbl.EQ.1) THEN
@@ -1303,7 +1309,6 @@ CONTAINS
              !Choose which block column we're dealing with
              y = 0
              IF (x.EQ.1) THEN
-
                 IF ( (A%colind(j).GE.indblk(x)).AND.(A%colind(j).LT.indblk(x + 1)) ) then 
                    y = 1
                 ELSEIF ( (A%colind(j).GE.indblk(x + 1)).AND.(A%colind(j).LT.indblk(x + 2)) ) then 
@@ -1319,21 +1324,26 @@ CONTAINS
                 DO iy = x-1, x+1
                    if ( (A%colind(j).GE.indblk(iy)).AND.(A%colind(j).LT.indblk(iy + 1)) ) y = iy
                 ENDDO
-                if (y.eq.0) then
-                   write(*,*) 'ERROR in Make_GreenR_mem2: probably wrong PL size',x
-                   stop
-                endif
              ENDIF
+             IF (y.eq.0) then
+                write(*,*) 'ERROR in Make_GreenR_mem2: probably wrong PL size',x
+                write(*,*) 'row',i,A%colind(j)
+                write(*,*) 'block indeces:',indblk(1:nbl)
+                stop
+             ENDIF
+
              col = A%colind(j) - indblk(y) + 1
+
              A%nzval(j) = (0.0, 0.0)
              DO j1 = Gr(x,y)%rowpnt(i1), Gr(x,y)%rowpnt(i1 + 1) -1
+
                 IF (Gr(x,y)%colind(j1).EQ.col)  then
+
                    A%nzval(j) = Gr(x,y)%nzval(j1)
                    exit
                 ENDIF
              ENDDO
           ENDDO
-
 
           IF(oldx.NE.x) THEN
 

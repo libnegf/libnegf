@@ -111,8 +111,8 @@ CONTAINS
     indblk => struct%mat_PL_start
 
     !Costruiamo matrice densa ESH_tot
+
     CALL prealloc_sum(S,H,E,(-1.d0, 0.d0),ESH_tot)
- 
 
     !Costruiamo l'array di dense ESH
     !Allocazione dell'array di dense ESH
@@ -122,10 +122,10 @@ CONTAINS
     CALL sub_ESH_dns(ESH_tot,ESH,indblk)
     !CALL destroy(ESH_tot)
 
-
     DO i=1,ncont
+       call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
        call csr2dns(SelfEneR(i),SelfEneR_d)
-       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val+SelfEneR_d%val
+       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR_d%val
        call destroy(SelfEneR_d)
     ENDDO
 
@@ -171,7 +171,6 @@ CONTAINS
     enddo
     DEALLOCATE(gsmr)
 
-
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
@@ -179,7 +178,7 @@ CONTAINS
     CASE(2)
        CALL Outer_GreenR_mem_dns(Tlc,Tcl,gsurfR,struct,.TRUE.,Aout) 
     END SELECT
-     
+
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writePeakInfo(6)
@@ -1675,13 +1674,16 @@ CONTAINS
     CALL create(Aout,nrow_tot,nrow_tot,0)
     Aout%rowpnt(:)=1
 
-!converto Gr(cb,cb) da denso a sparso
-call dns2csr(Gr(cb,cb),GrCSR)
+
 
     DO i=1,ncont
 
        !Numero di blocco del contatto
        cb=cblk(i)
+
+       !converto Gr(cb,cb) da denso a sparso
+       call create(GrCSR,Gr(cb,cb)%nrow,Gr(cb,cb)%ncol,Gr(cb,cb)%nrow*Gr(cb,cb)%ncol)
+       call dns2csr(Gr(cb,cb),GrCSR)
 
        !Calcolo di Grlc
        CALL prealloc_mult(GrCSR,Tlc(i),(-1.d0, 0.d0),work1)
@@ -1708,8 +1710,12 @@ call dns2csr(Gr(cb,cb),GrCSR)
        j1=struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
        CALL concat(Aout,Asub,i1,j1)
        CALL destroy(Asub)  
+       
+       call destroy(GrCSR)
 
     ENDDO
+
+
 
     if (debug) then
        WRITE(*,*) '********************'
@@ -1762,7 +1768,7 @@ call dns2csr(Gr(cb,cb),GrCSR)
 
     !Work
     TYPE(z_CSR) :: work1, Asub, Grcl, Grlc, GrCSR
-    INTEGER :: i,cb,ierr,nrow_tot,i1,j1
+    INTEGER :: i,cb,ierr,nrow_tot,i1,j1,t,k
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
 
@@ -1780,25 +1786,23 @@ call dns2csr(Gr(cb,cb),GrCSR)
 
     CALL create(Aout,nrow_tot,nrow_tot,0)
 
-!converto Gr(cb,cb) da denso a sparso
-call dns2csr(Gr(cb,cb),GrCSR)
-
     Aout%rowpnt(:)=1
 
     DO i=1,ncont
 
        !Numero di blocco del contatto
        cb=cblk(i)
-
+       !converto Gr(cb,cb) da denso a sparso
+       call create(GrCSR,Gr(cb,cb)%nrow,Gr(cb,cb)%ncol,Gr(cb,cb)%nrow*Gr(cb,cb)%ncol)
+       call dns2csr(Gr(cb,cb),GrCSR)
        !Calcolo di Grlc
        CALL prealloc_mult(GrCSR,Tlc(i),(-1.d0, 0.d0),work1)
 
        CALL prealloc_mult(work1,gsurfR(i),Grlc)
- 
+
        CALL zmask_realloc(Grlc, Tlc(i))
 
        CALL destroy(work1)
-
        !Concatenazione di Asub nella posizione corrispondente
        i1=indblk(cb)
        j1=struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
@@ -1817,7 +1821,7 @@ call dns2csr(Gr(cb,cb),GrCSR)
           CALL zmask_realloc(Grcl, Tcl(i))
 
           CALL destroy(work1)
-
+          
           i1 = struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
           j1 = indblk(cb)
 
@@ -1827,7 +1831,8 @@ call dns2csr(Gr(cb,cb),GrCSR)
 
        ENDIF
 
-
+       CALL destroy(GrCSR)
+      
     ENDDO
 
     if (debug) then
@@ -1894,8 +1899,6 @@ call dns2csr(Gr(cb,cb),GrCSR)
     indblk => struct%mat_PL_start
     cblk => struct%cblk
 
-!Conversione densa-sparsa della green, da aggiustare
-call dns2csr(Gr(cb,cb),Gr_sparse)
     
     !Allocazione della Glout
     !Righe totali del conduttore effettivo nrow_tot 
@@ -1911,7 +1914,7 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
     !***
     DO k=1,ncont
 
-       !Esegue le operazioni relative al contatto solo se è valida la condizione
+       !Esegue le operazioni relative al contatto solo se e` valida la condizione
        !sulle distribuzioni di Fermi e se non si tratta del contatto a potenziale minimo
        IF ((ABS(frm(k)-frm(min)).GT.drop).AND.(k.NE.min)) THEN
 
@@ -1920,6 +1923,10 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
           !nota:cb indica l'indice di blocco corrispondente al contatto j-esimo
           !nrow_cont=ncdim(k) !gsurfR(k)%nrow          
           !nrow_cb=indblk(cb+1)-indblk(cb)
+
+          !Conversione densa-sparsa della green, da aggiustare
+          call create(Gr_sparse,Gr(cb,cb)%nrow,Gr(cb,cb)%ncol,Gr(cb,cb)%nrow*Gr(cb,cb)%ncol)
+          call dns2csr(Gr(cb,cb),Gr_sparse)
 
           CALL zspectral(SelfEneR(k),SelfEneR(k),0,Gam)
 
@@ -1986,6 +1993,7 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
 
 
           CALL destroy(Glsub)
+          CALL destroy(Gr_sparse)
 
           !if (debug) write(*,*) 'cont',k,'concat ok'
           !***
@@ -1998,9 +2006,13 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
              !nrow_cbj=indblk(cbj+1)-indblk(cbj)
              !nrow_contj=ncdim(j) !gsurfR(j)%nrow
              !Esegue le operazioni del ciclo solo se il j.ne.k o se
-             !il blocco colonna di Gr è non nullo (altrimenti il contributo è nullo) 
+             !il blocco colonna di Gr e` non nullo (altrimenti il contributo e` nullo) 
 
              IF ((j.NE.k).AND.(Gr(cbj,cb)%nrow.NE.0 .AND. (Gr(cbj,cb)%ncol.NE.0))) THEN
+
+                call create(Gr_sparse,Gr(cbj,cb)%nrow,Gr(cbj,cb)%ncol, &
+                            Gr(cbj,cb)%nrow*Gr(cbj,cb)%ncol)
+                call dns2csr(Gr(cbj,cb),Gr_sparse)
 
                 !work1=Tlc*gsurfA  
                 CALL zdagacsr(gsurfR(j),gsurfA)
@@ -2049,11 +2061,11 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
                    call destroy(work1)
                 ENDIF
                 CALL destroy(Glsub)
-
+                CALL destroy(Gr_sparse)
                 !if (debug) write(*,*) 'cont',k,'concat ok'
 
              ENDIF
-
+             
           ENDDO
 
           CALL destroy(Gam)
@@ -2061,6 +2073,8 @@ call dns2csr(Gr(cb,cb),Gr_sparse)
        ENDIF
 
     ENDDO
+
+    call destroy(Gr_sparse)
 
     if (debug) then
        WRITE(*,*) '********************'

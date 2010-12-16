@@ -1,4 +1,4 @@
-program Testint
+program testcontactdos
 
   use precision
   use constants
@@ -12,7 +12,6 @@ program Testint
   use libnegf
   use lib_param
   use extract
-  use clock
 
   implicit none
 
@@ -22,13 +21,15 @@ program Testint
 
   pnegf => negf
 
-  print*,'(main) testint'
+  print*,'(main) testcontactdos'
 
   negf%file_re_H='H_real2.dat'
   negf%file_im_H='H_imm2.dat'
+!  negf%file_re_S='S_real.dat'
+!  negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = HAR  ! to convert Kb 
+  negf%eneconv = 1.d0 ! HAR  ! to convert Kb 
   negf%isSid = .true.
   negf%form%formatted = .true.
   negf%form%type = 'PETSc'
@@ -46,20 +47,11 @@ program Testint
   print*, '(main) extract contacts'
 
   call extract_cont(pnegf)
+  
 
-  print*,'(main) contour electrons'
+  print*,'(main) computing dos'
 
-  call contour_int_n(pnegf)
-
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
-
-  call destroy(pnegf%rho)
-
-  print*,'(main) contour holes'
-
-  call contour_int_p(pnegf)
-
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
+  call compute_dos(pnegf)
 
   print*,'(main) destroy negf'
 
@@ -69,7 +61,7 @@ program Testint
   call writememinfo(6)
 
 
-end program Testint
+end program testcontactdos
 
 
 ! negf:0 XXXXXXXXXXXX  negf:END

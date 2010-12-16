@@ -13,6 +13,7 @@ type TStruct_Info
    integer, dimension(:), Pointer :: mat_B_start => NULL()  ! starting bound    
    integer, dimension(:), Pointer :: mat_C_start => NULL()  ! starting real contact
    integer, dimension(:), Pointer :: mat_C_end => NULL()  ! end real contact
+   integer, dimension(:), Pointer :: cont_dim => NULL()   ! total contact dim
 
    integer, dimension(:), Pointer :: cblk => NULL()        !contact int block
    integer :: central_dim
@@ -40,24 +41,33 @@ contains
   ! surf_end(ncont)          array containing the end of each contact surface
   ! cblk(ncont)              array containing the PL-contact position
   !
-  subroutine create_TStruct(ncont,nbl, PL_end, cont_end, surf_end, cblk, str)
+  subroutine create_TStruct(ncont, nbl, PL_end, cont_end, surf_end, cblk, str)
     integer, intent(in) :: ncont
     integer, intent(in) :: nbl
     integer, dimension(:) :: PL_end, cont_end, surf_end, cblk   
-    type(TStruct_Info), intent(out) :: str
+    type(TStruct_Info), intent(inout) :: str
 
     
     integer :: i
-    
+
     str%num_conts = ncont
     str%num_PLs = nbl
     str%active_cont = 1
 
+    !  -------------------------------- - - -
+    !  | S       |  PL1   |    PL2    |
+    !  -------------------------------- - - -
+    !  B_start   C_start              C_end 
+    !
+    !  B_end = C_start - 1
+
+   
     if(ncont.gt.0) then
        allocate(str%mat_B_start(ncont))
        allocate(str%mat_C_start(ncont))
        allocate(str%mat_C_end(ncont))
        allocate(str%cblk(ncont))
+       allocate(str%cont_dim(ncont))
     endif
     
     if(ncont.gt.0) then
@@ -65,6 +75,7 @@ contains
        str%mat_C_start(1) =  surf_end(1)+1 
        str%mat_C_end(1)   =  cont_end(1)    
        str%cblk(1) = cblk(1)
+       str%cont_dim(1) =  str%mat_C_end(1) - str%mat_B_start(1) + 1
     endif
        
 
@@ -73,6 +84,7 @@ contains
        str%mat_C_start(i) = surf_end(i) + 1 
        str%mat_C_end(i)   = cont_end(i)
        str%cblk(i) = cblk(i)
+       str%cont_dim(i) =  str%mat_C_end(i) - str%mat_B_start(i) + 1
     enddo
 
     allocate(str%mat_PL_start(nbl+1))
@@ -108,6 +120,7 @@ contains
 
     if(associated(str%mat_PL_start)) deallocate(str%mat_PL_start)
     if(associated(str%mat_PL_end)) deallocate(str%mat_PL_end)
+    if(associated(str%cont_dim)) deallocate(str%cont_dim)
   end subroutine kill_TStruct
 
   ! --------------------------------------------------------  

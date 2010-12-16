@@ -11,8 +11,8 @@ FPP = fpp
 LIBNEGFSRC=$(shell pwd)
 SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
-#FC90OPT = -g -check all 
-FC90OPT = -O2 -xW -openmp -ip
+FC90OPT = -g -check all 
+#FC90OPT = -O2 -xW -openmp -ip
 CFLAGS = -g -O0
 F77FLAGS = $(FC90OPT)
 FPPFLAGS = -D__PARDISO
@@ -62,11 +62,11 @@ endif
 ######################################################################
 
 MODULES = mpi_globals.o constants.o precision.o allocation.o \
-parameters.o contselfenergy.o population.o \
+contselfenergy.o population.o \
 mat_def.o clock.o fermi.o iterative.o complexbands.o \
 sparsekit_drv.o structure.o inversions.o outmatrix.o \
-load.o greendftb.o input_output.o lib_param.o libnegf.o globals.o \
-rcm_module.o knitting.o supermat.o iterative_dns.o
+load.o input_output.o lib_param.o libnegf.o globals.o \
+rcm_module.o knitting.o supermat.o iterative_dns.o extract.o
 
 
 #SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o \
@@ -113,6 +113,15 @@ testiterativedns: Testiterativedns.F90 $(TARGET)
 	$(FC90) $(FC90OPT) -c Testiterativedns.F90 
 	$(FC) $(LINKFLAG)  -o $@  Testiterativedns.o $(TARGET) $(LIBS)
 
+testcontactdos: testcontactdos.F90 $(TARGET)
+	$(FC90) $(FC90OPT) -c testcontactdos.F90 
+	$(FC) $(LINKFLAG)  -o $@  testcontactdos.o $(TARGET) $(LIBS)
+
+testdosdns: testdosdns.F90 $(TARGET)
+	$(FC90) $(FC90OPT) -c testdosdns.F90 
+	$(FC) $(LINKFLAG)  -o $@  testdosdns.o $(TARGET) $(LIBS)
+
+
 $(TARGET): $(MODULES) $(SPARSEKIT)
 	ar -r $@ $^
 
@@ -126,36 +135,41 @@ $(SPARSEKITMODULES):
 ######################################################################
 allocation.o:    precision.o
 constants.o:     precision.o
-parameters.o:    precision.o constants.o
+#:    precision.o constants.o
+lib_param.o:  precision.o globals.o mat_def.o structure.o input_output.o 
 mat_def.o:       allocation.o
 
-iterative.o:     allocation.o parameters.o mat_def.o sparsekit_drv.o 
+iterative.o:     allocation.o  mat_def.o sparsekit_drv.o 
 iterative.o:     inversions.o structure.o
 
-iterative_dns.o: allocation.o parameters.o mat_def.o sparsekit_drv.o
+iterative_dns.o: allocation.o  mat_def.o sparsekit_drv.o
 iterative_dns.o: inversions.o structure.o
+
+extract.o: precision.o allocation.o mat_def.o sparsekit_drv.o
+extract.o: structure.o lib_param.o constants.o
 
 input_output.o:  precision.o allocation.o mat_def.o sparsekit_drv.o 
 inversions.o:    allocation.o mat_def.o sparsekit_drv.o
 
 complexbands.o:    precision.o constants.o inversions.o	
 
-contselfenergy.o: parameters.o allocation.o mat_def.o sparsekit_drv.o 
+contselfenergy.o: lib_param.o allocation.o mat_def.o sparsekit_drv.o 
 contselfenergy.o: outmatrix.o clock.o complexbands.o mpi_globals.o
 contselfenergy.o: structure.o
 
 sparsekit_drv.o:  mat_def.o allocation.o
 
-greendftb.o: 	 constants.o parameters.o sparsekit_drv.o iterative.o
-greendftb.o:     mat_def.o structure.o contselfenergy.o clock.o fermi.o
+#greendftb.o: 	 constants.o lib_param.o sparsekit_drv.o iterative.o
+#greendftb.o:     mat_def.o structure.o contselfenergy.o clock.o fermi.o
 
 libnegf.o:    precision.o lib_param.o input_output.o allocation.o structure.o
 libnegf.o:    sparsekit_drv.o inversions.o iterative.o rcm_module.o 
-lib_param.o:  precision.o globals.o mat_def.o structure.o
+libnegf.o:     extract.o contselfenergy.o iterative_dns.o
+
 
 population.o:    precision.o mat_def.o 
 
-test1: load.o structure.o greendftb.o
+test1: load.o structure.o 
 
 knitting.o:  precision.o allocation.o mat_def.o sparsekit_drv.o inversions.o
 knitting.o: supermat.o structure.o
