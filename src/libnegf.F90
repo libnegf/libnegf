@@ -12,17 +12,18 @@ module libnegf
  use inversions
  use iterative
  use iterative_dns
- use mat_def
  use rcm_module
- use clock
+ use mat_def
  use extract
  use contselfenergy
+ use clock
 
  implicit none
  private
 
  public :: init_negf, destroy_negf
  public :: compute_dos, contour_int_n, contour_int_p, compute_contacts
+ public :: compute_current, integrate
  public :: reorder, partition, partition2
  public :: sort, swap
 
@@ -33,7 +34,7 @@ contains
     Integer :: ncont, nbl
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(11) :: fmtstring
-
+ 
     if(negf%form%formatted) then
        fmtstring = 'formatted'
     else
@@ -52,16 +53,17 @@ contains
        open(101, file=negf%file_re_S, form=trim(fmtstring))
        open(102, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
 
-       call read_H(101,102,negf%S,negf%form)
-
+       call read_H(101,102, negf%S,negf%form)
+       
        close(101)
        close(102)
 
     else
        ! create an Id matrix for S
-       call create_id(negf%S,negf%H%nrow) 
-    endif
+       call create_id( negf%S,negf%H%nrow) 
 
+    endif
+print*,'(init) read param'
     open(101, file=negf%file_struct, form='formatted')  
 
     read(101,*) ncont
@@ -110,7 +112,16 @@ contains
   end subroutine init_negf
 
 !--------------------------------------------------------------------
+  subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
+    type(Tnegf), pointer :: negf
+    Integer :: ncont, nbl
+    Integer, dimension(:) :: PL_end, cont_end, surf_end, cblk
 
+    call create_Tstruct(ncont, nbl, PL_end, cont_end, surf_end, cblk, negf%str)
+
+  end subroutine init_structure
+
+!--------------------------------------------------------------------
   subroutine destroy_negf(negf)
     type(Tnegf), pointer :: negf   
     integer :: i
@@ -169,7 +180,7 @@ contains
 
        call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
    
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+       call calls_eq_mem(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -240,18 +251,18 @@ contains
        
        !Tlc: matrici di interazione (ES-H) device-contatti (l=layer,c=contact)
        !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
-
+       
        do i1=1,ncont
           call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-        
+
           call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
-          
+
           call zdagacsr(TpMt,Tcl(i1))
 
           call destroy(TpMt)
-          
+
        enddo
-       
+
        if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
        call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
 
@@ -259,7 +270,271 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine contour_int_n(negf)
+     subroutine compute_current(negf)
+
+       type(Tnegf), pointer :: negf
+
+       Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+
+       Real(kind=dp), Dimension(:), allocatable :: currents 
+       Real(kind=dp), Dimension(:), allocatable :: TUN_MAT
+       Real(kind=dp), Dimension(:,:), allocatable :: TUN_TOT_MAT  
+       !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
+
+       Real(kind=dp), Dimension(:), allocatable :: mumin_array, mumax_array
+       Real(kind=dp) :: avncyc, ncyc, Ec_min, mumin, mumax, telec
+
+       Complex(dp) :: Ec
+
+       Integer, Dimension(:), pointer :: cblk, indblk
+       Integer :: i, Nstep, npid, istart, iend, i1
+       Integer :: size_ni, size_nf, icpl, ncont, icont
+       Integer :: ierr, nbl, nit, nft
+
+       nbl = negf%str%num_PLs
+       ncont = negf%str%num_conts
+       cblk => negf%str%cblk
+       indblk => negf%str%mat_PL_start
+
+       negf%ni=0; negf%nf=0 
+       negf%ni(1)=1 
+       negf%nf(1)=2 
+
+       Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
+       npid = int((Nstep+1)/numprocs)
+
+       !Get out if Emax<Emin and Nstep<0
+       if (Nstep.lt.0) then
+          if(id0) write(*,*) '0 tunneling points;  current = 0.0'
+          return
+       endif
+       
+       !Extract Contacts in main
+       !Tunneling set-up
+       do i=1,size(negf%ni)
+          if (negf%ni(i).eq.0) then
+             size_ni=i-1
+             exit
+          endif
+       enddo
+
+       do i=1,size(negf%nf)
+          if (negf%nf(i).eq.0) then
+             size_nf=i-1
+             exit
+          endif
+       enddo
+
+       !check size_ni .ne. size_nf
+       if (size_ni.ne.size_nf) then 
+          size_ni=min(size_ni,size_nf)
+          size_nf=min(size_ni,size_nf)
+       endif
+
+       call log_allocate(mumin_array,size_ni)
+       call log_allocate(mumax_array,size_ni)
+
+       ! find bias window for each contact pair
+       do icpl=1,size_ni
+          mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+               negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+          mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+               negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+       enddo
+  
+       ncyc=0
+       istart = 1
+       iend = npid
+
+       call log_allocate(TUN_MAT,size_ni)
+       call log_allocate(TUN_TOT_MAT,Nstep+1,size_ni)   
+       !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
+       !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
+
+       
+       !Loop on energy points: tunneling 
+       do i1 = istart,iend
+
+          Ec_min = negf%Emin + id*npid*negf%Estep
+          Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0)+negf%delta*(0.d0,1.d0) 
+
+          call compute_contacts(Ec,negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+          do icont=1,ncont
+             call destroy(Tlc(icont))
+             call destroy(Tcl(icont))
+             call destroy(GS(icont))
+          enddo
+
+          call tunneling(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+               negf%str,TUN_MAT)
+
+          TUN_TOT_MAT(i1,:) = TUN_MAT(:)
+
+          do icont=1,ncont
+             call destroy(SelfEneR(icont))
+          enddo
+
+       enddo !Loop on energy i1 = istart,iend
+
+
+       !---- SAVE TUNNELING ON FILES -----------------------------------------------
+
+       open(121,file='tunneling.dat')
+
+       do i = 1,Nstep+1
+          
+          Ec=(negf%emin+negf%estep*(i-1))*(1,0)
+          
+          WRITE(121,'(E17.8,20(E17.8))') REAL(Ec), &
+               (TUN_TOT_MAT(i,i1), i1=1,size_ni)
+          
+       end do
+       close(121)
+       !---------------------------------------------------------------------------
+       !   COMPUTATION OF CURRENTS 
+       !---------------------------------------------------------------------------
+print*,'compute current'  
+       open(101,file='current.dat')
+   
+       call log_allocate(currents,size_ni)
+       currents(:)=0.d0
+
+       do icpl=1,size_ni
+
+          mumin=mumin_array(icpl)
+          mumax=mumax_array(icpl)
+
+          if (id0.and.mumin.lt.mumax.and.(mumin.lt.negf%Emin.or.mumax.gt.negf%Emax)) then
+             write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
+             write(*,*) 'mumin=',mumin,'mumax=',mumax
+             write(*,*) 'emin=',negf%emin,'emax=',negf%emax    
+          endif
+
+          currents(icpl)= integrate(TUN_TOT_MAT(:,icpl),mumin,mumax,telec,negf%Emin,negf%Emax,negf%Estep)
+
+       enddo
+
+       write(101,*) real(Ec), currents           
+
+       close(101)
+
+
+       call log_deallocate(TUN_TOT_MAT)
+       call log_deallocate(TUN_MAT)
+       !call log_deallocate(TUN_PMAT)
+       !call log_deallocate(TUN_TOT_PMAT)  
+
+       call log_deallocate(mumin_array)
+       call log_deallocate(mumax_array)
+       call log_deallocate(currents)
+
+ 
+     end subroutine compute_current
+
+
+     !-------------------------------------------------------------------------------
+
+
+!////////////////////////////////////////////////////////////////////////
+!************************************************************************
+!
+! Function to integrate the tunneling and get the current
+!
+!************************************************************************
+
+function integrate(TUN_TOT,mumin,mumax,telec,emin,emax,estep)
+
+  implicit none
+
+  real(kind=dp) :: integrate
+  real(kind=dp) :: mumin,mumax,telec,emin,emax,estep
+  real(kind=dp) :: TUN_TOT(*)
+  REAL(kind=dp) :: destep,T,TT1,TT2,E3,E4,TT3,TT4
+  REAL(kind=dp) :: E1,E2,c1,c2,curr
+  INTEGER :: i,i1,N,Nstep,imin,imax
+  
+  curr=0.d0
+  N=0
+  destep=1.0d10    
+  Nstep=NINT((emax-emin)/estep);
+  
+  if (telec.lt.1.0) then
+    T=1.d0
+  else
+    T=telec      
+  endif
+
+  ! Find initial step for integration
+  imin=0
+  do i=0,Nstep
+     E1=emin+estep*i     
+     imin=i-1
+     if(E1.ge.mumin-10*kb*T) then 
+        exit
+     endif
+  enddo
+  ! Find final step for integration 
+  imax=0
+  do i=Nstep,imin,-1    
+     E1=emin+estep*i 
+     imax=i+1
+     if(E1.le.mumax+10*kb*T) then 
+        exit
+     endif
+  enddo
+
+  !checks if the energy interval is appropriate
+  if (imin.lt.0.or.imax.gt.Nstep.or.imin.eq.imax) then
+     write(*,*) 'WARNING: Wrong energy interval for current calculation'
+     write(*,*) 'Suggested interval:',(mumin-10*kb*T),(mumax+10*kb*T)
+  endif
+
+  !rest the min and max to the actual interval
+  if (imin.lt.0) imin=0
+  if (imax.gt.Nstep) imax=Nstep 
+
+  ! performs the integration with simple trapezium rule. 
+  do i=imin,imax-1
+     
+     E1=emin+estep*i  
+     TT1=TUN_TOT(i+1)     
+     E2=emin+estep*(i+1)
+     TT2=TUN_TOT(i+2)
+     
+     ! Each step is devided into substeps in order to
+     ! smooth out the Fermi function
+     do while (destep.ge.2*kb*T) 
+        N=N+1
+        destep=(E2-E1)/N
+     enddo
+     
+     ! within each substep the tunneling is linearly 
+     ! interpolated
+     do i1=0,N-1
+        
+        E3=E1+(E2-E1)*i1/N
+        E4=E3+(E2-E1)/N
+        TT3=( TT2-TT1 )*i1/N + TT1
+        TT4=TT3 + (TT2-TT1)/N
+        
+        c1=2.d0*eovh*(fermi_f(E3,mumax,Kb*T)-fermi_f(E3,mumin,Kb*T))*TT3
+        c2=2.d0*eovh*(fermi_f(E4,mumax,Kb*T)-fermi_f(E4,mumin,Kb*T))*TT4
+        
+        curr=curr+(c1+c2)*(E4-E3)/2.d0
+        
+     enddo
+     
+  enddo
+  
+  integrate = curr
+  
+  
+end function integrate
+
+!------------------------------------------------------
+
+    subroutine contour_int_n(negf)
 
     type(Tnegf), pointer :: negf 
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS

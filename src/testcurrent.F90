@@ -1,13 +1,18 @@
-program Testint
+program testcurrent
 
   use precision
   use constants
-  use allocation
-  use libnegf
   use mat_def
+  use allocation
+  use structure
+  use input_output
   use sparsekit_drv
+  use inversions
+  use iterative
+  use libnegf
   use lib_param
   use extract
+  use clock
 
   implicit none
 
@@ -17,13 +22,15 @@ program Testint
 
   pnegf => negf
 
-  print*,'(main) testint'
+  print*,'(main) testcurrent'
 
   negf%file_re_H='H_real2.dat'
   negf%file_im_H='H_imm2.dat'
+!  negf%file_re_S='S_real.dat'
+!  negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = HAR  ! to convert Kb 
+  negf%eneconv = 1.d0 ! HAR  ! to convert Kb 
   negf%isSid = .true.
   negf%form%formatted = .true.
   negf%form%type = 'PETSc'
@@ -42,19 +49,9 @@ program Testint
 
   call extract_cont(pnegf)
 
-  print*,'(main) contour electrons'
+  print*,'(main) computing current'
 
-  call contour_int_n(pnegf)
-
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
-
-  call destroy(pnegf%rho)
-
-  print*,'(main) contour holes'
-
-  call contour_int_p(pnegf)
-
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
+  call compute_current(pnegf)
 
   print*,'(main) destroy negf'
 
@@ -63,9 +60,4 @@ program Testint
   call writepeakinfo(6)
   call writememinfo(6)
 
-
-end program Testint
-
-
-! negf:0 XXXXXXXXXXXX  negf:END
-! pointer 
+end program testcurrent

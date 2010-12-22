@@ -121,6 +121,10 @@ testdosdns: testdosdns.F90 $(TARGET)
 	$(FC90) $(FC90OPT) -c testdosdns.F90 
 	$(FC) $(LINKFLAG)  -o $@  testdosdns.o $(TARGET) $(LIBS)
 
+testcurrent: testcurrent.F90 $(TARGET)
+	$(FC90) $(FC90OPT) -c testcurrent.F90 
+	$(FC) $(LINKFLAG)  -o $@  testcurrent.o $(TARGET) $(LIBS)
+
 
 $(TARGET): $(MODULES) $(SPARSEKIT)
 	ar -r $@ $^

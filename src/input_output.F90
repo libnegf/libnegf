@@ -6,7 +6,7 @@ module input_output
   implicit none
   private
 
-  public :: read_H, read_S, format
+  public :: read_H, format
 
   type format
      character(5) :: type ! 'PETSc','UPT'  
@@ -208,7 +208,7 @@ print*,'(init) read Im.dat'
   !write(*,*) mat%index_j, mat%index_i, mati%nzval
 
   !write(*,*) 'Hcomplex is'
-print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
+  print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
   
   count = k
   !do i = 1, k  
@@ -241,44 +241,13 @@ print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
 
   call destroy(mat2)               !deallocation Hcomplex
 
-  write(*,*) 'matrix H read'
+  write(*,*) '(readH) matrix H read'
 
 
 end subroutine read_H
 
 ! -----------------------------------------------------------------
 
-subroutine read_S(id, mat)
-
-  Type(r_COO) :: mat
-  Integer i
-  Integer :: id
-  Character tmp1, tmp2, tmp3, tmp4
-
-  read (id,*) tmp1, tmp2, tmp3, mat%nrow, mat%ncol
-  read (id,*) tmp1, tmp4, tmp3, mat%nnz
-  read (id,*)
-  read (id,*)
-  write(*,*) 'The number of rows (Hreal) is', mat%nrow
-  write(*,*) 'The number of columns (Hreal) is', mat%ncol
-  write(*,*) 'The number of non zero elements (Hreal) is', mat%nnz
-
-  call log_allocate(mat%index_j,mat%nnz)        !allocation column index
-  call log_allocate(mat%index_i,mat%nnz)        !allocation row index
-  call log_allocate(mat%nzval,mat%nnz)          !allocation Sreal
-
-  do i=1,mat%nnz
-     read(id,*) mat%index_j(i), mat%index_i(i), mat%nzval(i)
-  enddo
-  write(*,*) mat%index_j, mat%index_i, mat%nzval
-
-  call log_deallocate(mat%index_j)              !deallocation column index
-  call log_deallocate(mat%index_i)              !deallocation row index
-  call log_deallocate(mat%nzval)                !deallocation Sreal 
-
-  !Inserire conversione COO-CSR
-
-end subroutine read_S
 
 
 

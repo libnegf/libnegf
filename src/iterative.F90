@@ -22,12 +22,23 @@ MODULE iterative
   USE sparsekit_drv
   USE inversions
   USE structure, only : TStruct_Info
+  USE lib_param, only : MAXNCONT
 
   !USE parameters, only : ncont, ncdim
   !use structure, only : nbl, indblk, cblk, cindblk
   !use clock
 
   private
+  
+  public :: allocate_gsmr
+  public :: allocate_gsml
+  public :: allocate_Gr  
+
+  public :: deallocate_gsmr
+  public :: deallocate_gsml
+  public :: deallocate_Gr
+
+  public :: tunneling
 
   public :: calls_eq_mem
   public :: calls_neq_mem
@@ -807,7 +818,7 @@ CONTAINS
     !***
 
     nbl = size(ESH,1)
-    nrow=indblk(2)-indblk(1)  
+    nrow=indblk(2)-indblk(1)
 
     if(nbl.gt.1) then
 
@@ -2085,13 +2096,267 @@ CONTAINS
     endif
 
   END SUBROUTINE Outer_Gl_mem
+  ! -----------------------------------------------------------------------
 
+  SUBROUTINE tunneling(HM,SM,Ec,SelfEneR,ni,nf,size_ni,str,TUN_MAT)
+    Type(z_CSR) :: HM
+    Type(z_CSR) :: SM           
+    Complex(dp) :: Ec
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
+    Real(kind=dp), Dimension(:) :: TUN_MAT
+    Type(z_CSR) :: ESH_tot
+    Type(TStruct_Info) :: str
 
+    ! Local variables
+    Type(z_CSR), Dimension(:,:), allocatable :: ESH
+    Real(kind=dp) :: tun
+    Integer :: ni(MAXNCONT)
+    Integer :: nf(MAXNCONT)
+    Integer :: nbl,ncont,size_ni
 
+    nbl = str%num_PLs
+    ncont = str%num_conts
 
+    !Calculation of ES-H and brak into blocks
+    call prealloc_sum(HM,SM,(-1.d0, 0.d0),Ec,ESH_tot)    
 
+    allocate(ESH(nbl,nbl),stat=ierr)
+    if (ierr.eq.1) stop 'Error in ESH allocation'
+    call sub_ESH(ESH_tot,ESH,str%mat_PL_start)
+    call destroy(ESH_tot)
+
+    !Inclusion of the contact Self-Energies to the relevant blocks
+    do i=1,ncont
+       call concat(ESH(str%cblk(i),str%cblk(i)),(-1.d0,0.d0),SelfEneR(i),1,1)
+    enddo
+
+    call allocate_gsmr(nbl)
+
+    !Iterative calculation up with gsmr 
+    call Make_gsmr_mem(ESH,nbl,2)
+
+    !Iterative calculation down for Gr
+    call allocate_Gr(nbl)
+
+    call Make_Grdiag_mem(ESH,str%mat_PL_start)
+
+    !Computation of transmission(s) between contacts ni(:) -> nf(:)
+    do icpl=1,size_ni
+
+       nit=ni(icpl)
+       nft=nf(icpl)
+  
+       call trasmission(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+  
+       TUN_MAT(icpl) = tun 
+    
+    enddo
+
+    !Deallocate energy-dependent matrices
+    do i=2,nbl 
+       call destroy(gsmr(i))
+    enddo
+
+    call deallocate_gsmr
+    !Distruzione dei blocchi fuori-diagonale
+    do i=2,nbl
+       call destroy(Gr(i-1,i))
+       call destroy(Gr(i,i-1))
+    enddo
+
+    !Deallocate matrices
+    call deallocate_Gr
+
+    call destroy(ESH(1,1))
+    do i=2,nbl
+       call destroy(ESH(i,i))
+       call destroy(ESH(i-1,i))
+       call destroy(ESH(i,i-1))
+    enddo
+
+    deallocate(ESH,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate ESH'
+
+  end SUBROUTINE tunneling
+
+  !************************************************************************
+  !
+  ! Subroutine for transmission calculation
+  !
+  !************************************************************************
+  
+  subroutine trasmission(ni,nf,ESH,SelfEneR,nbl,cblk,indblk,TUN)
+    
+    !In/Out
+    Integer :: ni,nf
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
+    Type(z_CSR), Dimension(:,:) :: ESH
+    Integer, Dimension(:), pointer :: cblk, indblk
+    Real(kind=dp) :: TUN
+    
+    !Work variables
+    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl, ncont
+    Type(z_CSR) :: work1, work2, GAM1, GAM2, GA, TRS
+    Real(kind=dp) :: max
+    Real(kind=dp), parameter :: drop=1e-20
+   
+    !Arrange contacts in way that order between first and second is always the
+    !same (always ct1 > ct2)
+!print*,ni,nf
+
+    if (cblk(ni).gt.cblk(nf)) then
+       ct1=ni;ct2=nf;
+    else
+       ct1=nf;ct2=ni;
+    endif
+    
+    nt1=cblk(ct1); nt2=cblk(ct2);
+!print*,'(tunneling) nt1 nt2',nt1,nt2    
+    ! in this way nt1 > nt2 by construction
+    ncol=indblk(nt2+1)-indblk(nt2)
+    
+    if ( nbl.gt.1 .and. (nt1-nt2).gt.1) then
+       
+       !Calcolo dei blocchi colonna (nt2) fino al desiderato (riga nt1)
+       !IF ( nt2.LT.(nbl-1) ) THEN
+       
+       do i=nt2+2,nbl
+
+          nrow=indblk(i+1)-indblk(i)
+          
+          if (Gr(i-1,nt2)%nnz.ne.0) then 
+!print*,'(tunneling) Gr',Gr(i-1,nt2)%nrow,Gr(i-1,nt2)%ncol, Gr(i-1,nt2)%nnz
+             max=maxval(abs(Gr(i-1,nt2)%nzval(:)))
+          else
+             print*,'(tunneling) Gr',i-1,nt2,'==0'
+             max=0.d0
+          endif
+          
+          if (max.gt.drop) then
+!print*,'(tunneling) gsmr',gsmr(i)%nrow,gsmr(i)%ncol,gsmr(i)%nnz
+!print*,'(tunneling) ESH',ESH(i,i-1)%nnz            
+             call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+!print*,'(tunneling) work1',work1%nrow,work1%ncol,work1%nnz
+             call prealloc_mult(work1,Gr(i-1,nt2),Gr(i,nt2))
+             call destroy(work1)
+!print*,'(tunneling)',Gr(i,nt2)%nrow,Gr(i,nt2)%ncol,Gr(i,nt2)%nnz                
+          else
+             call create(Gr(i,nt2),nrow,ncol,0)
+             Gr(i,nt2)%rowpnt(:)=1
+             
+          endif
+          
+          !Destroy only if not adiacent to diagonal (adiacent blocks are
+          !deallocated in a separate way, outside from subroutine)           
+          if (i.gt.(nt2+2)) call destroy(Gr(i-1,nt2))
+        
+          if (Gr(i,nt2)%nnz.eq.0) then
+             TUN = 0
+             return         
+          endif
+
+          if (i.eq.nt1) exit
+
+       enddo
+       
+       !ENDIF
+       
+    endif
+
+    ! Computes the Gamma matrices
+    call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
+    call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
+    
+    ! Work to compute transmission matrix (Gamma G Gamma G)
+    call prealloc_mult(GAM1,Gr(nt1,nt2),work1)
+    
+    call destroy(GAM1)
+    
+    call zdagacsr(Gr(nt1,nt2),GA)
+    call prealloc_mult(work1,GAM2,work2)
+    
+    if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
+    
+    call destroy(work1)
+    call destroy(GAM2)
+
+    call prealloc_mult(work2,GA,TRS)
+!print*,'work2=',work2%nrow,work2%ncol,work2%nnz
+!print*,'GA=',GA%nrow,GA%ncol,GA%nnz
+    call destroy(work2)
+    call destroy(GA) 
+  
+!print*,'TUN=trace(TRS)'    
+    TUN = trace(TRS)
+!print*,'Trace done'    
+
+    !call tunneling(TRS,TUN)
+
+    call destroy(TRS)
+    
+  end subroutine trasmission
+ 
+
+  !---------------------------------------------------
+
+  subroutine allocate_gsmr(nbl)
+    integer :: nbl, ierr
+
+    allocate(gsmr(nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsmr'
+    
+  end subroutine allocate_gsmr
+
+  !---------------------------------------------------
+
+  subroutine allocate_gsml(nbl)
+    integer :: nbl, ierr
+
+    allocate(gsml(nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsml'
+    
+  end subroutine allocate_gsml
+
+  !---------------------------------------------------
+
+  subroutine allocate_Gr(nbl)
+    integer :: nbl, ierr
+
+    allocate(Gr(nbl,nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate Gr'
+
+  end subroutine allocate_Gr
 
 
   !---------------------------------------------------
+
+  subroutine deallocate_gsmr
+    integer :: ierr
+
+    deallocate(gsmr,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+
+  end subroutine deallocate_gsmr
+
+  !---------------------------------------------------
+
+  subroutine deallocate_gsml
+    integer :: ierr
+
+    deallocate(gsml,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsml'
+
+  end subroutine deallocate_gsml
+
+  !---------------------------------------------------
+
+  subroutine deallocate_Gr
+    integer :: ierr
+
+    deallocate(Gr,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate Gr'
+
+  end subroutine deallocate_Gr
+
 
 END MODULE iterative
