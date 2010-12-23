@@ -44,7 +44,7 @@ endif
 ######################################################################
 
 .SUFFIXES :
-.SUFFIXES : .c .o .f .F90 
+.SUFFIXES : .c .o .f90 .F90 
 
 .f.o:
 	$(FC) $(F77FLAGS) -c $*.f
@@ -65,8 +65,8 @@ MODULES = mpi_globals.o constants.o precision.o allocation.o \
 contselfenergy.o population.o \
 mat_def.o clock.o fermi.o iterative.o complexbands.o \
 sparsekit_drv.o structure.o inversions.o outmatrix.o \
-load.o input_output.o lib_param.o libnegf.o globals.o \
-rcm_module.o knitting.o supermat.o iterative_dns.o extract.o
+input_output.o lib_param.o libnegf.o globals.o \
+rcm_module.o iterative_dns.o extract.o
 
 
 #SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o \
