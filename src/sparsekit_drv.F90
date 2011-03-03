@@ -1,15 +1,15 @@
 
 MODULE sparsekit_drv
-  USE precision
+  USE ln_precision
+  USE ln_allocation
   USE mat_def
-  USE allocation
  
   private
 
   public :: dns2csr, csr2dns, coo2csr, csr2coo, csr2csc, csc2dns, dns2csc
   public :: clone, concat, msort, mask
   public :: prealloc_sum, prealloc_mult
-  public :: check_nnz, nzdrop, trace
+  public :: check_nnz, nzdrop, trace, getelment
 
   public :: zsumcsr1
   public :: ramub_st
@@ -17,7 +17,7 @@ MODULE sparsekit_drv
   public :: zsubmat_st, zcopmat_st, zamub_st, zaplb_st, zcplsamub_st, zpre_amub
   public :: zpre_aplb 
   public :: zextract, zextract_dns
-  public :: zdagacsr, zspectral
+  public :: zdagacsr, zdagadns, zspectral
   public :: zgetdiag, zmask_realloc
 
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
@@ -28,7 +28,7 @@ MODULE sparsekit_drv
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs 
 
-  external :: zcsort, csort, amask, zamask 
+  external :: zcsort, csort, amask, zamask,  getelm
   !public :: rprint_csrdns
   
 
@@ -169,6 +169,21 @@ MODULE sparsekit_drv
      module procedure ztrace_csr
      module procedure ztrace_dns
   end interface
+  interface getelment
+     module procedure getelm_csr
+  end interface
+
+  !interface 
+  !   function getelm(i1,i2,r,i4,i5,i6,l)
+  !     integer, intent(in) :: i1,i2
+  !     real(8), dimension(:), intent(in) :: r
+  !     integer, dimension(:), intent(in) :: i4,i5
+  !     integer, intent(out) :: i6 
+  !     logical, intent(in) :: l
+  !     real(8) :: getelm
+  !   end function getelm
+  !end interface 
+
 
 CONTAINS
   ! -------------------------------------------------------------------------
@@ -2591,6 +2606,27 @@ CONTAINS
 
   end subroutine zdagacsr
 
+  !******************************************************************
+  !
+  !  Subroutine per la conversione di un sottoblocco della Green
+  !  da retarded ad advanced (Hermitiano) con allocazione in loco
+  !  per matrici dense
+  !
+  !******************************************************************
+
+  subroutine zdagadns(A_dns,B_dns)
+
+    implicit none
+
+    Type(z_dns) :: A_dns, B_dns
+
+    call create(B_dns,A_dns%nrow,A_dns%ncol)
+
+    B_dns%val = conjg(transpose(A_dns%val))
+
+
+  end subroutine zdagadns
+
   !*************************************************************************
   !
   !  Subroutine per il calcolo della spectral density associata a un blocco
@@ -2861,6 +2897,8 @@ end subroutine zcooxcsr_st
 
   end function ztrace_csr
 
+!---------------------------------------------
+
   function ztrace_dns(mat) result(trace)
      type(z_DNS) :: mat
      complex(dp) :: trace
@@ -2872,7 +2910,20 @@ end subroutine zcooxcsr_st
         trace = trace + mat%val(i,i)
      end do 
 
-  end function ztrace_dns        
+  end function ztrace_dns    
+
+!---------------------------------------------
+
+  function getelm_csr(i1,i2,Grm) result(getelm_out)
+    type(r_CSR) :: Grm
+    integer :: i1, i2, iadd
+    real(dp) :: getelm_out, getelm
+    
+    getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
+    
+  end function getelm_csr
+
+!---------------------------------------------
 
 end module sparsekit_drv
 

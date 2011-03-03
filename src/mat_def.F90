@@ -1,13 +1,13 @@
 Module mat_def
-  use precision  
-  use allocation
+  use ln_precision  
+  use ln_allocation
   implicit none
   private
 
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 
-public :: create, init, recreate, destroy, create_id
+public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 
 interface create
@@ -33,7 +33,7 @@ interface recreate
    module procedure rrecreate_CSR
 end interface
 
-interface init
+interface initialize
    module procedure zinit_CSR
 end interface
 

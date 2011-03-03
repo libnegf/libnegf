@@ -13,18 +13,21 @@ SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
 FC90OPT = -g -check all 
 #FC90OPT = -O2 -xW -openmp -ip
-CFLAGS = -g -O0
+CFLAGS = $(CCOPT)
 F77FLAGS = $(FC90OPT)
 FPPFLAGS = -D__PARDISO
 LINKFLAG = -openmp
 
 TARGET_BASE = libnegf
 
+ARCH = $(shell uname -m)-linux-ifort
+
 METIS_DIR = ../ext_metis/metis-4.0
+LIB_METIS = $(METIS_DIR)/libmetis.a 
 
 SPARSEKIT = ../ext_sparskit/zlibskit.x86_64-linux-ifort.a
 
-LIBS = $(SPARSEKIT) $(METIS_DIR)/libmetis.a -L$(MKL_LIBDIR) $(LIB_BLAS) 
+LIBS = $(SPARSEKIT) $(LIB_METIS) -L$(MKL_LIBDIR) $(LIB_BLAS) 
 #########################################################################
 
 
@@ -35,7 +38,7 @@ ifdef MPI
 else
         FPP = fpp 
         FC = $(FC90) 
-        TARGET	= $(TARGET_BASE)_serial.a
+        TARGET	= $(TARGET_BASE).$(ARCH).a
 endif
 
 
@@ -61,12 +64,12 @@ endif
 # The real stuff
 ######################################################################
 
-MODULES = mpi_globals.o constants.o precision.o allocation.o \
+MODULES = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
 contselfenergy.o population.o \
 mat_def.o clock.o fermi.o iterative.o complexbands.o \
-sparsekit_drv.o structure.o inversions.o outmatrix.o \
+sparsekit_drv.o ln_structure.o inversions.o outmatrix.o \
 input_output.o lib_param.o libnegf.o globals.o \
-rcm_module.o iterative_dns.o extract.o
+rcm_module.o iterative_dns.o ln_extract.o
 
 
 #SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o \
@@ -121,12 +124,16 @@ testdosdns: testdosdns.F90 $(TARGET)
 	$(FC90) $(FC90OPT) -c testdosdns.F90 
 	$(FC) $(LINKFLAG)  -o $@  testdosdns.o $(TARGET) $(LIBS)
 
-testcurrent: testcurrent.F90 $(TARGET)
+testcurrent: testcurrent.F90 $(TARGET) 
 	$(FC90) $(FC90OPT) -c testcurrent.F90 
 	$(FC) $(LINKFLAG)  -o $@  testcurrent.o $(TARGET) $(LIBS)
 
+testneqint: testneqint.F90 $(TARGET) 
+	$(FC90) $(FC90OPT) -c testneqint.F90 
+	$(FC) $(LINKFLAG)  -o $@  testneqint.o $(TARGET) $(LIBS)
 
-$(TARGET): $(MODULES) $(SPARSEKIT)
+
+$(TARGET): $(MODULES) 
 	ar -r $@ $^
 
 
@@ -137,51 +144,51 @@ $(SPARSEKITMODULES):
 ######################################################################
 # include deps
 ######################################################################
-allocation.o:    precision.o
-constants.o:     precision.o
-#:    precision.o constants.o
-lib_param.o:  precision.o globals.o mat_def.o structure.o input_output.o 
-mat_def.o:       allocation.o
+ln_allocation.o:    ln_precision.o
+ln_constants.o:     ln_precision.o
+#:    ln_precision.o constants.o
+lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o 
+mat_def.o:       ln_allocation.o
 
-iterative.o:     allocation.o  mat_def.o sparsekit_drv.o 
-iterative.o:     inversions.o structure.o
+iterative.o:     ln_allocation.o  mat_def.o sparsekit_drv.o 
+iterative.o:     inversions.o ln_structure.o
 
-iterative_dns.o: allocation.o  mat_def.o sparsekit_drv.o
-iterative_dns.o: inversions.o structure.o
+iterative_dns.o: ln_allocation.o  mat_def.o sparsekit_drv.o
+iterative_dns.o: inversions.o ln_structure.o
 
-extract.o: precision.o allocation.o mat_def.o sparsekit_drv.o
-extract.o: structure.o lib_param.o constants.o
+ln_extract.o: ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o
+ln_extract.o: ln_structure.o lib_param.o ln_constants.o
 
-input_output.o:  precision.o allocation.o mat_def.o sparsekit_drv.o 
-inversions.o:    allocation.o mat_def.o sparsekit_drv.o
+input_output.o:  ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o 
+inversions.o:    ln_allocation.o mat_def.o sparsekit_drv.o
 
-complexbands.o:    precision.o constants.o inversions.o	
+complexbands.o:    ln_precision.o ln_constants.o inversions.o	
 
-contselfenergy.o: lib_param.o allocation.o mat_def.o sparsekit_drv.o 
+contselfenergy.o: lib_param.o ln_allocation.o mat_def.o sparsekit_drv.o 
 contselfenergy.o: outmatrix.o clock.o complexbands.o mpi_globals.o
-contselfenergy.o: structure.o
+contselfenergy.o: ln_structure.o
 
-sparsekit_drv.o:  mat_def.o allocation.o
+sparsekit_drv.o:  mat_def.o ln_allocation.o
 
 #greendftb.o: 	 constants.o lib_param.o sparsekit_drv.o iterative.o
-#greendftb.o:     mat_def.o structure.o contselfenergy.o clock.o fermi.o
+#greendftb.o:     mat_def.o ln_structure.o contselfenergy.o clock.o fermi.o
 
-libnegf.o:    precision.o lib_param.o input_output.o allocation.o structure.o
+libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_structure.o
 libnegf.o:    sparsekit_drv.o inversions.o iterative.o rcm_module.o 
-libnegf.o:     extract.o contselfenergy.o iterative_dns.o
+libnegf.o:     ln_extract.o contselfenergy.o iterative_dns.o
 
 
-population.o:    precision.o mat_def.o 
+population.o:    ln_precision.o mat_def.o 
 
-test1: load.o structure.o 
+test1: load.o ln_structure.o 
 
-knitting.o:  precision.o allocation.o mat_def.o sparsekit_drv.o inversions.o
-knitting.o: supermat.o structure.o
+knitting.o:  ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o inversions.o
+knitting.o: supermat.o ln_structure.o
 
-supermat.o: mat_def.o allocation.o
+supermat.o: mat_def.o ln_allocation.o
 
-#scattstates.o:   precision.o constants.o mat_def.o sparsekit_drv.o
-#scattstates.o:   allocation.o contselfenergy.o complexbands.o inversions.o
+#scattstates.o:   ln_precision.o constants.o mat_def.o sparsekit_drv.o
+#scattstates.o:   ln_allocation.o contselfenergy.o complexbands.o inversions.o
 
 
 ######################################################################

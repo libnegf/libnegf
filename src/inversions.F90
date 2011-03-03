@@ -6,8 +6,8 @@
 
 Module inversions
 
-use precision
-use allocation 
+use ln_precision
+use ln_allocation 
 use mat_def
 use sparsekit_drv
 private

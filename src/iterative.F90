@@ -16,12 +16,12 @@
 
 MODULE iterative
 
-  USE precision
-  USE allocation
+  USE ln_precision
+  USE ln_allocation
   USE mat_def
   USE sparsekit_drv
   USE inversions
-  USE structure, only : TStruct_Info
+  USE ln_structure, only : TStruct_Info
   USE lib_param, only : MAXNCONT
 
   !USE parameters, only : ncont, ncdim

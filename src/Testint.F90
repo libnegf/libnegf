@@ -1,13 +1,13 @@
 program Testint
 
-  use precision
-  use constants
-  use allocation
+  use ln_precision
+  use ln_constants
+  use ln_allocation
   use libnegf
   use mat_def
   use sparsekit_drv
   use lib_param
-  use extract
+  use ln_extract
 
   implicit none
 
@@ -21,14 +21,17 @@ program Testint
 
   negf%file_re_H='H_real2.dat'
   negf%file_im_H='H_imm2.dat'
+!  negf%file_re_S='S_real2.dat'
+!  negf%file_im_S='S_imm2.dat'
   negf%file_struct='driver'
-  negf%verbose = 10
+  negf%verbose = 80
   negf%eneconv = HAR  ! to convert Kb 
   negf%isSid = .true.
   negf%form%formatted = .true.
   negf%form%type = 'PETSc'
   negf%form%fmt = 'F'
   negf%ReadOldSGF = 2
+  negf%DorE = 'D'
 
   print*,'(main) init'
 
@@ -44,17 +47,23 @@ program Testint
 
   print*,'(main) contour electrons'
 
-  call contour_int_n(pnegf)
+  call contour_int(pnegf)
 
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
+  write(*,*) 'trace=', real(trace(pnegf%rho))
 
-  call destroy(pnegf%rho)
+  !call destroy(pnegf%rho)
 
-  print*,'(main) contour holes'
+  print*,'(main) real axis integration'
 
-  call contour_int_p(pnegf)
+  call real_axis_int(pnegf)
 
-  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
+  write(*,*) 'trace=', real(trace(pnegf%rho))
+
+!  print*,'(main) contour holes'
+
+!  call contour_int_p(pnegf)
+
+!  write(*,*) 'trace=', real(trace(pnegf%rho))*negf%spin
 
   print*,'(main) destroy negf'
 

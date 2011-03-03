@@ -1,17 +1,17 @@
 program testcontactdos
 
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use mat_def
-  use allocation
-  use structure
+  use ln_allocation
+  use ln_structure
   use input_output
   use sparsekit_drv
   use inversions
   use iterative
   use libnegf
   use lib_param
-  use extract
+  use ln_extract
 
   implicit none
 

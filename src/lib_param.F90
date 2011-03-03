@@ -1,9 +1,9 @@
 module lib_param
 
-  use precision, only : dp
+  use ln_precision, only : dp
   use globals
   use mat_def
-  use structure, only : TStruct_info
+  use ln_structure, only : TStruct_info
   use input_output
 
   implicit none
@@ -11,6 +11,8 @@ module lib_param
 
   public :: Tnegf
   public :: fill_parameters, pass_HS
+  public :: set_convfactor, set_fermi, set_potentials, set_fictcont
+  public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   integer, public, parameter :: MAXNCONT=10
 
   type Tnegf
@@ -31,6 +33,9 @@ module lib_param
      real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
      real(dp) :: Efermi(MAXNCONT)      ! Energia di Fermi dei contatti
      real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
+
+     integer  :: nLdos                 ! Number of LDOS intervals
+     integer,Dimension(:,:), pointer :: LDOS(:,:) => null()    ! LDOS intervals
 
      real(dp) :: mu_n
      real(dp) :: mu_p
@@ -62,12 +67,15 @@ module lib_param
      real(dp) :: Emin        ! Tunneling or dos interval
      real(dp) :: Emax        ! 
      real(dp) :: Estep       ! Tunneling or dos E step
-     real(dp) :: Temp        ! electronic temperature
+     real(dp) :: kbT         ! electronic temperature
      real(dp) :: spin        ! spin degeneracy
 
+     real(dp) :: wght        ! kp weight 
+     integer :: kpoint       ! kp index
 
      integer :: Np_n(2)      ! Number of points for n 
      integer :: Np_p(2)      ! Number of points for p 
+     integer :: Np_real      ! Number of points for integration over real axis
      integer :: n_kt         ! Numero di kT per l'integrazione
      integer :: n_poles      ! Numero di poli 
      integer :: iteration    ! Iterazione (SCC)
@@ -143,7 +151,7 @@ contains
 
   subroutine fill_parameters(negf, verbose, mu_n, mu_p, Ec, Ev, &
         DeltaEc, DeltaEv, delta, Emin, Emax, Estep, &
-        Temp, Np_n, Np_p, n_kt, n_poles, spin)
+        kbT, Np_n, Np_p, n_kt, n_poles, spin)
 
     type(Tnegf) :: negf
     integer :: verbose
@@ -159,7 +167,7 @@ contains
     real(dp) :: Emin
     real(dp) :: Emax
     real(dp) :: Estep
-    real(dp) :: Temp
+    real(dp) :: kbT
 
     integer :: Np_n(2)
     integer :: Np_p(2)   
@@ -180,7 +188,7 @@ contains
     negf%Emin = Emin
     negf%Emax = Emax
     negf%Estep = Estep
-    negf%Temp = Temp
+    negf%kbT = kbT
 
     negf%Np_n = Np_n
     negf%Np_p = Np_p
@@ -195,15 +203,22 @@ contains
     type(z_CSR) :: H
     type(z_CSR), optional :: S
 
-    negf%H = H
+    call create(negf%H,H%nrow,H%ncol,H%nnz)
+    negf%H%nzval = H%nzval
+    negf%H%colind = H%colind
+    negf%H%rowpnt = H%rowpnt
+          
 
     if (present(S)) then
-       negf%S = S
        negf%isSid=.false.
+       call create(negf%S,S%nrow,S%ncol,S%nnz)
+       negf%S%nzval = S%nzval
+       negf%S%colind = S%colind
+       negf%S%rowpnt = S%rowpnt
     else
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 
-    endif   
+    endif
 
   end subroutine pass_HS
 
@@ -227,6 +242,9 @@ contains
      negf%efermi= 0.d0         ! Energia di Fermi dei contatti
      negf%contact_DOS = 0.d0   ! Ficticious contact DOS
 
+    ! negf%nLdos = 0.d0                ! Number of LDOS intervals
+    ! negf%LDOS(:,:) = 0.d0    ! LDOS intervals
+
      negf%mu_n = 0.d0
      negf%mu_p = 0.d0
      negf%Ec = 0.d0
@@ -236,7 +254,7 @@ contains
 
      negf%E = 0.d0            ! Holding variable 
      negf%dos = 0.d0          ! Holding variable
-     negf%eneconv = 0.d0      ! Energy conversion factor
+     negf%eneconv = 1.d0      ! Energy conversion factor
 
      negf%isSid = .false.         
 
@@ -244,7 +262,7 @@ contains
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%Temp = 0.d0        ! electronic temperature
+     negf%kbT = 0.d0        ! electronic temperature
      negf%spin = 2.d0        ! spin degeneracy
 
      negf%Np_n = (/20, 20/)   ! Number of points for n 

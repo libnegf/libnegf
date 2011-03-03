@@ -16,18 +16,31 @@
 
 MODULE iterative_dns
 
-  USE precision
-  USE allocation
+  USE ln_precision
+  USE ln_allocation
   USE mat_def
   USE sparsekit_drv
   USE inversions
-  USE structure, only : TStruct_Info
+  USE ln_structure, only : TStruct_Info
+  USE lib_param, only : MAXNCONT
+
 
   !USE parameters, only : ncont, ncdim
   !use structure, only : nbl, indblk, cblk, cindblk
   !use clock
 
   private
+
+  public :: allocate_gsmr_dns
+  public :: allocate_gsml_dns
+  public :: allocate_Gr_dns  
+
+  public :: deallocate_gsmr_dns
+  public :: deallocate_gsml_dns
+  public :: deallocate_Gr_dns
+
+  public :: tunneling_dns
+  public :: tun_and_dos
  
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
@@ -120,7 +133,6 @@ CONTAINS
     IF (ierr.EQ.1) STOP 'Error in ESH allocation'
 
     CALL sub_ESH_dns(ESH_tot,ESH,indblk)
-    !CALL destroy(ESH_tot)
 
     DO i=1,ncont
        call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
@@ -206,8 +218,11 @@ CONTAINS
 
     !Distruzione dell'array Gr
     DEALLOCATE(Gr)
+
     DO i=1,nbl
+
        CALL destroy(ESH(i,i))
+
     ENDDO
     DO i=2,nbl
        CALL destroy(ESH(i-1,i))
@@ -225,6 +240,7 @@ CONTAINS
     END SELECT
 
     call destroy(A)
+
     !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writeMemInfo(6)
@@ -306,8 +322,9 @@ CONTAINS
 
     DO i=1,ncont
 
+       call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
        call csr2dns(SelfEneR(i),SelfEneR_d)
-       ESH(cblk(i),cblk(i))%val=SelfEneR_d%val
+       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR_d%val
        call destroy(SelfEneR_d)
 
     ENDDO
@@ -375,8 +392,6 @@ CONTAINS
     ENDDO
 
 
-
-
     !Distruzione delle gsmall
     do i=2,nbl 
        call destroy(gsmr(i))
@@ -402,17 +417,17 @@ CONTAINS
        CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
     END SELECT
 
-    
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
 
     !Calcolo della Gless nel device
-    !if (debug) write(*,*) 'Compute Gless'   
-    CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,min,0,ESH_tot,Gl)
+    !if (debug) write(*,*) 'Compute Gless' 
+
+    CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,min,struct,0,ESH_tot,Gl)
 
     CALL destroy(ESH_tot)
-
+ 
     DO i=1,nbl
        DO i1=1,nbl
           IF (ALLOCATED(Gr(i,i1)%val)) THEN
@@ -612,6 +627,7 @@ CONTAINS
        CALL destroy(work1)
 
        CALL prealloc_sum(ESH(i,i),work2,work1)
+
        CALL destroy(work2)
 
        CALL create(gsmr(i),nrow,nrow)
@@ -696,6 +712,8 @@ CONTAINS
 
        CALL destroy(work2)
 
+       call create(gsml(i),nrow,nrow)
+
        call inverse(gsml(i)%val,work1%val,nrow)
 
        CALL destroy(work1)
@@ -763,12 +781,12 @@ CONTAINS
 
        CALL prealloc_sum(ESH(1,1),work2,(-1.d0, 0.d0),work1)
        
-
        CALL destroy(work2)
 
     else
 
-       work1 = ESH(1,1)
+       call create(work1,ESH(1,1)%nrow,ESH(1,1)%ncol)
+       work1%val = ESH(1,1)%val
 
     endif
      
@@ -1195,7 +1213,7 @@ CONTAINS
     INTEGER :: nbl
     INTEGER, DIMENSION(:), POINTER :: indblk
     INTEGER :: keep_Gr
-    TYPE(z_CSR) :: A, P
+    TYPE(z_CSR) :: A, P, GrCsr
 
     !Work
     INTEGER :: i, j, j1, i1, ix, iy, x, y, col, oldx
@@ -1212,11 +1230,11 @@ CONTAINS
     !and it's implemented in a more trivial way
     IF (nbl.EQ.1) THEN
 
-       call dns2csr(Gr(1,1),A)
-
-       CALL mask(A,P,A)
-
-       CALL destroy(Gr(1,1))
+       call create(GrCsr,Gr(1,1)%nrow,Gr(1,1)%ncol,Gr(1,1)%nrow*Gr(1,1)%ncol)
+       call dns2csr(Gr(1,1),GrCsr)
+       call destroy(Gr(1,1))
+       call mask(GrCsr,P,A)
+       call destroy(GrCsr)
 
     ELSE  
 
@@ -1318,7 +1336,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE Make_Gl_mem_dns(ESH,SelfEneR,frm,min,keep_Gr,P,Gl)
+  SUBROUTINE Make_Gl_mem_dns(ESH,SelfEneR,frm,min,struct,keep_Gr,P,Gl)
 
     !******************************************************************************
     !Input:  
@@ -1344,7 +1362,8 @@ CONTAINS
     TYPE(z_DNS) :: Gl2
     TYPE(z_DNS), DIMENSION(:,:) :: ESH
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR
-    TYPE(Tstruct_info) :: struct
+    TYPE(z_CSR) :: ESH_sp, Glsub_sp
+    TYPE(Tstruct_info), intent(in) :: struct
     REAL(dp), DIMENSION(:) :: frm
     INTEGER :: min,keep_Gr
 
@@ -1353,7 +1372,8 @@ CONTAINS
     TYPE(z_CSR) :: P, Gam1
     Type(z_DNS) :: Gam, temp
     TYPE(z_DNS) :: work1,Ga, H
-    INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb, nbl, ncont
+    INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb
+    INTEGER :: ncont, nbl
     INTEGER :: oldx, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
@@ -1370,7 +1390,7 @@ CONTAINS
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Glsub(nbl,nbl)'
 
 
-    !create A with same pattern of P
+    !create Gl with same pattern of P
     CALL create(Gl,P%nrow,P%ncol,P%nnz)
     Gl%rowpnt(:)=P%rowpnt(:)
     Gl%colind(:)=P%colind(:)
@@ -1380,6 +1400,8 @@ CONTAINS
     !***
     !Iterazione sui contatti
     !***
+
+
 
     DO j=1,ncont
 
@@ -1392,25 +1414,25 @@ CONTAINS
           CALL zspectral(SelfEneR(j),SelfEneR(j),0,Gam1)
 
           !conversione in densa
+          call create(Gam,Gam1%nrow,Gam1%ncol)
 
           call csr2dns(Gam1,Gam)
+
+          call destroy(Gam1)
 
           !***
           !Iterazione sui blocchi 
           !***
+
           frmdiff = cmplx(frm(j)-frm(min))
+
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
           nrow=indblk(2)-indblk(1)
-          CALL prealloc_mult(Gr(1,cb),Gam,work1)
-          
-!Al posto di zdagacsr, faccio il trasposto e il coniugato separatamente
-          !CALL zdagacsr(Gr(1,cb),Ga)
-          Gr(1,cb)%nrow=Gr(1,cb)%ncol
-          Gr(1,cb)%ncol=Gr(1,cb)%nrow
-          temp=Gr(1,cb)
-          Ga=temp
 
-
+          CALL prealloc_mult(Gr(1,cb),Gam,work1)    
+ 
+          CALL zdagadns(Gr(1,cb),Ga)
+  
           !G(1,j) va tenuta per la prima iterazione blocco sopradiagonale
 
           CALL prealloc_mult(work1,Ga,frmdiff,Glsub(1,1))
@@ -1419,14 +1441,24 @@ CONTAINS
 
           i1=indblk(1)
           j1=indblk(1)
-
   
-!Tolto la zmask, da rivedere, maniera piu efficiente 
+!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
+!Da rivedere in maniera più efficiente
           !CALL zmask_realloc(Glsub(1,1), ESH(1,1))
+
+           call create(GLsub_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol,Glsub(1,1)%nrow*Glsub(1,1)%ncol)
+           call create(ESH_sp,ESH(1,1)%nrow,ESH(1,1)%ncol,ESH(1,1)%nrow*ESH(1,1)%ncol)
+           call dns2csr(ESH(1,1),ESH_sp)
+           call dns2csr(Glsub(1,1),Glsub_sp)
+           call zmask_realloc(Glsub_sp,ESH_sp)
+           call csr2dns(ESH_sp,ESH(1,1))
+           call csr2dns(Glsub_sp,Glsub(1,1))
+           call destroy(Glsub_sp)
+           call destroy(ESH_sp)
 
           !CALL concat(Gl,Glsub(1,1),i1,j1)
           !CALL destroy(Glsub(1,1))
-
+ 
           !Calcolo sottoblocchi diagonali, sopradiagonali e sottodiagonali
           DO i=2,nbl
 
@@ -1434,20 +1466,25 @@ CONTAINS
 
              !Calcolo blocchi sopradiagonali
              CALL prealloc_mult(Gr(i-1,cb),Gam,work1)
+   
+             CALL zdagadns(Gr(i,cb),Ga)
  
-
-!Al posto di zdagacsr, faccio il trasposto separatamente
-             !CALL zdagacsr(Gr(i,cb),Ga)
-
-             Gr(i,cb)%nrow=Gr(i,cb)%ncol
-             Gr(i,cb)%ncol=Gr(i,cb)%nrow
-             temp=Gr(i,cb)
-             Ga=temp
-
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
 
-!Tolto la zmask, da rivedere, maniera piu efficiente 
+!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
+!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i-1,i), ESH(i-1,i))
+
+             call create(GLsub_sp,Glsub(i-1,i)%nrow,Glsub(i-1,i)%ncol,Glsub(i-1,i)%nrow*Glsub(i-1,i)%ncol)
+             call create(ESH_sp,ESH(i-1,i)%nrow,ESH(i-1,i)%ncol,ESH(i-1,i)%nrow*ESH(i-1,i)%ncol)
+             call dns2csr(ESH(i-1,i),ESH_sp)
+             call dns2csr(Glsub(i-1,i),Glsub_sp)
+             call zmask_realloc(Glsub_sp,ESH_sp)
+             call csr2dns(ESH_sp,ESH(i-1,i))
+             call csr2dns(Glsub_sp,Glsub(i-1,i))
+             call destroy(Glsub_sp)
+             call destroy(ESH_sp)
+
              CALL destroy(work1)
              !Teniamo Ga per il calcolo del blocco diagonale
 
@@ -1463,32 +1500,47 @@ CONTAINS
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i))
 
 
-!Tolto la zmask, da rivedere, maniera piu efficiente 
+!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
+!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i,i), ESH(i,i))
+
+             call create(GLsub_sp,Glsub(i,i)%nrow,Glsub(i,i)%ncol,Glsub(i,i)%nrow*Glsub(i,i)%ncol)
+             call create(ESH_sp,ESH(i,i)%nrow,ESH(i,i)%ncol,ESH(i,i)%nrow*ESH(i,i)%ncol)
+             call dns2csr(ESH(i,i),ESH_sp)
+             call dns2csr(Glsub(i,i),Glsub_sp)
+             call zmask_realloc(Glsub_sp,ESH_sp)
+             call csr2dns(ESH_sp,ESH(i,i))
+             call csr2dns(Glsub_sp,Glsub(i,i))
+             call destroy(Glsub_sp)
+             call destroy(ESH_sp)
 
              CALL destroy(work1)
              call destroy(Ga)
 
              i1=indblk(i)
              j1=indblk(i)
+
              !CALL concat(Gl,Glsub(i,i),i1,j1)
              !CALL destroy(Glsub(i,i))
              !Calcolo diretto blocchi sottodiagonali
+
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
-
-!Al posto di zdagacsr, faccio il trasposto separatamente
-             !CALL zdagacsr(Gr(i-1,cb),Ga)
-             
-             Gr(i-1,cb)%nrow=Gr(i-1,cb)%ncol
-             Gr(i-1,cb)%ncol=Gr(i-1,cb)%nrow
-             temp=Gr(i-1,cb)
-             Ga=temp
-
-
+             CALL zdagadns(Gr(i-1,cb),Ga)
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
 
-!Tolto la zmask, da rivedere, maniera piu efficiente 
+!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
+!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i,i-1), ESH(i,i-1))
+
+             call create(GLsub_sp,Glsub(i,i-1)%nrow,Glsub(i,i-1)%ncol,Glsub(i,i-1)%nrow*Glsub(i,i-1)%ncol)
+             call create(ESH_sp,ESH(i,i-1)%nrow,ESH(i,i-1)%ncol,ESH(i,i-1)%nrow*ESH(i,i-1)%ncol)
+             call dns2csr(ESH(i,i-1),ESH_sp)
+             call dns2csr(Glsub(i,i-1),Glsub_sp)
+             call zmask_realloc(Glsub_sp,ESH_sp)
+             call csr2dns(ESH_sp,ESH(i,i-1))
+             call csr2dns(Glsub_sp,Glsub(i,i-1))
+             call destroy(Glsub_sp)
+             call destroy(ESH_sp)
 
              CALL destroy(work1)
              call destroy(Ga)
@@ -1512,18 +1564,30 @@ CONTAINS
 
           !Concatenation for every contact in Gless. Performs a sum on elements, not a replacement
           !Similar to Make_GreenR_mem2, except for sum of elements
-          !Note: to backup old version zconcat calls (and Glsub deallocations) must be uncommented and all this part removed 
-
+          !Note: to backup old version zconcat calls (and Glsub deallocations) must be uncommented and all this part removed  
           !If only one block is present, concatenation is not needed and it's implemented in a more trivial way
-          ! IF (nbl.EQ.1) THEN
 
-          !   CALL zmask_realloc(Glsub(1,1), ESH(1,1))
+          IF (nbl.EQ.1) THEN
 
-          !   CALL concat(Gl,Glsub(1,1),1,1)
+!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
+!Da rivedere in maniera più efficiente 
+          !CALL zmask_realloc(Glsub(1,1), ESH(1,1))
 
-          !   CALL destroy(Glsub(1,1))
+           call create(GLsub_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol,Glsub(1,1)%nrow*Glsub(1,1)%ncol)
+           call create(ESH_sp,ESH(1,1)%nrow,ESH(1,1)%ncol,ESH(1,1)%nrow*ESH(1,1)%ncol)
+           call dns2csr(ESH(1,1),ESH_sp)
+           call dns2csr(Glsub(1,1),Glsub_sp)
+           call zmask_realloc(Glsub_sp,ESH_sp)
+           call csr2dns(ESH_sp,ESH(1,1))
+           call destroy(ESH_sp)
 
-          !ELSE  
+          !CALL concat(Gl,Glsub(1,1),1,1)
+           call concat(Gl,Glsub_sp,1,1)
+
+           call destroy(Glsub_sp)
+           call destroy(Glsub(1,1))
+
+          ELSE  
 
              !Cycle upon all rows
              x = 1
@@ -1572,12 +1636,16 @@ CONTAINS
                       ENDIF
                    ENDIF
                    col = Gl%colind(jj) - indblk(y) + 1
+
                 !   DO j1 = Glsub(x,y)%rowpnt(i1), Glsub(x,y)%rowpnt(i1 + 1) -1
                 !      IF (Glsub(x,y)%colind(j1).EQ.col)  then
                 !         Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%nzval(j1)
                 !         exit
                 !      ENDIF
                 !   ENDDO
+
+                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(i1,col)
+
                 ENDDO
 
                 IF(oldx.NE.x) THEN
@@ -1603,7 +1671,7 @@ CONTAINS
 
           ENDIF
 
-      ! ENDIF
+       ENDIF
 
     ENDDO
 
@@ -1898,8 +1966,7 @@ CONTAINS
     nrow_tot = struct%total_dim
     indblk => struct%mat_PL_start
     cblk => struct%cblk
-
-    
+   
     !Allocazione della Glout
     !Righe totali del conduttore effettivo nrow_tot 
     !nrow_tot=indblk(nbl+1)-1
@@ -1924,7 +1991,7 @@ CONTAINS
           !nrow_cont=ncdim(k) !gsurfR(k)%nrow          
           !nrow_cb=indblk(cb+1)-indblk(cb)
 
-          !Conversione densa-sparsa della green, da aggiustare
+          !Conversione densa-sparsa della green
           call create(Gr_sparse,Gr(cb,cb)%nrow,Gr(cb,cb)%ncol,Gr(cb,cb)%nrow*Gr(cb,cb)%ncol)
           call dns2csr(Gr(cb,cb),Gr_sparse)
 
@@ -1934,6 +2001,7 @@ CONTAINS
           !Calcolo del contributo sulla proria regione
           !***          
           !Primo addendo
+
           frmdiff=cmplx(frm(min)-frm(k))
 
           !work1=j(gsurfR-gsurfA)
@@ -2065,7 +2133,7 @@ CONTAINS
                 !if (debug) write(*,*) 'cont',k,'concat ok'
 
              ENDIF
-             
+
           ENDDO
 
           CALL destroy(Gam)
@@ -2073,8 +2141,6 @@ CONTAINS
        ENDIF
 
     ENDDO
-
-    call destroy(Gr_sparse)
 
     if (debug) then
        WRITE(*,*) '********************'
@@ -2085,8 +2151,433 @@ CONTAINS
   END SUBROUTINE Outer_Gl_mem_dns
 
 
+  !---------------------------------------------------
+
+  SUBROUTINE tunneling_dns(HM,SM,Ec,SelfEneR,ni,nf,size_ni,str,TUN_MAT)
+
+    implicit none
+
+    Type(z_CSR) :: HM
+    Type(z_CSR) :: SM           
+    Complex(dp) :: Ec
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
+    Type(z_DNS) :: SelfEner_d 
+    Real(dp), Dimension(:) :: TUN_MAT
+    Type(z_CSR) :: ESH_tot
+    Type(TStruct_Info) :: str
+
+    ! Local variables
+    Type(z_DNS), Dimension(:,:), allocatable :: ESH
+    Real(dp) :: tun
+    Integer :: ni(MAXNCONT)
+    Integer :: nf(MAXNCONT)
+    Integer :: nbl,ncont,size_ni
+    Integer :: i, ierr, icpl, nit, nft
+
+    nbl = str%num_PLs
+    ncont = str%num_conts
+
+    !Calculation of ES-H and brak into blocks
+    call prealloc_sum(HM,SM,(-1.d0, 0.d0),Ec,ESH_tot)    
+
+    allocate(ESH(nbl,nbl),stat=ierr)
+    if (ierr.eq.1) stop 'Error in ESH allocation'
+    call sub_ESH_dns(ESH_tot,ESH,str%mat_PL_start)
+    call destroy(ESH_tot)
+
+    !Inclusion of the contact Self-Energies to the relevant blocks
+    do i=1,ncont
+       call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
+       call csr2dns(SelfEneR(i),SelfEneR_d)
+       ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR_d%val
+       call destroy(SelfEneR_d)
+    enddo
+
+    call allocate_gsmr_dns(nbl)
+
+    !Iterative calculation up with gsmr 
+    call Make_gsmr_mem_dns(ESH,nbl,2)
+
+    !Iterative calculation down for Gr
+    call allocate_Gr_dns(nbl)
+
+    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start)
+
+    !Computation of transmission(s) between contacts ni(:) -> nf(:)
+    do icpl=1,size_ni
+
+       nit=ni(icpl)
+       nft=nf(icpl)
+  
+       call trasmission_dns(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+  
+       TUN_MAT(icpl) = tun 
+    
+    enddo
+
+    !Deallocate energy-dependent matrices
+    do i=2,nbl 
+       call destroy(gsmr(i))
+    enddo
+
+    call deallocate_gsmr_dns
+    !Distruzione dei blocchi fuori-diagonale
+    do i=2,nbl
+       call destroy(Gr(i,i))
+       call destroy(Gr(i-1,i))
+       call destroy(Gr(i,i-1))
+    enddo
+    call destroy(Gr(1,1))
+
+    !Deallocate matrices
+
+    call deallocate_Gr_dns
+
+    call destroy(ESH(1,1))
+    do i=2,nbl
+       call destroy(ESH(i,i))
+       call destroy(ESH(i-1,i))
+       call destroy(ESH(i,i-1))
+    enddo
+
+    deallocate(ESH,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate ESH'
+
+  end SUBROUTINE tunneling_dns
+
+  !************************************************************************
+  !
+  ! Subroutine for transmission calculation
+  !
+  !************************************************************************
+  
+  subroutine trasmission_dns(ni,nf,ESH,SelfEneR,nbl,cblk,indblk,TUN)
+
+    implicit none
+    
+    !In/Out
+    Integer :: ni,nf
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
+    Type(z_DNS), Dimension(:,:) :: ESH
+    Integer, Dimension(:), pointer :: cblk, indblk
+    Real(dp) :: TUN
+    
+    !Work variables
+    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl, ncont
+    Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS
+    Type(z_CSR) :: GAM1, GAM2
+    Real(dp) :: max
+    Real(dp), parameter :: drop=1e-20
+   
+    !Arrange contacts in way that order between first and second is always the
+    !same (always ct1 > ct2)
+
+
+    if (cblk(ni).gt.cblk(nf)) then
+       ct1=ni;ct2=nf;
+    else
+       ct1=nf;ct2=ni;
+    endif
+    
+    nt1=cblk(ct1); nt2=cblk(ct2);
+
+    ! in this way nt1 > nt2 by construction
+    ncol=indblk(nt2+1)-indblk(nt2)
+    
+    if ( nbl.gt.1 .and. (nt1-nt2).gt.1) then
+       
+       !Calcolo dei blocchi colonna (nt2) fino al desiderato (riga nt1)
+       !IF ( nt2.LT.(nbl-1) ) THEN
+       
+       do i=nt2+2,nbl
+
+          nrow=indblk(i+1)-indblk(i)
+          
+          !if (Gr(i-1,nt2)%nnz.ne.0) then 
+          if (Gr(i-1,nt2)%nrow.ne.0 .and. Gr(i-1,nt2)%ncol.ne.0) then 
+             max=maxval(abs(Gr(i-1,nt2)%val(:,:)))
+          else
+             print*,'(tunneling) Gr',i-1,nt2,'==0'
+             max=0.d0
+          endif
+
+          if (max.gt.drop) then   
+        
+             call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+             call prealloc_mult(work1,Gr(i-1,nt2),Gr(i,nt2))
+             call destroy(work1)         
+    
+          else
+
+             call create(Gr(i,nt2),nrow,ncol)
+             Gr(i,nt2)%val(:,:)=(0.d0,0.d0)
+             
+          endif
+      
+          !Destroy only if not adiacent to diagonal (adiacent blocks are
+          !deallocated in a separate way, outside from subroutine)           
+          if (i.gt.(nt2+2)) call destroy(Gr(i-1,nt2))
+        
+          if (Gr(i,nt2)%nrow.eq.0 .and. Gr(i,nt2)%ncol.eq.0) then
+             TUN = 0
+             return         
+          endif
+
+          if (i.eq.nt1) exit
+
+       enddo
+       
+       !ENDIF
+       
+    endif
+
+    ! Computes the Gamma matrices
+    call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
+    call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
+
+    call create(GAM1_dns,GAM1%nrow,GAM1%ncol)
+    call create(GAM2_dns,GAM2%nrow,GAM2%ncol)
+
+    call csr2dns(GAM1,GAM1_dns)
+    call csr2dns(GAM2,GAM2_dns)
+    call destroy(GAM1)
+    call destroy(GAM2)
+    
+    ! Work to compute transmission matrix (Gamma G Gamma G)
+    call prealloc_mult(GAM1_dns,Gr(nt1,nt2),work1)
+    
+    call destroy(GAM1_dns)
+    
+    call zdagadns(Gr(nt1,nt2),GA)
+
+    call prealloc_mult(work1,GAM2_dns,work2)
+    
+    if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
+    
+    call destroy(work1)
+    call destroy(GAM2_dns)
+
+    call prealloc_mult(work2,GA,TRS)
+
+    call destroy(work2)
+    call destroy(GA) 
+
+    TUN = trace(TRS)  
+
+    call destroy(TRS)
+   
+  end subroutine trasmission_dns
+ 
+
+  !---------------------------------------------------!
+  !Subroutine for transmission and dos calculation    !
+  !---------------------------------------------------!  
+
+  subroutine tun_and_dos(HM,SM,Ec,SelfEneR,Gs,ni,nf,nLDOS,LDOS,size_ni,str,TUN_MAT,LEDOS)
+
+    implicit none
+
+    Type(z_CSR), intent(in) :: HM
+    Type(z_CSR), intent(in) :: SM           
+    Complex(dp), intent(in) :: Ec
+    Type(z_CSR), Dimension(MAXNCONT), intent(in) :: SelfEneR, Gs
+    Type(TStruct_Info), intent(in) :: str
+    integer, intent(in)  :: nLdos, size_ni
+    integer, Dimension(:,:), pointer :: LDOS      
+    Real(dp), Dimension(:), intent(inout) :: TUN_MAT
+    Real(dp), Dimension(:), intent(inout) :: LEDOS
+
+    ! Local variables
+    Type(z_CSR) :: ESH_tot, GrCSR
+    Type(z_DNS) :: SelfEner_d 
+    Type(z_DNS), Dimension(:,:), allocatable :: ESH
+    Type(r_CSR) :: Grm                          ! Green Retarded nella molecola           
+    Real(dp) :: tun
+    Complex(dp) :: zc
+    Integer :: ni(MAXNCONT)
+    Integer :: nf(MAXNCONT)
+    Integer :: nbl,ncont,iadd, ierr
+    Integer :: nit, nft, icpl
+    Integer :: iLDOS, icont, i1, i2, i
+    Character(1) :: Im
+
+    nbl = str%num_PLs
+    ncont = str%num_conts
+    Im = 'I'
+
+    !Calculation of ES-H and brak into blocks
+    call prealloc_sum(HM,SM,(-1.d0, 0.d0),Ec,ESH_tot)    
+
+    allocate(ESH(nbl,nbl),stat=ierr)
+    if (ierr.eq.1) stop 'Error in ESH allocation'
+    call sub_ESH_dns(ESH_tot,ESH,str%mat_PL_start)
+    call destroy(ESH_tot)
+
+    !Inclusion of the contact Self-Energies to the relevant blocks
+    do i=1,ncont
+       call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
+       call csr2dns(SelfEneR(i),SelfEneR_d)
+       ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR_d%val
+       call destroy(SelfEneR_d)
+    enddo
+
+    call allocate_gsmr_dns(nbl)
+
+    !Iterative calculation up with gsmr 
+    call Make_gsmr_mem_dns(ESH,nbl,2)
+
+    !Iterative calculation down for Gr
+    call allocate_Gr_dns(nbl)
+
+    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start)
+
+    !Computation of transmission(s) between contacts ni(:) -> nf(:)
+    do icpl=1,size_ni
+
+       nit=ni(icpl)
+       nft=nf(icpl)
+
+       call trasmission_dns(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+  
+       TUN_MAT(icpl) = tun 
+    
+    enddo
+   
+    !Deallocate energy-dependent matrices
+    do i=2,nbl 
+       call destroy(gsmr(i))
+    enddo
+
+    call deallocate_gsmr_dns
+    !Distruzione dei blocchi fuori-diagonale
+    do i=2,nbl
+       call destroy(Gr(i-1,i))
+       call destroy(Gr(i,i-1))
+    enddo 
+
+    call create(Grm,str%mat_PL_start(nbl+1)-1,str%mat_PL_start(nbl+1)-1,0)
+    
+    Grm%rowpnt(:)=1
+
+    do i=1,nbl
+       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
+       call dns2csr(Gr(i,i),GrCSR)
+       !Concatena direttamente la parte immaginaria per il calcolo della DOS
+       zc=(-1.d0,0.d0)/3.14159265358979323844_dp
+       !call ziconcatm_csr(Grm,zc,Gr(i,i),str%mat_PL_start(i),str%mat_PL_start(i))
+       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
+       call destroy(Gr(i,i))
+       call destroy(GrCSR)
+    enddo
+
+    !Sort Grm for fast trace   
+    call msort(Grm)
+
+    !Compute LDOS on the specified intervals
+    do iLDOS=1,nLDOS
+
+       if( LDOS(2,iLDOS).le.str%central_dim ) then
+
+          do i2 = LDOS(1,iLDOS), LDOS(2,iLDOS)
+
+             LEDOS(iLDOS)=LEDOS(iLDOS) + getelment(i2,i2,Grm)
+
+          enddo
+
+       endif
+
+       !do icont=1,ncont
+       !   if( LDOS(2*iLDOS-1).ge.str%mat_C_end(i) .and. &
+       !        LDOS(2*iLDOS).le.str%mat_C_end(i) )  then
+       !      do i2=1,ind(LDOS(2*iLDOS)+1)-ind(LDOS(2*iLDOS-1))
+       !         LEDOS(i1,iLDOS) = LEDOS(i1,iLDOS) +  &
+       !              getelm(i2,i2,aimag(GS(icont)%nzval),GS(icont)%colind, &
+       !              GS(icont)%rowpnt,iadd,.true.)
+       !      enddo
+       !   endif
+       !enddo
+    enddo
+
+    call destroy(Grm)
+
+    call deallocate_Gr_dns
+
+    call destroy(ESH(1,1))
+    do i=2,nbl
+       call destroy(ESH(i,i))
+       call destroy(ESH(i-1,i))
+       call destroy(ESH(i,i-1))
+    enddo
+
+    deallocate(ESH,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate ESH'
+
+  end subroutine tun_and_dos
+
 
   !---------------------------------------------------
- 
+
+
+  subroutine allocate_gsmr_dns(nbl)
+    integer :: nbl, ierr
+
+    allocate(gsmr(nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsmr'
+    
+  end subroutine allocate_gsmr_dns
+
+  !---------------------------------------------------
+
+  subroutine allocate_gsml_dns(nbl)
+    integer :: nbl, ierr
+
+    allocate(gsml(nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsml'
+    
+  end subroutine allocate_gsml_dns
+
+  !---------------------------------------------------
+
+  subroutine allocate_Gr_dns(nbl)
+    integer :: nbl, ierr
+
+    allocate(Gr(nbl,nbl),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate Gr'
+
+  end subroutine allocate_Gr_dns
+
+
+  !---------------------------------------------------
+
+  subroutine deallocate_gsmr_dns
+    integer :: ierr
+
+    deallocate(gsmr,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+
+  end subroutine deallocate_gsmr_dns
+
+  !---------------------------------------------------
+
+  subroutine deallocate_gsml_dns
+    integer :: ierr
+
+    deallocate(gsml,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsml'
+
+  end subroutine deallocate_gsml_dns
+
+  !---------------------------------------------------
+
+  subroutine deallocate_Gr_dns
+    integer :: ierr
+
+    deallocate(Gr,stat=ierr)
+    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate Gr'
+
+  end subroutine deallocate_Gr_dns
+
+  !---------------------------------------------------
+
 
 END MODULE iterative_dns

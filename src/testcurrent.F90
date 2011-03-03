@@ -1,17 +1,16 @@
 program testcurrent
 
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use mat_def
-  use allocation
-  use structure
+  use ln_allocation
+  use ln_structure
   use input_output
   use sparsekit_drv
   use inversions
-  use iterative
   use libnegf
   use lib_param
-  use extract
+  use ln_extract
   use clock
 
   implicit none
@@ -23,6 +22,8 @@ program testcurrent
   pnegf => negf
 
   print*,'(main) testcurrent'
+  call set_defaults(negf)
+
 
   negf%file_re_H='H_real2.dat'
   negf%file_im_H='H_imm2.dat'
@@ -30,7 +31,7 @@ program testcurrent
 !  negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = 1.d0 ! HAR  ! to convert Kb 
+  negf%eneconv = HAR !1.d0 HAR  ! to convert Kb 
   negf%isSid = .true.
   negf%form%formatted = .true.
   negf%form%type = 'PETSc'

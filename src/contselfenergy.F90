@@ -14,11 +14,11 @@
 !---------------------------------------------------------------------
 module ContSelfEnergy
 
- use precision
- use constants
+ use ln_precision
+ use ln_constants
  use lib_param
- use structure, only : Tstruct_info
- use allocation
+ use ln_structure, only : Tstruct_info
+ use ln_allocation
  use mat_def
  use sparsekit_drv
  use outmatrix, only : outmat_c
@@ -30,7 +30,7 @@ module ContSelfEnergy
  implicit none
  private
  
- integer, PARAMETER :: VBT=90
+ integer, PARAMETER :: VBT=199
 
   public :: surface_green !surface_green_2 
   public :: SelfEnergy
@@ -53,16 +53,16 @@ contains
     type(z_DNS) :: gt
     complex(kind=dp) :: mat_el
 
-    integer :: count1,count2,count_rate,count_max
     integer :: i,i1,i2,n0,n1,n2,n3,n4,nd,npl,ngs
     integer :: ncyc,err,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
-    real(kind=dp) :: dens,re_mat,im_mat
-    character(2) :: ofcont,ofproc
-    character(5) :: ofpnt
-   
+    real(kind=dp) :: dens
+    character(2) :: ofcont
+    character(10) :: ofproc
+    character(10) :: ofpnt
+    character(64) :: filename
     logical :: lex
 
     i = pnegf%activecont
@@ -77,21 +77,28 @@ contains
     ncyc=0
     nfc=0
 
-    write(ofproc,'(i2.2)') id
+
+    if (id.le.99)  write(ofproc,'(i2.2)') id
+    if (id.gt.99.and.id.le.999)  write(ofproc,'(i3.3)') id
+    if (id.gt.999.and.id.le.9999)  write(ofproc,'(i4.4)') id
+    if (pnt.le.999) write(ofpnt,'(i3.3)') pnt  
+    if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt  
+    if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
+    if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
+
     write(ofcont,'(i2.2)') i
-    write(ofpnt,'(i5.5)') pnt  
+    filename = './GS/GS'//ofcont//'_'//trim(ofpnt)//'_'//trim(ofproc)//'.dat'
+    inquire(file=filename,EXIST=lex)
 
-    inquire(file='./GS/GS'//ofcont//'_'//ofpnt//'_'//ofproc//'.dat',EXIST=lex)
+    if(.not.lex.or.flag.ge.1) then
 
-    if(flag.eq.0) then
-       if(lex) then
-          if (id0.and.verbose.gt.VBT) call message_clock('Loading SGF ')        
-       else
-          flag=2
-       endif
-    endif
-    if(flag.ge.1) then
-      if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF')
+      if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF '//ofpnt)
+      flag = 2
+
+    else         !*** load from file ***
+
+      if (id0.and.verbose.gt.VBT) call message_clock('Loading SGF '//ofpnt) 
+
     endif
 
     call create(GS,ngs,ngs)
@@ -171,23 +178,19 @@ contains
           !*** save in file ***
           if (flag.eq.2) then  
 
- 
-             open (66,file='./GS/GS'//ofcont//'_'//ofpnt//'_'//ofproc//'.dat', &
-                  form='UNFORMATTED')
-             call outmat_c(66,.false.,GS%val(:,:),ngs,ngs)
+             open (66,file=filename, form='UNFORMATTED')
+
+             call outmat_c(66,.false.,GS%val,ngs,ngs)
              !note: only the first of the 2 PL is saved
              close (66)
           endif
           
        else         !*** load from file ***
-          
-          
-          open (65,file='./GS/GS'//ofcont//'_'//ofpnt//'_'//ofproc//'.dat', &
-               form='UNFORMATTED')
+                
+          open (65,file=filename, form='UNFORMATTED')
           do
              read (65,end=100) i1,i2,mat_el
              GS%val(i1,i2)=mat_el 
-             GS%val(i2,i1)=mat_el
           enddo
 100       close(65)
           

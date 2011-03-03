@@ -1,6 +1,6 @@
 module fermi_dist
 
-  use precision
+  use ln_precision
   
   implicit none
   private

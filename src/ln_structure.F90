@@ -1,4 +1,4 @@
-module structure
+module ln_structure
 
 implicit none
 private
@@ -69,7 +69,7 @@ contains
        allocate(str%cblk(ncont))
        allocate(str%cont_dim(ncont))
     endif
-    
+
     if(ncont.gt.0) then
        str%mat_B_start(1) =  PL_end(nbl)+1
        str%mat_C_start(1) =  surf_end(1)+1 
@@ -148,4 +148,4 @@ contains
 
   end subroutine print_Tstruct
 
-end module structure
+end module ln_structure

@@ -1,10 +1,10 @@
 program testreorder
 
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use mat_def
-  use allocation
-  use structure
+  use ln_allocation
+  use ln_structure
   use input_output
   use sparsekit_drv
   use inversions
@@ -31,7 +31,7 @@ program testreorder
   negf%file_im_H='H_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = HAR  ! to convert Kb 
+  !negf%eneconv = HAR  ! to convert Kb 
   negf%isSid = .true.  
 
   negf%form%formatted = .true.

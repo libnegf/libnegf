@@ -1,10 +1,10 @@
 program testdosdns
 
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use mat_def
-  use allocation
-  use structure
+  use ln_allocation
+  use ln_structure
   use input_output
   use sparsekit_drv
   use inversions
@@ -12,7 +12,7 @@ program testdosdns
   use libnegf
   use lib_param
   use clock
-  use extract
+  use ln_extract
 use iterative
   implicit none
 

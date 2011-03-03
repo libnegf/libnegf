@@ -1,10 +1,10 @@
 program Testdos
 
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use mat_def
-  use allocation
-  use structure
+  use ln_allocation
+  use ln_structure
   use input_output
   use sparsekit_drv
   use inversions

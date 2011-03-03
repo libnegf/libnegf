@@ -1,5 +1,5 @@
 module population
-  use precision
+  use ln_precision
   use mat_def
 
   implicit none

@@ -1,6 +1,6 @@
 module outmatrix
 
-  use precision
+  use ln_precision
   
   implicit none
   private
@@ -197,7 +197,7 @@ module outmatrix
 
       if (fmt) then
         do i = 1, ndim 
-          do j = 1, i
+          do j = 1, ndim
             if(abs(dble(A(i,j))).gt.EPS.or.abs(dimag(A(i,j))).gt.EPS) then
               write(lunit,'(2i8,(f20.10,f20.10))') i, j, A(i,j)
             endif
@@ -205,7 +205,7 @@ module outmatrix
         enddo
       else
         do i = 1, ndim 
-          do j = 1, i
+          do j = 1, ndim
             if(abs(dble(A(i,j))).gt.EPS.or.abs(dimag(A(i,j))).gt.EPS) then
               write(lunit) i, j, A(i,j)
             endif

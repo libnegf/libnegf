@@ -1,6 +1,6 @@
 module complexbands
-  use precision
-  use constants
+  use ln_precision
+  use ln_constants
   use inversions
   implicit none
   private

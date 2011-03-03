@@ -1,6 +1,6 @@
-module constants
+module ln_constants
   
-  use precision
+  use ln_precision
   
   real(dp), parameter    :: eovh = (1.05420882d-3)   ! A/H
   real(dp), parameter    :: pi =  3.14159265358979323844_dp ! Greek p real
@@ -11,5 +11,5 @@ module constants
   COMPLEX(dp), PARAMETER ::    j = (0.d0,1.d0)  ! CMPX unity
   
   
-end module constants
+end module ln_constants
 
