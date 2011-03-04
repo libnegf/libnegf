@@ -153,19 +153,19 @@ contains
     integer :: i
 
     if (allocated(negf%H%nzval)) then
-       print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
+       !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
        call destroy(negf%H) 
     end if
     if (allocated(negf%S%nzval)) then
-       print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
+       !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
        call destroy(negf%S) 
     end if
     if (allocated(negf%rho%nzval)) then
-       print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
+       !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
        call destroy(negf%rho) 
     end if
     if (allocated(negf%rho_eps%nzval)) then
-       print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
+       !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
        call destroy(negf%rho_eps) 
     end if
 
