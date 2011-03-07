@@ -82,6 +82,7 @@ module lib_param
      integer :: activecont   ! contact selfenergy
      integer :: ni(MAXNCONT) ! ni
      integer :: nf(MAXNCONT) ! nf
+     integer :: refcont      ! reference contact (for non equilib)
   
   end type Tnegf
 

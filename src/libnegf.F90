@@ -1363,7 +1363,7 @@ end subroutine contour_int
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
-    integer :: npid, istart, iend, NumPoles, min, nc_vec(1)
+    integer :: npid, istart, iend, NumPoles, ref
     integer :: i, i1, outer, it, ncont, nbl, j1, npT
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
@@ -1379,20 +1379,24 @@ end subroutine contour_int
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
     kbT = negf%kbT
+    ref = negf%refcont
 
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
 
     if (mumax.gt.mumin) then
-
-       nc_vec = maxloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       min = nc_vec(1)
        
        Omega = negf%n_kt * kbT
+
        Lambda = 2.d0 * negf%n_poles * KbT * pi
-       NumPoles = negf%n_poles
-       
-       outer = 2 !no contacts no outer
+
+       if(kbT.eq.0.d0) then
+          NumPoles = 0
+       else
+          NumPoles = negf%n_poles
+       endif
+
+       outer = 2 !compute lower/outer Gless
        
        call log_allocate(frm_f,ncont)
        
@@ -1400,8 +1404,8 @@ end subroutine contour_int
        call initialize(TmpMt)
        
        !Compute extended number of points due to kT
-       npT=nint(negf%Np_real/(mumax-mumin))*Omega
- 
+       npT=nint(negf%Np_real*Omega/(mumax-mumin))
+
        allocate(pnts(negf%Np_real+2*npT))
        allocate(wght(negf%Np_real+2*npT))
 
@@ -1428,16 +1432,16 @@ end subroutine contour_int
 
           Ec = cmplx(pnts(i),negf%delta,dp)
 
-          dt = negf%spin * wght(i)/pi
-          zt=dt*(1.d0,0.d0)
+          dt = negf%spin * wght(i)/(2*pi)
+          zt = dt*(1.d0,0.d0)
 
-          do j1=1,ncont
+          do j1 = 1,ncont
              frm_f(j1)=fermi_f(real(Ec),negf%Efermi(j1)-negf%mu(j1),KbT)
           enddo
 
           call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-          call calls_neq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,min,GreenR,outer)
+          call calls_neq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,ref,GreenR,outer)
 
           do i1=1,ncont
              call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1468,7 +1472,7 @@ end subroutine contour_int
        endif
        if(negf%DorE.eq.'E') then
           if(allocated(negf%rho_eps%nzval)) then
-             call concat(negf%rho_eps,GreenR,1,1)
+             call concat(negf%rho_eps,TmpMt,1,1)
           else
              call clone(TmpMt,negf%rho_eps) 
           endif

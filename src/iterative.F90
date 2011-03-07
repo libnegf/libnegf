@@ -1453,7 +1453,7 @@ CONTAINS
     CALL create(Gl,P%nrow,P%ncol,P%nnz)
     Gl%rowpnt(:)=P%rowpnt(:)
     Gl%colind(:)=P%colind(:)
-    Gl%nzval(:) = (0.0 , 0.0) 
+    Gl%nzval(:) = (0.d0 , 0.d0) 
 
 
     !***

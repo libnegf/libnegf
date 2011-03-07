@@ -921,7 +921,7 @@ CONTAINS
           ELSE
 
              CALL create(Gr(i,n),nrow,ncol)
-             Gr(i,n)%val(:,:)=1
+             Gr(i,n)%val(:,:)=(0.d0,0.d0)
 
           ENDIF
 
@@ -954,8 +954,7 @@ CONTAINS
           ELSE
 
              CALL create(Gr(i,n),nrow,ncol)
-
-             Gr(i,n)%val(:,:)=1
+             Gr(i,n)%val(:,:)=(0.d0,0.d0)
 
           ENDIF
 
@@ -1362,14 +1361,13 @@ CONTAINS
     TYPE(z_DNS) :: Gl2
     TYPE(z_DNS), DIMENSION(:,:) :: ESH
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR
-    TYPE(z_CSR) :: ESH_sp, Glsub_sp
     TYPE(Tstruct_info), intent(in) :: struct
     REAL(dp), DIMENSION(:) :: frm
     INTEGER :: min,keep_Gr
 
     !Work
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Glsub
-    TYPE(z_CSR) :: P, Gam1
+    TYPE(z_CSR) :: P, Gam1, Gl_sp
     Type(z_DNS) :: Gam, temp
     TYPE(z_DNS) :: work1,Ga, H
     INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb
@@ -1394,7 +1392,7 @@ CONTAINS
     CALL create(Gl,P%nrow,P%ncol,P%nnz)
     Gl%rowpnt(:)=P%rowpnt(:)
     Gl%colind(:)=P%colind(:)
-    Gl%nzval(:) = (0.0 , 0.0) 
+    Gl%nzval(:) = (0.d0, 0.d0) 
 
 
     !***
@@ -1424,7 +1422,7 @@ CONTAINS
           !Iterazione sui blocchi 
           !***
 
-          frmdiff = cmplx(frm(j)-frm(min))
+          frmdiff = cmplx(frm(j)-frm(min),0.d0,dp)
 
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
           nrow=indblk(2)-indblk(1)
@@ -1442,23 +1440,8 @@ CONTAINS
           i1=indblk(1)
           j1=indblk(1)
   
-!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
-!Da rivedere in maniera più efficiente
           !CALL zmask_realloc(Glsub(1,1), ESH(1,1))
 
-           call create(GLsub_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol,Glsub(1,1)%nrow*Glsub(1,1)%ncol)
-           call create(ESH_sp,ESH(1,1)%nrow,ESH(1,1)%ncol,ESH(1,1)%nrow*ESH(1,1)%ncol)
-           call dns2csr(ESH(1,1),ESH_sp)
-           call dns2csr(Glsub(1,1),Glsub_sp)
-           call zmask_realloc(Glsub_sp,ESH_sp)
-           call csr2dns(ESH_sp,ESH(1,1))
-           call csr2dns(Glsub_sp,Glsub(1,1))
-           call destroy(Glsub_sp)
-           call destroy(ESH_sp)
-
-          !CALL concat(Gl,Glsub(1,1),i1,j1)
-          !CALL destroy(Glsub(1,1))
- 
           !Calcolo sottoblocchi diagonali, sopradiagonali e sottodiagonali
           DO i=2,nbl
 
@@ -1471,19 +1454,7 @@ CONTAINS
  
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
 
-!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
-!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i-1,i), ESH(i-1,i))
-
-             call create(GLsub_sp,Glsub(i-1,i)%nrow,Glsub(i-1,i)%ncol,Glsub(i-1,i)%nrow*Glsub(i-1,i)%ncol)
-             call create(ESH_sp,ESH(i-1,i)%nrow,ESH(i-1,i)%ncol,ESH(i-1,i)%nrow*ESH(i-1,i)%ncol)
-             call dns2csr(ESH(i-1,i),ESH_sp)
-             call dns2csr(Glsub(i-1,i),Glsub_sp)
-             call zmask_realloc(Glsub_sp,ESH_sp)
-             call csr2dns(ESH_sp,ESH(i-1,i))
-             call csr2dns(Glsub_sp,Glsub(i-1,i))
-             call destroy(Glsub_sp)
-             call destroy(ESH_sp)
 
              CALL destroy(work1)
              !Teniamo Ga per il calcolo del blocco diagonale
@@ -1499,20 +1470,7 @@ CONTAINS
 
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i))
 
-
-!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
-!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i,i), ESH(i,i))
-
-             call create(GLsub_sp,Glsub(i,i)%nrow,Glsub(i,i)%ncol,Glsub(i,i)%nrow*Glsub(i,i)%ncol)
-             call create(ESH_sp,ESH(i,i)%nrow,ESH(i,i)%ncol,ESH(i,i)%nrow*ESH(i,i)%ncol)
-             call dns2csr(ESH(i,i),ESH_sp)
-             call dns2csr(Glsub(i,i),Glsub_sp)
-             call zmask_realloc(Glsub_sp,ESH_sp)
-             call csr2dns(ESH_sp,ESH(i,i))
-             call csr2dns(Glsub_sp,Glsub(i,i))
-             call destroy(Glsub_sp)
-             call destroy(ESH_sp)
 
              CALL destroy(work1)
              call destroy(Ga)
@@ -1528,19 +1486,7 @@ CONTAINS
              CALL zdagadns(Gr(i-1,cb),Ga)
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
 
-!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
-!Da rivedere in maniera più efficiente 
              !CALL zmask_realloc(Glsub(i,i-1), ESH(i,i-1))
-
-             call create(GLsub_sp,Glsub(i,i-1)%nrow,Glsub(i,i-1)%ncol,Glsub(i,i-1)%nrow*Glsub(i,i-1)%ncol)
-             call create(ESH_sp,ESH(i,i-1)%nrow,ESH(i,i-1)%ncol,ESH(i,i-1)%nrow*ESH(i,i-1)%ncol)
-             call dns2csr(ESH(i,i-1),ESH_sp)
-             call dns2csr(Glsub(i,i-1),Glsub_sp)
-             call zmask_realloc(Glsub_sp,ESH_sp)
-             call csr2dns(ESH_sp,ESH(i,i-1))
-             call csr2dns(Glsub_sp,Glsub(i,i-1))
-             call destroy(Glsub_sp)
-             call destroy(ESH_sp)
 
              CALL destroy(work1)
              call destroy(Ga)
@@ -1560,32 +1506,20 @@ CONTAINS
           call destroy(Gam)
 
 
-
-
           !Concatenation for every contact in Gless. Performs a sum on elements, not a replacement
           !Similar to Make_GreenR_mem2, except for sum of elements
-          !Note: to backup old version zconcat calls (and Glsub deallocations) must be uncommented and all this part removed  
+          !Note: to backup old version zconcat calls (and Glsub deallocations) must be 
+          !      uncommented and all this part removed  
           !If only one block is present, concatenation is not needed and it's implemented in a more trivial way
 
           IF (nbl.EQ.1) THEN
 
-!Per la zmask realloc ho trasformato le matrici ESH e Glsub da denso a sparso
-!Da rivedere in maniera più efficiente 
-          !CALL zmask_realloc(Glsub(1,1), ESH(1,1))
-
-           call create(GLsub_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol,Glsub(1,1)%nrow*Glsub(1,1)%ncol)
-           call create(ESH_sp,ESH(1,1)%nrow,ESH(1,1)%ncol,ESH(1,1)%nrow*ESH(1,1)%ncol)
-           call dns2csr(ESH(1,1),ESH_sp)
-           call dns2csr(Glsub(1,1),Glsub_sp)
-           call zmask_realloc(Glsub_sp,ESH_sp)
-           call csr2dns(ESH_sp,ESH(1,1))
-           call destroy(ESH_sp)
-
-          !CALL concat(Gl,Glsub(1,1),1,1)
-           call concat(Gl,Glsub_sp,1,1)
-
-           call destroy(Glsub_sp)
+           call create(Gl_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol, nzdrop(Glsub(1,1),drop) ) 
+           call dns2csr(Glsub(1,1),Gl_sp)
+           call zmask_realloc(Gl_sp,P)
+           call concat(Gl,Gl_sp,1,1)
            call destroy(Glsub(1,1))
+           call destroy(Gl_sp)           
 
           ELSE  
 
@@ -1630,11 +1564,14 @@ CONTAINS
                       DO iy = x-1, x+1
                          if ( (Gl%colind(jj).GE.indblk(iy)).AND.(Gl%colind(jj).LT.indblk(iy + 1)) ) y = iy
                       ENDDO
-                      IF (y.EQ.0) THEN
-                         WRITE(*,*) 'ERROR in Make_Gl_mem: probably wrong PL size', x
-                         STOP
-                      ENDIF
                    ENDIF
+                   IF (y.EQ.0) THEN
+                      WRITE(*,*) 'ERROR in Make_Gl_mem: probably wrong PL size', x
+                      write(*,*) 'row',ii,Gl%colind(jj)
+                      write(*,*) 'block indeces:',indblk(1:nbl)
+                      STOP
+                   ENDIF
+                   
                    col = Gl%colind(jj) - indblk(y) + 1
 
                 !   DO j1 = Glsub(x,y)%rowpnt(i1), Glsub(x,y)%rowpnt(i1 + 1) -1
