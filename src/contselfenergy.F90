@@ -93,7 +93,6 @@ contains
     if(.not.lex.or.flag.ge.1) then
 
       if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF '//ofpnt)
-      flag = 2
 
     else         !*** load from file ***
 

@@ -257,292 +257,281 @@ contains
     ncont = pnegf%str%num_conts
     avncyc = 0
 
-    if(pnegf%iteration .eq. 1) then 
-       pnegf%ReadOldSGF = 2
-    else
-       pnegf%ReadOldSGF = 0
+
+    ! -----------------------------------------------------------------------
+    !  Calculation of contact self-energies
+    ! -----------------------------------------------------------------------
+    ! For the time HC and SC are dense, GS is sparse (already allocated)
+    ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
+    ! -----------------------------------------------------------------------
+    
+    do l=1,ncont
+       pnegf%activecont=l
+       call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
+       
+       i1 = nzdrop(GS_d,EPS)
+       
+       call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
+       
+       call dns2csr(GS_d,GS(l))
+       call destroy(GS_d)
+       
+       avncyc = avncyc + ncyc
+       
+    enddo
+    
+    
+    ! -- GF Calculation ----------------------------------------------------
+    ! 
+    !Tlc= Ec*ST - TM 
+    !Tcl= (conjg(Ec)*ST - TM )
+    !Array di GS sparse.
+    
+    !Tlc: matrici di interazione (ES-H) device-contatti (l=layer,c=contact)
+    !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
+    
+    do i1=1,ncont
+       call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
+       
+       call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
+       
+       call zdagacsr(TpMt,Tcl(i1))
+       
+       call destroy(TpMt)
+       
+    enddo
+    
+    !if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
+    
+    call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
+    
+  end subroutine compute_contacts
+  
+  !-------------------------------------------------------------------------------
+  
+  subroutine compute_current(negf)
+    
+    
+    type(Tnegf), pointer :: negf
+
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    
+    Real(dp), Dimension(:), allocatable :: currents 
+    Real(dp), Dimension(:), allocatable :: TUN_MAT
+    Real(dp), Dimension(:,:), allocatable :: TUN_TOT_MAT  
+    !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
+    
+    Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
+    Real(dp), Dimension(:), allocatable :: LEDOS
+    Real(dp), Dimension(:,:), allocatable :: LEDOS_MAT
+    Real(dp) :: avncyc, ncyc, Ec_min, mumin, mumax, telec
+    
+    Complex(dp) :: Ec
+    
+    Integer, Dimension(:), pointer :: cblk, indblk
+    Integer :: i, Nstep, npid, istart, iend, i1
+    Integer :: size_ni, size_nf, icpl, ncont, icont
+    Integer :: ierr, nbl, nit, nft
+    Integer :: iLDOS
+    
+    Character(6) :: ofKP
+    Logical, Parameter :: do_LEDOS=.TRUE.
+    
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    cblk => negf%str%cblk
+    indblk => negf%str%mat_PL_start
+    
+    negf%ni=0; negf%nf=0 
+    negf%ni(1)=1 
+    negf%nf(1)=2 
+    
+    Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
+    npid = int((Nstep+1)/numprocs)
+
+    negf%ReadOldSGF = 1 ! Comupte S.G.F. but do not save
+    
+    !Get out if Emax<Emin and Nstep<0
+    if (Nstep.lt.0) then
+       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
+       return
     endif
-
-       ! -----------------------------------------------------------------------
-       !  Calculation of contact self-energies
-       ! -----------------------------------------------------------------------
-       ! For the time HC and SC are dense, GS is sparse (already allocated)
-       ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
-       ! -----------------------------------------------------------------------
-
-       do l=1,ncont
-          pnegf%activecont=l
-          call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
-  
-          i1 = nzdrop(GS_d,EPS)
-  
-          call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
-       
-          call dns2csr(GS_d,GS(l))
-          call destroy(GS_d)
-     
-          avncyc = avncyc + ncyc
-
-       enddo
-
- 
-       ! -- GF Calculation ----------------------------------------------------
-       ! 
-       !Tlc= Ec*ST - TM 
-       !Tcl= (conjg(Ec)*ST - TM )
-       !Array di GS sparse.
-       
-       !Tlc: matrici di interazione (ES-H) device-contatti (l=layer,c=contact)
-       !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
-       
-       do i1=1,ncont
-          call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-
-          call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
-
-          call zdagacsr(TpMt,Tcl(i1))
-
-          call destroy(TpMt)
-
-       enddo
-
-       !if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
-
-       call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
-
-     end subroutine compute_contacts
-
-!-------------------------------------------------------------------------------
-
-     subroutine compute_current(negf)
-
-
-       type(Tnegf), pointer :: negf
-
-       Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-
-       Real(dp), Dimension(:), allocatable :: currents 
-       Real(dp), Dimension(:), allocatable :: TUN_MAT
-       Real(dp), Dimension(:,:), allocatable :: TUN_TOT_MAT  
-       !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
-
-       Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
-       Real(dp), Dimension(:), allocatable :: LEDOS
-       Real(dp), Dimension(:,:), allocatable :: LEDOS_MAT
-       Real(dp) :: avncyc, ncyc, Ec_min, mumin, mumax, telec
-
-       Complex(dp) :: Ec
-
-       Integer, Dimension(:), pointer :: cblk, indblk
-       Integer :: i, Nstep, npid, istart, iend, i1
-       Integer :: size_ni, size_nf, icpl, ncont, icont
-       Integer :: ierr, nbl, nit, nft
-       Integer :: iLDOS
-
-       Character(6) :: ofKP
-       Logical, Parameter :: do_LEDOS=.TRUE.
-
-       nbl = negf%str%num_PLs
-       ncont = negf%str%num_conts
-       cblk => negf%str%cblk
-       indblk => negf%str%mat_PL_start
-
-       negf%ni=0; negf%nf=0 
-       negf%ni(1)=1 
-       negf%nf(1)=2 
-
-       Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
-       npid = int((Nstep+1)/numprocs)
-
-       !Get out if Emax<Emin and Nstep<0
-       if (Nstep.lt.0) then
-          if(id0) write(*,*) '0 tunneling points;  current = 0.0'
-          return
+    
+    !Extract Contacts in main
+    !Tunneling set-up
+    do i=1,size(negf%ni)
+       if (negf%ni(i).eq.0) then
+          size_ni=i-1
+          exit
        endif
-
-       !Extract Contacts in main
-       !Tunneling set-up
-       do i=1,size(negf%ni)
-          if (negf%ni(i).eq.0) then
-             size_ni=i-1
-             exit
-          endif
-       enddo
-
-       do i=1,size(negf%nf)
-          if (negf%nf(i).eq.0) then
-             size_nf=i-1
-             exit
-          endif
-       enddo
-
-       !check size_ni .ne. size_nf
-       if (size_ni.ne.size_nf) then 
-          size_ni=min(size_ni,size_nf)
-          size_nf=min(size_ni,size_nf)
+    enddo
+    
+    do i=1,size(negf%nf)
+       if (negf%nf(i).eq.0) then
+          size_nf=i-1
+          exit
        endif
-
-       call log_allocate(mumin_array,size_ni)
-       call log_allocate(mumax_array,size_ni)
-
-       ! find bias window for each contact pair
-       do icpl=1,size_ni
-          mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-               negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-          mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-               negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-       enddo
-
-       ncyc=0
-       istart = 1
-       iend = npid
-
-       call log_allocate(TUN_MAT,size_ni)
-       call log_allocate(TUN_TOT_MAT,Nstep+1,size_ni)   
-       !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
-       !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
+    enddo
+    
+    !check size_ni .ne. size_nf
+    if (size_ni.ne.size_nf) then 
+       size_ni=min(size_ni,size_nf)
+       size_nf=min(size_ni,size_nf)
+    endif
+    
+    call log_allocate(mumin_array,size_ni)
+    call log_allocate(mumax_array,size_ni)
+    
+    ! find bias window for each contact pair
+    do icpl=1,size_ni
+       mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+       mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+    enddo
+    
+    ncyc=0
+    istart = 1
+    iend = npid
+    
+    call log_allocate(TUN_MAT,size_ni)
+    call log_allocate(TUN_TOT_MAT,Nstep+1,size_ni)   
+    !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
+    !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
+    
+    if (do_LEDOS) then
+       call log_allocate(LEDOS_MAT,Nstep+1,negf%nLDOS)
+       call log_allocate(LEDOS,negf%nLDOS)          
+       LEDOS_MAT(:,:)=0.d0
+    endif
+    
+    
+    !Loop on energy points: tunneling 
+    do i1 = istart,iend
        
-       if (do_LEDOS) then
-          call log_allocate(LEDOS_MAT,Nstep+1,negf%nLDOS)
-          call log_allocate(LEDOS,negf%nLDOS)          
-          LEDOS_MAT(:,:)=0.d0
-       endif
-
-
-       !Loop on energy points: tunneling 
-       do i1 = istart,iend
-
-          Ec_min = negf%Emin + id*npid*negf%Estep
-          Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
+       Ec_min = negf%Emin + id*npid*negf%Estep
+       Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
+       
+       call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
+       
+       do icont=1,ncont
+          call destroy(Tlc(icont))
+          call destroy(Tcl(icont))
+       enddo
+       
+       if (.not.do_LEDOS) then
           
-          call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-          do icont=1,ncont
-             call destroy(Tlc(icont))
-             call destroy(Tcl(icont))
-          enddo
-
-          if (.not.do_LEDOS) then
-
-             call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
-                  negf%str,TUN_MAT)
-             TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
-
-          else
-
-             LEDOS(:) = 0.d0
-
-             call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,Gs,negf%ni,negf%nf,negf%nLDOS, &
-                  negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
-
-             TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
-             LEDOS_MAT(i1,:) = LEDOS(:) * negf%wght
-
-          endif
-
-!          TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
-
-!          if (do_LEDOS) then
-!             LEDOS_MAT(i1,:) = LEDOS(:) * negf%wght
-!          endif
+          call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+               negf%str,TUN_MAT)
+          TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
+          
+       else
+          
+          LEDOS(:) = 0.d0
+          
+          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,Gs,negf%ni,negf%nf,negf%nLDOS, &
+               negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
+          
+          TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
+          LEDOS_MAT(i1,:) = LEDOS(:) * negf%wght
+          
+       endif
+       
+       do icont=1,ncont
+          call destroy(SelfEneR(icont))
+          call destroy(GS(icont))
+       enddo
+       
+    enddo !Loop on energy i1 = istart,iend
 
 
-          do icont=1,ncont
-             call destroy(SelfEneR(icont))
-             call destroy(GS(icont))
-          enddo
-
-       enddo !Loop on energy i1 = istart,iend
-
-
-       !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
-       write(ofKP,'(i6.6)') negf%kpoint
-
-       open(121,file='tunneling_'//ofKP//'.dat')
+    !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
+    write(ofKP,'(i6.6)') negf%kpoint
+    
+    open(121,file='tunneling_'//ofKP//'.dat')
+    
+    do i = 1,Nstep+1
+       
+       Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
+       
+       WRITE(121,'(E17.8,20(E17.8))') REAL(Ec)*negf%eneconv, &
+            (TUN_TOT_MAT(i,i1), i1=1,size_ni)
+       
+    enddo
+    
+    close(121)
+    
+    if(do_LEDOS) then
+       
+       open(126,file='LEDOS_'//ofKP//'.dat')
        
        do i = 1,Nstep+1
-
+          
           Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
-
-          WRITE(121,'(E17.8,20(E17.8))') REAL(Ec)*negf%eneconv, &
-               (TUN_TOT_MAT(i,i1), i1=1,size_ni)
-
-       enddo
-
-       close(121)
-
-       if(do_LEDOS) then
-
-          open(126,file='LEDOS_'//ofKP//'.dat')
-
-          do i = 1,Nstep+1
-
-             Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
-
-             WRITE(126,'(E17.8,10(E17.8))') REAL(Ec)*negf%eneconv, & 
-                  ((LEDOS_MAT(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
-
-          end do
-
-          close(126)
-
-       endif
-
-       !---------------------------------------------------------------------------
-       !   COMPUTATION OF CURRENTS 
-       !---------------------------------------------------------------------------
-print*,'compute current'  
-
-       open(101,file='current.dat')
-  
-       call log_allocate(currents,size_ni)
-       currents(:)=0.d0
- 
-       do icpl=1,size_ni
-   
-          mumin=mumin_array(icpl)
-          mumax=mumax_array(icpl)
-print*,'Energy window:',mumin,mumax
-          if (id0.and.mumin.lt.mumax.and.(mumin.lt.negf%Emin.or.mumax.gt.negf%Emax)) then
-             write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
-             write(*,*) 'mumin=',mumin,'mumax=',mumax
-             write(*,*) 'emin=',negf%emin,'emax=',negf%emax    
-          endif
-
-          currents(icpl)= integrate(TUN_TOT_MAT(:,icpl),mumin,mumax,negf%kbT, &
-                                       negf%Emin,negf%Emax,negf%Estep)
+          
+          WRITE(126,'(E17.8,10(E17.8))') REAL(Ec)*negf%eneconv, & 
+               ((LEDOS_MAT(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
+          
+       end do
        
-       enddo
+       close(126)
+       
+    endif
+    
+    !---------------------------------------------------------------------------
+    !   COMPUTATION OF CURRENTS 
+    !---------------------------------------------------------------------------
+    
+    open(101,file='current.dat')
+    
+    call log_allocate(currents,size_ni)
+    currents(:)=0.d0
+    
+    do icpl=1,size_ni
+       
+       mumin=mumin_array(icpl)
+       mumax=mumax_array(icpl)
 
-       do i1=1,size_ni
-          write(*,'(1x,a,i3,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-               ';  current:', currents(i1),' A'
-       enddo
- 
-       close(101)
-  
-       call log_deallocate(TUN_TOT_MAT)
- 
-       call log_deallocate(TUN_MAT)
-       !call log_deallocate(TUN_PMAT)
-       !call log_deallocate(TUN_TOT_PMAT)  
- 
-       call log_deallocate(mumin_array)
-       call log_deallocate(mumax_array)
- 
-       call log_deallocate(currents)
-
-       if(do_LEDOS) then
-          call log_deallocate(LEDOS)
-          call log_deallocate(LEDOS_MAT)
+       if (id0.and.mumin.lt.mumax.and.(mumin.lt.negf%Emin.or.mumax.gt.negf%Emax)) then
+          write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
+          write(*,*) 'mumin=',mumin,'mumax=',mumax
+          write(*,*) 'emin=',negf%emin,'emax=',negf%emax    
        endif
-
- 
-     end subroutine compute_current
-
-
-     !-------------------------------------------------------------------------------
-
+       
+       currents(icpl)= integrate(TUN_TOT_MAT(:,icpl),mumin,mumax,negf%kbT, &
+            negf%Emin,negf%Emax,negf%Estep)
+       
+    enddo
+    
+    do i1=1,size_ni
+       write(*,'(1x,a,i3,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            ';  current:', currents(i1),' A'
+    enddo
+    
+    close(101)
+    
+    call log_deallocate(TUN_TOT_MAT)
+    
+    call log_deallocate(TUN_MAT)
+    !call log_deallocate(TUN_PMAT)
+    !call log_deallocate(TUN_TOT_PMAT)  
+    
+    call log_deallocate(mumin_array)
+    call log_deallocate(mumax_array)
+    
+    call log_deallocate(currents)
+    
+    if(do_LEDOS) then
+       call log_deallocate(LEDOS)
+       call log_deallocate(LEDOS_MAT)
+    endif
+    
+    
+  end subroutine compute_current
+  
+  
+  !-------------------------------------------------------------------------------
+  
 
 !////////////////////////////////////////////////////////////////////////
 !************************************************************************
@@ -672,15 +661,16 @@ subroutine contour_int(negf)
 
   Omega = negf%n_kt * kbT
   Lambda = 2.d0* negf%n_poles * KbT * pi
-  
-  if(kbT.eq.0.d0) then
-     NumPoles = 0
-  else
-     NumPoles = negf%n_poles
-  endif
+  NumPoles = negf%n_poles
 
   outer = 2 !Compute lower-outer part of density matrix
   !outer = 0  ! no outer part
+
+  if(negf%iteration .eq. 1) then 
+     negf%ReadOldSGF = 2
+  else
+     negf%ReadOldSGF = 0
+  endif
 
   call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
   call initialize(TmpMt)
@@ -952,6 +942,12 @@ end subroutine contour_int
 
     outer = 1 !no contacts no outer
 
+    if(negf%iteration .eq. 1) then 
+       negf%ReadOldSGF = 2
+    else
+       negf%ReadOldSGF = 0
+    endif
+
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
 
@@ -1183,6 +1179,12 @@ end subroutine contour_int
     
     outer = 1 !no contacts no outer
 
+    if(negf%iteration .eq. 1) then 
+       negf%ReadOldSGF = 2
+    else
+       negf%ReadOldSGF = 0
+    endif
+
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
 
@@ -1364,12 +1366,11 @@ end subroutine contour_int
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, NumPoles, ref
-    integer :: i, i1, outer, it, ncont, nbl, j1, npT
+    integer :: i, i1, ioffset, outer, it, ncont, nbl, j1, npT
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp), DIMENSION(:), allocatable :: frm_f
-    real(dp) :: Omega, Lambda
-    real(dp) :: mumin, mumax
+    real(dp) :: Omega, mumin, mumax
     real(dp) :: ncyc, kbT, dt
 
     complex(dp) :: z1,z2,z_diff, zt
@@ -1380,6 +1381,13 @@ end subroutine contour_int
     nbl = negf%str%num_PLs
     kbT = negf%kbT
     ref = negf%refcont
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+
+    if(negf%iteration .eq. 1) then 
+       negf%ReadOldSGF = 2
+    else
+       negf%ReadOldSGF = 0
+    endif
 
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
@@ -1387,14 +1395,6 @@ end subroutine contour_int
     if (mumax.gt.mumin) then
        
        Omega = negf%n_kt * kbT
-
-       Lambda = 2.d0 * negf%n_poles * KbT * pi
-
-       if(kbT.eq.0.d0) then
-          NumPoles = 0
-       else
-          NumPoles = negf%n_poles
-       endif
 
        outer = 2 !compute lower/outer Gless
        
@@ -1439,7 +1439,7 @@ end subroutine contour_int
              frm_f(j1)=fermi_f(real(Ec),negf%Efermi(j1)-negf%mu(j1),KbT)
           enddo
 
-          call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+          call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
           call calls_neq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,ref,GreenR,outer)
 

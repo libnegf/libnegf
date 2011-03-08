@@ -352,8 +352,6 @@ CONTAINS
     mask = .true.
     mask(ref) = .false. 
     lbl = maxval(cblk(1:ncont),mask(1:ncont)) - 2
- 
-print*,'(calls_neq) lbl',lbl
 
     if( ncont.gt.1 ) then
        CALL Make_gsml_mem_dns(ESH,1,lbl)    
