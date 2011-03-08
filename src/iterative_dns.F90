@@ -86,7 +86,7 @@ CONTAINS
     !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
     !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
     !gsurfR: sparse matrices array containing contacts surface green
-    !min: collector index 
+    !ref: reference contact 
     !lower_outer: optional parameter. If defined (and true), Aout contains also 
     !the lower outer parts (needed for K-points calculations)
     !
@@ -255,12 +255,16 @@ CONTAINS
 
   !****************************************************************************
   !
-  ! Driver for computing Gless contributions due to all contacts but collector
-  ! writing on memory 
+  ! Driver for computing Gless contributions due to all contacts but reference:
+  !
+  !   Sum   [f_j(E)-f_r(E)] Gr Gam_j Ga
+  !   j!=r
+  !
+  ! NOTE: The subroutine assumes that 
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem_dns(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,out)
+  SUBROUTINE calls_neq_mem_dns(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,ref,Glout,out)
 
     !****************************************************************************
     !
@@ -272,7 +276,7 @@ CONTAINS
     !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
     !gsurfR: sparse matrices array containing contacts surface green
     !frm: array containing Fermi distribution values for all contacts
-    !min: collector index 
+    !ref: reference contact excluded from summation
     !
     !Output:
     !Aout: Gless contributions (Device + Contacts overlap regions -> effective conductor)
@@ -289,15 +293,15 @@ CONTAINS
     COMPLEX(dp) :: E
     TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: min
+    INTEGER :: ref
     INTEGER :: out
 
     !Work
-    INTEGER :: i,ierr,i1,ncont,nbl
+    INTEGER :: i,ierr,i1,ncont,nbl, lbl
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
     TYPE(z_CSR) :: ESH_tot, Gl
-    LOGICAL :: destr
+    LOGICAL :: destr, mask(MAXNCONT)
 
     nbl = struct%num_PLs
     ncont = struct%num_conts
@@ -343,14 +347,17 @@ CONTAINS
     !Chiamata di Make_gsmr_mem
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
 
-    !Chiamata di Make_gsml_mem solo se i contatti sono più di due o se il 
-    !contatto a potenziale minimo è nel primo blocco
-    IF (((ncont.GT.2).OR.(cblk(min).EQ.1)).AND.(nbl.gt.2)) THEN
+    !Chiamata di Make_gsml_mem solo per i blocchi 1..lbl dove  
+    ! lbl = maxval(cblk,mask) - 2 
+    mask = .true.
+    mask(ref) = .false. 
+    lbl = maxval(cblk(1:ncont),mask(1:ncont)) - 2
+ 
+print*,'(calls_neq) lbl',lbl
 
-       CALL Make_gsml_mem_dns(ESH,1,nbl-1)    
-
-    ENDIF
-
+    if( ncont.gt.1 ) then
+       CALL Make_gsml_mem_dns(ESH,1,lbl)    
+    endif
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)
     !if (debug) call writePeakInfo(6)
@@ -372,7 +379,7 @@ CONTAINS
        destr=.true.
 
        do i1=1,ncont
-          if(i1.eq.min) cycle
+          if(i1.eq.ref) cycle
           if(i.eq.cblk(i1)) destr=.false.
        enddo
 
@@ -386,7 +393,7 @@ CONTAINS
 
     !Chiamata di Make_Grcol_mem per i contatti necessari 
     DO i=1,ncont
-       IF (i.NE.min) THEN
+       IF (i.NE.ref) THEN
           CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
        ENDIF
     ENDDO
@@ -412,9 +419,9 @@ CONTAINS
     SELECT CASE (out)
     CASE(0)
     CASE(1)
-       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,min,.false.,Glout)
+       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.false.,Glout)
     CASE(2)
-       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
+       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
     END SELECT
 
     !if (debug) write(*,*) '----------------------------------------------------'
@@ -424,7 +431,7 @@ CONTAINS
     !Calcolo della Gless nel device
     !if (debug) write(*,*) 'Compute Gless' 
 
-    CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,min,struct,0,ESH_tot,Gl)
+    CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,ref,struct,0,ESH_tot,Gl)
 
     CALL destroy(ESH_tot)
  
@@ -895,9 +902,12 @@ CONTAINS
        STOP 'Error in Make_Grcol_mem : n is greater than nbl'
     ENDIF
 
-    !***
-    !Downgoing (n<nbl-1)
-    !**
+    !***************************************
+    !Downgoing (j>=n+2 && n<nbl-1)
+    !
+    !   G_j,n = -gR_jj T_j,j-1 G_j-1,n
+    !
+    !***************************************
     ncol=indblk(n+1)-indblk(n)
 
     IF (n.LT.(nbl-1)) THEN
@@ -906,11 +916,7 @@ CONTAINS
 
           nrow=indblk(i+1)-indblk(i)
 
-          IF (Gr(i-1,n)%nrow.NE.0) THEN 
-             max=MAXVAL(ABS(Gr(i-1,n)%val(:,:)))
-          ELSE 
-             max=0
-          ENDIF
+          max=MAXVAL(ABS(Gr(i-1,n)%val(:,:)))
 
           IF (max.GT.drop) THEN
 
@@ -929,9 +935,12 @@ CONTAINS
 
     ENDIF
 
-    !***
-    !Upgoing (n>2)
-    !***
+    !*************************************
+    !Downgoing (j<=n-2 && n>2)
+    !
+    !   G_j,n = -gL_jj T_j,j+1 G_j+1,n
+    !
+    !*************************************
 
     IF (n.GT.2) THEN
 
@@ -939,11 +948,7 @@ CONTAINS
 
           nrow=indblk(i+1)-indblk(i)
 
-          IF (Gr(i+1,n)%nrow.NE.0) THEN 
-             max=MAXVAL(ABS(Gr(i+1,n)%val(:,:)))
-          ELSE 
-             max=0
-          ENDIF
+          max=MAXVAL(ABS(Gr(i+1,n)%val(:,:)))
 
           IF (max.GT.drop) THEN
 
@@ -1330,19 +1335,19 @@ CONTAINS
 
   !****************************************************************************
   !
-  ! Calculate Gless contributions for all contacts (except collector, defined
-  ! as contact with minimum potential) - writing on memory
+  ! Calculate Gless contributions for all contacts (except reference)
+  ! Writing on memory
   !
   !****************************************************************************
 
-  SUBROUTINE Make_Gl_mem_dns(ESH,SelfEneR,frm,min,struct,keep_Gr,P,Gl)
+  SUBROUTINE Make_Gl_mem_dns(ESH,SelfEneR,frm,ref,struct,keep_Gr,P,Gl)
 
     !******************************************************************************
     !Input:  
     !ESH(nbl,nbl): sparse matrices array ES-H
     !SelfEneR(ncont): sparse matrices array with contacts Self Energy 
     !frm(ncont): Fermi diistribution value for each contact 
-    !min:  collector index
+    !ref:  reference contact 
     !keep_Gr (flag): if 0, destroy elements Gr(:,:) when no more necessary. If 1,
     !                keep them in memory 
     !
@@ -1363,7 +1368,7 @@ CONTAINS
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: min,keep_Gr
+    INTEGER :: ref, keep_Gr
 
     !Work
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Glsub
@@ -1372,7 +1377,7 @@ CONTAINS
     TYPE(z_DNS) :: work1,Ga, H
     INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb
     INTEGER :: ncont, nbl
-    INTEGER :: oldx, col, iy, ix, x, y, ii, jj
+    INTEGER :: oldx, row, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
 
@@ -1390,9 +1395,9 @@ CONTAINS
 
     !create Gl with same pattern of P
     CALL create(Gl,P%nrow,P%ncol,P%nnz)
-    Gl%rowpnt(:)=P%rowpnt(:)
-    Gl%colind(:)=P%colind(:)
-    Gl%nzval(:) = (0.d0, 0.d0) 
+    Gl%rowpnt = P%rowpnt
+    Gl%colind = P%colind
+    Gl%nzval = (0.d0, 0.d0) 
 
 
     !***
@@ -1403,7 +1408,7 @@ CONTAINS
 
     DO j=1,ncont
 
-       IF (j.NE.min.AND.ABS(frm(j)-frm(min)).GT.drop) THEN
+       IF (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.drop) THEN
 
           !Calcolo della Gamma corrispondente
           cb=cblk(j)
@@ -1422,7 +1427,7 @@ CONTAINS
           !Iterazione sui blocchi 
           !***
 
-          frmdiff = cmplx(frm(j)-frm(min),0.d0,dp)
+          frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
 
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
           nrow=indblk(2)-indblk(1)
@@ -1512,13 +1517,14 @@ CONTAINS
           !      uncommented and all this part removed  
           !If only one block is present, concatenation is not needed and it's implemented in a more trivial way
 
-          IF (nbl.EQ.1) THEN
+          IF (nbl.EQ.1) THEN             
 
-           call create(Gl_sp,Glsub(1,1)%nrow,Glsub(1,1)%ncol, nzdrop(Glsub(1,1),drop) ) 
+           call create(Gl_sp, Glsub(1,1)%nrow, Glsub(1,1)%ncol, nzdrop(Glsub(1,1),drop) ) 
            call dns2csr(Glsub(1,1),Gl_sp)
+           call destroy(Glsub(1,1))
+
            call zmask_realloc(Gl_sp,P)
            call concat(Gl,Gl_sp,1,1)
-           call destroy(Glsub(1,1))
            call destroy(Gl_sp)           
 
           ELSE  
@@ -1541,10 +1547,10 @@ CONTAINS
                    STOP
                 ENDIF
 
-                !Offset: i1 is the index for separate blocks
-                i1 = ii - indblk(x) + 1
+                !Offset: row is the index for separate blocks
+                row = ii - indblk(x) + 1
 
-                !Cycle upon columns 
+                !Cycle upon columns of Gl (which has been ALREADY MASKED by ESH)
                 DO jj = Gl%rowpnt(ii), Gl%rowpnt(ii+1) -1
                    !Choose which block column we're dealing with
                    y = 0
@@ -1574,14 +1580,7 @@ CONTAINS
                    
                    col = Gl%colind(jj) - indblk(y) + 1
 
-                !   DO j1 = Glsub(x,y)%rowpnt(i1), Glsub(x,y)%rowpnt(i1 + 1) -1
-                !      IF (Glsub(x,y)%colind(j1).EQ.col)  then
-                !         Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%nzval(j1)
-                !         exit
-                !      ENDIF
-                !   ENDDO
-
-                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(i1,col)
+                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(row,col)
 
                 ENDDO
 
@@ -1858,7 +1857,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,min,lower,Glout)
+  SUBROUTINE Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
 
     !****************************************************************************
     !Input:
@@ -1866,7 +1865,7 @@ CONTAINS
     !gsurfR: sparse matrices array containing contacts surface green
     !SelfEneR: sparse matrices array containing contacts Self Energy
     !frm: array containing Fermi distribution values for all contacts
-    !min: collector index
+    !ref: reference contact
     !
     !global variables needed: nbl, indblk(nbl+1), cindblk(ncont), ncont, 
     !cblk(ncont), Gr(:,:), diagonal, subdiagonal, overdiagonal and 
@@ -1885,7 +1884,7 @@ CONTAINS
     TYPE(z_CSR), DIMENSION(:) :: Tlc, gsurfR, SelfEneR
     REAL(dp), DIMENSION(:) :: frm
     TYPE(Tstruct_info), intent(in) :: struct
-    INTEGER :: min  
+    INTEGER :: ref 
     LOGICAL :: lower
     TYPE(z_CSR) :: Glout
 
@@ -1919,8 +1918,8 @@ CONTAINS
     DO k=1,ncont
 
        !Esegue le operazioni relative al contatto solo se e` valida la condizione
-       !sulle distribuzioni di Fermi e se non si tratta del contatto a potenziale minimo
-       IF ((ABS(frm(k)-frm(min)).GT.drop).AND.(k.NE.min)) THEN
+       !sulle distribuzioni di Fermi e se non si tratta del contatto iniettante (ref)
+       IF ((ABS(frm(k)-frm(ref)).GT.drop).AND.(k.NE.ref)) THEN
 
           !Calcolo della Gamma corrispondente
           cb=cblk(k)
@@ -1939,7 +1938,7 @@ CONTAINS
           !***          
           !Primo addendo
 
-          frmdiff=cmplx(frm(min)-frm(k))
+          frmdiff=cmplx(frm(ref)-frm(k))
 
           !work1=j(gsurfR-gsurfA)
           CALL zspectral(gsurfR(k),gsurfR(k),0,work1)

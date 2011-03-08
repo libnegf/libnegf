@@ -257,7 +257,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,min,Glout,out)
+  SUBROUTINE calls_neq_mem(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,ref,Glout,out)
 
     !****************************************************************************
     !
@@ -269,7 +269,7 @@ CONTAINS
     !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
     !gsurfR: sparse matrices array containing contacts surface green
     !frm: array containing Fermi distribution values for all contacts
-    !min: collector index 
+    !ref: reference contact for non eq:  Gr Gam_ref Ga 
     !
     !Output:
     !Aout: Gless contributions (Device + Contacts overlap regions -> effective conductor)
@@ -285,7 +285,7 @@ CONTAINS
     COMPLEX(dp) :: E
     TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: min
+    INTEGER :: ref
     INTEGER :: out
 
     !Work
@@ -336,7 +336,7 @@ CONTAINS
 
     !Chiamata di Make_gsml_mem solo se i contatti sono più di due o se il 
     !contatto a potenziale minimo è nel primo blocco
-    IF (((ncont.GT.2).OR.(cblk(min).EQ.1)).AND.(nbl.gt.2)) THEN
+    IF (((ncont.GT.2).OR.(cblk(ref).EQ.1)).AND.(nbl.gt.2)) THEN
 
        CALL Make_gsml_mem(ESH,1,nbl-1)    
 
@@ -363,7 +363,7 @@ CONTAINS
        destr=.true.
 
        do i1=1,ncont
-          if(i1.eq.min) cycle
+          if(i1.eq.ref) cycle
           if(i.eq.cblk(i1)) destr=.false.
        enddo
 
@@ -377,7 +377,7 @@ CONTAINS
 
     !Chiamata di Make_Grcol_mem per i contatti necessari 
     DO i=1,ncont
-       IF (i.NE.min) THEN
+       IF (i.NE.ref) THEN
           CALL Make_Grcol_mem(ESH,cblk(i),indblk)
        ENDIF
     ENDDO
@@ -405,9 +405,9 @@ CONTAINS
     SELECT CASE (out)
     CASE(0)
     CASE(1)
-       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.false.,Glout)
+       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,ref,.false.,Glout)
     CASE(2)
-       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,min,.true.,Glout)
+       CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
     END SELECT
 
     
@@ -417,7 +417,7 @@ CONTAINS
 
     !Calcolo della Gless nel device
     !if (debug) write(*,*) 'Compute Gless'   
-    CALL Make_Gl_mem(ESH,SelfEneR,frm,min,0,ESH_tot,Gl)
+    CALL Make_Gl_mem(ESH,SelfEneR,frm,ref,0,ESH_tot,Gl)
 
     CALL destroy(ESH_tot)
 
