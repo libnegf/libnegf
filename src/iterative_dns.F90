@@ -41,6 +41,8 @@ MODULE iterative_dns
 
   public :: tunneling_dns
   public :: tun_and_dos
+
+  public :: block2Green
  
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
@@ -613,7 +615,7 @@ CONTAINS
 
        call create(gsmr(sbl),nrow,nrow)
 
-       call inverse(gsmr(sbl)%val,ESH(sbl,sbl)%val,nrow)
+       call block2Green(gsmr(sbl),ESH(sbl,sbl),nrow)
 
     endif
 
@@ -637,7 +639,7 @@ CONTAINS
 
        CALL create(gsmr(i),nrow,nrow)
 
-       call inverse(gsmr(i)%val,work1%val,nrow)
+       call block2Green(gsmr(i),work1,nrow)
 
        CALL destroy(work1)
 
@@ -700,7 +702,7 @@ CONTAINS
 
     CALL create(gsml(sbl),nrow,nrow)
 
-    call inverse(gsml(sbl)%val,ESH(sbl,sbl)%val,nrow)
+    call block2Green(gsml(sbl),ESH(sbl,sbl),nrow)
 
 
     DO i=sbl+1,ebl
@@ -719,7 +721,7 @@ CONTAINS
 
        call create(gsml(i),nrow,nrow)
 
-       call inverse(gsml(i)%val,work1%val,nrow)
+       call block2Green(gsml(i),work1,nrow)
 
        CALL destroy(work1)
 
@@ -797,7 +799,7 @@ CONTAINS
      
     CALL create(Gr(1,1),nrow,nrow)
 
-    call inverse(Gr(1,1)%val,work1%val,nrow)
+    call block2Green(Gr(1,1),work1,nrow)
 
     CALL destroy(work1)
 
@@ -1541,7 +1543,8 @@ CONTAINS
                 ENDIF
 
                 IF (x.EQ.0) THEN
-                   WRITE(*,*) 'Error in Make_GreenR_mem2: could not find row block of index ',ii,ix
+                   WRITE(*,*) 'Error in Make_GreenR_mem2: &
+                               could not find row block of index ',ii,ix
                    STOP
                 ENDIF
 
@@ -2296,7 +2299,7 @@ CONTAINS
     call destroy(work2)
     call destroy(GA) 
 
-    TUN = trace(TRS)  
+    TUN = real(trace(TRS))  
 
     call destroy(TRS)
    
@@ -2398,7 +2401,7 @@ CONTAINS
        call dns2csr(Gr(i,i),GrCSR)
        !Concatena direttamente la parte immaginaria per il calcolo della DOS
        zc=(-1.d0,0.d0)/3.14159265358979323844_dp
-       !call ziconcatm_csr(Grm,zc,Gr(i,i),str%mat_PL_start(i),str%mat_PL_start(i))
+
        call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
        call destroy(Gr(i,i))
        call destroy(GrCSR)
@@ -2513,5 +2516,89 @@ CONTAINS
 
   !---------------------------------------------------
 
+  !--------------------------------------------------------------------------
+  subroutine block2Green(G,A,n)
+
+    Type(z_DNS) :: A, G
+    Type(z_DNS) :: G11,G12,G21,G22
+    Type(z_dns) :: h11,gr22
+    Type(z_DNS) :: work1,work2,work3,work4
+    Integer :: n, bl1, bl2, n2
+    !complex(dp) :: g(n,n),A(n,n)
+
+    bl1 = n/2
+    bl2 = n - bl1
+    n2 = bl1 + 1 
+
+
+    call create(gr22,bl2,bl2)
+
+    call inverse(gr22%val,A%val(n2:n,n2:n),bl2)    !g22 in uscita
+
+    call prealloc_mult(A%val(1:bl1,n2:n),gr22%val,work1)
+
+    call prealloc_mult(work1%val,A%val(n2:n,1:bl1),(-1.d0,0.d0),work2)
+
+    call destroy(work1)
+
+    call create(h11,bl1,bl1)
+
+    h11%val = A%val(1:bl1,1:bl1) + work2%val
+
+    call destroy(work2)
+
+    call create(G11,bl1,bl1)
+
+    call inverse(G11%val,h11%val,bl1)        !blocco G11
+
+    call destroy(h11)
+
+    call prealloc_mult(G11%val,A%val(1:bl1,n2:n),work1)
+
+    call prealloc_mult(work1%val,gr22%val,(-1.d0,0.d0),G12) ! G12     
+
+    call destroy(work1)
+
+    call prealloc_mult(gr22%val,A%val(n2:n,1:bl1),work1)
+
+    call prealloc_mult(work1,G11,(-1.d0,0.d0),G21)    !blocco G21 
+
+    call destroy(work1)  
+
+    call prealloc_mult(gr22%val,A%val(n2:n,1:bl1),work1)
+
+    call prealloc_mult(work1,G11,work2)
+
+    call destroy(work1)
+
+    call prealloc_mult(work2%val,A%val(1:bl1,n2:n),work3)
+
+    call destroy(work2)
+
+    call prealloc_mult(work3,gr22,work4)
+
+    call destroy(work3)
+
+    call prealloc_sum(gr22,work4,G22)          !blocco G22
+
+    call destroy(work4)  
+
+    call destroy(gr22)
+
+
+    G%val(1:bl1,1:bl1) = G11%val
+    G%val(1:bl1,n2:n) = G12%val
+    G%val(n2:n,1:bl1) = G21%val
+    G%val(n2:n,n2:n) = G22%val
+
+
+    call destroy(G11)
+    call destroy(G12)
+    call destroy(G21)
+    call destroy(G22)
+
+  end subroutine block2Green
+
+  !--------------------------------------------------------------------------
 
 END MODULE iterative_dns

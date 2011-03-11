@@ -153,6 +153,8 @@ MODULE sparsekit_drv
      module procedure zmultcsrs
      module procedure zmultdns
      module procedure zmultdnss
+     module procedure zmatmul
+     module procedure zmatmuls
   end interface
   interface concat
      module procedure  zconcat_csr
@@ -1879,6 +1881,87 @@ CONTAINS
   end subroutine zmultdns
 
   !***********************************************************************
+
+  subroutine zmatmul(A,B,C_dns)
+
+    !*****************************************************************
+    !
+    !Input:
+    !A_dns: primo fattore in formato DNS
+    !B_dns: secondo fattore in formato  DNS
+    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !nella subroutine
+    !
+    !****************************************************************
+
+    implicit none
+
+    complex(dp), Dimension(:,:) :: A,B
+    type(z_DNS) :: C_dns
+    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer :: M,N,K
+    complex(dp), parameter :: s = (1.d0, 0.d0)
+    complex(dp), parameter :: beta =(0.d0,0.d0)
+
+    IF (size(A,2).NE.size(B,1)) THEN
+       WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
+    ENDIF
+
+    M = size(A,1)
+    N = size(B,2)
+    K = size(A,2)   
+
+    CALL create(C_dns,M,N)
+    
+    CALL ZGEMM('N','N', M, N, K, s, A, M, &
+            B, M, beta, C_dns%val, M)
+
+  end subroutine zmatmul
+
+  !***********************************************************************
+
+  subroutine zmatmuls(A,B,s,C_dns)
+
+    !*****************************************************************
+    !
+    !Input:
+    !A_dns: primo fattore in formato DNS
+    !B_dns: secondo fattore in formato  DNS
+    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !nella subroutine
+    !
+    !****************************************************************
+
+    implicit none
+
+    complex(dp), Dimension(:,:) :: A,B
+    type(z_DNS) :: C_dns
+    complex(dp) :: s 
+
+    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer :: M,N,K 
+    complex(dp), parameter :: beta =(0.d0,0.d0)
+
+    IF (size(A,2).NE.size(B,1)) THEN
+       WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
+    ENDIF
+
+    M = size(A,1)
+    N = size(B,2)
+    K = size(A,2)   
+
+    CALL create(C_dns,M,N)
+    
+    CALL ZGEMM('N','N', M, N, K, s, A, M, &
+            B, M, beta, C_dns%val, M)
+
+  end subroutine zmatmuls
+
+  !***********************************************************************
+
+
 
   !*****************************************************************
   !
