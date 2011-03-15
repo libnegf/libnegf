@@ -42,7 +42,7 @@ MODULE iterative_dns
   public :: tunneling_dns
   public :: tun_and_dos
 
-  public :: block2Green
+  public :: block2Green,block3Green
  
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
@@ -615,7 +615,7 @@ CONTAINS
 
        call create(gsmr(sbl),nrow,nrow)
 
-       call block2Green(gsmr(sbl),ESH(sbl,sbl),nrow)
+       call block3Green(gsmr(sbl),ESH(sbl,sbl),nrow)
 
     endif
 
@@ -639,7 +639,7 @@ CONTAINS
 
        CALL create(gsmr(i),nrow,nrow)
 
-       call block2Green(gsmr(i),work1,nrow)
+       call block3Green(gsmr(i),work1,nrow)
 
        CALL destroy(work1)
 
@@ -702,7 +702,7 @@ CONTAINS
 
     CALL create(gsml(sbl),nrow,nrow)
 
-    call block2Green(gsml(sbl),ESH(sbl,sbl),nrow)
+    call block3Green(gsml(sbl),ESH(sbl,sbl),nrow)
 
 
     DO i=sbl+1,ebl
@@ -721,7 +721,7 @@ CONTAINS
 
        call create(gsml(i),nrow,nrow)
 
-       call block2Green(gsml(i),work1,nrow)
+       call block3Green(gsml(i),work1,nrow)
 
        CALL destroy(work1)
 
@@ -799,7 +799,7 @@ CONTAINS
      
     CALL create(Gr(1,1),nrow,nrow)
 
-    call block2Green(Gr(1,1),work1,nrow)
+    call block3Green(Gr(1,1),work1,nrow)
 
     CALL destroy(work1)
 
@@ -2600,5 +2600,111 @@ CONTAINS
   end subroutine block2Green
 
   !--------------------------------------------------------------------------
+
+  subroutine block3Green(G,A,n)
+
+    Type(z_DNS) :: A, G
+    Type(z_DNS) :: G11,G12,G21,G22
+    Type(z_DNS) :: G33,G13,G23,G32,G31
+    Type(z_dns) :: h22,gr11,gr33
+    Type(z_DNS) :: work1,work2,work3,work4
+    Integer :: n, bl1, bl2, bl3, n2
+
+    bl1 = n/3
+    bl2 = (n*2)/3 - bl1
+    bl3 = n - (n*2)/3
+    n2 = bl1 + 1
+    n3 = bl2 + 1
+
+    call create(gr33,bl3,bl3)
+    call create(gr11,bl1,bl1)
+    call inverse(gr33%val,A%val(n3:n,n3:n),bl3)       !Blocco g33 in uscita
+    call inverse(gr11%val,A%val(1:bl1,1:bl1),bl1)     !Blocco g11 in uscita
+
+    call prealloc_mult(A%val(n2:bl2,n3:n),gr33%val,work1)                          !Moltiplicatione
+    call prealloc_mult(work1%val,A%val(n3:n,n2:bl2),(-1.d0,0.d0),work2)            !-H23g33H32  
+    call destroy(work1)
+    call prealloc_mult(A%val(n2:bl2,1:bl1),gr11%val,work1)                         !Moltiplicazione
+    call prealloc_mult(work1%val,A%val(1:bl1,n2:bl2),(-1.d0,0.d0),work3)           !-H21g11H12
+    call destroy(work1)
+    call create(h22,bl2,bl2)
+    h22%val = A%val(n2:bl2,n2:bl2) + work2%val + work3%val                         !h22=H22-H23g33H32-H21g11H12
+    call destroy(work2)
+    call destroy(work3)
+    call create(G22,bl2,bl2)
+    call inverse(G22%val,h22%val,bl2)            !Blocco G22 in uscita, G22=(h22)^-1
+    call destroy(h22)
+    
+    call prealloc_mult(gr33%val,A%val(n3:n,n2:bl2),work1)                         
+    call prealloc_mult(work1,G22,work2)
+    call destroy(work1)
+    call prealloc_mult(work2%val,A%val(n2:bl2,n3:n),work3)
+    call destroy(work2)
+    call prealloc_mult(work3,gr33,work4)                      !Moltiplicazione
+    call destroy(work3)                                       !g33*H32*G22*H23*g33          
+    call create(G33,bl3,bl3)
+    call prealloc_sum(gr33,work4,G33)                          !Blocco G33 in uscita  
+    call destroy(work4)                               !G33=g33+g33H32G22H23g33
+
+    call prealloc_mult(gr11%val,A%val(1:bl1,n2:bl2),work1)
+    call prealloc_mult(work1,G22,work2)
+    call destroy(work1)
+    call prealloc_mult(work2%val,A%val(n2:bl2,1:bl1),work3)
+    call destroy(work2)
+    call prealloc_mult(work3,gr11,work4)                    !Moltiplicazione
+    call destroy(work3)                                     !g11*H12*G22*H21*g11
+    call create(G11,bl1,bl1)
+    call prealloc_sum(gr11,work4,G11)                       !Blocco G11 in uscita
+    call destroy(work4)                                 !G11=g11+g11H12G22H23g33
+
+    call prealloc_mult(gr11%val,A%val(1:bl1,n2:bl2),work1)
+    call prealloc_mult(work1,G22,(-1.d0,0.d0),G12)          !Blocco G12 in uscita, G12=-g11*H12*G22  
+    call destroy(work1) 
+    
+    call prealloc_mult(G22%val,A%val(n2:bl2,1:bl1),work1)
+    call prealloc_mult(work1,gr11,(-1.d0,0.d0),G21)         !Blocco G21 in uscita, G21=-G22*H21*g11
+    call destroy(work1)
+
+    call prealloc_mult(G22%val,A%val(n2:bl2,n3:n),work1)
+    call prealloc_mult(work1,gr33,(-1.d0,0.d0),G23)         !Blocco G23 in uscita, G23=-G22*H23*g33
+    call destroy(work1)
+
+    call prealloc_mult(gr33%val,A%val(n3:n,n2:bl2),work1)
+    call prealloc_mult(work1,G22,(-1.d0,0.d0),G32)          !Blocco G32 in uscita, G32=-g33*H32*G22
+    call destroy(work1)  
+
+    call prealloc_mult(gr11%val,A%val(1:bl1,n3:n),work1)
+    call prealloc_mult(work1,G33,(-1.d0,0.d0),G13)          !Blocco G13 in uscita, G13=-g11*H13*G33
+    call destroy(work1)
+
+    call prealloc_mult(gr33%val,A%val(n3:n,1:bl1),work1)
+    call prealloc_mult(work1,G11,(-1.d0,0.d0),G31)          !Blocco G31 in uscita, G31=-g33*H31*G11
+    call destroy(work1) 
+
+    call destroy(gr11)
+    call destroy(gr33)
+
+    G%val(1:bl1,1:bl1) = G11%val
+    G%val(n2:bl2,n2:bl2) = G22%val
+    G%val(n3:n,n3:n) = G33%val
+    G%val(1:bl1,n2:bl2) = G12%val
+    G%val(n2:bl1,1:bl1) = G21%val
+    G%val(n2:bl2,n3:n) = G23%val
+    G%val(n3:n,n2:bl2) = G32%val
+    G%val(1:bl1,n3:n) = G13%val
+    G%val(n3:n,1:bl1) = G31%val
+
+    call destroy(G11)
+    call destroy(G22)
+    call destroy(G33)
+    call destroy(G12)
+    call destroy(G21)
+    call destroy(G23)
+    call destroy(G32)
+    call destroy(G13)
+    call destroy(G31)
+
+  end subroutine block3Green
+
 
 END MODULE iterative_dns

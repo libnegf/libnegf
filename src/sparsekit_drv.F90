@@ -1915,7 +1915,7 @@ CONTAINS
     CALL create(C_dns,M,N)
     
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
-            B, M, beta, C_dns%val, M)
+            B, K, beta, C_dns%val, M)
 
   end subroutine zmatmul
 
@@ -1941,7 +1941,7 @@ CONTAINS
     complex(dp) :: s 
 
     integer, DIMENSION(:), ALLOCATABLE :: iw 
-    integer :: M,N,K 
+    integer :: M,N,K,L 
     complex(dp), parameter :: beta =(0.d0,0.d0)
 
     IF (size(A,2).NE.size(B,1)) THEN
@@ -1950,12 +1950,14 @@ CONTAINS
 
     M = size(A,1)
     N = size(B,2)
-    K = size(A,2)   
+    K = size(A,2)
+   
+    !L = size(B,1) = K)
 
     CALL create(C_dns,M,N)
     
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
-            B, M, beta, C_dns%val, M)
+            B, K, beta, C_dns%val, M)
 
   end subroutine zmatmuls
 
