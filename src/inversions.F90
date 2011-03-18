@@ -699,12 +699,12 @@ end subroutine zINV_LAPACK
 subroutine zinv(inA,A,n)
    
   Implicit none
+  complex(kind=dp), dimension(:,:) :: inA, A
+  integer :: n
 
   !integer :: lwork=n
-  integer :: n
   INTEGER :: ipiv(n),info
-  complex(kind=dp) :: inA(n,n),A(n,n)
-  complex(kind=dp) ::work(n)
+  complex(kind=dp) :: work(n)
   
   inA=A
   call zgetrf( n, n, inA, n, ipiv, info )
@@ -729,10 +729,11 @@ end subroutine zinv
 !---------- INTERFACE FOR LAPACK INVERSION (SYMMETRIC MATRICES) -------------
 subroutine rinv(inA,A,n)
   Implicit none
+  real(kind=dp), dimension(:,:) :: inA, A
   integer :: n
-  real(dp) :: inA(n,n),A(n,n)
+
   INTEGER :: ipiv(n),info
-  real(dp) ::work(n)
+  real(dp) :: work(n)
   
   inA=A
   call  dgetrf(n, n, inA, n, ipiv, info )

@@ -2405,7 +2405,7 @@ CONTAINS
     integer :: i,k
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       WRITE(*,*) 'WARNING (zextract): bad indeces specification';
+       WRITE(*,*) 'WARNING (zextract_dns): bad indeces specification';
     ENDIF
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
