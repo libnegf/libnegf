@@ -25,7 +25,7 @@ module libnegf
  public :: compute_dos, compute_contacts
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: compute_current, integrate
- public :: reorder, partition, partition2
+ public :: reorder
  public :: sort, swap
 
  integer, PARAMETER :: VBT=70
@@ -1584,58 +1584,10 @@ end subroutine contour_int
     call log_deallocate(perm)
  
   end subroutine reorder
-
-!----------------------------------------------------------------------------
-
-  subroutine partition(mat,nbl,part)
-    type(z_CSR) :: mat
-    
-    integer :: nbl
-    integer :: n
-    
-    integer :: volume
-    integer :: numflag
-    integer :: wghts
-    integer :: wgtflag
-
-    integer, dimension(:) :: part
-
-
-    integer, dimension(:), allocatable :: options
-    integer, dimension(:), allocatable :: vwgt  
-    integer, dimension(:), allocatable :: vsize
-    
-
-    external METIS_PartGraphVKway
-
-    numflag = 1
-    wghts = 0
-    wgtflag = 0
-    n = mat%nrow
-
-    call log_allocate(vwgt, 0)
-    call log_allocate(vsize, 0)
-    call log_allocate(options, 5)
-    options(1) = 0
-
-
-    !call METIS_PartGraphVKway(n, mat%rowpnt, mat%colind, vwgt, vsize, wgtflag, &
-    !                          numflag, nbl, options, volume, part)
-
-    call METIS_PartGraphKway(n, mat%rowpnt, mat%colind, vwgt, vsize, wgtflag, &
-                              numflag, nbl, options, volume, part)    
-
-    call log_deallocate(vwgt)
-    call log_deallocate(vsize)
-    call log_deallocate(options)
-    
-
-  end subroutine partition
-
 !----------------------------------------------------------------------
 
   
-  subroutine partition2(mat,nbl,blks)
+  subroutine block_partition(mat,nbl,blks)
     type(z_CSR), intent(in) :: mat
     integer, intent(out) :: nbl
     integer, dimension(:), intent(inout) :: blks 
@@ -1737,9 +1689,10 @@ end subroutine contour_int
     print*, 'done. blks:',blks(1:nbl)
 
 
-  end subroutine partition2
+  end subroutine block_partition
 
-  !----------------------------------------------------------
+!----------------------------------------------------------------------------
+
 
 
   Subroutine sort(blks, Ipt)
