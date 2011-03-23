@@ -335,7 +335,9 @@ contains
     Integer :: iLDOS
     
     Character(6) :: ofKP
-    Logical, Parameter :: do_LEDOS=.TRUE.
+    Logical :: do_LEDOS
+
+    if(negf%nLDOS.gt.0) do_LEDOS=.true.
     
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
@@ -1388,7 +1390,7 @@ end subroutine contour_int
     else
        negf%ReadOldSGF = 0
     endif
-
+ 
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
 

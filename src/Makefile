@@ -72,11 +72,9 @@ input_output.o lib_param.o libnegf.o globals.o \
 rcm_module.o iterative_dns.o ln_extract.o
 
 
-#SPARSEKITMODULES = zblassm.o zmatvec.o zformats.o zunary.o \
-#	zinfofun.o zinout.o zccn.o zcolor.o	\
-#	zdsepart.o blassm.o matvec.o formats.o	\
-#	unary.o	sort.o infofun.o inout.o ilut.o	\
-#	zilut.o iters.o	ccn.o color.o dsepart.o
+#########################################################################
+# Main
+#########################################################################
 
 
 all: $(TARGET) 
@@ -86,51 +84,6 @@ tests: $(TARGET) testdos testint
 clean: 
 	(rm -f $(TARGET) ! ifc* work* core .f90 *.mod *.o; \
 	cd $(SPARSEKITDIR); make clean; cd $(LIBNEGFSRC); )
-
-
-#########################################################################
-# Main
-#########################################################################
-
-test1: test1.f90 
-	$(FC90) $(FC90OPT) -c test1.f90
-	$(FC) $(LINKFLAG) -o $@  test1.o $(TARGET) $(LIBS)
-
-testdos: Testdos.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c Testdos.F90 
-	$(FC)  $(LINKFLAG) -o $@  Testdos.o $(TARGET) $(LIBS)
-
-testint: Testint.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c Testint.F90 
-	$(FC) $(LINKFLAG) -o $@  Testint.o $(TARGET) $(LIBS)
-
-test2: test2.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c test2.F90 
-	$(FC) $(LINKFLAG) -o $@  test2.o $(TARGET) $(LIBS)
-
-testreorder: testreorder.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c testreorder.F90 
-	$(FC) $(LINKFLAG)  -o $@  testreorder.o $(TARGET) $(LIBS)
-
-testiterativedns: Testiterativedns.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c Testiterativedns.F90 
-	$(FC) $(LINKFLAG)  -o $@  Testiterativedns.o $(TARGET) $(LIBS)
-
-testcontactdos: testcontactdos.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c testcontactdos.F90 
-	$(FC) $(LINKFLAG)  -o $@  testcontactdos.o $(TARGET) $(LIBS)
-
-testdosdns: testdosdns.F90 $(TARGET)
-	$(FC90) $(FC90OPT) -c testdosdns.F90 
-	$(FC) $(LINKFLAG)  -o $@  testdosdns.o $(TARGET) $(LIBS)
-
-testcurrent: testcurrent.F90 $(TARGET) 
-	$(FC90) $(FC90OPT) -c testcurrent.F90 
-	$(FC) $(LINKFLAG)  -o $@  testcurrent.o $(TARGET) $(LIBS)
-
-testneqint: testneqint.F90 $(TARGET) 
-	$(FC90) $(FC90OPT) -c testneqint.F90 
-	$(FC) $(LINKFLAG)  -o $@  testneqint.o $(TARGET) $(LIBS)
 
 
 $(TARGET): $(MODULES) 
