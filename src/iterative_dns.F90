@@ -2524,9 +2524,9 @@ CONTAINS
     Integer :: sel
 
 
-    sel = 1
-    if(A%nrow.gt.100) sel = 2 
-    if(A%nrow.gt.1200) sel = 3     
+    sel = 2
+    !if(A%nrow.gt.100) sel = 2 
+    !if(A%nrow.gt.1200) sel = 3     
 
     select case(sel)
     case(1)
