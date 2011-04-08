@@ -22,7 +22,7 @@ module ContSelfEnergy
  use mat_def
  use sparsekit_drv
  use outmatrix, only : outmat_c
- use inversions, only : zinv => inverse 
+ use inversions, only : block2Green, inverse 
  use clock
  use mpi_globals
  use complexbands
@@ -163,13 +163,13 @@ contains
                 gt%val(i1,i1)=(1.D0,0.D0)
              enddo
              !Here we define the Green's function related to bound states.
-             call zinv(gt%val(n1:n2,n1:n2),GS%val(n1:n2,n1:n2),npl)              
+             call inverse(gt%val(n1:n2,n1:n2),GS%val(n1:n2,n1:n2),npl)              
              
              gt%val(1:n0,1:n0)=E*SC%val(1:n0,1:n0)-HC%val(1:n0,1:n0)         
              gt%val(1:n0,n1:n2)=E*SC%val(1:n0,n1:n2)-HC%val(1:n0,n1:n2)
              gt%val(n1:n2,1:n0)=E*SC%val(n1:n2,1:n0)-HC%val(n1:n2,1:n0) 
              
-             call zinv(GS%val,gt%val,ngs)         
+             call inverse(GS%val,gt%val,ngs)         
              !End finally the full Green's function of the contacts.
              call destroy(gt)
           endif
@@ -256,7 +256,8 @@ contains
 
     do i1=1,300
       !write(*,*) 'decimation:',i1
-      call zinv(inAo,Ao,n)
+      !call zinv(inAo,Ao,n)
+       call block2Green(inAo,Ao,n)
 
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Bo, n,  beta, inAoXBo, n)
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Co, n,  beta, inAoXCo, n) 
@@ -281,7 +282,9 @@ contains
 
     end do
     !write(*,*) 'decimation: final inv'
-    call zinv(Gamma,A1_s,n)
+    !call zinv(Gamma,A1_s,n)
+
+    call block2green(Gamma,A1_s,n)
 
     GS%val(n1:n2,n1:n2) = Gamma(1:n,1:n)
 

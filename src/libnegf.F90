@@ -418,7 +418,7 @@ contains
           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i1,'/',iend,'  CPU=&
              &', id
        endif
-       
+ print*,'compute sgf'      
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        
        call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -430,6 +430,7 @@ contains
           call destroy(Tcl(icont))
        enddo
 
+ print*,'compute tunnel'      
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
        
        if (.not.do_LEDOS) then

@@ -2705,7 +2705,7 @@ CONTAINS
 
     Type(z_dns) :: A_dns, B_dns
 
-    call create(B_dns,A_dns%nrow,A_dns%ncol)
+    call create(B_dns,A_dns%ncol,A_dns%nrow)
 
     B_dns%val = conjg(transpose(A_dns%val))
 
