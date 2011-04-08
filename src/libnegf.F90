@@ -413,6 +413,13 @@ contains
        
        Ec_min = negf%Emin + id*npid*negf%Estep
        Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
+
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i,'/',iend,'  CPU=&
+             &', id
+       endif
+       
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')       
        
        call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
        
@@ -438,6 +445,8 @@ contains
           LEDOS_MAT(i1,:) = LEDOS(:) * negf%wght
           
        endif
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
        
        do icont=1,ncont
           call destroy(SelfEneR(icont))
