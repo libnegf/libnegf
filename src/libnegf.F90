@@ -415,18 +415,22 @@ contains
        Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
 
        if (negf%verbose.gt.VBT) then
-          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i,'/',iend,'  CPU=&
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i1,'/',iend,'  CPU=&
              &', id
        endif
        
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')       
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        
        call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
        
        do icont=1,ncont
           call destroy(Tlc(icont))
           call destroy(Tcl(icont))
        enddo
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
        
        if (.not.do_LEDOS) then
           
