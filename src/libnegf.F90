@@ -16,6 +16,7 @@ module libnegf
  use mat_def
  use ln_extract
  use contselfenergy
+ use complexbands
  use clock
 
  implicit none
@@ -25,6 +26,7 @@ module libnegf
  public :: compute_dos, compute_contacts
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: compute_current, integrate
+ public :: comp_complex_bands
  public :: reorder
  public :: sort, swap
 
@@ -1502,6 +1504,34 @@ end subroutine contour_int
 
 
   end subroutine real_axis_int
+
+!-----------------------------------------------------------------------------------------------------
+!  Complex band structure calculation
+!  
+  subroutine comp_complex_bands(negf)
+    
+    type(Tnegf), pointer :: negf 
+    type(TComplexBandPar) :: par
+
+    par%at_start = 0
+    par%at_end = 0
+    par%mat_start = 1
+    par%mat_end = negf%str%mat_C_end(1)-negf%str%mat_C_start(1)+1
+    par%L = 1.d0
+    par%emin = negf%emin 
+    par%emax = negf%emax
+    par%estep = negf%estep
+    par%GW = 0
+    par%lowdin_order = -2
+
+    print*, '(comp_complex) extract contacts'
+    
+    call extract_cont(negf)
+
+    call compute_bands(negf%HC(1)%val,negf%SC(1)%val,par)
+
+
+  end subroutine comp_complex_bands
 
 !-----------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------

@@ -142,7 +142,7 @@ print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
 
   endif
 
-print*,'(init) read Im.dat'
+print*,'(readH) read Im.dat'
      !write(*,*) matr%index_j, matr%index_i, matr%nzval
   ! =============================================================================
   !  Imaginary part
@@ -229,15 +229,20 @@ print*,'(init) read Im.dat'
   !   endif
   enddo
   
+print*,'(readH) created mat2',mat2%nrow,mat2%ncol,mat2%nnz
 
   call destroy(matr,mati)
-
+print*,'(readH) destroyed matr mati'
   !COO-CSR conversion 
   CALL create(zmat,mat2%nrow,mat2%ncol,mat2%nnz)
+
+print*,'(readH) created zmat',zmat%nrow,zmat%ncol,zmat%nnz
 
   zmat%nzval=(0.d0,0.d0)
 
   CALL coo2csr(mat2,zmat)
+
+print*,'(readH) converted to csr'
 
   call destroy(mat2)               !deallocation Hcomplex
 

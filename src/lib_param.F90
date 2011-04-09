@@ -48,8 +48,8 @@ module lib_param
      real(dp) :: dos               ! Holding variable
      real(dp) :: eneconv           ! Energy conversion factor
 
-     type(z_CSR) :: H
-     type(z_CSR) :: S
+     type(z_CSR), pointer :: H
+     type(z_CSR), pointer :: S
      type(z_CSR) :: HM
      type(z_CSR) :: SM     
      type(z_DNS) :: HC(MAXNCONT)
@@ -201,21 +201,22 @@ contains
 
   subroutine pass_HS(negf,H,S)
     type(Tnegf) :: negf    
-    type(z_CSR) :: H
-    type(z_CSR), optional :: S
+    type(z_CSR), target :: H
+    type(z_CSR), optional, target :: S
 
-    call create(negf%H,H%nrow,H%ncol,H%nnz)
-    negf%H%nzval = H%nzval
-    negf%H%colind = H%colind
-    negf%H%rowpnt = H%rowpnt
-          
+    !call create(negf%H,H%nrow,H%ncol,H%nnz)
+    !negf%H%nzval = H%nzval
+    !negf%H%colind = H%colind
+    !negf%H%rowpnt = H%rowpnt
+    negf%H => H      
 
     if (present(S)) then
        negf%isSid=.false.
-       call create(negf%S,S%nrow,S%ncol,S%nnz)
-       negf%S%nzval = S%nzval
-       negf%S%colind = S%colind
-       negf%S%rowpnt = S%rowpnt
+       !call create(negf%S,S%nrow,S%ncol,S%nnz)
+       !negf%S%nzval = S%nzval
+       !negf%S%colind = S%colind
+       !negf%S%rowpnt = S%rowpnt
+       negf%S => S
     else
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 

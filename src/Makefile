@@ -11,8 +11,8 @@ FPP = fpp
 LIBNEGFSRC=$(shell pwd)
 SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
-#FC90OPT = -g -check all 
-FC90OPT = -O2 -xW -openmp -ip
+FC90OPT = -g -check all 
+#FC90OPT = -O2 -xW -openmp -ip
 CFLAGS = $(CCOPT)
 F77FLAGS = $(FC90OPT)
 FPPFLAGS = -D__PARDISO
@@ -66,7 +66,7 @@ endif
 
 MODULES = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
 contselfenergy.o population.o metis_interface.o \
-mat_def.o clock.o fermi.o iterative.o complexbands.o \
+mat_def.o clock.o fermi.o iterative.o complexbands.o lowdin.o \
 sparsekit_drv.o ln_structure.o inversions.o outmatrix.o \
 input_output.o lib_param.o libnegf.o globals.o \
 rcm_module.o iterative_dns.o ln_extract.o
@@ -115,7 +115,7 @@ ln_extract.o: ln_structure.o lib_param.o ln_constants.o
 input_output.o:  ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o 
 inversions.o:    ln_allocation.o mat_def.o sparsekit_drv.o
 
-complexbands.o:    ln_precision.o ln_constants.o inversions.o	
+complexbands.o:    ln_precision.o ln_constants.o inversions.o lowdin.o	
 
 contselfenergy.o: lib_param.o ln_allocation.o mat_def.o sparsekit_drv.o 
 contselfenergy.o: outmatrix.o clock.o complexbands.o mpi_globals.o

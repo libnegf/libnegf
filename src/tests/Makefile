@@ -11,8 +11,8 @@ FPP = fpp
 LIBNEGFSRC=$(shell pwd)
 SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
-#FC90OPT = -g -check all 
-FC90OPT = -O2 -xW -openmp -ip
+FC90OPT = -g -check all 
+#FC90OPT = -O2 -xW -openmp -ip
 CFLAGS = $(CCOPT)
 F77FLAGS = $(FC90OPT)
 FPPFLAGS = -D__PARDISO
@@ -70,7 +70,7 @@ LIBS = $(SPARSEKIT) $(LIB_METIS) -L$(MKL_LIBDIR) $(LIB_BLAS)
 
 OBJECTS = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
 contselfenergy.o population.o \
-mat_def.o clock.o fermi.o iterative.o complexbands.o \
+mat_def.o clock.o fermi.o iterative.o complexbands.o lowdin.o \
 sparsekit_drv.o ln_structure.o inversions.o outmatrix.o \
 input_output.o lib_param.o libnegf.o globals.o \
 rcm_module.o iterative_dns.o ln_extract.o
@@ -83,7 +83,7 @@ MODULES = #$(OBJECTS:.o=.mod)
 	#(cp -f ../*.mod .)
 
 $(LIBNEGF):  
-	($(MAKE) -C .. )
+	($(MAKE) -C ..)
 
 testdos: Testdos.F90 $(LIBNEGF) $(MODULES)
 	$(FC90) $(FC90OPT) -c Testdos.F90 
@@ -121,6 +121,10 @@ testneqint: testneqint.F90 $(LIBNEGF) $(MODULES)
 	$(FC90) $(FC90OPT) -c testneqint.F90 
 	$(FC) $(LINKFLAG)  -o $@  testneqint.o $(LIBNEGF) $(LIBS)
 
+testcomplex: testcomplexband.F90 $(LIBNEGF) $(MODULES)
+	$(FC90) $(FC90OPT) -c testcomplexband.F90 
+	$(FC) $(LINKFLAG)  -o $@  testcomplexband.o $(LIBNEGF) $(LIBS)
+	
 
 clean: 
 	(rm -f ifc* work* core .f90 *.mod *.o; )
