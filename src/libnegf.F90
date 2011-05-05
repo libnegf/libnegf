@@ -16,7 +16,6 @@ module libnegf
  use mat_def
  use ln_extract
  use contselfenergy
- use complexbands
  use clock
 
  implicit none
@@ -26,9 +25,9 @@ module libnegf
  public :: compute_dos, compute_contacts
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: compute_current, integrate
- public :: comp_complex_bands
  public :: reorder
  public :: sort, swap
+ public :: check_if_hermitian,printcsr
 
  integer, PARAMETER :: VBT=70
 
@@ -137,11 +136,6 @@ contains
   end subroutine init_structure
 
 !--------------------------------------------------------------------
-  subroutine negf_nullify_all(negf)
-    type(Tnegf), pointer :: negf     
-     NULLIFY(negf%LDOS)
-  end subroutine negf_nullify_all 
-!--------------------------------------------------------------------
   subroutine destroy_negf(negf)
     type(Tnegf), pointer :: negf   
     integer :: i
@@ -211,9 +205,8 @@ contains
 
     N = nint((negf%Emax-negf%Emin)/negf%Estep)
 
-    print*,'N=',N
-    print*,'delta=',negf%delta
-
+    !print*,'N=',N
+    !print*,'delta=',negf%delta
 
     open(101,file='dos.dat')
 
@@ -247,7 +240,7 @@ contains
 !-------------------------------------------------------------------------------
 
   subroutine compute_contacts(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
-
+    complex(dp) :: Ec
     Type(Tnegf), pointer :: pnegf
     integer, intent(in) :: pnt
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
@@ -258,7 +251,6 @@ contains
 
     Integer :: nbl, ncont, l, i1
     Real(dp) :: ncyc, avncyc
-    complex(dp) :: Ec
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
@@ -272,21 +264,18 @@ contains
     ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
     ! -----------------------------------------------------------------------
     
-    do l=1,ncont
+    do l= 1,ncont
        pnegf%activecont=l
        call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
-       
        i1 = nzdrop(GS_d,EPS)
        
        call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
        
        call dns2csr(GS_d,GS(l))
        call destroy(GS_d)
-       
        avncyc = avncyc + ncyc
        
     enddo
-    
     
     ! -- GF Calculation ----------------------------------------------------
     ! 
@@ -305,13 +294,13 @@ contains
        call zdagacsr(TpMt,Tcl(i1))
        
        call destroy(TpMt)
-       
+
     enddo
-    
+
     !if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
     
     call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
-    
+
   end subroutine compute_contacts
   
   !-------------------------------------------------------------------------------
@@ -342,7 +331,7 @@ contains
     Integer :: iLDOS
     
     Character(6) :: ofKP
-    Logical :: do_LEDOS
+    Logical :: do_LEDOS, lex
 
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     
@@ -357,8 +346,6 @@ contains
     
     Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
     npid = int((Nstep+1)/numprocs)
-
-    negf%ReadOldSGF = 1 ! Comupte S.G.F. but do not save
     
     !Get out if Emax<Emin and Nstep<0
     if (Nstep.lt.0) then
@@ -407,7 +394,8 @@ contains
     call log_allocate(TUN_TOT_MAT,Nstep+1,size_ni)   
     !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
     !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
-    
+    TUN_TOT_MAT = 0.0_dp 
+
     if (do_LEDOS) then
        call log_allocate(LEDOS_MAT,Nstep+1,negf%nLDOS)
        call log_allocate(LEDOS,negf%nLDOS)          
@@ -425,7 +413,7 @@ contains
           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i1,'/',iend,'  CPU=&
              &', id
        endif
- print*,'compute sgf'      
+
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        
        call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -437,7 +425,6 @@ contains
           call destroy(Tcl(icont))
        enddo
 
- print*,'compute tunnel'      
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
        
        if (.not.do_LEDOS) then
@@ -504,8 +491,13 @@ contains
     !---------------------------------------------------------------------------
     !   COMPUTATION OF CURRENTS 
     !---------------------------------------------------------------------------
+    inquire(file='current.dat',EXIST=lex)
     
-    open(101,file='current.dat')
+    if (lex) then
+       open(101,file='current.dat',position='APPEND')
+    else
+       open(101,file='current.dat')
+    endif
     
     call log_allocate(currents,size_ni)
     currents(:)=0.d0
@@ -527,8 +519,11 @@ contains
     enddo
     
     do i1=1,size_ni
-       write(*,'(1x,a,i3,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-            ';  current:', currents(i1),' A'
+       write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            '; k-point:',negf%kpoint,'; current:', currents(i1),' A'
+
+       write(101,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            '; k-point:',negf%kpoint,'; current:', currents(i1),' A'
     enddo
     
     close(101)
@@ -654,282 +649,6 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
   
 end function integrate
 
-!-----------------------------------------------------------------------
-! Contour integration for density matrix 
-! DOES INCLUDE FACTOR 2 FOR SPIN !! 
-!-----------------------------------------------------------------------
-subroutine contour_int(negf)
-
-  type(Tnegf), pointer :: negf 
-  Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-  type(z_CSR) :: GreenR, TmpMt 
-
-  integer :: npid, istart, iend, NumPoles
-  integer :: i, i1, outer, it, ncont, nbl
-
-  real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
-  real(dp) :: Omega, Lambda, Rad, Centre
-  real(dp) :: muref, kbT, teta, alpha
-  real(dp) :: ncyc, dt, Elow
-
-  complex(dp) :: z1,z2,z_diff, zt
-  complex(dp) :: Ec, ff, Pc
-
-  it = negf%iteration
-  ncont = negf%str%num_conts
-  nbl = negf%str%num_PLs
-  kbT = negf%kbT
-
-  muref = negf%mu_n
-
-  Omega = negf%n_kt * kbT
-  Lambda = 2.d0* negf%n_poles * KbT * pi
-  NumPoles = negf%n_poles
-
-  outer = 2 !Compute lower-outer part of density matrix
-  !outer = 0  ! no outer part
-
-  if(negf%iteration .eq. 1) then 
-     negf%ReadOldSGF = 2
-  else
-     negf%ReadOldSGF = 0
-  endif
-
-  call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
-  call initialize(TmpMt)
-  ! -----------------------------------------------------------------------
-  !  Integration loop starts here
-  ! -----------------------------------------------------------------------
-  ! ***********************************************************************
-  ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
-  ! ***********************************************************************
-  ! NEW INTEGRATION FOR COMPLEX DENSITY:
-  !----------------------------------------------------
-  !   g  [ /           ]     g  [ /         it   ] 
-  !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
-  !  2pi [ /           ]    2pi [ /              ]
-  !----------------------------------------------------
-
-  Elow = negf%Ec
-  Centre = (Lambda**2-Elow**2+(muref-Omega)**2)/(2.d0*(muref-Omega-Elow))
-  Rad = Centre - Elow
-
-  if (negf%kbT.ne.0.d0) then        
-     alpha = atan(Lambda/(muref-Centre-Omega)) 
-  else
-     alpha = 0.1d0*pi             
-  end if
-
-  !Setting weights for gaussian integration 
-  allocate(wght(negf%Np_n(1)))
-  allocate(pnts(negf%Np_n(1)))
-
-  call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
-
-  !Computing complex integral (Common for T>=0)
-
-  npid = int(negf%Np_n(1)/numprocs)
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = negf%Np_n(1)
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     Pc = Rad*exp(j*pnts(i))
-     Ec = Centre+Pc
-     zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
-
-     call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-
-     if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
-     endif
-     if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
-     endif
-
-     call destroy(GreenR)
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  deallocate(wght)
-  deallocate(pnts)
-
-  ! *******************************************************************************
-  ! 2. INTEGRATION OVER THE SEGMENT [Ec + j*Lambda, mu(r) + Omega+j*Lambda]
-  ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
-  ! *******************************************************************************
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T=0):
-  !----------------------------------------------------
-  !   2  [ /           ]     1  [ /         it   ] 
-  !  --- [ |  Gr(z) dz ] =   -- [ | Gr(t)Rie  dt ]  
-  !  2pi [ /           ]     pi [ /              ]
-  !----------------------------------------------------
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
-  !----------------------------------------------------
-  !   g  [ /                ]      g   [ /                       ] 
-  !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]  
-  !  2pi [ /                ]     2*pi [ /                       ]
-  !----------------------------------------------------
-
-  allocate(wght(negf%Np_n(2)))
-  allocate(pnts(negf%Np_n(2)))
-
-  if (negf%kbT.eq.0.d0) then                        ! Circle integration T=0
-
-     call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
-     
-  else                                          ! Segment integration T>0
-     
-     z1 = muref + Omega + j*Lambda
-     z2 = muref - Omega + j*Lambda
-     
-     z_diff = z2 - z1
-     
-     call  gauleg(1.d0,0.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
-     
-  endif
-
-  npid = int(negf%Np_n(2)/numprocs)
-
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = negf%Np_n(2)
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     if (negf%kbT.eq.0.d0) then                      ! Circle integration T=0            
-        
-        Pc = Rad*exp(j*pnts(i))
-        Ec = Centre+Pc
-        dt = negf%spin*wght(i)/(2.d0*pi)
-        zt = dt*Pc*j
-       
-     else                                        ! Segment integration T>0
-        
-        Ec = z1 + pnts(i)*z_diff
-        ff = fermi_fc(Ec,muref,KbT)
-        zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
-
-     endif
-
-     call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
-
-     if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
-     endif
-     if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
-     endif
-
-     call destroy(GreenR)
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  deallocate(wght)
-  deallocate(pnts)
-
-  ! *******************************************************************************
-  ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
-  ! *******************************************************************************          
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
-  !---------------------------------------------------------------------
-  !             [  g                 ]          
-  !  2 pi j* Res[ --- *Gr(z_k)f(z_k)  ] =  j*(-kb T)* Gr(z_k)     
-  !             [ 2pi                ]         
-  !                                         (-kb*T) <- Residue
-  !---------------------------------------------------------------------
-
-  npid = int(NumPoles/numprocs)
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = NumPoles
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
-
-     zt= -j*negf%spin*KbT
-
-     call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-
-     if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
-     endif
-     if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
-     endif
-
-     call destroy(GreenR)   
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  if(negf%DorE.eq.'D') then
-     call zspectral(TmpMt,TmpMt,0,negf%rho)
-  endif
-  if(negf%DorE.eq.'E') then
-     call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
-  endif
-
-
-  call destroy(TmpMt)
-
-
-end subroutine contour_int
 
 !-----------------------------------------------------------------------
 ! Contour integration for density matrix 
@@ -1373,6 +1092,275 @@ end subroutine contour_int
 
   end subroutine contour_int_p
 
+!-----------------------------------------------------------------------
+! Contour integration for density matrix 
+! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+!-----------------------------------------------------------------------
+subroutine contour_int(negf)
+
+  type(Tnegf), pointer :: negf 
+  Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+  type(z_CSR) :: GreenR, TmpMt 
+
+  integer :: npid, istart, iend, NumPoles
+  integer :: i, i1, outer, it, ncont, nbl
+
+  real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
+  real(dp) :: Omega, Lambda, Rad, Centre
+  real(dp) :: muref, kbT, teta, alpha
+  real(dp) :: ncyc, dt, Elow
+
+  complex(dp) :: z1,z2,z_diff, zt
+  complex(dp) :: Ec, ff, Pc
+
+  ncont = negf%str%num_conts
+  nbl = negf%str%num_PLs
+  kbT = negf%kbT
+
+  muref = negf%mu_n
+
+  Omega = negf%n_kt * kbT
+  Lambda = 2.d0* negf%n_poles * KbT * pi
+  NumPoles = negf%n_poles
+
+  outer = 2 !Compute lower-outer part of density matrix
+  !outer = 0  ! no outer part
+
+  call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+  call initialize(TmpMt)
+  ! -----------------------------------------------------------------------
+  !  Integration loop starts here
+  ! -----------------------------------------------------------------------
+  ! ***********************************************************************
+  ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
+  ! ***********************************************************************
+  ! NEW INTEGRATION FOR COMPLEX DENSITY:
+  !----------------------------------------------------
+  !   g  [ /           ]     g  [ /         it   ] 
+  !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
+  !  2pi [ /           ]    2pi [ /              ]
+  !----------------------------------------------------
+
+  Elow = negf%Ec
+  Centre = (Lambda**2-Elow**2+(muref-Omega)**2)/(2.d0*(muref-Omega-Elow))
+  Rad = Centre - Elow
+
+  if (negf%kbT.ne.0.d0) then        
+     alpha = atan(Lambda/(muref-Centre-Omega)) 
+  else
+     alpha = 0.1d0*pi             
+  end if
+
+  !Setting weights for gaussian integration 
+  allocate(wght(negf%Np_n(1)))
+  allocate(pnts(negf%Np_n(1)))
+
+  call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
+
+  !Computing complex integral (Common for T>=0)
+
+  npid = int(negf%Np_n(1)/numprocs)
+  istart = id*npid+1
+  if(id.ne.(numprocs-1)) then 
+     iend = (id+1)*npid
+  else
+     iend = negf%Np_n(1)
+  end if
+
+  do i = istart,iend
+
+     if (negf%verbose.gt.VBT) then
+        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
+             &', id
+     endif
+
+     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+     Pc = Rad*exp(j*pnts(i))
+     Ec = Centre+Pc
+     zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
+     call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+
+     if(negf%DorE.eq.'D') then
+        call concat(TmpMt,zt,GreenR,1,1)
+     endif
+     if(negf%DorE.eq.'E') then
+        call concat(TmpMt,zt*Ec,GreenR,1,1)
+     endif
+
+     call destroy(GreenR)
+
+     do i1=1,ncont
+        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+     enddo
+
+     if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+  enddo
+
+  deallocate(wght)
+  deallocate(pnts)
+
+  ! *******************************************************************************
+  ! 2. INTEGRATION OVER THE SEGMENT [Ec + j*Lambda, mu(r) + Omega+j*Lambda]
+  ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
+  ! *******************************************************************************
+  ! NEW INTEGRATION FOR COMPLEX DENSITY (T=0):
+  !----------------------------------------------------
+  !   2  [ /           ]     1  [ /         it   ] 
+  !  --- [ |  Gr(z) dz ] =   -- [ | Gr(t)Rie  dt ]  
+  !  2pi [ /           ]     pi [ /              ]
+  !----------------------------------------------------
+  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
+  !----------------------------------------------------
+  !   g  [ /                ]      g   [ /                       ] 
+  !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]  
+  !  2pi [ /                ]     2*pi [ /                       ]
+  !----------------------------------------------------
+
+  allocate(wght(negf%Np_n(2)))
+  allocate(pnts(negf%Np_n(2)))
+
+  if (negf%kbT.eq.0.d0) then                        ! Circle integration T=0
+
+     call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
+     
+  else                                          ! Segment integration T>0
+     
+     z1 = muref + Omega + j*Lambda
+     z2 = muref - Omega + j*Lambda
+     
+     z_diff = z2 - z1
+     
+     call  gauleg(1.d0,0.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
+     
+  endif
+
+  npid = int(negf%Np_n(2)/numprocs)
+
+  istart = id*npid+1
+  if(id.ne.(numprocs-1)) then 
+     iend = (id+1)*npid
+  else
+     iend = negf%Np_n(2)
+  end if
+
+  do i = istart,iend
+
+     if (negf%verbose.gt.VBT) then
+        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
+             &', id
+     endif
+
+     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+     if (negf%kbT.eq.0.d0) then                      ! Circle integration T=0            
+        
+        Pc = Rad*exp(j*pnts(i))
+        Ec = Centre+Pc
+        dt = negf%spin*wght(i)/(2.d0*pi)
+        zt = dt*Pc*j
+       
+     else                                        ! Segment integration T>0
+        
+        Ec = z1 + pnts(i)*z_diff
+        ff = fermi_fc(Ec,muref,KbT)
+        zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
+
+     endif
+
+     call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
+
+     if(negf%DorE.eq.'D') then
+        call concat(TmpMt,zt,GreenR,1,1)
+     endif
+     if(negf%DorE.eq.'E') then
+        call concat(TmpMt,zt*Ec,GreenR,1,1)
+     endif
+
+     call destroy(GreenR)
+
+     do i1=1,ncont
+        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+     enddo
+
+     if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+  enddo
+
+  deallocate(wght)
+  deallocate(pnts)
+
+  ! *******************************************************************************
+  ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
+  ! *******************************************************************************          
+  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
+  !---------------------------------------------------------------------
+  !             [  g                 ]          
+  !  2 pi j* Res[ --- *Gr(z_k)f(z_k)  ] =  j*(-kb T)* Gr(z_k)     
+  !             [ 2pi                ]         
+  !                                         (-kb*T) <- Residue
+  !---------------------------------------------------------------------
+
+  npid = int(NumPoles/numprocs)
+  istart = id*npid+1
+  if(id.ne.(numprocs-1)) then 
+     iend = (id+1)*npid
+  else
+     iend = NumPoles
+  end if
+
+  do i = istart,iend
+
+     if (negf%verbose.gt.VBT) then
+        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point #',i,'/',iend,'  CPU=&
+             &', id
+     endif
+
+     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+     Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
+
+     zt= -j*negf%spin*KbT
+
+     call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+
+     if(negf%DorE.eq.'D') then
+        call concat(TmpMt,zt,GreenR,1,1)
+     endif
+     if(negf%DorE.eq.'E') then
+        call concat(TmpMt,zt*Ec,GreenR,1,1)
+     endif
+
+     call destroy(GreenR)   
+
+     do i1=1,ncont
+        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+     enddo
+
+     if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+  enddo
+
+  if(negf%DorE.eq.'D') then
+     call zspectral(TmpMt,TmpMt,0,negf%rho)
+  endif
+  if(negf%DorE.eq.'E') then
+     call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
+  endif
+
+
+  call destroy(TmpMt)
+
+
+end subroutine contour_int
+
 !--------------------------------------------!
 !--------------------------------------------!
 ! Non equilibrium integration over real axis !
@@ -1399,18 +1387,11 @@ end subroutine contour_int
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
 
-    it = negf%iteration
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
     kbT = negf%kbT
     ref = negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
-
-    if(negf%iteration .eq. 1) then 
-       negf%ReadOldSGF = 2
-    else
-       negf%ReadOldSGF = 0
-    endif
  
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
@@ -1443,7 +1424,13 @@ end subroutine contour_int
        else
           iend = negf%Np_real+2*npT
        end if
-       
+
+       !---------------------------------------------------------
+       !    g    --  [ /                                      ]
+       ! ------  >   [ | j [f(i)-f(ref) Gr(E) Gam_i Ga(E) dE  ]  
+       ! 2*pi*j  --i [ /                                      ]
+       !---------------------------------------------------------
+
        do i = istart,iend
 
           if (negf%verbose.gt.VBT) then
@@ -1464,7 +1451,8 @@ end subroutine contour_int
 
           call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-          call calls_neq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,ref,GreenR,outer)
+          call calls_neq_mem_dns(negf%HM,negf%SM,real(Ec),SelfEneR,Tlc,Tcl,GS, &
+               negf%str,frm_f,ref,GreenR,outer)
 
           do i1=1,ncont
              call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1509,34 +1497,6 @@ end subroutine contour_int
 
 
   end subroutine real_axis_int
-
-!-----------------------------------------------------------------------------------------------------
-!  Complex band structure calculation
-!  
-  subroutine comp_complex_bands(negf)
-    
-    type(Tnegf), pointer :: negf 
-    type(TComplexBandPar) :: par
-
-    par%at_start = 0
-    par%at_end = 0
-    par%mat_start = 1
-    par%mat_end = negf%str%mat_C_end(1)-negf%str%mat_C_start(1)+1
-    par%L = 1.d0
-    par%emin = negf%emin 
-    par%emax = negf%emax
-    par%estep = negf%estep
-    par%GW = 0
-    par%lowdin_order = -2
-
-    print*, '(comp_complex) extract contacts'
-    
-    call extract_cont(negf)
-
-    call compute_bands(negf%HC(1)%val,negf%SC(1)%val,par)
-
-
-  end subroutine comp_complex_bands
 
 !-----------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------
@@ -1735,7 +1695,6 @@ end subroutine contour_int
     nbl = nbl + 1
     blks(nbl) = nrow
 
-    print*, 'done. blks:',blks(1:nbl)
 
 
   end subroutine block_partition
@@ -1748,9 +1707,9 @@ end subroutine contour_int
     ! *
     ! ***********************************
     ! * Sort Array X(:) in ascendent order.
-! * If present Ipt, a pointer with the 
-! * changes is returned in Ipt. 
-! ***********************************
+    ! * If present Ipt, a pointer with the 
+    ! * changes is returned in Ipt. 
+    ! ***********************************
  
     Integer, Intent (inout) :: blks(:)
     Integer, Intent (out), Optional :: Ipt(:)
@@ -1811,7 +1770,100 @@ end subroutine contour_int
   End Subroutine Swap
          
 !-----------------------------------------------------       
+  SUBROUTINE check_if_hermitian(ham)
 
+    TYPE(z_CSR) :: ham
+
+    ! Local variables:
+ 
+    INTEGER :: row, p, col, file_num, count
+    COMPLEX( dp ) :: matel1, matel2
+    
+    call msort(ham)
+
+    file_num = 111
+
+    open(file_num,file='herm_check.dat')
+
+    count = 0
+    do row = 1, ham%nrow
+ 
+       do p = ham%rowpnt(row), ham%rowpnt(row+1) - 1 !row+1,n_ham
+          
+          col = ham%colind(p)
+          
+          matel1 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, row, col)
+          matel2 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, col, row)
+          
+          if( abs(matel1-conjg(matel2)).gt. 1.d-10 ) then
+             
+             count = count + 1
+             write(file_num,*) row,col,matel1                
+             write(file_num,*) col,row,matel2
+             write(file_num,*)
+                          
+          end if
+          
+       enddo
+    enddo
+    if (count .ne. 0) then
+       write(*,*) 'Found',count,'wrong elements'
+    end if
+
+    close(file_num)
+
+  END SUBROUTINE check_if_hermitian
+
+  ! Returns value of element M(row, col) from sparse matrix
+  !
+  COMPLEX (dp) FUNCTION sprs_element(M, colind, rowpnt, row, col)
+
+    !--------------------------------------------------
+    ! IN data
+    INTEGER, INTENT( IN ) :: row, col
+    !-------------------------------------------------
+    ! OUT data
+    INTEGER, DIMENSION(:) :: colind
+    INTEGER, DIMENSION(:) :: rowpnt    
+    COMPLEX (dp), DIMENSION(:) :: M
+    !-------------------------------------------------
+    INTEGER :: index, ibeg, iend, imid
+
+
+    index = 0
+    ibeg = rowpnt( row )
+    iend = rowpnt( row + 1 ) - 1
+
+    DO WHILE (iend.GE.ibeg)
+
+       imid = (ibeg + iend) / 2
+
+       IF ( colind(imid) .eq. col ) THEN
+          index = imid
+          exit
+       END IF
+       
+       IF ( colind(imid) .GT. col) then
+          iend = imid - 1
+       ELSE
+          ibeg = imid + 1
+       END IF
+       
+    END DO
+
+    IF ( index .EQ. 0 ) THEN
+       sprs_element = 0.d0
+    ELSE
+       sprs_element = M(index)
+    END IF
+    
+  END FUNCTION sprs_element
+
+  subroutine printcsr(mat)
+    type(z_csr) :: mat
+    
+    call zprint_csrcoo(6,mat,'c')
+  end subroutine printcsr
 
 
 end module libnegf

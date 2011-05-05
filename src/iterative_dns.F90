@@ -24,11 +24,6 @@ MODULE iterative_dns
   USE ln_structure, only : TStruct_Info
   USE lib_param, only : MAXNCONT
 
-
-  !USE parameters, only : ncont, ncdim
-  !use structure, only : nbl, indblk, cblk, cindblk
-  !use clock
-
   private
 
   public :: allocate_gsmr_dns
@@ -292,13 +287,14 @@ CONTAINS
     TYPE(z_CSR) :: H,S,Glout
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
     TYPE(z_DNS) :: SelfEner_d 
-    COMPLEX(dp) :: E
+    REAL(dp) :: E
     TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:) :: frm
     INTEGER :: ref
     INTEGER :: out
 
     !Work
+    COMPLEX(dp) :: Ec
     INTEGER :: i,ierr,i1,ncont,nbl, lbl
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
@@ -309,6 +305,7 @@ CONTAINS
     ncont = struct%num_conts
     indblk => struct%mat_PL_start
     cblk => struct%cblk
+    Ec=cmplx(E,0.d0,dp)
 
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)
@@ -316,7 +313,7 @@ CONTAINS
     !if (debug) write(*,*) '----------------------------------------------------'
 
     !Costruiamo la matrice sparsa ESH
-    CALL prealloc_sum(H,S,(-1.d0, 0.d0),E,ESH_tot)
+    CALL prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     !Costruiamo l'array di sparse ESH
     !Allocazione dell'array di sparse ESH
@@ -746,7 +743,7 @@ CONTAINS
   !
   !*********************************************************************** 
 
-  SUBROUTINE Make_Grdiag_mem_dns(ESH,indblk)
+  SUBROUTINE Make_Grdiag_mem_dns(ESH,indblk,mybls)
 
     !***********************************************************************
     !Input:
@@ -766,9 +763,10 @@ CONTAINS
     !In/Out
     TYPE(z_DNS), DIMENSION(:,:) :: ESH
     INTEGER, DIMENSION(:), POINTER :: indblk
+    Integer, optional :: mybls
 
     !Work
-    INTEGER :: i,nrow,nrow_prev,nrow_next,nnz,nbl
+    INTEGER :: i,nrow,nrow_prev,nrow_next,nnz,nbl,mybl2
     TYPE(z_DNS) :: work1, work2, work3
 
     !***
@@ -777,6 +775,11 @@ CONTAINS
  
     nbl = size(ESH,1)
     nrow=indblk(2)-indblk(1)  
+    if(.not.present(mybls)) then
+       mybl2 = nbl
+    else
+       mybl2 = mybls
+    endif
 
     if(nbl.gt.1) then
 
@@ -807,7 +810,7 @@ CONTAINS
     !Diagonal, Subdiagonal and Superdiagonal blocks
     !***
 
-    DO i=2,nbl
+    DO i=2,mybl2
 
        nrow=indblk(i+1)-indblk(i)
 
@@ -1425,12 +1428,11 @@ CONTAINS
 
           !***
           !Iterazione sui blocchi 
-          !***
-
+          !***          
+          ! [frm(j)-frm(ref)]
           frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
 
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
-          nrow=indblk(2)-indblk(1)
 
           CALL prealloc_mult(Gr(1,cb),Gam,work1)    
  
@@ -1442,15 +1444,8 @@ CONTAINS
           CALL destroy(work1)
           CALL destroy(Ga)
 
-          i1=indblk(1)
-          j1=indblk(1)
-  
-          !CALL zmask_realloc(Glsub(1,1), ESH(1,1))
-
           !Calcolo sottoblocchi diagonali, sopradiagonali e sottodiagonali
           DO i=2,nbl
-
-             nrow=indblk(i+1)-indblk(i)
 
              !Calcolo blocchi sopradiagonali
              CALL prealloc_mult(Gr(i-1,cb),Gam,work1)
@@ -1459,48 +1454,23 @@ CONTAINS
  
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
 
-             !CALL zmask_realloc(Glsub(i-1,i), ESH(i-1,i))
-
              CALL destroy(work1)
              !Teniamo Ga per il calcolo del blocco diagonale
-
-             i1=indblk(i-1)
-             j1=indblk(i)
-             !CALL concat(Gl,Glsub(i-1,i),i1,j1)
-
-             !CALL destroy(Glsub(i-1,i))
 
              !Calcolo blocchi diagonali
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
 
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i))
 
-             !CALL zmask_realloc(Glsub(i,i), ESH(i,i))
-
              CALL destroy(work1)
              call destroy(Ga)
-
-             i1=indblk(i)
-             j1=indblk(i)
-
-             !CALL concat(Gl,Glsub(i,i),i1,j1)
-             !CALL destroy(Glsub(i,i))
-             !Calcolo diretto blocchi sottodiagonali
 
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
              CALL zdagadns(Gr(i-1,cb),Ga)
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
 
-             !CALL zmask_realloc(Glsub(i,i-1), ESH(i,i-1))
-
              CALL destroy(work1)
              call destroy(Ga)
-
-             !Concateniamo Glsub come sottodiagonale
-             i1=indblk(i)
-             j1=indblk(i-1)
-             !CALL concat(Gl,Glsub(i,i-1),i1,j1)
-             !CALL destroy(Glsub(i,i-1))
 
              IF (keep_Gr.EQ.0) CALL destroy(Gr(i-1,cb)) 
 
@@ -1515,7 +1485,8 @@ CONTAINS
           !Similar to Make_GreenR_mem2, except for sum of elements
           !Note: to backup old version zconcat calls (and Glsub deallocations) must be 
           !      uncommented and all this part removed  
-          !If only one block is present, concatenation is not needed and it's implemented in a more trivial way
+          !If only one block is present, concatenation is not needed and it's implemented in a 
+          !more trivial way
 
           IF (nbl.EQ.1) THEN             
 
@@ -1581,7 +1552,7 @@ CONTAINS
                    
                    col = Gl%colind(jj) - indblk(y) + 1
 
-                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(row,col)
+                   Gl%nzval(jj) = Glsub(x,y)%val(row,col)
 
                 ENDDO
 
@@ -2137,7 +2108,8 @@ CONTAINS
     !Iterative calculation down for Gr
     call allocate_Gr_dns(nbl)
 
-    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start)
+    
+    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start,1)
 
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
     do icpl=1,size_ni
@@ -2145,7 +2117,7 @@ CONTAINS
        nit=ni(icpl)
        nft=nf(icpl)
   
-       call trasmission_dns(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+       call trasmission_dns(nit,nft,ESH,SelfEneR,1,str%cblk,str%mat_PL_start,tun) 
   
        TUN_MAT(icpl) = tun 
     
@@ -2186,7 +2158,14 @@ CONTAINS
   ! Subroutine for transmission calculation
   !
   !************************************************************************
-  
+  ! NOTE:
+  !
+  !  This subroutine was hacked quickly to obain effiecient tunneling calcs
+  !  but now works only for 2 contacts placed at PL 1 and N. 
+  !                ===================
+  !************************************************************************
+
+
   subroutine trasmission_dns(ni,nf,ESH,SelfEneR,nbl,cblk,indblk,TUN)
 
     implicit none
@@ -2200,26 +2179,35 @@ CONTAINS
     
     !Work variables
     Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl, ncont
-    Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS
+    Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS, AA
     Type(z_CSR) :: GAM1, GAM2
     Real(dp) :: max
     Real(dp), parameter :: drop=1e-20
+    Complex(dp), PARAMETER ::    j = (0.d0,1.d0)  ! CMPX unity
    
     !Arrange contacts in way that order between first and second is always the
     !same (always ct1 > ct2)
 
+    !if (cblk(ni).gt.cblk(nf)) then
+    !   ct1=ni;ct2=nf;
+    !else
+    !   ct1=nf;ct2=ni;
+    !endif
 
-    if (cblk(ni).gt.cblk(nf)) then
-       ct1=ni;ct2=nf;
-    else
-       ct1=nf;ct2=ni;
-    endif
-    
-    nt1=cblk(ct1); nt2=cblk(ct2);
+    ! Search contact interacting with block 1 
+    do i = 1, size(cblk)
+       if (cblk(i).eq.1) then 
+          ct1 = i 
+          exit
+       endif
+    enddo
+    !nt1=cblk(ct1); nt2=cblk(ct2);
+    nt1=1; nt2=1;
 
     ! in this way nt1 > nt2 by construction
     ncol=indblk(nt2+1)-indblk(nt2)
     
+    ! Column blocks  are not computed anymore
     if ( nbl.gt.1 .and. (nt1-nt2).gt.1) then
        
        !Calcolo dei blocchi colonna (nt2) fino al desiderato (riga nt1)
@@ -2267,40 +2255,52 @@ CONTAINS
        
     endif
 
+
+    call zdagadns(Gr(nt1,nt2),GA)
     ! Computes the Gamma matrices
     call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
-    call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
+    !call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
 
     call create(GAM1_dns,GAM1%nrow,GAM1%ncol)
-    call create(GAM2_dns,GAM2%nrow,GAM2%ncol)
+    !call create(GAM2_dns,GAM2%nrow,GAM2%ncol)
 
     call csr2dns(GAM1,GAM1_dns)
-    call csr2dns(GAM2,GAM2_dns)
+    !call csr2dns(GAM2,GAM2_dns)
     call destroy(GAM1)
-    call destroy(GAM2)
+    !call destroy(GAM2)
     
     ! Work to compute transmission matrix (Gamma G Gamma G)
     call prealloc_mult(GAM1_dns,Gr(nt1,nt2),work1)
     
-    call destroy(GAM1_dns)
+    !call destroy(GAM1_dns)
     
-    call zdagadns(Gr(nt1,nt2),GA)
-
-    call prealloc_mult(work1,GAM2_dns,work2)
+    call prealloc_mult(work1,GAM1_dns,work2)
     
-    if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
+    !if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
     
     call destroy(work1)
-    call destroy(GAM2_dns)
 
-    call prealloc_mult(work2,GA,TRS)
-
+    call prealloc_mult(work2,GA,work1)
+ 
     call destroy(work2)
+
+    call create(AA,GA%nrow,GA%ncol)
+
+    AA%val = j * (Gr(1,1)%val-GA%val)
+
     call destroy(GA) 
 
-    TUN = real(trace(TRS))  
+    call prealloc_mult(GAM1_dns,AA,work2) 
 
-    call destroy(TRS)
+    call destroy(GAM1_dns,AA)
+
+    call create(TRS,work1%nrow,work1%ncol)
+
+    TRS%val = work2%val - work1%val
+
+    TUN = abs( real(trace(TRS)) )  
+
+    call destroy(TRS,work1,work2)
    
   end subroutine trasmission_dns
  

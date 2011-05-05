@@ -15,9 +15,9 @@ module outmatrix
   contains
 !--------------------------------------------------
 
-    subroutine printmat(iu,gs,n,k)
+    subroutine printmat(gs,n,k)
 
-      integer :: iu,n,k,n1,k1
+      integer :: n,k,n1,k1
       complex(kind=dp) :: gs(n,n)
       integer :: i1,i2,length
       character :: kk(2), line(2)
@@ -26,33 +26,24 @@ module outmatrix
       n1=n
       k1=k
 
-      do i1 = 1, k
-         do i2 = 1, k
-            write(iu,'(A,ES12.4,A,ES12.4,A)',advance='NO') &
-                 '(',real(gs(i1,i2)),',',aimag(gs(i1,i2)),')'
-         enddo
-         write(iu,*)
-      enddo
-         
+      if (k1.gt.99) then 
+        k1=99 
+      endif
+      if (k1.gt.n1) then
+        k1=n1
+      endif
 
-      !if (k1.gt.99) then 
-      !  k1=99 
-      !endif
-      !if (k1.gt.n1) then
-      !  k1=n1
-      !endif
+      write (UNIT=line,FMT='(I2)') k1
+      read (UNIT=line,FMT='(A2)') kk
 
-      !write (UNIT=line,FMT='(I2)') k1
-      !read (UNIT=line,FMT='(A2)') kk
+      length= LEN('('//kk//'(ES10.2,ES9.2))')
+      allocate(STR(length))
+      STR='('//kk//'(ES10.2,ES9.2))'
 
-      !length= LEN('('//kk//'(ES10.2,ES9.2))')
-      !allocate(STR(length))
-      !STR='('//kk//'(ES10.2,ES9.2))'
+      write (UNIT=*,FMT=STR) ((gs(i1,i2),i2=1,k1),i1=1,k1)  
+      print *," "
 
-      !write (iu,FMT=STR) ((gs(i1,i2),i2=1,k1),i1=1,k1)  
-      !print *," "
-
-      !deallocate(STR)
+      deallocate(STR)
 
     end subroutine printmat
     !--------------------------------------------------

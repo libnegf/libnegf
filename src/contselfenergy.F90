@@ -53,19 +53,20 @@ contains
     type(z_DNS) :: gt
     complex(kind=dp) :: mat_el
 
-    integer :: i,i1,i2,n0,n1,n2,n3,n4,nd,npl,ngs
+    integer :: i,i1,i2,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
     integer :: ncyc,err,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
     real(kind=dp) :: dens
     character(2) :: ofcont
-    character(10) :: ofproc
+    character(10) :: ofkpnt
     character(10) :: ofpnt
     character(64) :: filename
     logical :: lex
 
     i = pnegf%activecont
+    nkp = pnegf%kpoint
     flag = pnegf%ReadOldSGF
     verbose = pnegf%verbose
     contdim = pnegf%str%mat_C_end(i) - pnegf%str%mat_C_start(i) + 1
@@ -77,17 +78,18 @@ contains
     ncyc=0
     nfc=0
 
+    write(ofcont,'(i2.2)') i
 
-    if (id.le.99)  write(ofproc,'(i2.2)') id
-    if (id.gt.99.and.id.le.999)  write(ofproc,'(i3.3)') id
-    if (id.gt.999.and.id.le.9999)  write(ofproc,'(i4.4)') id
+    if (nkp.le.99)  write(ofkpnt,'(i2.2)') nkp
+    if (nkp.gt.99.and.id.le.999)  write(ofkpnt,'(i3.3)') nkp
+    if (nkp.gt.999.and.id.le.9999)  write(ofkpnt,'(i4.4)') nkp
+    if (pnt.gt.9999) stop 'ERROR: too many k-points (> 9999)'
     if (pnt.le.999) write(ofpnt,'(i3.3)') pnt  
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt  
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
     if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
 
-    write(ofcont,'(i2.2)') i
-    filename = './GS/GS'//ofcont//'_'//trim(ofpnt)//'_'//trim(ofproc)//'.dat'
+    filename = './GS/GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
     inquire(file=filename,EXIST=lex)
 
     if(.not.lex.or.flag.ge.1) then
@@ -176,7 +178,6 @@ contains
           !...............................................            
           !*** save in file ***
           if (flag.eq.2) then  
-
              open (66,file=filename, form='UNFORMATTED')
 
              call outmat_c(66,.false.,GS%val,ngs,ngs)

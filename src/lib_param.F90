@@ -27,7 +27,7 @@ module lib_param
      character(1) :: DorE              ! Density or En.Density
      type(format) :: form              ! Form of file-Hamiltonian
 
-     logical   :: ReadoldSGF           ! Read computed Surface G.F.
+     integer   :: ReadoldSGF           ! 0: Read 1: compute 2: comp & save
      logical   :: FictCont(MAXNCONT)   ! Ficticious contact 
 
      real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
@@ -48,8 +48,8 @@ module lib_param
      real(dp) :: dos               ! Holding variable
      real(dp) :: eneconv           ! Energy conversion factor
 
-     type(z_CSR), pointer :: H
-     type(z_CSR), pointer :: S
+     type(z_CSR) :: H
+     type(z_CSR) :: S
      type(z_CSR) :: HM
      type(z_CSR) :: SM     
      type(z_DNS) :: HC(MAXNCONT)
@@ -124,11 +124,11 @@ contains
   end subroutine set_computation      
  ! -------------------------------------------------------------------
 
-  subroutine set_readOldSGF(negf,logic) 
+  subroutine set_readOldSGF(negf,flag) 
     type(Tnegf) :: negf
-    logical :: logic
+    integer :: flag
 
-    negf%ReadoldSGF=logic
+    negf%ReadoldSGF=flag
   end subroutine set_readoldsgf    
  ! -------------------------------------------------------------------
 
@@ -201,22 +201,21 @@ contains
 
   subroutine pass_HS(negf,H,S)
     type(Tnegf) :: negf    
-    type(z_CSR), target :: H
-    type(z_CSR), optional, target :: S
+    type(z_CSR) :: H
+    type(z_CSR), optional :: S
 
-    !call create(negf%H,H%nrow,H%ncol,H%nnz)
-    !negf%H%nzval = H%nzval
-    !negf%H%colind = H%colind
-    !negf%H%rowpnt = H%rowpnt
-    negf%H => H      
+    call create(negf%H,H%nrow,H%ncol,H%nnz)
+    negf%H%nzval = H%nzval
+    negf%H%colind = H%colind
+    negf%H%rowpnt = H%rowpnt
+          
 
     if (present(S)) then
        negf%isSid=.false.
-       !call create(negf%S,S%nrow,S%ncol,S%nnz)
-       !negf%S%nzval = S%nzval
-       !negf%S%colind = S%colind
-       !negf%S%rowpnt = S%rowpnt
-       negf%S => S
+       call create(negf%S,S%nrow,S%ncol,S%nnz)
+       negf%S%nzval = S%nzval
+       negf%S%colind = S%colind
+       negf%S%rowpnt = S%rowpnt
     else
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 
@@ -235,10 +234,10 @@ contains
      negf%file_re_S = ''
      negf%file_im_S = ''
      negf%file_struct = ''
-     negf%DorE = 'D'             ! Density or En.Density
+     negf%DorE = 'D'           ! Density or En.Density
 
-     negf%ReadoldSGF = .false.   ! Read computed Surface G.F.
-     negf%FictCont = .false.     ! Ficticious contact 
+     negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
+     negf%FictCont = .false.   ! Ficticious contact 
 
      negf%mu = 0.d0            ! Potenziale elettrico
      negf%efermi= 0.d0         ! Energia di Fermi dei contatti
@@ -246,6 +245,8 @@ contains
 
     ! negf%nLdos = 0.d0                ! Number of LDOS intervals
     ! negf%LDOS(:,:) = 0.d0    ! LDOS intervals
+     negf%wght = 1.d0
+     negf%kpoint = 1
 
      negf%mu_n = 0.d0
      negf%mu_p = 0.d0

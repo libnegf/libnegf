@@ -2,8 +2,6 @@ module complexbands
   use ln_precision
   use ln_constants
   use inversions
-  use lowdin
-  use outmatrix
   implicit none
   private
 
@@ -13,10 +11,9 @@ module complexbands
 
   private :: diagonalize
 
-  real(dp), parameter, public :: EPS18 = 1d-18
-  real(dp), parameter, public :: EPS12 = 1d-12  
-  real(dp), parameter :: MAXK = 18.0_dp
-  real(dp), parameter :: NULK = 30.0_dp
+  real(dp), parameter, public :: EPS12 = 1d-12
+  real(dp), parameter :: MAXK = 12.0_dp
+  real(dp), parameter :: NULK = 15.0_dp
  
   type TComplexBandPar
     integer :: at_start,at_end
@@ -24,7 +21,6 @@ module complexbands
     real(dp) :: L
     real(dp) :: emin, emax, estep
     integer :: GW
-    integer :: lowdin_order
  end type TComplexBandPar
 
  type TStatesSummary
@@ -34,7 +30,6 @@ module complexbands
  end type TStatesSummary
 
 contains
-
 
 
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -54,31 +49,45 @@ contains
     
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: SelfEneGW! GW Self-energy
     complex(dp), ALLOCATABLE, DIMENSION(:,:,:) :: Dummy! Dummy matrix for GWself  
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Z0,Z1,ZL,Z2
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Z0,Z1
     integer :: err,Nstep, ndim
     logical :: exis
-    integer :: i,k,PLdim,Sdim 
-    real(dp) :: E, folding
+    integer :: i,k,PLdim,Sdim
+    real(dp) :: E
     
     complex(dp), ALLOCATABLE, DIMENSION(:) :: kz
     
-    call set_contactHS(HH,SS,par,HM,TM,SM,ST,PLdim)
-
-    Sdim = 2*PLdim
-    folding = 1.d0*(1+par%lowdin_order)
-    IF(par%lowdin_order.le.-1) THEN
-       folding=1.d0;
-    ELSE IF(par%lowdin_order.eq.11) THEN
-       folding=2.d0;
-    END IF
-
-    write(*,*) 'starting complex bandstructure'
-    ! -----------------------------------------------------------------  
-    ! START WITH COMPLEX BAND COMPUTATION
-    ! -----------------------------------------------------------------
+    write(*,'(2(a,I5))') 'AT start  = ',par%at_start, &
+         '  MAT start  = ',par%mat_start    
+    write(*,'(2(a,I5))') 'AT end    = ',par%at_end, &
+         '  MAT end    = ',par%mat_end
+    
+    Sdim = (par%mat_end - par%mat_start + 1)
+    PLdim= Sdim/2 
+    
+    write(*,'(a,I5,a,F8.4)') 'PL dim    = ',PLdim,'  L= ',par%L*ATU
+    
+    ALLOCATE(HM(PLdim,PLdim),stat=err)
+    ALLOCATE(SM(PLdim,PLdim),stat=err)
+    ALLOCATE(TM(PLdim,PLdim),stat=err)
+    ALLOCATE(ST(PLdim,PLdim),stat=err)
     ALLOCATE(Z0(PLdim,PLdim),stat=err)
     ALLOCATE(Z1(PLdim,PLdim),stat=err)
-    ALLOCATE(Z2(PLdim,PLdim),stat=err)
+    if(err.ne.0) stop 'function complex bands: no space for allocation'
+  
+    write(*,*) 'extract PL from',size(HH,1),'x',size(HH,2)
+    !extract PL Hamiltonian and PL-PL interaction 
+    ! TM is the upper diagonal block linking i to i+1    
+    HM(1:PLdim,1:PLdim)=HH(par%mat_start:par%mat_start+PLdim-1,&
+         par%mat_start:par%mat_start+PLdim-1)
+    SM(1:PLdim,1:PLdim)=SS(par%mat_start:par%mat_start+PLdim-1,&
+         par%mat_start:par%mat_start+PLdim-1)
+    TM(1:PLdim,1:PLdim)=HH(par%mat_start:par%mat_start+PLdim-1,&
+         par%mat_start+PLdim:par%mat_end)
+    ST(1:PLdim,1:PLdim)=SS(par%mat_start:par%mat_start+PLdim-1,&
+         par%mat_start+PLdim:par%mat_end)
+    ! -----------------------------------------------------------------  
+
     ALLOCATE(kz(Sdim),stat=err) 
     if(err.ne.0) stop 'function complex bands: no space for allocation' 
     ! -----------------------------------------------------------------      
@@ -105,8 +114,8 @@ contains
     
     ! START ENERGY CYCLE:
     Nstep=nint((par%emax-par%emin)/par%estep) 
-    write(*,*) 'Complex Band: ',par%emin,par%emax
-    write(*,*) 'Number of steps: ',Nstep+1
+    write(*,*) 'Complex Band: ',par%emin*HAR,par%emax*HAR
+    write(*,*) 'Number of steps: ',Nstep
 
     open(106,file="cmplxband.dat")
     open(107,file="cmplxband_re.dat")
@@ -115,7 +124,7 @@ contains
     write(*,*) 'Energy loop'
 
     do k=0,Nstep
-
+       
        E=par%emin + k*par%estep
        
        if (par%GW.eq.2) then
@@ -133,36 +142,24 @@ contains
        ! The files contains both the real and imaginary bands
        ! one file contains the pure real and pure imaginary parts
        !
-       write(106,'(F15.8)',ADVANCE='NO') E
-       write(107,'(F15.8)',ADVANCE='NO') E
-       write(108,'(F15.8)',ADVANCE='NO') E
+       write(106,'(F15.8)',ADVANCE='NO') E*HAR
+       write(107,'(F15.8)',ADVANCE='NO') E*HAR
+       write(108,'(F15.8)',ADVANCE='NO') E*HAR
 
-       !write(*,*) "E=",E
+       !rite(*,*) "E=",E
        Z0 = E*SM - HM
        Z1 = E*ST - TM
-       
-       !Z0 = E*SM - HM
-       !Z1 = - TM      
-       !Z2 = - HH(par%mat_start+PLdim:par%mat_end,&
-       !        par%mat_start:par%mat_start+PLdim-1)
-
-       !if (ANY(conjg(transpose(Z2)).ne.Z1)) then
-       !   print*, 'Z1 Z2+ dont agree'
-       !end if
-       !if (ANY(conjg(transpose(Z0)).ne.Z0)) then
-       !   print*, 'Z0 Z0+ dont agree'
-       !end if
 
        call complex_k(E,PLdim,Z0,Z1,kz)
        
        do i=1,Sdim
-          write(106,'(F15.8)',ADVANCE='NO') -abs(real(kz(i)))/folding
-          write(106,'(F15.8)',ADVANCE='NO') abs(aimag(kz(i)))/folding            
+          write(106,'(F15.8)',ADVANCE='NO') -abs(real(kz(i)))
+          write(106,'(F15.8)',ADVANCE='NO') abs(aimag(kz(i)))            
        enddo
        !  Real and imaginary bands are on different files
        do i=1,Sdim
-          write(107,'(F15.8)',ADVANCE='NO') real(kz(i))/folding
-          write(108,'(F15.8)',ADVANCE='NO') aimag(kz(i))/folding
+          write(107,'(F15.8)',ADVANCE='NO') real(kz(i))
+          write(108,'(F15.8)',ADVANCE='NO') aimag(kz(i))
        enddo
        
        write(106,'(F15.8)',ADVANCE='YES') 
@@ -217,6 +214,10 @@ contains
 
     Sdim = 2*PLdim
     ! -----------------------------------------------------------------
+    !open(200,file="Z1")
+    !call printmat_fr(200,"",Z1,PLdim,PLdim)
+    !close(200)
+    
     !write(*,*) "Z0 and Z1 defined"
     
     !------------------------------------------------------------------ 
@@ -247,7 +248,7 @@ contains
     Ad=0.d0
     Bd=0.d0
     
-       ! compute generalized eigenproblem:
+    ! compute generalized eigenproblem:
     ! TA * c = lambda * TB * c
     ! 
     ! lambda(j) = [Rd(j) + I * Id(j)] / Bd(j)
@@ -268,8 +269,7 @@ contains
     call zggev(JOBVL,JOBVR,Sdim, TA, Sdim, TB, Sdim, Ad, Bd, &
             Vl,Sdim,Vr,Sdim, WORK, LWORK, RWORK, info)     
 
-    if(info.gt.0) STOP 'complex band: QZ failed in zggev' 
-    if(info.gt.Sdim) STOP 'complex band: zggev failed'
+    if(info.gt.0) STOP 'function complex band: dggev did not converge' 
     
     !write(*,*) "T diagonalized"
     !------------------------------------------------------------------ 
@@ -277,10 +277,10 @@ contains
     
     do i=1,Sdim
        
-       ! kz = j*log(z) = -Arg(z) + j*log|z|  : -Pi < Arg(z) <=t Pi 
+       ! kz = j*log(z) = -Arg(z) + j*log|z|  : -Pi < Arg(z) <= Pi 
        ! ==> -Pi <= real(kz) < Pi 
-       ! Numerical noise is set to im(kz) == +/-30.0 
-       if (abs(Ad(i)).gt.EPS18 .and. abs(Bd(i)).gt.EPS18) then
+       ! Numerical noise is set to im(kz) == -15.0 
+       if (abs(Ad(i)).gt.EPS12 .and. abs(Bd(i)).gt.EPS12) then
           kz(i)=j*log(Ad(i)/Bd(i))
           ! Extremely fast-decaying or fast growing states are
           ! set to a finite value
@@ -293,10 +293,10 @@ contains
 
        else
 
-          if(abs(Bd(i)).le.EPS18) then
+          if(abs(Bd(i)).le.EPS12) then
              kz(i)=+j*NULK     ! this belongs to the null-space
           endif
-          if(abs(Ad(i)).le.EPS18) then
+          if(abs(Ad(i)).le.EPS12) then
              kz(i)=-j*NULK     ! this belongs to the null-space
           endif
 
@@ -471,8 +471,7 @@ contains
     integer :: n_dec_p, n_dec_n    ! _n == -  in the D
     integer :: n_null_p, n_null_n
     complex(dp) :: D(Sdim,Sdim),invD(Sdim,Sdim)
-    complex(dp) :: kt(Sdim)
-    real(dp) :: vt(Sdim)
+    complex(dp) :: kt(Sdim),vt(Sdim)
     real(dp) :: tmp, norm
 
     n = Sdim/2
@@ -519,10 +518,6 @@ contains
     end do
     if (n_dec_p.ne.n_dec_n) then
        write(*,*) 'PROBLEM with D:',n_dec_p,'!=',n_dec_n
-       write(*,*) 'Decaying -:'
-       write(*,*) kt(n_prop_n+1:n_prop_n+n_dec_n), vt(n_prop_n+1:n_prop_n+n_dec_n)
-       write(*,*) 'Decaying +:'
-       write(*,*) kt(n+n_prop_p+1:n+n_prop_p+n_dec_p), vt(n+n_prop_p+1:n+n_prop_p+n_dec_p)
     endif    
 
 
@@ -562,36 +557,10 @@ contains
     endif
     
     ! NORMALIZE ALL STATES
-    n=Sdim/2
     do i=1,Sdim
        norm = sqrt(real(dot_product(D(:,i),D(:,i))));
-       D(:,i)=D(:,i) / norm
-    end do
-
-    !do i=1,Sdim
-    !  print*,i,aimag(kt(i)), vt(i)
-    !  print*,'C0:',real(dot_product(D(1:n,i),D(1:n,i)))
-    !  print*,'C1:',real(dot_product(D(n+1:2*n,i),D(n+1:2*n,i)))
-    !enddo
-    ! For incoming states |C1|^2 = 1 
-    ! For outcoming states  |C0|^2 = 1
-    ! transfer_mat relays on the fact that Im(kt(i)) = -Im(kt(n+i)) !!
-    ! In this way column i and n+i are multiplied exactly by the same factor
-    do i=1,n_prop_n+n_dec_n
-       norm = sqrt( 1 + exp(2*aimag(kt(i))) )  
-       D(:,i)  = D(:,i) * norm
+       D(:,i)  = D(:,i) / norm;       
     enddo
-    
-    do i=n+1,n+n_prop_p+n_dec_p
-       norm = sqrt( 1 + exp(-2*aimag(kt(i))) )  
-       D(:,i)  = D(:,i) * norm 
-    enddo
-   
-    !do i=1,Sdim
-    !  print*,i,aimag(kt(i)), vt(i)
-    !  print*,'C0:',real(dot_product(D(1:n,i),D(1:n,i)))
-    !  print*,'C1:',real(dot_product(D(n+1:2*n,i),D(n+1:2*n,i)))
-    !enddo
 
     Cr = D
     kz = kt
@@ -626,206 +595,23 @@ contains
     ! CHECK ORTHOGONALITY (among prop. states)
     !do i=2,n_prop_n
     !   do m=1,i-1
-    !      if( abs(dot_product(D(1:n,i),D(1:n,m))).gt.1d-6) then
+    !      if( abs(dot_product(D(:,i),D(:,m))).gt.1d-6) then
     !         write(*,*) 'WARNING: States not orth',i,m
     !      endif
     !   enddo
     !enddo
     !do i=n+1,n+n_prop_p
     !   do m=1,n_prop_n
-    !      if( abs(dot_product(D(1:n,i),D(1:n,m))).gt.1d-6) then
+    !      if( abs(dot_product(D(:,i),D(:,m))).gt.1d-6) then
     !         write(*,*) 'WARNING: States not orth',i,m
     !      endif
     !   enddo
     !   do m=n+1,i-1
-    !      if( abs(dot_product(D(1:n,i),D(1:n,m))).gt.1d-6) then
+    !      if( abs(dot_product(D(:,i),D(:,m))).gt.1d-6) then
     !         write(*,*) 'WARNING: States not orth',i,m
     !      endif
     !   enddo
     !enddo
-
- end subroutine sort_and_normalize
-
-
-  ! EXTRACT CONTACTS AND MAKE LOWDIN TRANSF 
-  ! depending on par%lowdin_order
-  ! par%lowdin_order = -1  => Exact
-  ! par%lowdin_order = -2  => Neglect overlap
-  ! par%lowdin_order = 11  => First order 
-  ! par%lowdin_order =  n  => Exact and truncate to order n
-  subroutine set_contactHS(HH,SS,par,HM,TM,SM,ST,PLdim)
-    complex(dp) :: HH(:,:) 	    ! hamiltonian
-    complex(dp) :: SS(:,:)	    ! overlap
-    type(TComplexBandPar) :: par    ! parameters 
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: HM,SM  ! block HAM and OVR
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: TM,ST  ! block-block HAM and OVR
-    integer :: PLdim
-
-    ! locals:
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: HM0,SM0  ! block HAM and OVR
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: TM0,ST0  ! block-block HAM and OVR
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Z0,Z1,ZL
-    integer :: i,k,PLdim0,Sdim0,Sdim,ms,nPL, err 
-
-
-    write(*,'((a,I5,I5))') 'MAT start/end  = ',par%mat_start, par%mat_end
-     
-    Sdim0 = (par%mat_end - par%mat_start + 1)
-    PLdim0= Sdim0/2 
-    ms = par%mat_start
-
-    write(*,'(a,I5,a,F8.4)') 'PL dim    = ',PLdim0,'  L= ',par%L
-    ! -----------------------------------------------------------------      
-    ! EXTRACT PL BLOCKS
-    ! -----------------------------------------------------------------      
-    ALLOCATE(HM0(PLdim0,PLdim0),stat=err)
-    ALLOCATE(SM0(PLdim0,PLdim0),stat=err)
-    ALLOCATE(TM0(PLdim0,PLdim0),stat=err)
-    ALLOCATE(ST0(PLdim0,PLdim0),stat=err)
-    if(err.ne.0) stop 'function complex bands: no space for allocation'
-  
-    write(*,*) 'extract PL from',size(HH,1),'x',size(HH,2)
-    !extract PL Hamiltonian and PL-PL interaction 
-    ! TM is the upper diagonal block linking i to i+1    
-    HM0(1:PLdim0,1:PLdim0) = HH(ms:ms+PLdim0-1,ms:ms+PLdim0-1)
-    SM0(1:PLdim0,1:PLdim0) = SS(ms:ms+PLdim0-1,ms:ms+PLdim0-1)
-    TM0(1:PLdim0,1:PLdim0) = HH(ms:ms+PLdim0-1,ms+PLdim0:par%mat_end)
-    ST0(1:PLdim0,1:PLdim0) = SS(ms:ms+PLdim0-1,ms+PLdim0:par%mat_end)
-
-    ! -----------------------------------------------------------------  
-    ! APPROXIMATE LOWDIN TRUNCATED TO ORDER lowdin_order
-    ! -----------------------------------------------------------------
-    PLdim = (1+par%lowdin_order)*PLdim0
-    Sdim = 2*PLdim
-
-    IF(par%lowdin_order.le.-1) THEN
-       PLdim = PLdim0; Sdim=2*PLdim
-    ELSE IF(par%lowdin_order.eq.11) THEN
-       PLdim = 2*PLdim0; Sdim=2*PLdim
-    END IF
-
-    ALLOCATE(HM(PLdim,PLdim),stat=err)
-    ALLOCATE(SM(PLdim,PLdim),stat=err)
-    ALLOCATE(TM(PLdim,PLdim),stat=err)
-    ALLOCATE(ST(PLdim,PLdim),stat=err)
-    if(err.ne.0) stop 'function complex bands: no space for allocation'
-
-    IF(par%lowdin_order.eq.-1) THEN
-       write(*,*) 'Exact '
-       HM=HM0; SM=SM0; 
-       TM=TM0; ST=ST0;
-
-    ELSE IF(par%lowdin_order.eq.-2) THEN
-       write(*,*) 'Neglecting Overlap '
-       HM=HM0;  
-       TM=TM0; 
-       ! set overlap to Id
-       SM = (0.d0,0.d0)
-       ST = (0.d0,0.d0)
-       do i = 1, PLdim
-          SM(i,i) = 1.d0
-       enddo
-       
-    ELSE IF(par%lowdin_order.eq.11) THEN
-       write(*,*) 'first order lowdin'
-
-       do i = 1, PLdim0
-          SM0(i,i) = SM0(i,i) - 1.d0
-       enddo
-       HM(1:PLdim0,1:PLdim0) =  (HM0 - matmul(HM0,SM0)- &
-                                 matmul(TM0,transpose(ST0))- &
-                                 matmul(transpose(TM0),ST0)) * 0.5d0       
-       HM(1:PLdim0,PLdim0+1:2*PLdim0) =  (TM0 - matmul(HM0,ST0) - &
-                                         matmul(TM0,SM0) ) * 0.5d0
-       HM(PLdim0+1:2*PLdim0,1:PLdim0) = (transpose(TM0)-matmul(HM0,transpose(ST0))-&
-                                         matmul(transpose(TM0),SM0)) * 0.5d0
-       HM(PLdim0+1:2*PLdim0,PLdim0+1:2*PLdim0) = HM(1:PLdim0,1:PLdim0)
-       HM = HM + transpose(HM)
-
-       TM(1:PLdim0,1:PLdim0) = (-matmul(TM0,ST0)-matmul(ST0,TM0)) * 0.5d0
-
-       TM(1:PLdim0,PLdim0+1:2*PLdim0) = (0.d0,0.d0)
-
-       TM(PLdim0+1:2*PLdim0,1:PLdim0) = TM0 + (matmul(HM0,ST0) +&
-                                        matmul(ST0,HM0) + matmul(TM0,SM0) +&
-                                        matmul(SM0,TM0) ) * (-0.5d0)
-
-       TM(PLdim0+1:2*PLdim0,PLdim0+1:2*PLdim0) = TM(1:PLdim0,1:PLdim0)
-       
-       ! set overlap to Id
-       SM = (0.d0,0.d0)
-       ST = (0.d0,0.d0)
-       do i = 1, PLdim
-          SM(i,i) = 1.d0
-       enddo
-
-    ELSE
-       write(*,*) 'exact lowdin and truncation to order',par%lowdin_order
-       
-       nPL = (1+par%lowdin_order) + 3 + 3
-       Sdim = nPL * PLdim0
-
-       ALLOCATE(Z0(Sdim,Sdim),stat=err)
-       ALLOCATE(Z1(Sdim,Sdim),stat=err)      
-       ALLOCATE(ZL(Sdim,Sdim),stat=err) 
-       if(err.ne.0) stop 'function complex bands: no space for allocation' 
-
-       Z0 = (0.d0,0.d0)
-       Z1 = (0.d0,0.d0)
-       ZL = (0.d0,0.d0)
-
-       do i = 1, nPL - 1  
-          Z0( (i-1)*PLdim0+1:i*PLdim0, (i-1)*PLdim0+1:i*PLdim0) = HM0 
-          Z0( (i-1)*PLdim0+1:i*PLdim0, i*PLdim0+1:(i+1)*PLdim0) = TM0
-          Z0( i*PLdim0+1:(i+1)*PLdim0, (i-1)*PLdim0+1:i*PLdim0) = transpose(TM0)
-          
-          Z1( (i-1)*PLdim0+1:i*PLdim0, (i-1)*PLdim0+1:i*PLdim0 ) = SM0 
-          Z1( (i-1)*PLdim0+1:i*PLdim0, i*PLdim0+1:(i+1)*PLdim0 ) = ST0
-          Z1( i*PLdim0+1:(i+1)*PLdim0, (i-1)*PLdim0+1:i*PLdim0 ) = transpose(ST0)    
-       enddo
-
-       i =  nPL
-       Z0( (i-1)*PLdim0+1:i*PLdim0, (i-1)*PLdim0+1:i*PLdim0) = HM0        
-       Z1( (i-1)*PLdim0+1:i*PLdim0, (i-1)*PLdim0+1:i*PLdim0) = SM0 
-
-       write(*,*) 'Z0 and Z1 done, goto lowdin'
-
-       call lowdin_trans('-',Z0,Z1,ZL,Sdim)
-
-       write(*,*) 'Lowdin done'
-       ! Extract HM from central part of ZL
-
-       ms = 2*PLdim0
-       nPL = (1+par%lowdin_order)
-       HM(1:PLdim,1:PLdim) = ZL(ms+1:ms+PLdim,ms+1:ms+PLdim)
-       TM(1:PLdim,1:PLdim) = ZL(ms+1:ms+PLdim,ms+PLdim+1:ms+2*PLdim)
-
-       !do k = 1, nPL-1 
-       !   do i = k+1, nPL
-       !      TM((k-1)*PLdim0+1:k*PLdim0, (i-1)*PLdim0+1:i*PLdim0) = (0.d0,0.d0)
-       !   end do
-       !end do
-       write(*,*) 'free mem'
-              
-       deallocate(Z0,Z1,ZL)
-
-       write(*,*) 'define identiy'
-       ! set overlap to Id
-       SM = (0.d0,0.d0)
-       ST = (0.d0,0.d0)
-       do i = 1, PLdim
-          SM(i,i) = 1.d0
-       enddo
-
-       Sdim = 2*PLdim
-
-    END IF
-
-    deallocate(HM0,SM0,TM0,ST0)
-
-  
-  end subroutine set_contactHS
-    
-
+  end subroutine sort_and_normalize
 
 end module complexbands
