@@ -137,6 +137,11 @@ contains
   end subroutine init_structure
 
 !--------------------------------------------------------------------
+  subroutine negf_nullify_all(negf)
+    type(Tnegf), pointer :: negf     
+     NULLIFY(negf%LDOS)
+  end subroutine negf_nullify_all 
+!--------------------------------------------------------------------
   subroutine destroy_negf(negf)
     type(Tnegf), pointer :: negf   
     integer :: i
