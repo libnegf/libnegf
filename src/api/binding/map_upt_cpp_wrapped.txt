@@ -1,0 +1,9 @@
+#
+# F95 type    | C-type     | Scalar? (0 - no, 1 - yes)
+#
+character(SST) | f77_char   | 0
+character(MST) | f77_char   | 0
+character(LST) | f77_char   | 0
+character(1)   | f77_char   | 0
+real(dp)      | f77_double  | 1
+complex(dp)   | f77_complex | 1

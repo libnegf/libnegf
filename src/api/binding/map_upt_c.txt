@@ -1,0 +1,6 @@
+character(SST) | char   | 0
+character(MST) | char   | 0
+character(LST) | char   | 0
+real(dp)       | double | 1
+complex(dp)    | double | 1
+
