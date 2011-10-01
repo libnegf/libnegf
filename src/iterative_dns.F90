@@ -490,7 +490,7 @@ CONTAINS
 
     IMPLICIT NONE 
 
-    INTEGER :: ierr, i
+    INTEGER :: i
     TYPE(z_CSR) :: ESH_tot
     INTEGER :: nbl
     TYPE(z_DNS), DIMENSION(:,:) :: ESH
@@ -543,7 +543,7 @@ CONTAINS
     TYPE(z_cSR), DIMENSION(n,n) :: A
 
     !Work
-    INTEGER :: i,j,Atot_nnz,Atot_nrow,i1,j1
+    INTEGER :: i,j,Atot_nrow,i1,j1
 
     Atot_nrow=indb(n+1)-1
 
@@ -593,9 +593,8 @@ CONTAINS
     !Work
     !TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: INV
     TYPE(z_DNS) :: work1, work2
-    TYPE(z_DNS) :: gsmr_d
-    INTEGER :: nrow,nrow_next,nnz
-    INTEGER :: i, nbl, ierr
+    INTEGER :: nrow
+    INTEGER :: i, nbl
 
 
     nbl = size(ESH,1)
@@ -684,8 +683,7 @@ CONTAINS
 
     !Work
     TYPE(z_DNS) :: work1, work2
-    TYPE(z_DNS) :: gsml_d
-    INTEGER :: nrow,nrow_prev,nnz
+    INTEGER :: nrow
     INTEGER :: i, nbl
    !TYPE(z_DNS) :: INV(sbl,sbl)
 
@@ -766,7 +764,7 @@ CONTAINS
     Integer, optional :: mybls
 
     !Work
-    INTEGER :: i,nrow,nrow_prev,nrow_next,nnz,nbl,mybl2
+    INTEGER :: i,nrow,nbl,mybl2
     TYPE(z_DNS) :: work1, work2, work3
 
     !***
@@ -895,7 +893,7 @@ CONTAINS
     INTEGER, DIMENSION(:), POINTER :: indblk 
 
     !Work
-    INTEGER :: i,j,nrow,nrow_prev,nrow_next,ncol,nbl
+    INTEGER :: i,nrow,ncol,nbl
     TYPE(z_DNS) :: work1
     REAL(dp) :: max
 
@@ -1223,7 +1221,7 @@ CONTAINS
     TYPE(z_CSR) :: A, P, GrCsr
 
     !Work
-    INTEGER :: i, j, j1, i1, ix, iy, x, y, col, oldx
+    INTEGER :: i, j, i1, ix, iy, x, y, col, oldx
 
     IF ((keep_Gr.NE.1).AND.(keep_Gr.NE.0)) STOP 'keep_Gr must be 0 or 1'
 
@@ -1366,7 +1364,6 @@ CONTAINS
 
     !In/Out
     TYPE(z_CSR) :: Gl
-    TYPE(z_DNS) :: Gl2
     TYPE(z_DNS), DIMENSION(:,:) :: ESH
     TYPE(z_CSR), DIMENSION(:) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
@@ -1376,9 +1373,9 @@ CONTAINS
     !Work
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Glsub
     TYPE(z_CSR) :: P, Gam1, Gl_sp
-    Type(z_DNS) :: Gam, temp
-    TYPE(z_DNS) :: work1,Ga, H
-    INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb
+    Type(z_DNS) :: Gam
+    TYPE(z_DNS) :: work1,Ga
+    INTEGER :: ierr,i,j,cb
     INTEGER :: ncont, nbl
     INTEGER :: oldx, row, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
@@ -1515,7 +1512,7 @@ CONTAINS
 
                 IF (x.EQ.0) THEN
                    WRITE(*,*) 'Error in Make_GreenR_mem2: &
-                               could not find row block of index ',ii,ix
+                               &could not find row block of index ',ii,ix
                    STOP
                 ENDIF
 
@@ -1632,8 +1629,8 @@ CONTAINS
     !Work
     TYPE(z_CSR) :: work1,GrCSR
     TYPE(z_CSR) :: Asub, Grlc, Grcl
-    INTEGER :: i,cb,ierr,nrow_tot,i1,j1
-    INTEGER :: ncont,nbl
+    INTEGER :: i,cb,i1,j1
+    INTEGER :: ncont,nrow_tot,nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
 
     ncont = struct%num_conts
@@ -1743,8 +1740,8 @@ CONTAINS
 
 
     !Work
-    TYPE(z_CSR) :: work1, Asub, Grcl, Grlc, GrCSR
-    INTEGER :: i,cb,ierr,nrow_tot,i1,j1,t,k
+    TYPE(z_CSR) :: work1, Grcl, Grlc, GrCSR
+    INTEGER :: i,cb,nrow_tot,i1,j1
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
 
@@ -1862,7 +1859,7 @@ CONTAINS
 
     !Work
     TYPE(z_CSR) :: work1, work2, work3, Gam, gsurfA, Ga, Glsub
-    INTEGER :: j,k,cb,cbj,i1,j1,nrow_tot,i,nrow_cb,nrow_cbj
+    INTEGER :: j,k,cb,cbj,i1,j1,nrow_tot
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
@@ -2178,9 +2175,9 @@ CONTAINS
     Real(dp) :: TUN
     
     !Work variables
-    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl, ncont
-    Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS, AA
-    Type(z_CSR) :: GAM1, GAM2
+    Integer :: ct1, nt1, nt2, i, nrow, ncol, nbl
+    Type(z_DNS) :: work1, work2, GAM1_dns, GA, TRS, AA
+    Type(z_CSR) :: GAM1
     Real(dp) :: max
     Real(dp), parameter :: drop=1e-20
     Complex(dp), PARAMETER ::    j = (0.d0,1.d0)  ! CMPX unity
@@ -2332,9 +2329,9 @@ CONTAINS
     Complex(dp) :: zc
     Integer :: ni(MAXNCONT)
     Integer :: nf(MAXNCONT)
-    Integer :: nbl,ncont,iadd, ierr
+    Integer :: nbl,ncont, ierr
     Integer :: nit, nft, icpl
-    Integer :: iLDOS, icont, i1, i2, i
+    Integer :: iLDOS, i2, i
     Character(1) :: Im
 
     nbl = str%num_PLs

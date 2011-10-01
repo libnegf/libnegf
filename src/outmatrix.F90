@@ -141,12 +141,12 @@ module outmatrix
 
     subroutine  outmat(ndim,mat,lunit,format)
       !
-      integer i,j,k,l,lunit
+      integer i,j,lunit
       integer ndim
       character(12), OPTIONAL :: format
       !  number of eigenstates, filled levels and half occupied states
 
-      real*8 mat(ndim,ndim), nel
+      real(8) mat(ndim,ndim)
 
       !format='U'
 

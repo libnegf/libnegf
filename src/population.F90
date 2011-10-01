@@ -15,7 +15,8 @@ contains
 
 
     integer :: ii, ka, jj, kb, jcol, nrow
-    real(dp) :: dd, qtot
+    real(dp) :: qtot
+    complex(dp) :: dd
 
     qmulli=0.d0
     nrow = size(qmulli)

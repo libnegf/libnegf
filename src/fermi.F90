@@ -47,7 +47,7 @@ contains
     complex(kind=dp), intent(in) :: Ec
     real(kind=dp), intent(in) :: Ef, kT
 
-    complex(kind=dp) :: Efc,kTc,ONE=(1.d0,0.d0),j=(0.d0,1.d0)
+    complex(kind=dp) :: Efc,kTc,ONE=(1.d0,0.d0)
 
     Efc=Ef*ONE
     kTc=kT*ONE
@@ -79,23 +79,23 @@ contains
 
   subroutine FERMI(nel,telec,ndim,ev,dacc,occ,efermi)
 
-    implicit REAL*8 (A-H,O-Z)
+    implicit REAL(8) (A-H,O-Z)
     
     !
     integer ndim
-    real*8 nel,telec,efermi,dacc,ev(*),occ(*)
+    real(8) nel,telec,efermi,dacc,ev(*),occ(*)
     !
     ! Boltzmann constant in H/K
     !
-    integer, parameter :: ckbol = 3.16679d-6
+    real(8), parameter :: ckbol = 3.16679d-6
     !
     ! degeneracy tolerance for T = 0 
     !
-    integer, parameter :: degtol = 1.0d-4 
+    real(8), parameter :: degtol = 1.0d-4 
     integer, parameter :: maxifermi = 1000
 
 
-    real*8 beta,etol,occdg,chleft,ef1,ef2,ceps,eeps,charge,fac,racc
+    real(8) beta,etol,occdg,chleft,ef1,ef2,ceps,eeps,charge,fac,racc
     integer i,nef1,nef2,nup,ndown,nocc2,ndeg,istart,iend,ifermi
     logical tzero
 
@@ -124,9 +124,9 @@ contains
     ! find energy range for Fermi energy
     !
     if(nel.gt.int(nel)) then
-      nef1 = (nel+2)/2; nef2 = (nel+2)/2  
+      nef1 = int((nel+2)/2); nef2 = int((nel+2)/2)  
     else 
-      nef1 = (nel+1)/2; nef2 = (nel+2)/2
+      nef1 = int((nel+1)/2); nef2 = int((nel+2)/2)
     endif
 
     efermi = 0.5d0*(ev(nef1)+ev(nef2))

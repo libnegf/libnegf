@@ -40,8 +40,8 @@ contains
   !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   subroutine compute_bands(HH,SS,par)
     
-    complex(dp) :: HH(:,:) 	    ! hamiltonian
-    complex(dp) :: SS(:,:)	    ! overlap
+    complex(dp) :: HH(:,:)    ! hamiltonian
+    complex(dp) :: SS(:,:)    ! overlap
     type(TComplexBandPar) :: par    ! parameters 
     
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: HM,SM  ! block HAM and OVR
@@ -50,8 +50,7 @@ contains
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: SelfEneGW! GW Self-energy
     complex(dp), ALLOCATABLE, DIMENSION(:,:,:) :: Dummy! Dummy matrix for GWself  
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Z0,Z1
-    integer :: err,Nstep, ndim
-    logical :: exis
+    integer :: err,Nstep
     integer :: i,k,PLdim,Sdim
     real(dp) :: E
     
@@ -202,9 +201,7 @@ contains
     complex(dp), DIMENSION(2*PLdim) :: Ad,Bd        ! 
     complex(dp), DIMENSION(2*PLdim,2*PLdim) :: TA,TB,Vl,Vr 
     complex(dp), DIMENSION(:), allocatable :: WORK, RWORK  
-    integer :: i,k, Sdim, info, LWORK, err
-    complex(dp) :: zz
-    real(dp) :: norm
+    integer :: i, Sdim, info, LWORK, err
     character(1) :: JOBVL,JOBVR
 
     JOBVL='N'
@@ -261,7 +258,7 @@ contains
     call zggev(JOBVL,JOBVR,Sdim, TA, Sdim, TB, Sdim, Ad, Bd, &
             Vl,Sdim,Vr,Sdim, WORK, LWORK, RWORK, info) 
 
-    LWORK = WORK(1)
+    LWORK = nint(real(WORK(1)))
     deallocate(WORK)
     allocate(WORK(LWORK),stat=err)
     if(err.ne.0) STOP 'complex_k: allocation error (LWORK)'
@@ -388,14 +385,13 @@ contains
     complex(dp), dimension(PLdim), intent(in) :: Cn    
     real(dp) :: vf    
     ! locals:
-    complex(dp) :: tmp, tmp2
+    complex(dp) :: tmp
     real(dp) :: norm
-    integer :: n
 
     ! Using Hellmann-Feynman we get velocity from dH/dk mat-el:
     ! ( In fact it is generalized for S as <Cn|(ES-H)exp(ik)|Cn>
     tmp = dot_product(Cn, matmul(Z12*exp(j*kk),Cn) )
-    norm = dot_product(Cn,Cn)
+    norm = real(dot_product(Cn,Cn))
     
     vf=2.0_dp*aimag(tmp)/norm
 
@@ -414,7 +410,6 @@ contains
     integer :: ier
     complex(dp), dimension(2*PLdim) :: zAux
     real(dp), dimension(3*PLdim) :: Aux
-    real(dp), dimension(PLdim) :: EW
     character(1) :: JOBV 
 
     JOBV='N'
@@ -466,12 +461,13 @@ contains
     complex(dp) :: Cr(Sdim,Sdim)
     type(TStatesSummary), optional :: summary
 
-    integer :: i,m,n, cnt
+    integer :: i,n
     integer :: n_prop_p, n_prop_n  ! _p == +  out from D
     integer :: n_dec_p, n_dec_n    ! _n == -  in the D
     integer :: n_null_p, n_null_n
-    complex(dp) :: D(Sdim,Sdim),invD(Sdim,Sdim)
-    complex(dp) :: kt(Sdim),vt(Sdim)
+    complex(dp) :: D(Sdim,Sdim)
+    complex(dp) :: kt(Sdim)
+    real(dp) :: vt(Sdim)
     real(dp) :: tmp, norm
 
     n = Sdim/2

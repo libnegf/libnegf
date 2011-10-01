@@ -192,7 +192,7 @@ contains
 
 subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   type(z_CSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -242,7 +242,7 @@ end subroutine zcreate_id_CSR
 ! ------------------------------------------------------------------
 subroutine zrecreate_CSR(mat)
   type(z_CSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
   integer :: k
 
   nnz=mat%nnz
@@ -472,7 +472,7 @@ end subroutine zRead_CSR
 subroutine zcreate_CSC(mat,nrow,ncol,nnz)
 
   type(z_CSC) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -615,7 +615,7 @@ end subroutine zprint_CSC
 subroutine zcreate_MSR(mat,nrow,ncol,nnz)
 
   type(z_MSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -660,7 +660,7 @@ end subroutine zprint_MSR
 subroutine zcreate_COO(mat,nrow,ncol,nnz)
 
   type(z_COO) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -822,7 +822,7 @@ end subroutine zprint_COO
 subroutine zcreate_EXT_COO(mat,nrow,ncol,nnz)
 
   type(z_EXT_COO) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -862,7 +862,7 @@ end subroutine zdestroy_EXT_COO
 subroutine zcreate_DNS(mat,nrow,ncol)
 
   type(z_DNS) :: mat
-  integer :: nrow, ncol, ierr
+  integer :: nrow, ncol
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -966,7 +966,7 @@ end subroutine zdestroy_DNS
 subroutine rcreate_CSR(mat,nrow,ncol,nnz)
 
   type(r_CSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -984,7 +984,7 @@ end subroutine rcreate_CSR
 ! ------------------------------------------------------------------
 subroutine rrecreate_CSR(mat)
   type(r_CSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
   integer :: k
 
   nnz=mat%nnz
@@ -1143,7 +1143,7 @@ end subroutine rPrint_CSR
 subroutine rcreate_CSC(mat,nrow,ncol,nnz)
 
   type(r_CSC) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
   
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
    
@@ -1190,7 +1190,7 @@ end subroutine rprint_CSC
 subroutine rcreate_MSR(mat,nrow,ncol,nnz)
 
   type(r_MSR) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -1232,7 +1232,7 @@ end subroutine rprint_MSR
 subroutine rcreate_COO(mat,nrow,ncol,nnz)
 
   type(r_COO) :: mat
-  integer :: nrow, ncol, nnz, ierr
+  integer :: nrow, ncol, nnz
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
 
@@ -1361,7 +1361,7 @@ end subroutine rdestroy_COO
 subroutine rcreate_DNS(mat,nrow,ncol)
 
  type(r_DNS) :: mat
- integer :: nrow, ncol, ierr
+ integer :: nrow, ncol
   
 
   if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'

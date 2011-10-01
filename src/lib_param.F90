@@ -35,7 +35,7 @@ module lib_param
      real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
 
      integer  :: nLdos                 ! Number of LDOS intervals
-     integer,Dimension(:,:), pointer :: LDOS(:,:) => null()    ! LDOS intervals
+     integer,Dimension(:,:), pointer :: LDOS => null()    ! LDOS intervals
 
      real(dp) :: mu_n
      real(dp) :: mu_p
@@ -72,6 +72,8 @@ module lib_param
 
      real(dp) :: wght        ! kp weight 
      integer :: kpoint       ! kp index
+     real(dp), dimension(:,:), pointer :: tunn_mat => null()
+     real(dp), dimension(:,:), pointer :: ldos_mat => null()
 
      integer :: Np_n(2)      ! Number of points for n 
      integer :: Np_p(2)      ! Number of points for p 

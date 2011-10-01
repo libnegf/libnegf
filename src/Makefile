@@ -5,13 +5,15 @@
 #########################################################################
 include ../Makefile.user
 
-FC90 = ifort
+#FC90 = ifort
+FC90 = gfortran-4.6.0 
 CC = gcc
 FPP = fpp
 LIBNEGFSRC=$(shell pwd)
 SPARSEKITDIR=../ext_sparskit
 FC = $(FC90)
-FC90OPT = -g -check all 
+#FC90OPT = -g -check all 
+FC90OPT = -g -fbounds-check -Wall -pedantic 
 #FC90OPT = -O2 -xW -openmp -ip
 CFLAGS = $(CCOPT)
 F77FLAGS = $(FC90OPT)

@@ -1,4 +1,4 @@
-!!$#define MEMLOG
+                !$#define MEMLOG
 
 module ln_allocation
 
@@ -17,7 +17,7 @@ module ln_allocation
 
   interface log_allocatep
      module procedure allocate_pd, allocate_pi, allocate_pz
-     module procedure allocate_pi2
+     module procedure allocate_pd2, allocate_pi2
   end interface
 
   interface log_allocate
@@ -30,7 +30,7 @@ module ln_allocation
 
   interface log_deallocatep
      module procedure deallocate_pd, deallocate_pi, deallocate_pz
-     module procedure deallocate_pi2
+     module procedure deallocate_pd2, deallocate_pi2
   end interface
 
   interface log_deallocate
@@ -123,6 +123,33 @@ contains
        endif
     endif
   end subroutine allocate_pd
+  !---------------------------------------------------------------
+  subroutine allocate_pd2(array,row,col)
+    real(dp), DIMENSION(:,:), POINTER :: array
+    integer(4) :: row,col,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (associated(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not. associated(array)) then
+       allocate(array(row,col),stat=ierr)
+       if (ierr.ne.0) then
+          write(*,*) "ALLOCATION ERROR"; STOP
+       else
+          alloc_mem= alloc_mem + size(array)*dp    
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem 
+          endif
+#	          ifdef MEMLOG
+          call writeMemLog  
+#		  endif
+       endif
+    endif
+
+  end subroutine allocate_pd2
+
 
   subroutine allocate_pz(array,length)
     complex(kind=dp), DIMENSION(:), POINTER :: array
@@ -474,7 +501,21 @@ contains
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
   end subroutine deallocate_pd
+  !---------------------------------------------------------------
+  subroutine deallocate_pd2(array)
+    real(dp), DIMENSION(:,:), POINTER :: array
 
+    if (associated(array)) then
+       alloc_mem= alloc_mem - size(array)*dp
+       deallocate(array)
+#		ifdef MEMLOG
+       call writeMemLog  
+#		endif
+    else 
+       write(*,*) 'Warning in deallocation: array is not allocated' 
+    endif
+  end subroutine deallocate_pd2
+  !---------------------------------------------------------------
   subroutine deallocate_pz(array)
     complex(kind=dp), DIMENSION(:), POINTER :: array
 
@@ -691,7 +732,7 @@ contains
           stop
        endif
     endif
-    iolog=iofile	
+    iolog=iofile
 
   end subroutine openMemLog
 

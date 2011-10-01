@@ -479,7 +479,7 @@ CONTAINS
 
     IMPLICIT NONE 
 
-    INTEGER :: ierr, i
+    INTEGER :: i
     TYPE(z_CSR) :: ESH_tot
     INTEGER :: nbl
     TYPE(z_CSR), DIMENSION(:,:) :: ESH
@@ -532,7 +532,7 @@ CONTAINS
     TYPE(z_cSR), DIMENSION(n,n) :: A
 
     !Work
-    INTEGER :: i,j,Atot_nnz,Atot_nrow,i1,j1
+    INTEGER :: i,j,Atot_nrow,i1,j1
 
     Atot_nrow=indb(n+1)-1
 
@@ -582,8 +582,7 @@ CONTAINS
     !Work
     TYPE(z_CSR) :: work1, work2
 
-    TYPE(z_DNS) :: gsmr_d
-    INTEGER :: nrow,nrow_next,nnz
+    INTEGER :: nrow
     INTEGER :: i, nbl
 
     nbl = size(ESH,1)
@@ -698,8 +697,7 @@ CONTAINS
 
     !Work
     TYPE(z_CSR) :: work1, work2
-    TYPE(z_DNS) :: gsml_d
-    INTEGER :: nrow,nrow_prev,nnz
+    INTEGER :: nrow
     INTEGER :: i, nbl
 
     if (sbl.gt.ebl) return
@@ -809,9 +807,8 @@ CONTAINS
     INTEGER, DIMENSION(:), POINTER :: indblk
 
     !Work
-    INTEGER :: i,nrow,nrow_prev,nrow_next,nnz,nbl
+    INTEGER :: i,nrow,nbl
     TYPE(z_CSR) :: work1, work2, work3
-    TYPE(z_DNS) :: Gr_d
 
     !***
     !Gr(1,1)
@@ -947,7 +944,7 @@ CONTAINS
     INTEGER, DIMENSION(:), POINTER :: indblk 
 
     !Work
-    INTEGER :: i,j,nrow,nrow_prev,nrow_next,ncol,nbl
+    INTEGER :: i,nrow,ncol,nbl
     TYPE(z_CSR) :: work1
     REAL(dp) :: max
 
@@ -1064,7 +1061,7 @@ CONTAINS
     INTEGER :: keep_Gr
 
     !Work
-    INTEGER :: i,nrow,nrow_prev,i1,j1,ierr,nrow_tot,nbl
+    INTEGER :: i,nrow,i1,j1,ierr,nrow_tot,nbl
     TYPE(z_CSR), DIMENSION(:,:), ALLOCATABLE :: Asub
     INTEGER, DIMENSION(:), POINTER :: indblk
 
@@ -1432,7 +1429,7 @@ CONTAINS
     TYPE(z_CSR), DIMENSION(:,:), ALLOCATABLE :: Glsub
     TYPE(z_CSR) :: Gam, P
     TYPE(z_CSR) :: work1,Ga
-    INTEGER :: ierr,i,j,nrow,i1,j1,cb,nrow_tot,nrow_cb, nbl, ncont
+    INTEGER :: ierr,i,j,nrow,i1,j1,cb,nbl, ncont
     INTEGER :: oldx, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
@@ -1695,7 +1692,7 @@ CONTAINS
 
     !Work
     TYPE(z_CSR) :: work1,Grlc,Grcl,Asub
-    INTEGER :: i,cb,ierr,nrow_tot,i1,j1
+    INTEGER :: i,cb,nrow_tot,i1,j1
     INTEGER :: ncont,nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
 
@@ -1796,8 +1793,8 @@ CONTAINS
 
 
     !Work
-    TYPE(z_CSR) :: work1,Grlc,Grcl,Asub
-    INTEGER :: i,cb,ierr,nrow_tot,i1,j1
+    TYPE(z_CSR) :: work1,Grlc,Grcl
+    INTEGER :: i,cb,nrow_tot,i1,j1
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
 
@@ -1913,7 +1910,7 @@ CONTAINS
 
     !Work
     TYPE(z_CSR) :: work1, work2, work3, Gam, gsurfA, Ga, Glsub
-    INTEGER :: j,k,cb,cbj,i1,j1,nrow_tot,i,nrow_cb,nrow_cbj
+    INTEGER :: j,k,cb,cbj,i1,j1,nrow_tot
     INTEGER :: ncont, nbl
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
@@ -2195,7 +2192,7 @@ CONTAINS
     Real(kind=dp) :: TUN
     
     !Work variables
-    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl, ncont
+    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl
     Type(z_CSR) :: work1, work2, GAM1, GAM2, GA, TRS
     Real(kind=dp) :: max
     Real(kind=dp), parameter :: drop=1e-20
@@ -2287,7 +2284,7 @@ CONTAINS
     call destroy(GA) 
   
 !print*,'TUN=trace(TRS)'    
-    TUN = trace(TRS)
+    TUN = real(trace(TRS))
 !print*,'Trace done'    
 
     !call tunneling(TRS,TUN)

@@ -138,13 +138,14 @@ contains
 !--------------------------------------------------------------------
   subroutine destroy_negf(negf)
     type(Tnegf), pointer :: negf   
-    integer :: i
 
     call destroy_matrices(negf)
 
     call kill_Tstruct(negf%str) 
 
     if (associated(negf%LDOS)) call log_deallocatep(negf%LDOS)
+    if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
+    if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
 
   end subroutine destroy_negf
 !--------------------------------------------------------------------
@@ -191,7 +192,7 @@ contains
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Type(z_CSR) ::  Gr
 
-    integer :: N, k, i, i1, it
+    integer :: N, i, i1, it
     integer :: outer, nbl, ncont
 
     real(dp) :: ncyc
@@ -314,20 +315,18 @@ contains
     
     Real(dp), Dimension(:), allocatable :: currents 
     Real(dp), Dimension(:), allocatable :: TUN_MAT
-    Real(dp), Dimension(:,:), allocatable :: TUN_TOT_MAT  
     !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
     
     Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
     Real(dp), Dimension(:), allocatable :: LEDOS
-    Real(dp), Dimension(:,:), allocatable :: LEDOS_MAT
-    Real(dp) :: avncyc, ncyc, Ec_min, mumin, mumax, telec
+    Real(dp) :: ncyc, Ec_min, mumin, mumax
     
     Complex(dp) :: Ec
     
     Integer, Dimension(:), pointer :: cblk, indblk
     Integer :: i, Nstep, npid, istart, iend, i1
     Integer :: size_ni, size_nf, icpl, ncont, icont
-    Integer :: ierr, nbl, nit, nft
+    Integer :: nbl
     Integer :: iLDOS
     
     Character(6) :: ofKP
@@ -391,15 +390,15 @@ contains
     iend = npid
     
     call log_allocate(TUN_MAT,size_ni)
-    call log_allocate(TUN_TOT_MAT,Nstep+1,size_ni)   
+    call log_allocatep(negf%tunn_mat,Nstep+1,size_ni)   
     !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
     !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
-    TUN_TOT_MAT = 0.0_dp 
+    negf%tunn_mat = 0.0_dp 
 
     if (do_LEDOS) then
-       call log_allocate(LEDOS_MAT,Nstep+1,negf%nLDOS)
+       call log_allocatep(negf%ldos_mat,Nstep+1,negf%nLDOS)
        call log_allocate(LEDOS,negf%nLDOS)          
-       LEDOS_MAT(:,:)=0.d0
+       negf%ldos_mat(:,:)=0.d0
     endif
     
     
@@ -431,7 +430,7 @@ contains
           
           call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
                negf%str,TUN_MAT)
-          TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
+          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
           
        else
           
@@ -440,8 +439,8 @@ contains
           call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,Gs,negf%ni,negf%nf,negf%nLDOS, &
                negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
           
-          TUN_TOT_MAT(i1,:) = TUN_MAT(:) * negf%wght
-          LEDOS_MAT(i1,:) = LEDOS(:) * negf%wght
+          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
+          negf%ldos_mat(i1,:) = LEDOS(:) * negf%wght
           
        endif
 
@@ -465,7 +464,7 @@ contains
        Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
        
        WRITE(121,'(E17.8,20(E17.8))') REAL(Ec)*negf%eneconv, &
-            (TUN_TOT_MAT(i,i1), i1=1,size_ni)
+            (negf%tunn_mat(i,i1), i1=1,size_ni)
        
     enddo
     
@@ -480,7 +479,7 @@ contains
           Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
           
           WRITE(126,'(E17.8,10(E17.8))') REAL(Ec)*negf%eneconv, & 
-               ((LEDOS_MAT(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
+               ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
           
        end do
        
@@ -513,7 +512,7 @@ contains
           write(*,*) 'emin=',negf%emin,'emax=',negf%emax    
        endif
        
-       currents(icpl)= integrate(TUN_TOT_MAT(:,icpl),mumin,mumax,negf%kbT, &
+       currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
             negf%Emin,negf%Emax,negf%Estep)
        
     enddo
@@ -528,7 +527,6 @@ contains
     
     close(101)
     
-    call log_deallocate(TUN_TOT_MAT)
     
     call log_deallocate(TUN_MAT)
     !call log_deallocate(TUN_PMAT)
@@ -541,7 +539,6 @@ contains
     
     if(do_LEDOS) then
        call log_deallocate(LEDOS)
-       call log_deallocate(LEDOS_MAT)
     endif
     
     
@@ -1103,11 +1100,11 @@ subroutine contour_int(negf)
   type(z_CSR) :: GreenR, TmpMt 
 
   integer :: npid, istart, iend, NumPoles
-  integer :: i, i1, outer, it, ncont, nbl
+  integer :: i, i1, outer, ncont, nbl
 
   real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
   real(dp) :: Omega, Lambda, Rad, Centre
-  real(dp) :: muref, kbT, teta, alpha
+  real(dp) :: muref, kbT, alpha
   real(dp) :: ncyc, dt, Elow
 
   complex(dp) :: z1,z2,z_diff, zt
@@ -1376,16 +1373,16 @@ end subroutine contour_int
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
-    integer :: npid, istart, iend, NumPoles, ref
-    integer :: i, i1, ioffset, outer, it, ncont, nbl, j1, npT
+    integer :: npid, istart, iend, ref
+    integer :: i, i1, ioffset, outer, ncont, nbl, j1, npT
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp), DIMENSION(:), allocatable :: frm_f
     real(dp) :: Omega, mumin, mumax
     real(dp) :: ncyc, kbT, dt
 
-    complex(dp) :: z1,z2,z_diff, zt
-    complex(dp) :: Ec, ff
+    complex(dp) :: zt
+    complex(dp) :: Ec
 
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
@@ -1574,7 +1571,7 @@ end subroutine contour_int
 
     do i=1,nrow
        P%nzval(i)=1
-       P%colind(i)=cmplx(perm(i),dp)
+       P%colind(i)=perm(i)
        P%rowpnt(i)=i
     enddo
     P%rowpnt(nrow+1)=nrow+1

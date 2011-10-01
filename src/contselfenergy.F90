@@ -54,7 +54,7 @@ contains
     complex(kind=dp) :: mat_el
 
     integer :: i,i1,i2,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
-    integer :: ncyc,err,nfc,verbose,contdim,surfdim
+    integer :: ncyc,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
@@ -240,7 +240,7 @@ contains
     complex(dp), DIMENSION(n,n) :: Ao,Bo,Co 
 
     integer :: i1,err
-    complex(dp) :: E,Ecc,dens
+    complex(dp) :: E
 
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s,A1,B1,C1,A1_s
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: inAo, inAoXCo
@@ -321,8 +321,7 @@ contains
     type(z_CSR) :: SelfEneR    
 
     ! locals 
-    integer :: i,n,err,nrow,ncol
-    type(z_CSR) :: TG,TT
+    type(z_CSR) :: TG
 
     
     if(Tlc%nnz.eq.0) then

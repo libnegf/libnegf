@@ -55,7 +55,7 @@ subroutine ZMSKINVP_LA(A_csr, M_csc, INV_csc)
 !Note for allocation: INV_csc has the same dimension of M_csc            |
 !*************************************************************************
 
-integer :: i, j, INV_address, index_start, index_end, row_index, nzval_address  
+integer :: i, j, index_start, index_end, row_index, nzval_address  
 integer :: ierr, LU_iwk, iout
 type(z_CSR) :: A_csr
 complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
@@ -161,7 +161,7 @@ subroutine ZMSKINVP_MA(A_csr, M_csc, INV_csc, im, maxits, eps)
 !INV_csc: Inverted masked matrix                                         |
 !*************************************************************************
 
-integer :: i, j, INV_address, index_start, index_end, row_index, nzval_address  
+integer :: i, j, index_start, index_end, row_index, nzval_address  
 integer :: ierr, LU_iwk, iout
 type(z_CSR) :: A_csr
 complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
@@ -261,7 +261,7 @@ subroutine zINVP_MA(A_csr, INV, nrow, im, maxits, eps)
 !INV: Inverted matrix                                                    |
 !*************************************************************************
 
-integer :: i, j 
+integer :: i
 integer :: nrow, ierr, LU_iwk, iout
 type(z_CSR) :: A_csr
 complex(kind=dp), DIMENSION(nrow,nrow) :: INV
@@ -389,9 +389,9 @@ subroutine zINV_LU(A_csr, INV)
        A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
        INV, ldb, info, mem)      
 
-  alloc_mem=alloc_mem+mem
-  if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
-  alloc_mem=alloc_mem-mem         
+  !alloc_mem=alloc_mem+mem
+  !if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
+  !alloc_mem=alloc_mem-mem         
   
   !Deallocazione della matrice CSC
   call destroy(A_csc)
@@ -500,7 +500,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   COMPLEX(dp), ALLOCATABLE, DIMENSION(:,:) :: X,B
   TYPE(z_vec), ALLOCATABLE, DIMENSION(:) :: RM
-  INTEGER :: i1,i2, mem
+  INTEGER :: i1,i2
 
   integer(4) :: MTYPE,NRHS,cnt,indx,nnz
   INTEGER(4) :: info,MSGLVL,PHASE,MAXFCT,MNUM
@@ -648,9 +648,9 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   deallocate(RM)
 
   ! -----------------------------------------------------------------------------------------
-  alloc_mem=alloc_mem+IPARM(15)*1024
-   if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
-   alloc_mem=alloc_mem-IPARM(15)*1024
+  !alloc_mem=alloc_mem+IPARM(15)*1024
+  ! if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
+  !alloc_mem=alloc_mem-IPARM(15)*1024
   ! -----------------------------------------------------------------------------------------
   PHASE = -1 !release all internal memory
 

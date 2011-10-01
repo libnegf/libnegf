@@ -264,13 +264,13 @@ CONTAINS
     type(r_CSR) :: sp
     type(r_DNS) :: dense
 
-    integer :: ierr,nrow
+    integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
        WRITE(*,*) 'WARNING (rcsrdns_st): matrices don''t match'; 
     endif
 
-    dense%val(:,:)=(0.d0, 0.d0)
+    dense%val(:,:)=0.d0
 
     IF (sp%nnz.NE.0) THEN
 
@@ -298,7 +298,7 @@ CONTAINS
     type(r_CSR) :: sp
     type(r_DNS) :: dense
 
-    integer :: ierr,nrow
+    integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
        WRITE(*,*) 'WARNING (rcsrdns_st): matrices don''t match'; 
@@ -336,7 +336,7 @@ CONTAINS
     implicit none
     
     type(r_CSR) :: A_csr,B_csr,C_csr
-    integer :: ierr,B_ncol,nnz
+    integer :: ierr,B_ncol
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
     if(C_csr%nrow.ne.A_csr%nrow) STOP 'Warning in amub subroutine: nrow differ'
@@ -627,7 +627,6 @@ CONTAINS
 
     IMPLICIT NONE 
 
-    INTEGER :: ierr, i
     TYPE(z_CSR) :: G,M
     TYPE(z_CSR) :: work
 
@@ -684,7 +683,7 @@ CONTAINS
 
     TYPE(z_DNS) :: dense
     TYPE(z_CSR) :: sp
-    INTEGER :: ierr, nrow
+    INTEGER :: ierr
 
     IF(dense%nrow.ne.sp%nrow) THEN
        STOP 'ERROR in DNSCSR: MATRICES DO NOT MATCH'
@@ -723,7 +722,7 @@ CONTAINS
     TYPE(z_DNS) :: dense
     TYPE(z_CSC) :: sp
     TYPE(z_CSR) :: sp_csr
-    INTEGER :: ierr, nrow
+    INTEGER :: ierr
 
     IF (sp%nnz.NE.0) THEN
 
@@ -756,7 +755,7 @@ CONTAINS
     type(z_CSR) :: sp
     type(z_DNS) :: dense
 
-    integer :: ierr,nrow
+    integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
        WRITE(*,*) 'WARNING (zcsrdns_st): matrices don''t match'; 
@@ -793,7 +792,7 @@ CONTAINS
     type(z_CSR) :: sp_csr
     type(z_DNS) :: dense
 
-    integer :: ierr,nrow
+    integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
        WRITE(*,*) 'WARNING (zcsrdns_st): matrices don''t match'; 
@@ -961,10 +960,11 @@ CONTAINS
   subroutine zprint_csrdns(iofile,A_csr,flag)
 
     type(z_CSR) :: A_csr
-    integer :: i,j,A_ncol,ierr,iofile
+    integer :: iofile
     character(1) :: flag
 
     type(z_DNS) :: A
+    integer :: i,j
 
     call create(A,A_csr%nrow,A_csr%ncol)
 
@@ -1036,10 +1036,11 @@ CONTAINS
   subroutine zprint_csrcoo(iofile,A_csr,flag)
 
     type(z_CSR) :: A_csr
-    integer :: i,j,A_ncol,ierr,iofile
+    integer :: iofile 
     character(1) :: flag
 
     type(z_COO) :: A
+    integer :: k 
 
     call create(A,A_csr%nrow,A_csr%ncol,A_csr%nnz)
 
@@ -1281,7 +1282,7 @@ CONTAINS
     implicit none
     
     type(z_CSR) :: A_csr,B_csr,C_csr
-    integer :: ierr,B_ncol,nnz
+    integer :: ierr,B_ncol
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
 
@@ -1318,7 +1319,7 @@ CONTAINS
     implicit none
     
     type(z_CSR) :: A_csr,B_csr,C_csr
-    integer :: ierr,A_ncol,nnz
+    integer :: ierr,A_ncol
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
 
@@ -1364,7 +1365,7 @@ CONTAINS
     
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
-    integer :: ierr,B_ncol,nnz
+    integer :: ierr,B_ncol
     integer, DIMENSION(:), ALLOCATABLE :: iw 
         
     !Allocazione work array iw
@@ -1643,7 +1644,7 @@ CONTAINS
   function zchkdrp(A,drop) result(nnz)
 
     implicit none
-    integer :: nrow,ncol,nnz,i,j
+    integer :: nnz,i,j
 
     Type(z_DNS) :: A
     !Questo deve rimanere reale
@@ -1771,9 +1772,9 @@ CONTAINS
 
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
-    integer :: ierr,A_ncol,B_ncol,nnz
+    integer :: ierr,B_ncol,nnz
 
+    integer, DIMENSION(:), ALLOCATABLE :: iw 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        WRITE(*,*) 'WARNING (zmultccsr): matrices don''t match';
        WRITE(*,*) 'A%ncol=',A_csr%ncol,'B%nrow=',B_csr%nrow  
@@ -1860,7 +1861,6 @@ CONTAINS
     implicit none
 
     type(z_DNS) :: A_dns,B_dns,C_dns
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
     integer :: M,N,K
     complex(dp), parameter :: s = (1.d0, 0.d0)
     complex(dp), parameter :: beta =(0.d0,0.d0)
@@ -1899,7 +1899,6 @@ CONTAINS
 
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
     integer :: M,N,K
     complex(dp), parameter :: s = (1.d0, 0.d0)
     complex(dp), parameter :: beta =(0.d0,0.d0)
@@ -1940,8 +1939,7 @@ CONTAINS
     type(z_DNS) :: C_dns
     complex(dp) :: s 
 
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
-    integer :: M,N,K,L 
+    integer :: M,N,K
     complex(dp), parameter :: beta =(0.d0,0.d0)
 
     IF (size(A,2).NE.size(B,1)) THEN
@@ -1988,7 +1986,6 @@ CONTAINS
 
     type(z_DNS) :: A_dns,B_dns,C_dns
     complex(dp) :: s
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
     integer :: M,N,K
     complex(dp), parameter :: beta =(0.d0,0.d0)
 
@@ -2084,7 +2081,6 @@ CONTAINS
     implicit none
 
     type(z_CSR) :: A_csr,B_csr,C_csr
-    complex(kind=dp) :: s
     integer :: ierr,A_ncol
 
     if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
@@ -2448,7 +2444,7 @@ CONTAINS
 
     TYPE(z_CSR) :: A_csr, B_csr,D_csr
     TYPE(z_CSR) :: C_csr
-    INTEGER :: i1,i2,j1,ierr
+    INTEGER :: i1,j1
     
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
        STOP 'Warning in concat_st: A_csr is to small, B_csr exceeds rows'
@@ -2515,8 +2511,7 @@ CONTAINS
 
     TYPE(z_CSR) :: A_csr, B_csr,D_csr
     TYPE(z_CSR) :: C_csr
-    INTEGER :: i1,i2,j1,ierr
-    INTEGER, DIMENSION(:), ALLOCATABLE :: iw 
+    INTEGER :: i1,i2,j1
     COMPLEX(kind=dp) :: s
 
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
@@ -2589,8 +2584,7 @@ CONTAINS
     TYPE(r_CSR) :: A_csr, D_csr, C_csr
     TYPE(z_CSR) :: B_csr
     CHARACTER(1) :: Ty
-    INTEGER :: i1,i2,j1,ierr
-    INTEGER, DIMENSION(:), ALLOCATABLE :: iw 
+    INTEGER :: i1,i2,j1
     COMPLEX(kind=dp) :: s
 
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
@@ -2739,10 +2733,9 @@ CONTAINS
     implicit none
 
     type(z_CSR) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR, flagA
+    integer :: flagR
 
     integer :: i
-    complex(kind=dp) :: temp
 
     !Hermitiano di GreenR2 passato in GreenA
     call zdagacsr(GreenR2,GreenA)
@@ -2796,7 +2789,7 @@ CONTAINS
   type(z_EXT_COO) :: A
   type(z_CSR) :: B
 
-  integer :: n,m,nnz,nnz_p
+  integer :: n,nnz,nnz_p
   
   nnz=A%nnz
   ! First count primitive non-zero values
@@ -2944,7 +2937,6 @@ end subroutine zcooxcsr_st
     implicit none
 
     type(z_CSR) :: A_csr
-    integer :: nrow
     complex(kind=dp), dimension(:) :: D_vec
 
     integer :: len
@@ -2969,7 +2961,6 @@ end subroutine zcooxcsr_st
     type(z_CSR) :: mat
     complex(dp) :: trace
 
-    integer :: i, nrow
     complex(kind=dp), dimension(:), allocatable :: D_vec
     
     call log_allocate(D_vec,mat%nrow)

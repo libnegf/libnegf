@@ -36,7 +36,7 @@ contains
     Type(Tnegf), pointer :: negf
 
     Integer :: i, ncont, i1, i2, j1, j2
-    Integer :: cstart(MAXNCONT),cend(MAXNCONT),nmdim       
+    Integer :: cstart(MAXNCONT),cend(MAXNCONT)
     Integer :: ncdim(MAXNCONT), surfdim(MAXNCONT)
 
     ncont =  negf%str%num_conts
