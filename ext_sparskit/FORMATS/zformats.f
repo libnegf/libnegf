@@ -147,7 +147,7 @@ c-----------------------------------------------------------------------
       ia(1) = 1
       do 4 i=1,nrow
          do 3 j=1, ncol 
-            if (dns(i,j) .eq. 0.0d0) goto 3
+            if (abs(dns(i,j)) .eq. 0.0d0) goto 3
             if (next .gt. nzmax) then
                ierr = i
                return

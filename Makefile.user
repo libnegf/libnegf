@@ -44,8 +44,8 @@ ifeq ($(ARCH1),x86_64)
    MPI_DIR = /usr/pack/mpich2-1.0.8-gp/amd64-debian-linux4.0/bin
    FC90 = ifort 
    #FC90 =g95
-   MKL_LIBDIR = /usr/pack/intel_mkl-10.2-gp/lib/em64t
-   MKL_INCLUDE = /usr/pack/intel_mkl-10.2-gp/include/em64t
+   MKL_LIBDIR = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
+   MKL_INCLUDE = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
    LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lguide 
    LIB_LAPACK = 
 

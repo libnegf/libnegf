@@ -1,6 +1,6 @@
 
 # Which compiler to use
-CC = cc
+CC = gcc
 
 # What optimization level to use
 OPTFLAGS = -O2 

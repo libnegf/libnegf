@@ -42,7 +42,8 @@ LIBNEGFSRC = $(ROOT)/src
 include $(ROOT)/Makefile.user
 F77 = $(FC90)
 AR = ar -rcv 
-OPT = -O3 -c
+#OPT = -g -c -check all
+OPT = -O3 -axSSE4.2 -c
 #OPT = $(FC90OPT) -c 
 
 #
