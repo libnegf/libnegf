@@ -1,6 +1,6 @@
-#include "UptSolverException.h"
+#include "NEGFSolverException.h"
 
-const char* ETBSolverException::what(void) const throw()
+const char* NEGFSolverException::what(void) const throw()
 {
    switch(_error)
    {
@@ -79,6 +79,6 @@ const char* ETBSolverException::what(void) const throw()
 extern "C" {
   void throw_solve_exception_(const int& errcode)
   {
-     throw ETBSolverException(errcode);
+     throw NEGFSolverException(errcode);
   }
 }

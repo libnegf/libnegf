@@ -21,7 +21,7 @@ module libnegf
  implicit none
  private
 
- public :: init_negf, destroy_matrices, destroy_negf
+ public :: init_negf, negf_version, destroy_matrices, destroy_negf
  public :: compute_dos, compute_contacts
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: compute_current, integrate
@@ -33,6 +33,7 @@ module libnegf
 
 contains
   
+
   subroutine init_negf(negf)
     type(Tnegf), pointer :: negf
     Integer :: ncont, nbl
@@ -124,7 +125,20 @@ contains
     call log_deallocate(surf_end)
 
   end subroutine init_negf
+!--------------------------------------------------------------------
 
+  subroutine negf_version(negf)
+    type(Tnegf), pointer :: negf
+    character(3), parameter :: SVNVER= __SVNREVISION 
+    character(10),parameter :: DATE= __COMPDATE 
+    character(3),parameter :: MODIF= __MODIFIED 
+ 
+    write(*,'(a21,a3,a2,2x,a10)') '(libnegf) version: 1.',TRIM(SVNVER), & 
+                                           TRIM(MODIF), TRIM(DATE) 
+
+  end subroutine negf_version
+
+  
 !--------------------------------------------------------------------
   subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
     type(Tnegf), pointer :: negf

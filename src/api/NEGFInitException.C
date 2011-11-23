@@ -1,6 +1,6 @@
-#include "UptInitException.h"
+#include "NEGFInitException.h"
 
-const char* ETBInitException::what(void) const throw()
+const char* NEGFInitException::what(void) const throw()
 {
    switch(_error)
    {
@@ -70,6 +70,6 @@ const char* ETBInitException::what(void) const throw()
 extern "C" {
   void throw_init_exception_(const int& errcode)
   {
-     throw ETBInitException(errcode);
+     throw NEGFInitException(errcode);
   }
 }

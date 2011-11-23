@@ -5,12 +5,13 @@ module libnegfAPICommon
   implicit none
   private
 
-  public :: DAC_handlerSize, TNegf   !, NEGFPointers
+  public :: DAC_handlerSize, NEGFPointers
+  public :: TNegf 
 
   !!* Contains a pointer to a TUPTIn and an OUPT instance
-  !type NEGFPointers
-  !   type(TNegf), pointer :: plibNEGF
-  !end type NEGFPointers
+  type NEGFPointers
+     type(TNegf), pointer :: pNEGF
+  end type NEGFPointers
   
   ! Size handler 4 bytes * 4 = 16 bytes
   integer, parameter :: DAC_handlerSize = 4  

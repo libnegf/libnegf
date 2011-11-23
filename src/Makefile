@@ -5,25 +5,29 @@
 #########################################################################
 include ../Makefile.user
 
+TARGET_BASE = libnegf
+ARCH = $(shell uname -m)-linux-ifort
+
 #FC90 = ifort
-FC90 = gfortran-4.6.0 
-CC = gcc
-FPP = fpp
-LIBNEGFSRC=$(shell pwd)
-SPARSEKITDIR=../ext_sparskit
+#FC90 = gfortran-4.6.0 
 FC = $(FC90)
+
 #FC90OPT = -g -check all 
-FC90OPT = -g -fbounds-check -Wall -pedantic 
+#FC90OPT = -g -fbounds-check -Wall -pedantic 
 #FC90OPT = -O2 -xW -openmp -ip
+
 CFLAGS = $(CCOPT)
 F77FLAGS = $(FC90OPT)
 FPPFLAGS = -D__PARDISO
 LINKFLAG = -openmp
 
-TARGET_BASE = libnegf
+FPPFLAGS += -D__SVNREVISION='"$(shell svn info | awk '/^Last Changed Rev/{print $$4}' )"'
+FPPFLAGS += -D__MODIFIED='"$(shell svn status | grep 'M ' | grep -m1 -o 'M ')"'
+FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
 
-ARCH = $(shell uname -m)-linux-ifort
 
+LIBNEGFSRC=$(shell pwd)
+SPARSEKITDIR=../ext_sparskit
 METIS_DIR = ../ext_metis/metis-4.0
 LIB_METIS = $(METIS_DIR)/libmetis.a 
 

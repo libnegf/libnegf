@@ -1,16 +1,16 @@
 
-#ifndef _UPTSOLVEREXCEPTION_H_
-#define _UPTSOLVEREXCEPTION_H_
+#ifndef _NEGFSOLVEREXCEPTION_H_
+#define _NEGFSOLVEREXCEPTION_H_
 
 #include "SolveFailedException.h"
 #include "exception_codes.h"
 
 //! An exception class for the solver interfaces
-class ETBSolverException : public SolveFailedException 
+class NEGFSolverException : public SolveFailedException 
 {
 
   public:
-     ETBSolverException(const int errorcode)
+     NEGFSolverException(const int errorcode)
 	     : SolveFailedException(""), _error(errorcode){};
 
      virtual const char* what() const throw();  
@@ -20,4 +20,4 @@ class ETBSolverException : public SolveFailedException
 };
 
 
-#endif // _UPTSOLVEREXCEPTION_H_
+#endif // _NEGFSOLVEREXCEPTION_H_

@@ -1,15 +1,15 @@
-#ifndef _UPTINITEXCEPTION_H_
-#define _UPTINITEXCEPTION_H_
+#ifndef _NEGFINITEXCEPTION_H_
+#define _NEGFINITEXCEPTION_H_
 
 #include "InitFailedException.h"
 #include "exception_codes.h"
 
 //! An exception class for the solver interfaces
-class ETBInitException : public InitFailedException 
+class NEGFInitException : public InitFailedException 
 {
 
   public:
-     ETBInitException(const int errorcode)
+     NEGFInitException(const int errorcode)
 	     : InitFailedException(""), _error(errorcode){};
 
      virtual const char* what() const throw();  
