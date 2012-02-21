@@ -401,6 +401,7 @@ print*,'+'
     Character(6) :: ofKP
     Logical :: do_LEDOS, lex
 
+    do_LEDOS = .false.
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     
     nbl = negf%str%num_PLs
@@ -418,6 +419,8 @@ print*,'+'
     !Get out if Emax<Emin and Nstep<0
     if (Nstep.lt.0) then
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
+       call log_allocatep(negf%tunn_mat,0,0)
+       if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
        return
     endif
     
@@ -483,7 +486,7 @@ print*,'+'
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
-       
+
        call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -578,10 +581,16 @@ print*,'+'
        mumin=mumin_array(icpl)
        mumax=mumax_array(icpl)
 
-       if (id0.and.mumin.lt.mumax.and.(mumin.lt.negf%Emin.or.mumax.gt.negf%Emax)) then
+       !checks if the energy interval is appropriate
+       if (id0.and.mumin.lt.mumax) then
+               
+        if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
           write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
-          write(*,*) 'mumin=',mumin,'mumax=',mumax
-          write(*,*) 'emin=',negf%emin,'emax=',negf%emax    
+          write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
+          write(*,*) 'kT=',negf%kbT*negf%eneconv    
+          write(*,*) 'Suggested interval:', &
+                (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
+         endif
        endif
        
        currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
@@ -671,11 +680,6 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
      endif
   enddo
 
-  !checks if the energy interval is appropriate
-  if (imin.lt.0.or.imax.gt.Nstep.or.imin.eq.imax) then
-     write(*,*) 'WARNING: Wrong energy interval for current calculation'
-     write(*,*) 'Suggested interval:',(mumin-10*kbT),(mumax+10*kbT)
-  endif
 
   !rest the min and max to the actual interval
   if (imin.lt.0) imin=0
@@ -1929,10 +1933,11 @@ end subroutine contour_int
     
   END FUNCTION sprs_element
 
-  subroutine printcsr(mat)
+  subroutine printcsr(id, mat)
+    integer :: id
     type(z_csr) :: mat
     
-    call zprint_csrcoo(6,mat,'c')
+    call zprint_csrcoo(id, mat, 'c')
   end subroutine printcsr
 
 

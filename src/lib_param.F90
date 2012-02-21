@@ -29,6 +29,7 @@ module lib_param
 
      integer   :: ReadoldSGF           ! 0: Read 1: compute 2: comp & save
      logical   :: FictCont(MAXNCONT)   ! Ficticious contact 
+     logical   :: dumpHS               ! Used for debug
 
      real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
      real(dp) :: Efermi(MAXNCONT)      ! Energia di Fermi dei contatti

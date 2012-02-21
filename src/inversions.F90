@@ -754,29 +754,38 @@ end subroutine rinv
 
   !--------------------------------------------------------------------------
 
-  subroutine block2Green(G,A,n)
+  recursive subroutine block2Green(G,A,n,iter)
 
-    complex(dp), dimension(:,:) :: A, G
+    complex(dp), dimension(:,:), intent(out) :: G
+    complex(dp), dimension(:,:), intent(in) :: A
+    integer, intent(in) :: n
+    integer, intent(inout) :: iter
+    ! Locals
     Type(z_DNS) :: G11,G12,G21,G22
     Type(z_dns) :: h11,gr22
-    Type(z_DNS) :: work1,work2,work3,work4
-    Integer :: n, bl1, bl2, n2
-    !complex(dp) :: g(n,n),A(n,n)
+    Type(z_DNS) :: work1,work2,work4
+    Integer :: bl1, b22, n2, k
+    Integer, parameter :: maxiter=2
 
     bl1 = n/2
-    bl2 = n - bl1
+    b22 = n - bl1
     n2 = bl1 + 1 
 
+    call create(gr22,b22,b22)
 
-    call create(gr22,bl2,bl2)
-
-    call inverse(gr22%val,A(n2:n,n2:n),bl2)    !g22 in uscita
+    if (iter.lt.maxiter) then
+       iter = iter + 1
+       call block2Green(gr22%val,A(n2:n,n2:n),b22,iter)     
+       iter = iter - 1
+    else
+       call inverse(gr22%val,A(n2:n,n2:n),b22)    !g22 in uscita
+    endif
 
     call prealloc_mult(A(1:bl1,n2:n),gr22%val,work1)
 
     call prealloc_mult(work1%val,A(n2:n,1:bl1),(-1.d0,0.d0),work2)
 
-    call destroy(work1)
+    !keep work1 = T12 * g22
 
     call create(h11,bl1,bl1)
 
@@ -786,35 +795,27 @@ end subroutine rinv
 
     call create(G11,bl1,bl1)
 
-    call inverse(G11%val,h11%val,bl1)        !blocco G11
+    if (iter.lt.maxiter) then
+       iter = iter + 1
+       call block2Green(G11%val,h11%val,bl1,iter)     
+       iter = iter - 1
+    else
+       call inverse(G11%val,h11%val,bl1)        !blocco G11
+    endif
 
     call destroy(h11)
 
-    call prealloc_mult(G11%val,A(1:bl1,n2:n),work1)
+    call prealloc_mult(G11%val,work1%val,(-1.d0,0.d0),G12)
 
-    call prealloc_mult(work1%val,gr22%val,(-1.d0,0.d0),G12) ! G12     
+    call prealloc_mult(gr22%val,A(n2:n,1:bl1),work2)
 
-    call destroy(work1)
+    call prealloc_mult(work2,G11,G21)    !blocco G21 
 
-    call prealloc_mult(gr22%val,A(n2:n,1:bl1),work1)
+    call destroy(work2)  
 
-    call prealloc_mult(work1,G11,(-1.d0,0.d0),G21)    !blocco G21 
-
-    call destroy(work1)  
-
-    call prealloc_mult(gr22%val,A(n2:n,1:bl1),work1)
-
-    call prealloc_mult(work1,G11,work2)
+    call prealloc_mult(G21%val,work1%val,work4)
 
     call destroy(work1)
-
-    call prealloc_mult(work2%val,A(1:bl1,n2:n),work3)
-
-    call destroy(work2)
-
-    call prealloc_mult(work3,gr22,work4)
-
-    call destroy(work3)
 
     call prealloc_sum(gr22,work4,G22)          !blocco G22
 
@@ -825,7 +826,7 @@ end subroutine rinv
 
     G(1:bl1,1:bl1) = G11%val
     G(1:bl1,n2:n) = G12%val
-    G(n2:n,1:bl1) = G21%val
+    G(n2:n,1:bl1) = -G21%val
     G(n2:n,n2:n) = G22%val
 
 

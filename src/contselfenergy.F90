@@ -110,11 +110,12 @@ contains
 
        dens=pi*pnegf%contact_DOS(i)
        nfc=nfc+1
-       do i1 = 1,contdim 
+       do i1 = 1,ngs 
           GS%val(i1,i1)=-j*dens
        end do
 
     else
+
        !   1      n0 n1 n2 n3  n4
        !   +--------+-----+-----+
        !      Surf    PL1   PL2
@@ -239,7 +240,7 @@ contains
     type(z_DNS) :: GS
     complex(dp), DIMENSION(n,n) :: Ao,Bo,Co 
 
-    integer :: i1,err
+    integer :: i1,err, iter
     complex(dp) :: E
 
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s,A1,B1,C1,A1_s
@@ -258,7 +259,8 @@ contains
     do i1=1,300
       !write(*,*) 'decimation:',i1
       !call zinv(inAo,Ao,n)
-       call block2Green(inAo,Ao,n)
+       iter = 1
+       call block2Green(inAo,Ao,n,iter)
 
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Bo, n,  beta, inAoXBo, n)
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Co, n,  beta, inAoXCo, n) 
@@ -284,8 +286,8 @@ contains
     end do
     !write(*,*) 'decimation: final inv'
     !call zinv(Gamma,A1_s,n)
-
-    call block2green(Gamma,A1_s,n)
+    iter = 1
+    call block2green(Gamma,A1_s,n,iter)
 
     GS%val(n1:n2,n1:n2) = Gamma(1:n,1:n)
 
@@ -332,10 +334,8 @@ contains
     endif
 
     !print*, 'Tlc GS = TG', Tlc%ncol,GS%nrow    
-
     call prealloc_mult(Tlc,GS,TG)
     !print *, 'TG', TG%nrow,TG%nnz
-    
     call prealloc_mult(TG,Tcl,SelfEneR)
     
     !deallocate (TG,TT)

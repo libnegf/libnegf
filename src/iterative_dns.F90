@@ -622,9 +622,7 @@ CONTAINS
     DO i=sbl-1,ebl,(-1)
 
        nrow=ESH(i,i)%nrow          !indblk(i+1)-indblk(i)
-
        CALL prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.d0, 0.d0),work1)
-
        CALL prealloc_mult(work1,ESH(i+1,i),work2)
 
        CALL destroy(work1)
@@ -780,9 +778,7 @@ CONTAINS
     endif
 
     if(nbl.gt.1) then
-
        CALL prealloc_mult(ESH(1,2),gsmr(2),work1)
-
        CALL prealloc_mult(work1,ESH(2,1),work2)
 
        CALL destroy(work1)
@@ -816,13 +812,10 @@ CONTAINS
        !Diagonal blocks
        !***
        CALL prealloc_mult(gsmr(i),ESH(i,i-1),work1)
-
        CALL prealloc_mult(work1,Gr(i-1,i-1),work2)
 
        CALL destroy(work1)
-
        CALL prealloc_mult(ESH(i-1,i),gsmr(i),work3)
-
        CALL prealloc_mult(work2,work3,work1)
 
        CALL destroy(work2)
@@ -841,9 +834,7 @@ CONTAINS
        !***
        !Subdiagonal blocks
        !***
-
        CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
-
        CALL prealloc_mult(work1,Gr(i-1,i-1),Gr(i,i-1))
 
        CALL destroy(work1)
@@ -2517,7 +2508,7 @@ CONTAINS
     Type(z_DNS) :: A, G
     Integer :: n
 
-    Integer :: sel
+    Integer :: sel, iter
 
 
     sel = 2
@@ -2528,7 +2519,8 @@ CONTAINS
     case(1)
        call inverse(G%val,A%val,n)
     case(2)
-       call block2Green(G%val,A%val,n)
+       iter = 1     
+       call block2Green(G%val,A%val,n,iter)
     case(3)
        call block3Green(G%val,A%val,n)
     end select
