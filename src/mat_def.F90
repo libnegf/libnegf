@@ -474,7 +474,7 @@ subroutine zcreate_CSC(mat,nrow,ncol,nnz)
   type(z_CSC) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_CSC) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -617,7 +617,7 @@ subroutine zcreate_MSR(mat,nrow,ncol,nnz)
   type(z_MSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_MSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -662,7 +662,7 @@ subroutine zcreate_COO(mat,nrow,ncol,nnz)
   type(z_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -824,7 +824,7 @@ subroutine zcreate_EXT_COO(mat,nrow,ncol,nnz)
   type(z_EXT_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_EXT_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -864,7 +864,7 @@ subroutine zcreate_DNS(mat,nrow,ncol)
   type(z_DNS) :: mat
   integer :: nrow, ncol
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
@@ -968,7 +968,7 @@ subroutine rcreate_CSR(mat,nrow,ncol,nnz)
   type(r_CSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_CSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1145,7 +1145,7 @@ subroutine rcreate_CSC(mat,nrow,ncol,nnz)
   type(r_CSC) :: mat
   integer :: nrow, ncol, nnz
   
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (rcreate_CSC) nrow or ncol = 0'
    
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1192,7 +1192,7 @@ subroutine rcreate_MSR(mat,nrow,ncol,nnz)
   type(r_MSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (rcreate_MSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1234,7 +1234,7 @@ subroutine rcreate_COO(mat,nrow,ncol,nnz)
   type(r_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (rcreate_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1364,7 +1364,7 @@ subroutine rcreate_DNS(mat,nrow,ncol)
  integer :: nrow, ncol
   
 
-  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: nrow or ncol = 0'
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (rcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow

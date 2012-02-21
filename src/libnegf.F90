@@ -28,6 +28,7 @@ module libnegf
  public :: reorder
  public :: sort, swap
  public :: check_if_hermitian,printcsr
+ public :: extract_compute_current
 
  integer, PARAMETER :: VBT=70
 
@@ -39,66 +40,109 @@ contains
     Integer :: ncont, nbl
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(11) :: fmtstring
- 
+
+    call set_defaults(negf)
+
+    print*, '(init_negf) Initializing libnegf...'
+
+    negf%file_struct = "negf.in"
+    negf%form%formatted = .true.
+    negf%isSid = .false.
+    negf%form%type = "PETSc" 
+    negf%form%fmt = "F" 
+
+    open(101, file=negf%file_struct, form='formatted')  
+  
+    read(101,*) negf%file_re_H 
+    read(101,*) negf%file_im_H
+
+    read(101,*) negf%file_re_S
+    read(101,*) negf%file_im_S
+
+    print*, '(init_negf) files: ', trim(negf%file_re_H)
+    print*, '(init_negf) files: ', trim(negf%file_im_H)
+    print*, '(init_negf) files: ', trim(negf%file_re_S) 
+    print*, '(init_negf) files: ', trim(negf%file_im_S) 
+
+
     if(negf%form%formatted) then
        fmtstring = 'formatted'
     else
        fmtstring = 'unformatted'
     endif
 
-    open(101, file=negf%file_re_H, form=trim(fmtstring))
-    open(102, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
+    open(401, file=negf%file_re_H, form=trim(fmtstring))
+    open(402, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
 
-    call read_H(101,102,negf%H,negf%form)
+    print*, '(init_negf) Reading H...'
+    call read_H(401,402,negf%H,negf%form)
 
-    close(101)
-    close(102)
+    close(401)
+    close(402)
 
     if(.not.negf%isSid) then
-       open(101, file=negf%file_re_S, form=trim(fmtstring))
-       open(102, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
+       open(401, file=negf%file_re_S, form=trim(fmtstring))
+       open(402, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
 
-       call read_H(101,102, negf%S,negf%form)
+       print*, '(init_negf) Reading S...'
+       call read_H(401,402, negf%S,negf%form)
        
-       close(101)
-       close(102)
+       close(401)
+       close(402)
 
     else
        ! create an Id matrix for S
        call create_id( negf%S,negf%H%nrow) 
 
     endif
-
-    open(101, file=negf%file_struct, form='formatted')  
+    print*, '(init_negf) done'
 
     read(101,*) ncont
-    read(101,*) nbl
 
-    call log_allocate(PL_end,nbl)
+    print*, '(init_negf) ncont', ncont
+
     call log_allocate(cblk,ncont)
     call log_allocate(cont_end,ncont)
     call log_allocate(surf_end,ncont)
 
-    read(101,*) PL_end(1:nbl)
+    read(101,*) nbl
+
+    if (nbl .gt. 0) then
+       call log_allocate(PL_end,nbl)
+
+       read(101,*) PL_end(1:nbl)
+    endif
+
     read(101,*) cont_end(1:ncont)
     read(101,*) surf_end(1:ncont)
     read(101,*) cblk(1:ncont)
 
-    read(101,*) negf%mu_n
-    read(101,*) negf%mu_p
-    read(101,*) negf%Ec
-    read(101,*) negf%Ev
-    read(101,*) negf%DeltaEc
-    read(101,*) negf%DeltaEv
-    read(101,*) negf%Emin
-    read(101,*) negf%Emax
-    read(101,*) negf%Estep
+    if (nbl.eq.0) then
+       call log_allocate(PL_end, 100)  ! Orribile
+       call block_partition(negf%H, surf_end(1), nbl, PL_end)
+       write(*,*) "(LibNEGF) Partitioning:"
+       write(*,*) nbl
+       write(*,*) PL_end(1:nbl)
+       cblk(1)=nbl; cblk(2)=1; !! WRONG IN GENERAL
+    endif
+
+    print*, '(init_negf) before create T'
+    call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
+    print*, '(init_negf) done'
+       
+    call log_deallocate(PL_end)
+    call log_deallocate(cblk)
+    call log_deallocate(cont_end)
+    call log_deallocate(surf_end)
+
+    read(101,*) negf%mu_n, negf%mu_p
+    read(101,*) negf%Ec, negf%Ev
+    read(101,*) negf%DeltaEc, negf%DeltaEv
+    read(101,*) negf%Emin, negf%Emax, negf%Estep
     read(101,*) negf%kbT
     read(101,*) negf%wght
-    read(101,*) negf%Np_n(1)
-    read(101,*) negf%Np_n(2)
-    read(101,*) negf%Np_p(1)
-    read(101,*) negf%Np_p(2)
+    read(101,*) negf%Np_n(1:2)
+    read(101,*) negf%Np_p(1:2)
     read(101,*) negf%Np_real
     read(101,*) negf%n_kt
     read(101,*) negf%n_poles
@@ -114,15 +158,6 @@ contains
 
     print*, '(init_negf) LDOS:'
     print*, negf%LDOS
-
-    print*, '(init_negf) before create T'
-    call create_Tstruct(ncont, nbl, PL_end, cont_end, surf_end, cblk, negf%str)
-    print*, '(init_negf) done'
-
-    call log_deallocate(PL_end)
-    call log_deallocate(cblk)
-    call log_deallocate(cont_end)
-    call log_deallocate(surf_end)
 
   end subroutine init_negf
 !--------------------------------------------------------------------
@@ -281,9 +316,12 @@ contains
     
     do l= 1,ncont
        pnegf%activecont=l
+print*
+print*,'compute surface green'
        call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
        i1 = nzdrop(GS_d,EPS)
        
+print*,GS_d%nrow,GS_d%ncol
        call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
        
        call dns2csr(GS_d,GS(l))
@@ -302,8 +340,9 @@ contains
     !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
     
     do i1=1,ncont
+print*,'+'
        call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-       
+print*,'+'       
        call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
        
        call zdagacsr(TpMt,Tcl(i1))
@@ -319,7 +358,23 @@ contains
   end subroutine compute_contacts
   
   !-------------------------------------------------------------------------------
-  
+  subroutine extract_compute_current(negf)
+
+    type(Tnegf), pointer :: negf
+
+    !print*, '(negf) extract device'
+    call extract_device(negf)
+    !print*, '(negf) extract cont'
+    call extract_cont(negf)
+    !print*, '(negf) extract current'
+    call compute_current(negf)
+    !print*, '(negf) del mats'
+    call destroy_matrices(negf)
+    !print*, '(negf) ciao ciao'
+  end subroutine extract_compute_current
+
+
+  !------------------------------------------------------------------------------- 
   subroutine compute_current(negf)
     
     
@@ -472,7 +527,10 @@ contains
     write(ofKP,'(i6.6)') negf%kpoint
     
     open(121,file='tunneling_'//ofKP//'.dat')
-    
+
+    print*,'ENE CONV=',negf%eneconv
+    negf%eneconv=1.d0
+
     do i = 1,Nstep+1
        
        Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
@@ -1607,18 +1665,19 @@ end subroutine contour_int
 !----------------------------------------------------------------------
 
   
-  subroutine block_partition(mat,nbl,blks)
+  subroutine block_partition(mat,nrow,nbl,blks)
     type(z_CSR), intent(in) :: mat
+    integer, intent(in) :: nrow
     integer, intent(out) :: nbl
     integer, dimension(:), intent(inout) :: blks 
 
     integer :: j, k
     integer :: i1, i2
 
-    integer :: rn, rnold, tmax, rmax,  nrow, maxmax
+    integer :: rn, rnold, tmax, rmax, maxmax
     integer :: dbuff, minsize
 
-    nrow = mat%nrow
+    !nrow = mat%nrow
     
     ! Find maximal stancil of the matrix and on which row
     !  ( Xx     )

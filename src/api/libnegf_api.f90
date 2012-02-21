@@ -63,7 +63,7 @@ end subroutine negf_init_session
 
 subroutine negf_getversion(handler)
   use libnegfAPICommon  ! if:mod:use
-  use libnegf, only : negf_version
+  use libnegf  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
   
@@ -76,13 +76,45 @@ subroutine negf_getversion(handler)
 
 end subroutine negf_getversion
 
+!!* Initialises a new LIBNEGF instance
+!!* @param  handler  Contains the handler for the new instance on return
+subroutine negf_init(handler)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:inout
+
+  !type(TNEGF), pointer :: pNEGF
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+ 
+  call init_negf(LIB%pNEGF)
+  
+end subroutine negf_init
+
+!!* Initialises a new LIBNEGF instance
+!!* @param  handler  Contains the handler for the new instance on return
+!!* @param  infile 
+subroutine negf_fillparameters(handler, infile)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf, only : negf_version
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: infile                    ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+ 
+end subroutine negf_fillparameters
 
 !!* Destroys a certain LIBNEGF instance
 !!* @param  handler  Handler for the instance to destroy
 subroutine negf_destruct_session(handler)
   use libnegfAPICommon  ! if:mod:use
   implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:inout
+  integer :: handler(DAC_handlerSize)  ! if:var:in
 
   type(NEGFpointers) :: LIB
   integer :: err
@@ -100,7 +132,7 @@ end subroutine negf_destruct_session
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_destruct_libnegf(handler)
   use libnegfAPICommon  ! if:mod:use
-  use libnegf, only : destroy_negf
+  use libnegf  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -126,3 +158,18 @@ subroutine negf_set_verbosity(handler,verbose_lev)
 
 end subroutine negf_set_verbosity
 
+
+subroutine negf_current(handler)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegf  ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: verbose_lev               ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  
+  LIB = transfer(handler, LIB) 
+
+  call extract_compute_current(LIB%pNEGF)
+
+end subroutine negf_current
