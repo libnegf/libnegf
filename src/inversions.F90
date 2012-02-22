@@ -767,6 +767,11 @@ end subroutine rinv
     Integer :: bl1, b22, n2, k
     Integer, parameter :: maxiter=2
 
+    if (n.le.10) then
+       call inverse(G,A,n)
+       return
+    endif
+
     bl1 = n/2
     b22 = n - bl1
     n2 = bl1 + 1 

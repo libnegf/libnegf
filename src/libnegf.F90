@@ -123,7 +123,8 @@ contains
        write(*,*) "(LibNEGF) Partitioning:"
        write(*,*) nbl
        write(*,*) PL_end(1:nbl)
-       cblk(1)=nbl; cblk(2)=1; !! WRONG IN GENERAL
+       !cblk(1)=nbl; cblk(2)=1; !! WRONG IN GENERAL
+       cblk(1)=1; cblk(2)=nbl;
     endif
 
     print*, '(init_negf) before create T'
@@ -316,12 +317,10 @@ contains
     
     do l= 1,ncont
        pnegf%activecont=l
-print*
-print*,'compute surface green'
+
        call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
        i1 = nzdrop(GS_d,EPS)
        
-print*,GS_d%nrow,GS_d%ncol
        call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
        
        call dns2csr(GS_d,GS(l))
@@ -340,9 +339,9 @@ print*,GS_d%nrow,GS_d%ncol
     !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
     
     do i1=1,ncont
-print*,'+'
+
        call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-print*,'+'       
+
        call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
        
        call zdagacsr(TpMt,Tcl(i1))
@@ -1675,7 +1674,7 @@ end subroutine contour_int
     integer, intent(out) :: nbl
     integer, dimension(:), intent(inout) :: blks 
 
-    integer :: j, k
+    integer :: j, k, i
     integer :: i1, i2
 
     integer :: rn, rnold, tmax, rmax, maxmax
@@ -1693,8 +1692,14 @@ end subroutine contour_int
 
        i1 = mat%rowpnt(j)
        i2 = mat%rowpnt(j+1) - 1
-       tmax = maxval(mat%colind(i1:i2)) - j
 
+       tmax = 0
+       do i = i1, i2
+           if ( mat%colind(i).le.nrow .and. (mat%colind(i)-j) .gt. tmax) then
+                tmax = mat%colind(i)-j
+           endif
+       enddo  
+ 
        if(tmax .gt. maxmax) then 
           maxmax = tmax
           rmax = j
@@ -1720,7 +1725,14 @@ end subroutine contour_int
              rnold = rn
              i1 = mat%rowpnt(j-dbuff+1)
              i2 = mat%rowpnt(j+1) - 1
-             k = maxval(mat%colind(i1:i2))
+ 
+             !k = maxval(mat%colind(i1:i2))
+             k = 0
+             do i = i1, i2
+                if ( mat%colind(i).le.nrow .and. (mat%colind(i)) .gt. k) then
+                   k = mat%colind(i)
+                endif
+             enddo
        
              if(k.lt.rn) then
                 rn = j       
@@ -1751,7 +1763,15 @@ end subroutine contour_int
           rnold = rn
           i1 = mat%rowpnt(j)
           i2 = mat%rowpnt(j+dbuff) - 1
-          k = minval(mat%colind(i1:i2)) 
+
+          !k = minval(mat%colind(i1:i2))
+          k = nrow 
+          do i = i1, i2
+             if ( mat%colind(i).le.nrow .and. (mat%colind(i)) .lt. k) then
+                k = mat%colind(i)
+             endif
+          enddo
+         
 
           if(k.gt.rn) then  
              rn = j
@@ -1769,6 +1789,17 @@ end subroutine contour_int
     nbl = nbl + 1
     blks(nbl) = nrow
 
+    ! Sorting blocks
+    
+    do i = 1, nbl
+       do j = i+1, nbl 
+          if(blks(j).lt.blks(i)) then
+             k = blks(i)
+             blks(i) = blks(j)
+             blks(j) = k
+          endif
+       enddo
+    enddo
 
 
   end subroutine block_partition
