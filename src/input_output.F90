@@ -33,9 +33,9 @@ subroutine read_H(idR,idI, zmat,fmt)
      read (idR,*) tmp1, tmp4, tmp3, nnz
      read (idR,*)
      read (idR,*)
-     write(*,*) 'The number of rows (Hreal) is', matr%nrow
-     write(*,*) 'The number of columns (Hreal) is', matr%ncol
-     write(*,*) 'The number of non zero elements (Hreal) is', nnz
+     !write(*,*) 'The number of rows (Hreal) is', matr%nrow
+     !write(*,*) 'The number of columns (Hreal) is', matr%ncol
+     !write(*,*) 'The number of non zero elements (Hreal) is', nnz
 
   elseif (trim(fmt%type).eq.'UPT') then
 
@@ -44,8 +44,8 @@ subroutine read_H(idR,idI, zmat,fmt)
      else
         read(idR) matr%nrow, nnz
      endif
-     write(*,*) 'The number of rows (Hreal) is', matr%nrow
-     write(*,*) 'The number of non zero elements (Hreal) is', nnz
+     !write(*,*) 'The number of rows (Hreal) is', matr%nrow
+     !write(*,*) 'The number of non zero elements (Hreal) is', nnz
 
   end if
 
@@ -98,7 +98,7 @@ subroutine read_H(idR,idI, zmat,fmt)
         enddo     
 
      endif
-print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
+
   else
      if (trim(fmt%type).eq.'PETSc') then  
 
@@ -142,8 +142,8 @@ print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
 
   endif
 
-print*,'(init) read Im.dat'
-     !write(*,*) matr%index_j, matr%index_i, matr%nzval
+
+  !write(*,*) matr%index_j, matr%index_i, matr%nzval
   ! =============================================================================
   !  Imaginary part
   ! =============================================================================
@@ -153,9 +153,9 @@ print*,'(init) read Im.dat'
      read (idI,*) tmp1, tmp4, tmp3, nnz
      read (idI,*)
      read (idI,*)
-     write(*,*) 'The number of rows (Himm) is', mati%nrow
-     write(*,*) 'The number of columns (Himm) is', mati%ncol
-     write(*,*) 'The number of non zero elements (Himm) is', nnz
+     !write(*,*) 'The number of rows (Himm) is', mati%nrow
+     !write(*,*) 'The number of columns (Himm) is', mati%ncol
+     !write(*,*) 'The number of non zero elements (Himm) is', nnz
 
   elseif (trim(fmt%type).eq.'UPT') then
 
@@ -164,8 +164,8 @@ print*,'(init) read Im.dat'
      else
         read(idI) matr%nrow, nnz
      endif
-     write(*,*) 'The number of rows (Himm) is', matr%nrow
-     write(*,*) 'The number of non zero elements (Hreal) is', nnz
+     !write(*,*) 'The number of rows (Himm) is', matr%nrow
+     !write(*,*) 'The number of non zero elements (Hreal) is', nnz
 
   end if
   
@@ -208,7 +208,6 @@ print*,'(init) read Im.dat'
   !write(*,*) mat%index_j, mat%index_i, mati%nzval
 
   !write(*,*) 'Hcomplex is'
-  print*, '(readH) elementi:',k,matr%index_i(k),matr%index_j(k)
   
   count = k
   !do i = 1, k  
@@ -241,7 +240,7 @@ print*,'(init) read Im.dat'
 
   call destroy(mat2)               !deallocation Hcomplex
 
-  write(*,*) '(readH) matrix H read'
+  !write(*,*) '(readH) matrix H read'
 
 
 end subroutine read_H

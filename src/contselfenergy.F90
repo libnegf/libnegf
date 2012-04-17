@@ -36,7 +36,7 @@ module ContSelfEnergy
   public :: SelfEnergy
   public :: SelfEnergies
 
-contains
+contains 
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------  
@@ -89,8 +89,9 @@ contains
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
     if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
 
-    filename = './GS/GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
-    inquire(file=filename,EXIST=lex)
+    
+    filename = 'GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
+    inquire(file=trim(pnegf%scratch_path)//filename,EXIST=lex)
 
     if(.not.lex.or.flag.ge.1) then
 
@@ -175,11 +176,11 @@ contains
              call inverse(GS%val,gt%val,ngs)         
              !End finally the full Green's function of the contacts.
              call destroy(gt)
-          endif
+          endif 
           !...............................................            
           !*** save in file ***
           if (flag.eq.2) then  
-             open (66,file=filename, form='UNFORMATTED')
+             open (66,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
 
              call outmat_c(66,.false.,GS%val,ngs,ngs)
              !note: only the first of the 2 PL is saved
@@ -188,7 +189,7 @@ contains
           
        else         !*** load from file ***
                 
-          open (65,file=filename, form='UNFORMATTED')
+          open (65,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
           do
              read (65,end=100) i1,i2,mat_el
              GS%val(i1,i2)=mat_el 

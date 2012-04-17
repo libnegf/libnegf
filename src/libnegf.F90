@@ -25,10 +25,11 @@ module libnegf
  public :: compute_dos, compute_contacts
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: compute_current, integrate
+ public :: write_current, write_tunneling_and_dos
  public :: reorder
  public :: sort, swap
  public :: check_if_hermitian,printcsr
- public :: extract_compute_current
+ public :: extract_compute_current, extract_compute_density  
 
  integer, PARAMETER :: VBT=70
 
@@ -37,13 +38,13 @@ contains
 
   subroutine init_negf(negf)
     type(Tnegf), pointer :: negf
-    Integer :: ncont, nbl
+    Integer :: ncont, nbl, i
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(11) :: fmtstring
 
     call set_defaults(negf)
 
-    print*, '(init_negf) Initializing libnegf...'
+    !print*, '(init_negf) Initializing libnegf...'
 
     negf%file_struct = "negf.in"
     negf%form%formatted = .true.
@@ -59,10 +60,10 @@ contains
     read(101,*) negf%file_re_S
     read(101,*) negf%file_im_S
 
-    print*, '(init_negf) files: ', trim(negf%file_re_H)
-    print*, '(init_negf) files: ', trim(negf%file_im_H)
-    print*, '(init_negf) files: ', trim(negf%file_re_S) 
-    print*, '(init_negf) files: ', trim(negf%file_im_S) 
+    !print*, '(init_negf) files: ', trim(negf%file_re_H)
+    !print*, '(init_negf) files: ', trim(negf%file_im_H)
+    !print*, '(init_negf) files: ', trim(negf%file_re_S) 
+    !print*, '(init_negf) files: ', trim(negf%file_im_S) 
 
 
     if(negf%form%formatted) then
@@ -74,7 +75,7 @@ contains
     open(401, file=negf%file_re_H, form=trim(fmtstring))
     open(402, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
 
-    print*, '(init_negf) Reading H...'
+    !print*, '(init_negf) Reading H...'
     call read_H(401,402,negf%H,negf%form)
 
     close(401)
@@ -84,7 +85,7 @@ contains
        open(401, file=negf%file_re_S, form=trim(fmtstring))
        open(402, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
 
-       print*, '(init_negf) Reading S...'
+       !print*, '(init_negf) Reading S...'
        call read_H(401,402, negf%S,negf%form)
        
        close(401)
@@ -95,11 +96,8 @@ contains
        call create_id( negf%S,negf%H%nrow) 
 
     endif
-    print*, '(init_negf) done'
 
     read(101,*) ncont
-
-    print*, '(init_negf) ncont', ncont
 
     call log_allocate(cblk,ncont)
     call log_allocate(cont_end,ncont)
@@ -108,28 +106,44 @@ contains
     read(101,*) nbl
 
     if (nbl .gt. 0) then
+
        call log_allocate(PL_end,nbl)
 
        read(101,*) PL_end(1:nbl)
-    endif
+       !read(101,*) cblk(1:ncont)
 
+    end if
+
+    
     read(101,*) cont_end(1:ncont)
     read(101,*) surf_end(1:ncont)
-    read(101,*) cblk(1:ncont)
 
-    if (nbl.eq.0) then
-       call log_allocate(PL_end, 100)  ! Orribile
+    if (nbl .eq. 0) then
+
+       call log_allocate(PL_end, 10000)  ! Orribile
        call block_partition(negf%H, surf_end(1), nbl, PL_end)
-       write(*,*) "(LibNEGF) Partitioning:"
-       write(*,*) nbl
-       write(*,*) PL_end(1:nbl)
-       !cblk(1)=nbl; cblk(2)=1; !! WRONG IN GENERAL
-       cblk(1)=1; cblk(2)=nbl;
+       
+       !if (negf%verbose.gt.50) then
+       !   write(*,*) "(LibNEGF) Partitioning:"
+       !   write(*,*) nbl
+       !   write(*,*) PL_end(1:nbl)
+       !   open(1001,file='blocks.dat')
+       !   write(1001,*) 1
+       !   do i = 1, nbl       
+       !      write(1001,*) PL_end(i)
+       !   enddo
+       !   close(1001)
+       !endif
     endif
+    
+    call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
 
-    print*, '(init_negf) before create T'
+    !if (negf%verbose .gt. 50) then
+    !   write(*,*) '(init NEGF) nbl: ', nbl
+    !   write(*,*) "(init NEGF) blocks interactions:",cblk(1:ncont)     
+    !endif
+
     call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
-    print*, '(init_negf) done'
        
     call log_deallocate(PL_end)
     call log_deallocate(cblk)
@@ -152,13 +166,12 @@ contains
     read(101,*) negf%nLDOS
     call log_allocatep(negf%LDOS,2,negf%nLDOS)
     read(101,*) negf%LDOS
-    read(101,*) negf%Efermi(1:ncont)
-    read(101,*) negf%mu(1:ncont)
+    read(101,*) negf%Efermi(1:ncont)  ! Will be 0 from TC
+    read(101,*) negf%mu(1:ncont)      ! Will be the Electrochemical potential
 
     close(101)
 
-    print*, '(init_negf) LDOS:'
-    print*, negf%LDOS
+    !print*, '(init NEGF) done'
 
   end subroutine init_negf
 !--------------------------------------------------------------------
@@ -196,6 +209,7 @@ contains
     if (associated(negf%LDOS)) call log_deallocatep(negf%LDOS)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
 
   end subroutine destroy_negf
 !--------------------------------------------------------------------
@@ -372,6 +386,62 @@ contains
     !print*, '(negf) ciao ciao'
   end subroutine extract_compute_current
 
+  !-------------------------------------------------------------------------------
+  subroutine extract_compute_density(negf, q)
+
+    type(Tnegf), pointer :: negf
+    real(dp), dimension(:) :: q
+    complex(dp), dimension(:), allocatable :: q_tmp
+    type(z_CSR) :: tmp
+
+    integer :: k
+
+    call extract_device(negf)
+
+    call extract_cont(negf)
+
+    call set_ref_cont(negf)
+
+    if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
+       call contour_int_n(negf)
+    else 
+       ! HACKING: THIS WAY COMPUTES DM FOR ALL CONTACTS
+       negf%refcont = negf%str%num_conts+1  
+    endif
+
+    if (negf%Np_real.gt.0) then
+       call real_axis_int_n(negf)
+    endif
+
+    !print*, '(negf) rho:'
+    !call print_mat(6,negf%rho,.true.,0)
+
+    !print*, '(negf) extract ndofs =', size(q), negf%S%nrow
+
+    ! We need not to include S
+    !call prealloc_mult(negf%rho, negf%S, tmp )
+    if (negf%rho%nrow.gt.0) then
+       call log_allocate(q_tmp, negf%rho%nrow)
+
+       !print*, '(negf) get diag of rho'
+       call zgetdiag(negf%rho, q_tmp)
+
+       !print*, '(negf) transfer on q'
+       do k = 1, size(q)
+          q(k) = real(q_tmp(k))
+       enddo
+
+       call log_deallocate(q_tmp)
+       !call destroy(tmp)
+    else
+       q = 0.d0
+    endif
+
+    !print*, '(negf) del mats'
+    call destroy_matrices(negf)
+    !print*, '(negf) ciao ciao'
+
+  end subroutine extract_compute_density
 
   !------------------------------------------------------------------------------- 
   subroutine compute_current(negf)
@@ -381,7 +451,6 @@ contains
 
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     
-    Real(dp), Dimension(:), allocatable :: currents 
     Real(dp), Dimension(:), allocatable :: TUN_MAT
     !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
     
@@ -524,20 +593,112 @@ contains
        
     enddo !Loop on energy i1 = istart,iend
 
+    !---------------------------------------------------------------------------
+    !   COMPUTATION OF CURRENTS 
+    !---------------------------------------------------------------------------
+    call log_allocatep(negf%currents,size_ni)
+    negf%currents(:)=0.d0
+    
+    do icpl=1,size_ni
+       
+       mumin=mumin_array(icpl)
+       mumax=mumax_array(icpl)
 
-    !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
+       !checks if the energy interval is appropriate
+       !if (id0.and.mumin.lt.mumax) then
+               
+        !if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
+        !  write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
+        !  write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
+        !  write(*,*) 'kT=',negf%kbT*negf%eneconv    
+        !  write(*,*) 'Suggested interval:', &
+        !        (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
+        ! endif
+       !endif
+       
+       negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
+            negf%Emin,negf%Emax,negf%Estep)
+       
+    enddo
+   
+    if (negf%verbose.gt.VBT) then 
+     do i1=1,size_ni
+       write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            '; k-point:',negf%kpoint,'; current:', negf%currents(i1),' A'
+     enddo
+    endif
+
+    call log_deallocate(TUN_MAT)
+    !call log_deallocate(TUN_PMAT)
+    !call log_deallocate(TUN_TOT_PMAT)  
+    
+    call log_deallocate(mumin_array)
+    call log_deallocate(mumax_array)
+    
+    if(do_LEDOS) then
+       call log_deallocate(LEDOS)
+    endif
+    
+    
+  end subroutine compute_current
+ 
+  ! --------------------------------------------------------------------------------
+  subroutine write_current(negf)
+
+    type(Tnegf), pointer :: negf
+
+    integer :: i1
+    logical :: lex
+
+    inquire(file=trim(negf%out_path)//'current.dat',EXIST=lex)
+    
+    if (lex) then
+       open(101,file=trim(negf%out_path)//'current.dat',position='APPEND')
+    else
+       open(101,file=trim(negf%out_path)//'current.dat')
+    endif
+
+    do i1=1,size(negf%currents)
+
+       write(101,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            '; k-point:',negf%kpoint,'; current:', negf%currents(i1),' A'
+
+    end do
+
+    close(101)
+
+  end subroutine write_current  
+  !-------------------------------------------------------------------------------
+  
+  !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
+  subroutine write_tunneling_and_dos(negf)
+
+    type(Tnegf), pointer :: negf
+
+    integer :: Nstep, i, i1, iLDOS, size_ni
+    character(6) :: ofKP
+    real(dp) :: E
+    Logical :: do_LEDOS
+
+    do_LEDOS = .false.
+    if(negf%nLDOS.gt.0) do_LEDOS=.true.
+
+
+    Nstep = size(negf%tunn_mat,1) - 1 
+    size_ni = size(negf%tunn_mat,2)
+
     write(ofKP,'(i6.6)') negf%kpoint
     
-    open(121,file='tunneling_'//ofKP//'.dat')
+    open(121,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
 
-    print*,'ENE CONV=',negf%eneconv
+    !print*,'ENE CONV=',negf%eneconv
     negf%eneconv=1.d0
 
     do i = 1,Nstep+1
        
-       Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
+       E=(negf%Emin+negf%Estep*(i-1))
        
-       WRITE(121,'(E17.8,20(E17.8))') REAL(Ec)*negf%eneconv, &
+       WRITE(121,'(E17.8,20(E17.8))') E*negf%eneconv, &
             (negf%tunn_mat(i,i1), i1=1,size_ni)
        
     enddo
@@ -546,13 +707,13 @@ contains
     
     if(do_LEDOS) then
        
-       open(126,file='LEDOS_'//ofKP//'.dat')
+       open(126,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
        
        do i = 1,Nstep+1
           
-          Ec=(negf%Emin+negf%Estep*(i-1))*(1,0)
+          E=(negf%Emin+negf%Estep*(i-1))
           
-          WRITE(126,'(E17.8,10(E17.8))') REAL(Ec)*negf%eneconv, & 
+          WRITE(126,'(E17.8,10(E17.8))') E*negf%eneconv, & 
                ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
           
        end do
@@ -561,72 +722,7 @@ contains
        
     endif
     
-    !---------------------------------------------------------------------------
-    !   COMPUTATION OF CURRENTS 
-    !---------------------------------------------------------------------------
-    inquire(file='current.dat',EXIST=lex)
-    
-    if (lex) then
-       open(101,file='current.dat',position='APPEND')
-    else
-       open(101,file='current.dat')
-    endif
-    
-    call log_allocate(currents,size_ni)
-    currents(:)=0.d0
-    
-    do icpl=1,size_ni
-       
-       mumin=mumin_array(icpl)
-       mumax=mumax_array(icpl)
-
-       !checks if the energy interval is appropriate
-       if (id0.and.mumin.lt.mumax) then
-               
-        if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
-          write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
-          write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
-          write(*,*) 'kT=',negf%kbT*negf%eneconv    
-          write(*,*) 'Suggested interval:', &
-                (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
-         endif
-       endif
-       
-       currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
-            negf%Emin,negf%Emax,negf%Estep)
-       
-    enddo
-    
-    do i1=1,size_ni
-       write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-            '; k-point:',negf%kpoint,'; current:', currents(i1),' A'
-
-       write(101,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-            '; k-point:',negf%kpoint,'; current:', currents(i1),' A'
-    enddo
-    
-    close(101)
-    
-    
-    call log_deallocate(TUN_MAT)
-    !call log_deallocate(TUN_PMAT)
-    !call log_deallocate(TUN_TOT_PMAT)  
-    
-    call log_deallocate(mumin_array)
-    call log_deallocate(mumax_array)
-    
-    call log_deallocate(currents)
-    
-    if(do_LEDOS) then
-       call log_deallocate(LEDOS)
-    endif
-    
-    
-  end subroutine compute_current
-  
-  
-  !-------------------------------------------------------------------------------
-  
+  end subroutine write_tunneling_and_dos
 
 !////////////////////////////////////////////////////////////////////////
 !************************************************************************
@@ -747,14 +843,14 @@ end function integrate
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
     kbT = negf%kbT
-    
-    muref = negf%mu_n
+    muref = negf%muref 
 
     Omega = negf%n_kt * kbT
     Lambda = 2.d0* negf%n_poles * KbT * pi
     NumPoles = negf%n_poles
 
-    outer = 1 !no contacts no outer
+    outer = negf%outer
+
 
     if(negf%iteration .eq. 1) then 
        negf%ReadOldSGF = 2
@@ -796,10 +892,12 @@ end function integrate
 
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
-       !   write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
-       !        &', id
-       !endif
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
+               &', id
+       endif
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
        Ec = z1 + pnts(i) * z_diff
 
@@ -823,6 +921,8 @@ end function integrate
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
        enddo
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
     enddo
 
@@ -862,10 +962,12 @@ end function integrate
   
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
-       !   write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
-       !        &', id
-       !endif
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
+               &', id
+       endif
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
        Ec = z1 + pnts(i) * z_diff
 
@@ -889,6 +991,8 @@ end function integrate
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
        enddo
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
     enddo
 
@@ -918,9 +1022,11 @@ end function integrate
 
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
-       !   write(6,'(a17,i3,a1,i3,a6,i3)') 'POLES: point #',i,'/',iend,'  CPU=', id
-       !endif
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'POLES: point #',i,'/',iend,'  CPU=', id
+       endif
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
        Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
 
@@ -942,6 +1048,8 @@ end function integrate
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
        enddo
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
     enddo
 
@@ -984,14 +1092,13 @@ end function integrate
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
     kbT = negf%kbT
-
-    muref = negf%mu_p
+    muref = negf%muref
 
     Omega = negf%n_kt * kbT
     Lambda = 2.d0* negf%n_poles * KbT * pi
     NumPoles = negf%n_poles
     
-    outer = 1 !no contacts no outer
+    outer = negf%outer
 
     if(negf%iteration .eq. 1) then 
        negf%ReadOldSGF = 2
@@ -1025,7 +1132,7 @@ end function integrate
 
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
+       !if (negf%verbose.gt.VBT) then
        !   write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
        !        &', id
        !endif
@@ -1081,7 +1188,7 @@ end function integrate
   
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
+       !if (negf%verbose.gt.VBT) then
        !   write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
        !        &', id
        !endif
@@ -1126,7 +1233,7 @@ end function integrate
 
     do i = istart,iend
 
-       !if (negf%verbose.gt.80) then
+       !if (negf%verbose.gt.VBT) then
        !   write(6,'(a17,i3,a1,i3,a6,i3)') 'POLES: point #',i,'/',iend,'  CPU=', id
        !endif
 
@@ -1195,8 +1302,8 @@ subroutine contour_int(negf)
   Lambda = 2.d0* negf%n_poles * KbT * pi
   NumPoles = negf%n_poles
 
-  outer = 2 !Compute lower-outer part of density matrix
-  !outer = 0  ! no outer part
+  outer = negf%outer !Compute lower-outer part of density matrix
+
 
   call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
   call initialize(TmpMt)
@@ -1472,20 +1579,24 @@ end subroutine contour_int
        
        Omega = negf%n_kt * kbT
 
-       outer = 2 !compute lower/outer Gless
+       outer = negf%outer
        
        call log_allocate(frm_f,ncont)
        
        call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
        call initialize(TmpMt)
        
-       !Compute extended number of points due to kT
-       npT=nint(negf%Np_real*Omega/(mumax-mumin))
 
+       !Compute extended number of points due to kT
+       !npT=nint(negf%Np_real*Omega/(mumax-mumin))
+       ! **** MODIFIED 4/04/2012 because for mumin-mumax -> 0 does not work !!!
+       npT = 0
+       
        allocate(pnts(negf%Np_real+2*npT))
        allocate(wght(negf%Np_real+2*npT))
 
        !Setting weights for gaussian integration
+        
        call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real+2*npT)
 
        !Computing real axis integral       
@@ -1499,27 +1610,28 @@ end subroutine contour_int
 
        !---------------------------------------------------------
        !    g    --  [ /                                      ]
-       ! ------  >   [ | j [f(i)-f(ref) Gr(E) Gam_i Ga(E) dE  ]  
+       ! ------  >   [ | j [f(i)-f(ref)] Gr(E) Gam_i Ga(E) dE  ]  
        ! 2*pi*j  --i [ /                                      ]
        !---------------------------------------------------------
 
        do i = istart,iend
 
           if (negf%verbose.gt.VBT) then
-             write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL neq: point #',i,'/',iend,'  CPU=&
-                  &', id
+             write(6,'(a17,i3,a1,i3,a6,i3,f8.4)') 'INTEGRAL neq: pnt #',i,'/',iend,'  CPU=&
+                  &', id, pnts(i)
           endif
+
+          do j1 = 1,ncont
+             frm_f(j1)=fermi_f(pnts(i),negf%Efermi(j1)-negf%mu(j1),KbT)
+          enddo
 
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
           Ec = cmplx(pnts(i),negf%delta,dp)
 
-          dt = negf%spin * wght(i)/(2*pi)
-          zt = dt*(1.d0,0.d0)
+          dt = negf%wght * negf%spin * wght(i)/(2*pi)
 
-          do j1 = 1,ncont
-             frm_f(j1)=fermi_f(real(Ec),negf%Efermi(j1)-negf%mu(j1),KbT)
-          enddo
+          zt = dt*(1.d0,0.d0)
 
           call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -1570,6 +1682,192 @@ end subroutine contour_int
 
   end subroutine real_axis_int
 
+
+!-----------------------------------------------------------------------
+! Contour integration for density matrix 
+! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+!-----------------------------------------------------------------------
+  subroutine real_axis_int_n(negf)
+
+    type(Tnegf), pointer :: negf 
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    type(z_CSR) :: GreenR, TmpMt 
+
+    integer :: npid, istart, iend, ref
+    integer :: i, i1, ioffset, outer, ncont, nbl, j1, npT
+
+    real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
+    real(dp), DIMENSION(:), allocatable :: frm_f
+    complex(dp), dimension(:), allocatable :: q_tmp
+    real(dp) :: Omega, mumin, mumax
+    real(dp) :: ncyc, kbT, dt
+
+    complex(dp) :: zt
+    complex(dp) :: Ec
+
+    ncont = negf%str%num_conts
+    nbl = negf%str%num_PLs
+    kbT = negf%kbT
+    ref = negf%refcont
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+
+
+    mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+
+    if (negf%writeLDOS) then
+       open(2001,file=trim(negf%out_path)//'LDOS.dat')
+       open(2002,file=trim(negf%out_path)//'energy.dat')
+       call log_allocate(q_tmp, negf%H%nrow)
+    endif
+    !if (mumax.gt.mumin) then
+       
+       Omega = negf%n_kt * kbT
+       outer = negf%outer
+       
+       call log_allocate(frm_f,ncont+1)
+       frm_f = 0.d0
+       
+       call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+       call initialize(TmpMt)
+       
+
+       !Compute extended number of points due to kT
+       !npT=nint(negf%Np_real*Omega/(mumax-mumin))
+       ! **** MODIFIED 4/04/2012 because for mumin-mumax -> 0 does not work !!!
+       npT = 0
+       
+       allocate(pnts(negf%Np_real+2*npT))
+       allocate(wght(negf%Np_real+2*npT))
+
+       !Setting weights for gaussian integration
+       call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real+2*npT)
+
+       !Computing real axis integral       
+       npid = int((negf%Np_real+2*npT)/numprocs)
+       istart = id*npid+1
+       if(id.ne.(numprocs-1)) then 
+          iend = (id+1)*npid
+       else
+          iend = negf%Np_real+2*npT
+       end if
+
+       !---------------------------------------------------------------
+       !    g    --  [ /                                              ]
+       ! ------  >   [ | j [f(i) - f(ref)] Gr(E) Gam_i Ga(E) dE       ]  
+       ! 2*pi*j  --i [ /                                              ]
+       !---------------------------------------------------------------
+
+       do i = istart,iend
+
+          if (negf%verbose.gt.VBT) then
+             write(6,'(a17,i3,a1,i3,a6,i3,f8.4)') 'INTEGRAL neq: pnt #',i,'/',iend,'  CPU=&
+                  &', id, pnts(i)
+          endif
+
+          do j1 = 1,ncont
+             frm_f(j1)=fermi_f(pnts(i),negf%Efermi(j1)-negf%mu(j1),KbT)
+          enddo
+
+          Ec = cmplx(pnts(i),negf%delta,dp)
+
+          dt = negf%wght * negf%spin * wght(i)/(2*pi)
+
+          zt = dt*(1.d0,0.d0)
+
+
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+
+          call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+          call calls_neq_mem_dns(negf%HM,negf%SM,real(Ec),SelfEneR,Tlc,Tcl,GS, &
+               negf%str,frm_f,ref,GreenR,outer)
+       
+          do i1=1,ncont
+             call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+          enddo
+
+          if(negf%DorE.eq.'D') then
+             call concat(TmpMt,zt,GreenR,1,1)
+          endif
+          if(negf%DorE.eq.'E') then
+             call concat(TmpMt,zt*Ec,GreenR,1,1)
+          endif
+
+          if (negf%writeLDOS) then
+             call zgetdiag(GreenR, q_tmp) 
+             do i1 = 1,negf%str%central_dim
+                write(2001,'((ES14.5))', advance='NO') -real(q_tmp(i1))
+             enddo
+             write(2001,*)
+             write(2002,*) pnts(i)
+          endif
+
+
+
+          call destroy(GreenR) 
+
+          if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+       enddo
+
+       deallocate(wght)
+       deallocate(pnts)
+
+       if(negf%DorE.eq.'D') then
+          if(allocated(negf%rho%nzval)) then
+             call concat(negf%rho,TmpMt,1,1)
+          else
+             call clone(TmpMt,negf%rho) 
+          endif
+       endif
+       if(negf%DorE.eq.'E') then
+          if(allocated(negf%rho_eps%nzval)) then
+             call concat(negf%rho_eps,TmpMt,1,1)
+          else
+             call clone(TmpMt,negf%rho_eps) 
+          endif
+       endif
+       
+       call destroy(TmpMt)
+       
+       call log_deallocate(frm_f)
+
+    !end if
+    if (negf%writeLDOS) then
+       close (2001)
+       close (2002)
+       call log_deallocate(q_tmp)
+    endif
+
+  end subroutine real_axis_int_n
+  !-----------------------------------------------------------------------------------------------------
+
+  subroutine set_ref_cont(negf)
+
+    type(TNegf), pointer :: negf
+
+    integer :: nc_vec(1), ncont, minmax
+
+    ncont = negf%str%num_conts
+    minmax = negf%refcont
+
+    if (minmax.eq.0) then
+       negf%muref = minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       nc_vec = minloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))  
+    else
+       negf%muref = maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       nc_vec = maxloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    endif
+
+    negf%refcont = nc_vec(1)
+    
+    print*, 'ref  muref', negf%refcont, negf%muref
+     
+  end subroutine set_ref_cont
+
+  
 !-----------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------
@@ -1705,12 +2003,18 @@ end subroutine contour_int
           rmax = j
        endif
 
-       dbuff = maxmax   ! dbuff should be linked to maxmax
-       minsize = dbuff  ! minsize bisogna identificarlo meglio. 
+       dbuff = maxmax        ! dbuff should be linked to maxmax
+       minsize = (dbuff+1)/2 ! minsize bisogna identificarlo meglio. 
     enddo
+
+    !write(*,*) 'maxmax=',maxmax
+    !write(*,*) 'maxrow=',rmax
 
     ! Define central block 
     rn = rmax - maxmax/2 - dbuff 
+
+    !write(*,*) 'rn=',rn
+
 
     if(rn-dbuff.ge.0) then 
 
@@ -1720,10 +2024,10 @@ end subroutine contour_int
 
        do 
           
-          do j = rn, dbuff, -1
+          do j = rn, minsize, -1
 
              rnold = rn
-             i1 = mat%rowpnt(j-dbuff+1)
+             i1 = mat%rowpnt(j-minsize+1)
              i2 = mat%rowpnt(j+1) - 1
  
              !k = maxval(mat%colind(i1:i2))
@@ -1758,11 +2062,11 @@ end subroutine contour_int
 
     do 
 
-       do j = rn, nrow-dbuff+1, 1
+       do j = rn, nrow-minsize+1, 1
 
           rnold = rn
           i1 = mat%rowpnt(j)
-          i2 = mat%rowpnt(j+dbuff) - 1
+          i2 = mat%rowpnt(j+minsize) - 1
 
           !k = minval(mat%colind(i1:i2))
           k = nrow 
@@ -1805,8 +2109,66 @@ end subroutine contour_int
   end subroutine block_partition
 
 !----------------------------------------------------------------------------
+  subroutine find_cblocks(mat ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
+    type(z_CSR), intent(in) :: mat
+    integer, intent(in) :: ncont
+    integer, intent(in) :: nbl
+    integer, dimension(:), intent(in) :: PL_end 
+    integer, dimension(:), intent(in) :: cont_end
+    integer, dimension(:), intent(in) :: surf_end
+    integer, dimension(:), intent(inout) :: cblk
+
+    integer :: j1,k,i,min,max, cbl
+    integer, dimension(:), allocatable :: PL_start
+
+    call log_allocate(PL_start,nbl)
+
+    PL_start(1) = 1
+
+    do i = 2, nbl
+       PL_start(i) = PL_end(i-1) + 1
+    enddo
 
 
+    do j1 = 1, ncont
+
+       max = 0
+       min = 400000000
+
+       do k = surf_end(j1)+1, cont_end(j1)
+
+          do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
+
+             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).lt.min) min = mat%colind(i)
+             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).gt.max) max = mat%colind(i)
+
+          end do
+
+       end do
+
+       do k = 1, nbl
+
+          if( max .le. PL_end(k) ) then
+             cblk(j1) = k
+
+             if( min .ge. PL_start(k) ) then                
+                exit
+             else
+                write(*,*) "ERROR: contact",j1,"interacting with more than one block",min,max
+                stop
+             end if
+
+          end if
+
+       end do
+
+    end do
+
+    call log_deallocate(PL_start)
+
+  end subroutine find_cblocks
+
+!----------------------------------------------------------------------------
 
   Subroutine sort(blks, Ipt)
     ! *

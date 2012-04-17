@@ -24,12 +24,15 @@ module lib_param
      character(LST) :: file_re_S
      character(LST) :: file_im_S
      character(LST) :: file_struct
+     character(LST) :: scratch_path
+     character(LST) :: out_path
      character(1) :: DorE              ! Density or En.Density
      type(format) :: form              ! Form of file-Hamiltonian
 
      integer   :: ReadoldSGF           ! 0: Read 1: compute 2: comp & save
      logical   :: FictCont(MAXNCONT)   ! Ficticious contact 
      logical   :: dumpHS               ! Used for debug
+     logical   :: writeLDOS            ! Write the LDOS from Green loop (1D)
 
      real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
      real(dp) :: Efermi(MAXNCONT)      ! Energia di Fermi dei contatti
@@ -40,6 +43,7 @@ module lib_param
 
      real(dp) :: mu_n
      real(dp) :: mu_p
+     real(dp) :: muref             ! reference elec.chem potential
      real(dp) :: Ec
      real(dp) :: Ev
      real(dp) :: DeltaEc
@@ -75,6 +79,7 @@ module lib_param
      integer :: kpoint       ! kp index
      real(dp), dimension(:,:), pointer :: tunn_mat => null()
      real(dp), dimension(:,:), pointer :: ldos_mat => null()
+     real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
      integer :: Np_n(2)      ! Number of points for n 
      integer :: Np_p(2)      ! Number of points for p 
@@ -86,7 +91,10 @@ module lib_param
      integer :: ni(MAXNCONT) ! ni
      integer :: nf(MAXNCONT) ! nf
      integer :: refcont      ! reference contact (for non equilib)
-  
+                             ! in input: 0 take minimum, 1 take maximum mu  
+     integer :: outer        ! flag switching computation of  
+                             ! the Device/Contact DM
+                             ! 0 none; 1 upper block; 2 all
   end type Tnegf
 
 contains
@@ -237,6 +245,8 @@ contains
      negf%file_re_S = ''
      negf%file_im_S = ''
      negf%file_struct = ''
+     negf%scratch_path = './GS/'
+     negf%out_path = './'
      negf%DorE = 'D'           ! Density or En.Density
 
      negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
@@ -263,6 +273,7 @@ contains
      negf%eneconv = 1.d0      ! Energy conversion factor
 
      negf%isSid = .false.         
+     negf%writeLDOS = .false. 
 
      negf%delta = 1.d-4      ! delta for G.F. 
      negf%Emin = 0.d0        ! Tunneling or dos interval
@@ -281,6 +292,8 @@ contains
      negf%ni(1) = 1
      negf%nf = 0             ! nf
      negf%nf(1) = 2
+     negf%refcont = 1        ! reference contact (?)
+     negf%outer = 2          ! Compute full D.M.
      
    end subroutine set_defaults
 

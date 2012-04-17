@@ -387,7 +387,6 @@ CONTAINS
        endif
     enddo
 
-
     !Chiamata di Make_Grcol_mem per i contatti necessari 
     DO i=1,ncont
        IF (i.NE.ref) THEN
@@ -1395,8 +1394,6 @@ CONTAINS
     !Iterazione sui contatti
     !***
 
-
-
     DO j=1,ncont
 
        IF (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.drop) THEN
@@ -1540,7 +1537,7 @@ CONTAINS
                    
                    col = Gl%colind(jj) - indblk(y) + 1
 
-                   Gl%nzval(jj) = Glsub(x,y)%val(row,col)
+                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(row,col)
 
                 ENDDO
 
