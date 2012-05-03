@@ -17,7 +17,6 @@ ARCH1= $(shell uname -m)
 ARCH = $(ARCH1)-linux-ifort
 
 DEBUG=0
-
 # Include system specific settings
 #include $(ROOT)/sysmakes/make.$(ARCH)
 
@@ -39,11 +38,39 @@ DEBUG=0
 
 ## Set directory, where binary should be copied when issuing 'make install'
 #INSTALLDIR = .
+FC90 = ifort 
+CC = g++-4.3.2
+FPP = fpp
+
+# Options for the Fortran 90 compiler
+#LNOPT = $(LNOPT)
+ifeq ($(DEBUG),0)
+     #FC90OPT = -O2 -ip
+     #FC90OPT = -O2 -xW -openmp -ip
+     FC90OPT = -O3 -unroll -openmp -ip -fexceptions -gcc-name=${CC} -gxx-name=${CC} -nofor-main
+     CCOPT = -O2 -x c  
+     ifeq ($(FC90),g95) 
+         FC90OPT = -O2 -fno-second-underscore -fstatic
+     endif
+endif
+ifeq ($(DEBUG),1)
+     FC90OPT = -g -CB -check all -fpe0 -fexceptions -gcc-name=${CC} -gxx-name=${CC} -nofor-main 
+     ifeq ($(FC90),g95) 
+         FC90OPT = -g -fbounds-check -fno-second-underscore 
+     endif
+endif
+
+FNAME_SUFFIX = "_"
+
+## Uncomment to keep intermediate files in OBJDIR (for debug only!)
+#.PRECIOUS: %.f90 %.F %.f %.c
+
+LIBTHREAD= /usr/lib
 
 ifeq ($(ARCH1),x86_64)
+   FC90OPT += -fPIC 
+   CCOPT += -fPIC
    MPI_DIR = /usr/pack/mpich2-1.0.8-gp/amd64-debian-linux4.0/bin
-   FC90 = ifort 
-   #FC90 =g95
    MKL_LIBDIR = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
    MKL_INCLUDE = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
    LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lguide 
@@ -54,7 +81,6 @@ ifeq ($(ARCH1),x86_64)
 endif
 ifeq ($(ARCH1),i686)
    #FC90=g95
-    FC90=ifort 
    MPI_DIR = /usr/pack/mpich2-1.0.8-gp/i686-debian-linux4.0/bin
    # OLD MKL (Better for AMD ?) 
    MKL_LIBDIR = /opt/intel/Compiler/11.1/064/mkl/lib/32
@@ -67,24 +93,4 @@ ifeq ($(ARCH1),i686)
    LIB_LAPACK = 
 endif
 
-LIBTHREAD= /usr/lib
-CC = gcc
-CCOPT = -O2 -x c  
 
-# Options for the Fortran 90 compiler
-#LNOPT = $(LNOPT)
-ifeq ($(DEBUG),0)
-     FC90OPT = -O2 -ip
-     ifeq ($(FC90),g95) 
-         FC90OPT = -O2 -fno-second-underscore -fstatic
-     endif
-endif
-ifeq ($(DEBUG),1)
-     FC90OPT = -g -CB -fpe0 -check all
-     ifeq ($(FC90),g95) 
-         FC90OPT = -g -fbounds-check -fno-second-underscore 
-     endif
-endif
-
-## Uncomment to keep intermediate files in OBJDIR (for debug only!)
-#.PRECIOUS: %.f90 %.F %.f %.c

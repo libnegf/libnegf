@@ -852,12 +852,6 @@ end function integrate
     outer = negf%outer
 
 
-    if(negf%iteration .eq. 1) then 
-       negf%ReadOldSGF = 2
-    else
-       negf%ReadOldSGF = 0
-    endif
-
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
 
@@ -1099,12 +1093,6 @@ end function integrate
     NumPoles = negf%n_poles
     
     outer = negf%outer
-
-    if(negf%iteration .eq. 1) then 
-       negf%ReadOldSGF = 2
-    else
-       negf%ReadOldSGF = 0
-    endif
 
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
@@ -1712,6 +1700,7 @@ end subroutine contour_int
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
 
 
+
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
 
@@ -1863,7 +1852,7 @@ end subroutine contour_int
 
     negf%refcont = nc_vec(1)
     
-    print*, 'ref  muref', negf%refcont, negf%muref
+    !! print*, 'ref  muref', negf%refcont, negf%muref
      
   end subroutine set_ref_cont
 

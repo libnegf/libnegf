@@ -43,7 +43,7 @@ include $(ROOT)/Makefile.user
 F77 = $(FC90)
 AR = ar -rcv 
 #OPT = -g -c -check all
-OPT = -O3 -axSSE4.2 -c
+OPT = -O3 -axSSE4.2 -fPIC -c
 #OPT = $(FC90OPT) -c 
 
 #

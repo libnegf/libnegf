@@ -83,7 +83,7 @@ contains
     if (nkp.le.99)  write(ofkpnt,'(i2.2)') nkp
     if (nkp.gt.99.and.id.le.999)  write(ofkpnt,'(i3.3)') nkp
     if (nkp.gt.999.and.id.le.9999)  write(ofkpnt,'(i4.4)') nkp
-    if (pnt.gt.9999) stop 'ERROR: too many k-points (> 9999)'
+    if (nkp.gt.9999) stop 'ERROR: too many k-points (> 9999)'
     if (pnt.le.999) write(ofpnt,'(i3.3)') pnt  
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt  
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
