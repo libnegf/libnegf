@@ -32,7 +32,8 @@ module lib_param
      integer   :: ReadoldSGF           ! 0: Read 1: compute 2: comp & save
      logical   :: FictCont(MAXNCONT)   ! Ficticious contact 
      logical   :: dumpHS               ! Used for debug
-     logical   :: writeLDOS            ! Write the LDOS from Green loop (1D)
+     logical   :: writeLDOS            ! Write the LDOS for every k-point 
+     logical   :: writeTunn            ! Write T(E) for every k-point
 
      real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
      real(dp) :: Efermi(MAXNCONT)      ! Energia di Fermi dei contatti

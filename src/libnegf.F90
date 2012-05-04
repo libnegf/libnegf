@@ -680,45 +680,48 @@ contains
     real(dp) :: E
     Logical :: do_LEDOS
 
-    do_LEDOS = .false.
-    if(negf%nLDOS.gt.0) do_LEDOS=.true.
 
+    if (negf%writeTunn) then
 
-    Nstep = size(negf%tunn_mat,1) - 1 
-    size_ni = size(negf%tunn_mat,2)
+       Nstep = size(negf%tunn_mat,1) - 1 
+       size_ni = size(negf%tunn_mat,2)
 
-    write(ofKP,'(i6.6)') negf%kpoint
+       write(ofKP,'(i6.6)') negf%kpoint
     
-    open(121,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
+       open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
 
-    !print*,'ENE CONV=',negf%eneconv
-    negf%eneconv=1.d0
+       !print*,'ENE CONV=',negf%eneconv
+       negf%eneconv=1.d0
 
-    do i = 1,Nstep+1
+       do i = 1,Nstep+1
        
-       E=(negf%Emin+negf%Estep*(i-1))
+          E=(negf%Emin+negf%Estep*(i-1))
        
-       WRITE(121,'(E17.8,20(E17.8))') E*negf%eneconv, &
+          WRITE(1021,'(E17.8,20(E17.8))') E*negf%eneconv, &
             (negf%tunn_mat(i,i1), i1=1,size_ni)
        
-    enddo
+       enddo
     
-    close(121)
+       close(1021)
+
+    endif
     
-    if(do_LEDOS) then
-       
-       open(126,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
+    if(negf%writeLDOS .and. negf%nLDOS.gt.0) then
+
+       Nstep = size(negf%tunn_mat,1) - 1 
+
+       open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
        
        do i = 1,Nstep+1
           
           E=(negf%Emin+negf%Estep*(i-1))
           
-          WRITE(126,'(E17.8,10(E17.8))') E*negf%eneconv, & 
+          WRITE(1021,'(E17.8,10(E17.8))') E*negf%eneconv, & 
                ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
           
        end do
        
-       close(126)
+       close(1021)
        
     endif
     
