@@ -488,6 +488,8 @@ contains
     if (Nstep.lt.0) then
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        call log_allocatep(negf%tunn_mat,0,0)
+       call log_allocatep(negf%currents,1)
+       negf%currents(1) = 0.0_dp 
        if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
        return
     endif
