@@ -477,10 +477,6 @@ contains
     cblk => negf%str%cblk
     indblk => negf%str%mat_PL_start
     
-    negf%ni=0; negf%nf=0 
-    negf%ni(1)=1 
-    negf%nf(1)=2 
-    
     Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
     npid = int((Nstep+1)/numprocs)
     
@@ -509,7 +505,7 @@ contains
           exit
        endif
     enddo
-    
+
     !check size_ni .ne. size_nf
     if (size_ni.ne.size_nf) then 
        size_ni=min(size_ni,size_nf)
@@ -680,8 +676,6 @@ contains
     integer :: Nstep, i, i1, iLDOS, size_ni
     character(6) :: ofKP
     real(dp) :: E
-    Logical :: do_LEDOS
-
 
     if (negf%writeTunn) then
 
@@ -710,7 +704,9 @@ contains
     
     if(negf%writeLDOS .and. negf%nLDOS.gt.0) then
 
-       Nstep = size(negf%tunn_mat,1) - 1 
+       Nstep = size(negf%ldos_mat,1) - 1 
+
+       write(ofKP,'(i6.6)') negf%kpoint
 
        open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
        

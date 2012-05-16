@@ -2065,7 +2065,7 @@ CONTAINS
     Integer :: ni(MAXNCONT)
     Integer :: nf(MAXNCONT)
     Integer :: nbl,ncont,size_ni
-    Integer :: i, ierr, icpl, nit, nft
+    Integer :: i, ierr, icpl, nit, nft, nt, nt1
 
     nbl = str%num_PLs
     ncont = str%num_conts
@@ -2093,20 +2093,75 @@ CONTAINS
     !Iterative calculation down for Gr
     call allocate_Gr_dns(nbl)
 
+    !Computation of transmission(s) between contacts ni(:) -> nf(:)  
+    nit=ni(1)
+    nft=nf(1)
+  
+    !Arrange contacts in a way that the order between first and second is always the
+    !same (always ct1 < ct2)
     
-    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start,1)
+    if (str%cblk(nit).lt.str%cblk(nft)) then
+       nt1 = str%cblk(nit)
+    else
+       nt1 = str%cblk(nft)
+    endif
+   
+    ! Build Gr up to the lowest contact  block
+    call Make_Grdiag_mem_dns(ESH,str%mat_PL_start,nt1)
+    
+    if (size_ni.eq.1) then
+       call trasmission_dns(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+    else
+       call trasmission_old(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+    endif
 
-    !Computation of transmission(s) between contacts ni(:) -> nf(:)
-    do icpl=1,size_ni
+    TUN_MAT(1) = tun 
 
+    ! When more contacts are present sometimes we can re-use previous Gr 
+    do icpl = 2, size_ni
+       
        nit=ni(icpl)
        nft=nf(icpl)
-  
-       call trasmission_dns(nit,nft,ESH,SelfEneR,1,str%cblk,str%mat_PL_start,tun) 
+
+       if (str%cblk(nit).lt.str%cblk(nft)) then
+          nt = str%cblk(nit)
+       else
+          nt = str%cblk(nft)
+       endif
+
+       if (nt .ne. nt1) then
+          !Distruzione dei blocchi fuori-diagonale
+          do i=2,nt1
+             call destroy(Gr(i,i))
+             call destroy(Gr(i-1,i))
+             call destroy(Gr(i,i-1))
+          enddo
+          call destroy(Gr(1,1))
+
+          call Make_Grdiag_mem_dns(ESH,str%mat_PL_start,nt)
+       endif
+
+       if (size_ni.eq.1) then
+          call trasmission_dns(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+       else
+          call trasmission_old(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
+       endif
   
        TUN_MAT(icpl) = tun 
     
+       nt1 = nt
+
     enddo
+
+    !Distruzione delle Green
+    do i=2,nt1
+       call destroy(Gr(i,i))
+       call destroy(Gr(i-1,i))
+       call destroy(Gr(i,i-1))
+    enddo
+    call destroy(Gr(1,1))
+
+    call deallocate_Gr_dns
 
     !Deallocate energy-dependent matrices
     do i=2,nbl 
@@ -2114,17 +2169,8 @@ CONTAINS
     enddo
 
     call deallocate_gsmr_dns
-    !Distruzione dei blocchi fuori-diagonale
-    do i=2,nbl
-       call destroy(Gr(i,i))
-       call destroy(Gr(i-1,i))
-       call destroy(Gr(i,i-1))
-    enddo
-    call destroy(Gr(1,1))
 
     !Deallocate matrices
-
-    call deallocate_Gr_dns
 
     call destroy(ESH(1,1))
     do i=2,nbl
@@ -2146,7 +2192,7 @@ CONTAINS
   ! NOTE:
   !
   !  This subroutine was hacked quickly to obain effiecient tunneling calcs
-  !  but now works only for 2 contacts placed at PL 1 and N. 
+  !  Useful only when there are 2 contacts
   !                ===================
   !************************************************************************
 
@@ -2156,112 +2202,49 @@ CONTAINS
     implicit none
     
     !In/Out
-    Integer :: ni,nf
+    Integer :: ni,nf, nbl
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
     Type(z_DNS), Dimension(:,:) :: ESH
     Integer, Dimension(:), pointer :: cblk, indblk
     Real(dp) :: TUN
     
     !Work variables
-    Integer :: ct1, nt1, nt2, i, nrow, ncol, nbl
+    Integer :: ct1, nt1, i
     Type(z_DNS) :: work1, work2, GAM1_dns, GA, TRS, AA
     Type(z_CSR) :: GAM1
-    Real(dp) :: max
-    Real(dp), parameter :: drop=1e-20
     Complex(dp), PARAMETER ::    j = (0.d0,1.d0)  ! CMPX unity
    
-    !Arrange contacts in way that order between first and second is always the
-    !same (always ct1 > ct2)
-
-    !if (cblk(ni).gt.cblk(nf)) then
-    !   ct1=ni;ct2=nf;
-    !else
-    !   ct1=nf;ct2=ni;
-    !endif
-
-    ! Search contact interacting with block 1 
-    do i = 1, size(cblk)
-       if (cblk(i).eq.1) then 
-          ct1 = i 
-          exit
-       endif
-    enddo
-    !nt1=cblk(ct1); nt2=cblk(ct2);
-    nt1=1; nt2=1;
-
-    ! in this way nt1 > nt2 by construction
-    ncol=indblk(nt2+1)-indblk(nt2)
-    
-    ! Column blocks  are not computed anymore
-    if ( nbl.gt.1 .and. (nt1-nt2).gt.1) then
-       
-       !Calcolo dei blocchi colonna (nt2) fino al desiderato (riga nt1)
-       !IF ( nt2.LT.(nbl-1) ) THEN
-       
-       do i=nt2+2,nbl
-
-          nrow=indblk(i+1)-indblk(i)
-          
-          !if (Gr(i-1,nt2)%nnz.ne.0) then 
-          if (Gr(i-1,nt2)%nrow.ne.0 .and. Gr(i-1,nt2)%ncol.ne.0) then 
-             max=maxval(abs(Gr(i-1,nt2)%val(:,:)))
-          else
-             print*,'(tunneling) Gr',i-1,nt2,'==0'
-             max=0.d0
-          endif
-
-          if (max.gt.drop) then   
-
-             call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
-             call prealloc_mult(work1,Gr(i-1,nt2),Gr(i,nt2))
-             call destroy(work1)         
-    
-          else
-
-             call create(Gr(i,nt2),nrow,ncol)
-             Gr(i,nt2)%val(:,:)=(0.d0,0.d0)
-             
-          endif
-      
-          !Destroy only if not adiacent to diagonal (adiacent blocks are
-          !deallocated in a separate way, outside from subroutine)           
-          if (i.gt.(nt2+2)) call destroy(Gr(i-1,nt2))
-        
-          if (Gr(i,nt2)%nrow.eq.0 .and. Gr(i,nt2)%ncol.eq.0) then
-             TUN = 0
-             return         
-          endif
-
-          if (i.eq.nt1) exit
-
-       enddo
-       
-       !ENDIF
-       
+    if (size(cblk).gt.2) then
+       write(*,*) "ERROR: transmission_dns is valid only for 2 contacts"
+       return
     endif
 
+    !Arrange contacts in way that order between first and second is always the
+    !same (always ct1 < ct2)
 
-    call zdagadns(Gr(nt1,nt2),GA)
+    if (cblk(ni).lt.cblk(nf)) then
+       ct1=ni;
+    else
+       ct1=nf;
+    endif
+
+    nt1=cblk(ct1); 
+
+    call zdagadns(Gr(nt1,nt1),GA)
+
     ! Computes the Gamma matrices
     call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
-    !call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
 
     call create(GAM1_dns,GAM1%nrow,GAM1%ncol)
-    !call create(GAM2_dns,GAM2%nrow,GAM2%ncol)
 
     call csr2dns(GAM1,GAM1_dns)
-    !call csr2dns(GAM2,GAM2_dns)
+
     call destroy(GAM1)
-    !call destroy(GAM2)
     
     ! Work to compute transmission matrix (Gamma G Gamma G)
-    call prealloc_mult(GAM1_dns,Gr(nt1,nt2),work1)
-    
-    !call destroy(GAM1_dns)
+    call prealloc_mult(GAM1_dns,Gr(nt1,nt1),work1)
     
     call prealloc_mult(work1,GAM1_dns,work2)
-    
-    !if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
     
     call destroy(work1)
 
@@ -2271,7 +2254,7 @@ CONTAINS
 
     call create(AA,GA%nrow,GA%ncol)
 
-    AA%val = j * (Gr(1,1)%val-GA%val)
+    AA%val = j * (Gr(nt1,nt1)%val-GA%val)
 
     call destroy(GA) 
 
@@ -2288,6 +2271,124 @@ CONTAINS
     call destroy(TRS,work1,work2)
    
   end subroutine trasmission_dns
+
+  !************************************************************************
+  !
+  ! Subroutine for transmission calculation (GENERIC FOR N CONTACTS)
+  !
+  !************************************************************************ 
+  subroutine trasmission_old(ni,nf,ESH,SelfEneR,nbl,cblk,indblk,TUN)
+    
+    !In/Out
+    Integer :: ni,nf
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
+    Type(z_DNS), Dimension(:,:) :: ESH
+    Integer, Dimension(:), pointer :: cblk, indblk
+    Real(kind=dp) :: TUN
+    
+    !Work variables
+    Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl
+    Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS, AA
+    Type(z_CSR) :: GAM1, GAM2
+    Real(kind=dp) :: max
+   
+    !Arrange contacts in way that order between first and second is always the
+    !same (always ct1 < ct2)
+
+    if (cblk(ni).lt.cblk(nf)) then
+       ct1=ni;ct2=nf;
+    else
+       ct1=nf;ct2=ni;
+    endif
+    
+    nt1=cblk(ct1); nt2=cblk(ct2);
+
+    ! in this way nt1 < nt2 by construction
+
+    ncol=indblk(nt1+1)-indblk(nt1)
+    
+    if ( nbl.gt.1 .and. (nt2-nt1).gt.1) then
+       
+       !Calcolo dei blocchi colonna (nt1) fino al desiderato (riga nt2)
+
+       do i = nt1+1, nbl
+
+          !Checks whether previous block is non null. 
+          !If so next block is also null => TUN = 0       
+          max=maxval(abs(Gr(i-1,nt1)%val(:,:)))
+
+          if (max.lt.drop) then
+             TUN = 0.d0
+             !Destroy also the block adjecent to diagonal since 
+             !this is not deallocated anymore in calling subroutine
+             if (i.gt.(nt1+1)) call destroy(Gr(i-1,nt1))
+             return
+          endif
+
+
+          !Checks whether block has been created, if not do it  
+          if (Gr(i,nt1)%nrow.eq.0 .or. Gr(i,nt1)%ncol.eq.0) then 
+
+             call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+             
+             call prealloc_mult(work1,Gr(i-1,nt1),Gr(i,nt1))
+             
+             call destroy(work1)
+
+          endif
+          
+          !Destroy also the block adjecent to diagonal since 
+          !this is not deallocated anymore in calling subroutine
+          if (i.gt.(nt1+1)) call destroy(Gr(i-1,nt1))
+
+          if (i.eq.nt2) exit
+
+       enddo
+       
+    endif
+
+    ! Computes the Gamma matrices
+    call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
+    call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
+    
+    call create(GAM1_dns,GAM1%nrow,GAM1%ncol)
+
+    call csr2dns(GAM1,GAM1_dns)
+    
+    call destroy(GAM1)
+
+    call create(GAM2_dns,GAM2%nrow,GAM2%ncol)
+
+    call csr2dns(GAM2,GAM2_dns)
+    
+    call destroy(GAM2)
+
+    ! Work to compute transmission matrix (Gamma2 Gr Gamma1 Ga)
+    call prealloc_mult(GAM2_dns,Gr(nt2,nt1),work1)
+
+    call destroy(GAM2_dns)
+
+    call prealloc_mult(work1,GAM1_dns,work2)
+
+    call destroy(work1)
+
+    call destroy(GAM1_dns)
+
+    call zdagadns(Gr(nt2,nt1),GA)
+    
+    if (nt2.gt.nt1+1) call destroy( Gr(nt2,nt1) )
+
+    call prealloc_mult(work2,GA,TRS)
+
+    call destroy(work2)
+
+    call destroy(GA) 
+  
+    TUN = real(trace(TRS))
+
+    call destroy(TRS)
+    
+  end subroutine trasmission_old
  
 
   !---------------------------------------------------!
@@ -2407,16 +2508,6 @@ CONTAINS
 
        endif
 
-       !do icont=1,ncont
-       !   if( LDOS(2*iLDOS-1).ge.str%mat_C_end(i) .and. &
-       !        LDOS(2*iLDOS).le.str%mat_C_end(i) )  then
-       !      do i2=1,ind(LDOS(2*iLDOS)+1)-ind(LDOS(2*iLDOS-1))
-       !         LEDOS(i1,iLDOS) = LEDOS(i1,iLDOS) +  &
-       !              getelm(i2,i2,aimag(GS(icont)%nzval),GS(icont)%colind, &
-       !              GS(icont)%rowpnt,iadd,.true.)
-       !      enddo
-       !   endif
-       !enddo
     enddo
 
     call destroy(Grm)
