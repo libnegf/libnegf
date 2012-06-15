@@ -304,6 +304,23 @@ subroutine negf_set_reference(handler, minmax)
 
 end subroutine negf_set_reference
 
+subroutine negf_set_writetunn(handler, flag)
+  use libnegfAPICommon  ! if:mod:use  use negf_param  
+  use libnegf           ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: flag               ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  
+  LIB = transfer(handler, LIB) 
+ 
+  LIB%pNEGF%writeTunn = .true.
+  if(flag.eq.0) LIB%pNEGF%writeTunn = .false.
+ 
+end subroutine negf_set_writetunn
+
+
 subroutine negf_set_writeldos(handler, flag)
   use libnegfAPICommon  ! if:mod:use  use negf_param  
   use libnegf           ! if:mod:use 
@@ -319,3 +336,18 @@ subroutine negf_set_writeldos(handler, flag)
   if(flag.eq.0) LIB%pNEGF%writeLDOS = .false.
  
 end subroutine negf_set_writeldos
+
+subroutine negf_write_partition(handler)
+  use libnegfAPICommon  ! if:mod:use  use negf_param  
+  use libnegf           ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  
+  type(NEGFpointers) :: LIB
+  
+  LIB = transfer(handler, LIB) 
+
+  call negf_partition_info(LIB%pNEGF)
+
+end subroutine negf_write_partition
+

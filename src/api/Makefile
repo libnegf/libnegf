@@ -7,7 +7,7 @@ include ../../Makefile.user
 
 FC = $(FC90)
 API = $(shell pwd)
-TIBERCADROOT = $(HOME)/tibercad/trunk
+TIBERCADROOT = $(HOME)/projects/tibercad/trunk
 TIBERCADNEGF = $(TIBERCADROOT)/src/core/modules/negf/libnegf
 TARGET = libnegf_$(ARCH1).a
 SKITOBJECTS = sparsekit/*.o
