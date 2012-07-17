@@ -5,6 +5,7 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info
   use input_output
+  use elph
 
   implicit none
   private
@@ -78,6 +79,7 @@ module lib_param
 
      real(dp) :: wght        ! kp weight 
      integer :: kpoint       ! kp index
+     integer :: Epnt         ! Energy point
      real(dp), dimension(:,:), pointer :: tunn_mat => null()
      real(dp), dimension(:,:), pointer :: ldos_mat => null()
      real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
@@ -96,6 +98,12 @@ module lib_param
      integer :: outer        ! flag switching computation of  
                              ! the Device/Contact DM
                              ! 0 none; 1 upper block; 2 all
+
+	 real(dp), dimension(:), pointer :: E_singular => null()
+	 real(dp) :: delta_singular
+
+	 type(Telph) :: elph     ! electron-phonon data
+
   end type Tnegf
 
 contains

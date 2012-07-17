@@ -26,6 +26,7 @@ end interface
 
 interface create_id
    module procedure zcreate_id_CSR
+   module procedure zcreate_id_DNS
 end interface
 
 interface recreate
@@ -71,6 +72,19 @@ end interface
 interface writemem
    module procedure zwriteMem_CSR
 end interface
+
+! Compressed Sparse Row
+! Matrix stored in row-indexed sparse storage mode.
+!
+! [ V1 V2 0  V3 ]
+! [ V4 V5 0  0  ]
+! [ V6 0  V7 0  ]
+! [ 0  V8 V9 0  ]
+!
+!         [  1  2  3  4  5  6  7  8  9]
+! nzval = [ V1 V2 V3 V4 V5 V6 V7 V8 V9]
+! colind= [  1  2  4  1  2  1  3  2  3]
+! rowpnt= [  1  4  6  8  10 ]
 
 Type z_CSR
   integer :: nnz
@@ -238,7 +252,25 @@ subroutine zcreate_id_CSR(mat,nrow)
 
 end subroutine zcreate_id_CSR
 
+!-------------------------------------------------------------------
+subroutine zcreate_id_DNS(mat,nrow,alpha)
+  type(z_DNS) :: mat
+  integer nrow, i
+  real(dp), optional :: alpha
 
+  call zcreate_DNS(mat,nrow,nrow)
+
+  if (present(alpha)) then
+ 	 do i=1,nrow
+ 	    mat%val(i,i)=alpha
+ 	 enddo
+  else
+  	 do i=1,nrow
+ 	    mat%val(i,i)=1.0_dp
+ 	 enddo
+ endif
+
+end subroutine zcreate_id_DNS
 ! ------------------------------------------------------------------
 subroutine zrecreate_CSR(mat)
   type(z_CSR) :: mat

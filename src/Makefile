@@ -75,7 +75,7 @@ contselfenergy.o population.o metis_interface.o \
 mat_def.o clock.o fermi.o iterative.o complexbands.o lowdin.o \
 sparsekit_drv.o ln_structure.o inversions.o outmatrix.o \
 input_output.o lib_param.o libnegf.o globals.o \
-rcm_module.o iterative_dns.o ln_extract.o
+rcm_module.o iterative_dns.o ln_extract.o elph.o 
 
 
 #########################################################################
@@ -106,7 +106,7 @@ $(SPARSEKITMODULES):
 ln_allocation.o:    ln_precision.o
 ln_constants.o:     ln_precision.o
 #:    ln_precision.o constants.o
-lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o 
+lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o elph.o
 mat_def.o:       ln_allocation.o
 
 iterative.o:     ln_allocation.o  mat_def.o sparsekit_drv.o 
@@ -136,6 +136,7 @@ libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_struc
 libnegf.o:    sparsekit_drv.o inversions.o iterative.o rcm_module.o 
 libnegf.o:     ln_extract.o contselfenergy.o iterative_dns.o
 
+elph.o: ln_precision.o globals.o 
 
 population.o:    ln_precision.o mat_def.o 
 
@@ -145,6 +146,8 @@ knitting.o:  ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o inversions
 knitting.o: supermat.o ln_structure.o
 
 supermat.o: mat_def.o ln_allocation.o
+
+
 
 #scattstates.o:   ln_precision.o constants.o mat_def.o sparsekit_drv.o
 #scattstates.o:   ln_allocation.o contselfenergy.o complexbands.o inversions.o

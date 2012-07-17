@@ -1638,7 +1638,7 @@ CONTAINS
   !
   !********************************************************************************
   !
-  !Nota: la funzione è implementata col valore assoluto, pertanto dovrebbe andare 
+  !Nota: la funzione e' implementata col valore assoluto, pertanto dovrebbe andare
   !bene pure coi complessi
 
   function zchkdrp(A,drop) result(nnz)
@@ -1863,7 +1863,7 @@ CONTAINS
     type(z_DNS) :: A_dns,B_dns,C_dns
     integer :: M,N,K
     complex(dp), parameter :: s = (1.d0, 0.d0)
-    complex(dp), parameter :: beta =(0.d0,0.d0)
+    complex(dp) :: beta
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
        WRITE(*,*) 'WARNING (zmultdns): matrices don''t match';
@@ -1872,9 +1872,17 @@ CONTAINS
     M = A_dns%nrow
     N = B_dns%ncol
     K = A_dns%ncol
-
-    CALL create(C_dns,M,N)
     
+	IF (allocated(C_dns%val)) THEN
+	   IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+	  	 STOP 'ERROR (zmultdnss): C allocated with wrong size'
+	   ENDIF
+	   beta = (1.d0,0.d0)
+    ELSE
+    	CALL create(C_dns,M,N)
+    	beta = (0.d0,0.d0)
+    ENDIF
+
     CALL ZGEMM('N','N', M, N, K, s, A_dns%val, M, &
             B_dns%val, B_dns%nrow, beta, C_dns%val, M)
 
@@ -1987,18 +1995,27 @@ CONTAINS
     type(z_DNS) :: A_dns,B_dns,C_dns
     complex(dp) :: s
     integer :: M,N,K
-    complex(dp), parameter :: beta =(0.d0,0.d0)
+    complex(dp) :: beta
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zmultdnss): matrices don''t match';
+       STOP 'ERROR (zmultdnss): matrices don''t match'
     ENDIF
 
     M = A_dns%nrow
     N = B_dns%ncol
     K = A_dns%ncol
 
-    CALL create(C_dns,M,N)
+	IF (allocated(C_dns%val)) THEN
+	   IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+	  	 STOP 'ERROR (zmultdnss): C allocated with wrong size'
+	   ENDIF
+	   beta = (1.d0,0.d0)
+    ELSE
+    	CALL create(C_dns,M,N)
+    	beta = (0.d0,0.d0)
+    ENDIF
     
+    ! C = beta C + s A * B
     CALL ZGEMM('N','N', M, N, K, s, A_dns%val, M, &
             B_dns%val, B_dns%nrow, beta, C_dns%val, M)
 
@@ -2435,9 +2452,9 @@ CONTAINS
     !
     !A_csr viene opportunamente riallocata per contenere anche i nuovi valori
     !
-    !Nota: non viene effettuato nessun controllo su A_csr, se A_csr �non nulla
+    !Nota: non viene effettuato nessun controllo su A_csr, se A_csr e' non nulla
     !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori 
-    !gi�presenti con quelli di B_csr
+    !gia' presenti con quelli di B_csr
     !*************************************************************************
 
     IMPLICIT NONE
@@ -2502,9 +2519,9 @@ CONTAINS
     !
     !A_csr viene opportunamente riallocata per contenere anche i nuovi valori
     !
-    !Nota: non viene effettuato nessun controllo su A_csr, se A_csr �non nulla
+    !Nota: non viene effettuato nessun controllo su A_csr, se A_csr e' non nulla
     !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori 
-    !gi�presenti con quelli di B_csr
+    !gia' presenti con quelli di B_csr
     !*************************************************************************
 
     IMPLICIT NONE
