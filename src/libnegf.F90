@@ -17,6 +17,7 @@ module libnegf
  use ln_extract
  use contselfenergy
  use clock
+ use elph
 
  implicit none
  private
@@ -1866,7 +1867,7 @@ end subroutine contour_int
     ncont = negf%str%num_conts
     nbl = negf%str%num_PLs
     kbT = negf%kbT
-    ref = negf%refcont
+    ref = 10 !negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
     selmodes => negf%elph%selmodes
     Wq => negf%elph%Wq
