@@ -489,14 +489,14 @@ CONTAINS
 
     DO i=1,nbl
 
-       CALL zextract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,ESH(i,i))
+       CALL extract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,ESH(i,i))
 
     ENDDO
 
     DO i=2,nbl
 
-       CALL zextract(ESH_tot,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,ESH(i-1,i))
-       CALL zextract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,ESH(i,i-1))
+       CALL extract(ESH_tot,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,ESH(i-1,i))
+       CALL extract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,ESH(i,i-1))
 
     ENDDO
 
@@ -1474,7 +1474,7 @@ CONTAINS
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
           nrow=indblk(2)-indblk(1)
           CALL prealloc_mult(Gr(1,cb),Gam,work1)
-          CALL zdagacsr(Gr(1,cb),Ga)
+          CALL zdagger(Gr(1,cb),Ga)
 
           !G(1,j) va tenuta per la prima iterazione blocco sopradiagonale
 
@@ -1496,7 +1496,7 @@ CONTAINS
              !Calcolo blocchi sopradiagonali
              CALL prealloc_mult(Gr(i-1,cb),Gam,work1)
 
-             CALL zdagacsr(Gr(i,cb),Ga)
+             CALL zdagger(Gr(i,cb),Ga)
 
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
              CALL zmask_realloc(Glsub(i-1,i), ESH(i-1,i))
@@ -1523,7 +1523,7 @@ CONTAINS
              !CALL destroy(Glsub(i,i))
              !Calcolo diretto blocchi sottodiagonali
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
-             CALL zdagacsr(Gr(i-1,cb),Ga)
+             CALL zdagger(Gr(i-1,cb),Ga)
              CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
              CALL zmask_realloc(Glsub(i,i-1), ESH(i,i-1))
 
@@ -1968,12 +1968,12 @@ CONTAINS
           !Secondo addendo
 
           !work2=Tlc*gsurfA
-          CALL zdagacsr(gsurfR(k),gsurfA)
+          CALL zdagger(gsurfR(k),gsurfA)
           CALL prealloc_mult(Tlc(k),gsurfA,work2)
           CALL destroy(gsurfA)
 
           !work3=Ga*work2=Ga*Tlc*gsurfA           
-          CALL zdagacsr(Gr(cb,cb),Ga)
+          CALL zdagger(Gr(cb,cb),Ga)
           CALL prealloc_mult(Ga,work2,work3)
 
           CALL destroy(Ga)
@@ -2003,7 +2003,7 @@ CONTAINS
 
           ! compute lower outer part using (iG<)+ = iG<    
           IF (lower) THEN
-             call zdagacsr(Glsub,work1)
+             call zdagger(Glsub,work1)
              call concat(Glout,work1,j1,i1)
              call destroy(work1)
           ENDIF
@@ -2027,14 +2027,14 @@ CONTAINS
              IF ((j.NE.k).AND.(Gr(cbj,cb)%nnz.NE.0)) THEN
 
                 !work1=Tlc*gsurfA  
-                CALL zdagacsr(gsurfR(j),gsurfA)
+                CALL zdagger(gsurfR(j),gsurfA)
                 CALL prealloc_mult(Tlc(j),gsurfA,work1)
                 CALL destroy(gsurfA)
 
                 !if (debug) write(*,*) 'cont',j,'T*g'
 
                 !work2=Ga*work1=Ga*Tlc*gsurfA  
-                CALL zdagacsr(Gr(cbj,cb),Ga)
+                CALL zdagger(Gr(cbj,cb),Ga)
                 CALL prealloc_mult(Ga,work1,work2)
 
                 !if (debug) write(*,*) 'cont',j,'Ga*T*g'
@@ -2068,7 +2068,7 @@ CONTAINS
 
                 ! compute lower outer part using (iG<)+ = iG<    
                 IF (lower) THEN
-                   call zdagacsr(Glsub,work1)
+                   call zdagger(Glsub,work1)
                    call concat(Glout,work1,j1,i1)
                    call destroy(work1)
                 ENDIF
@@ -2269,7 +2269,7 @@ CONTAINS
     
     call destroy(GAM1)
     
-    call zdagacsr(Gr(nt1,nt2),GA)
+    call zdagger(Gr(nt1,nt2),GA)
     call prealloc_mult(work1,GAM2,work2)
     
     if (nt1.gt.2) call destroy( Gr(nt1,nt2) )

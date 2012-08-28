@@ -24,8 +24,8 @@ contains
 
     nmdim = negf%str%central_dim
 
-    call zextract(negf%H,1,nmdim,1,nmdim,negf%HM)
-    call zextract(negf%S,1,nmdim,1,nmdim,negf%SM)
+    call extract(negf%H,1,nmdim,1,nmdim,negf%HM)
+    call extract(negf%S,1,nmdim,1,nmdim,negf%SM)
 
   end subroutine extract_device
 
@@ -50,8 +50,8 @@ contains
 
     do i=1,ncont
        !write(*,*) '(ext_cont)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
-       call zextract_dns(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%HC(i))       
-       call zextract_dns(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%SC(i))
+       call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%HC(i))       
+       call extract(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%SC(i))
     enddo
 
     do i=1,ncont
@@ -59,10 +59,10 @@ contains
        i1 = negf%str%mat_PL_start( negf%str%cblk(i) )
        i2 = negf%str%mat_PL_end( negf%str%cblk(i) ) 
        j1 = cstart(i); 
-       j2 = j1+(ncdim(i)+surfdim(i))/2-1
+       j2 = j1+(ncdim(i)+surfdim(i))/2-1 !Note this is Surf+1PL
        !print*, 'Interaction block:',i1,i2,j1,j2
-       call zextract(negf%H,i1,i2,j1,j2,negf%HMC(i))         
-       call zextract(negf%S,i1,i2,j1,j2,negf%SMC(i)) 
+       call extract(negf%H,i1,i2,j1,j2,negf%HMC(i))         
+       call extract(negf%S,i1,i2,j1,j2,negf%SMC(i)) 
 
 !print*,'(extract)',negf%HMC(i)%nzval
 !print*,'(extract)',negf%SMC(i)%nzval

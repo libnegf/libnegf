@@ -61,8 +61,8 @@ module lib_param
      type(z_CSR) :: SM     
      type(z_DNS) :: HC(MAXNCONT)
      type(z_DNS) :: SC(MAXNCONT)
-     type(z_CSR) :: HMC(MAXNCONT)
-     type(z_CSR) :: SMC(MAXNCONT)
+     type(z_DNS) :: HMC(MAXNCONT)
+     type(z_DNS) :: SMC(MAXNCONT)
      type(z_CSR) :: Gr             ! Holding output Matrix
      type(z_CSR) :: rho            ! Holding output Matrix
      type(z_CSR) :: rho_eps        ! Holding output Matrix

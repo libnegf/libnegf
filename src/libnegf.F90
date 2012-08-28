@@ -23,7 +23,7 @@ module libnegf
  private
 
  public :: init_negf, negf_version, destroy_matrices, destroy_negf
- public :: compute_dos, compute_contacts
+ public :: compute_dos
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
  public :: real_axis_int_ph
  public :: compute_current, integrate
@@ -32,7 +32,6 @@ module libnegf
  public :: sort, swap
  public :: check_if_hermitian,printcsr
  public :: extract_compute_current, extract_compute_density  
- public :: negf_partition_info
 
  integer, PARAMETER :: VBT=70
 
@@ -124,11 +123,27 @@ contains
     if (nbl .eq. 0) then
 
        call log_allocate(PL_end, 10000)  ! Orribile
-       call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)
+       call block_partition(negf%H, surf_end(1), nbl, PL_end)
        
+       !if (negf%verbose.gt.50) then
+       !   write(*,*) "(LibNEGF) Partitioning:"
+       !   write(*,*) nbl
+       !   write(*,*) PL_end(1:nbl)
+       !   open(1001,file='blocks.dat')
+       !   write(1001,*) 1
+       !   do i = 1, nbl       
+       !      write(1001,*) PL_end(i)
+       !   enddo
+       !   close(1001)
+       !endif
     endif
     
     call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
+
+    !if (negf%verbose .gt. 50) then
+    !   write(*,*) '(init NEGF) nbl: ', nbl
+    !   write(*,*) "(init NEGF) blocks interactions:",cblk(1:ncont)     
+    !endif
 
     call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
        
@@ -158,6 +173,8 @@ contains
 
     close(101)
 
+    !print*, '(init NEGF) done'
+
   end subroutine init_negf
 !--------------------------------------------------------------------
 
@@ -173,26 +190,6 @@ contains
   end subroutine negf_version
 
   
-!--------------------------------------------------------------------
-  subroutine negf_partition_info(negf)
-    type(Tnegf), pointer :: negf
-  
-    integer :: i
-
-    write(*,*) "(LibNEGF) Partitioning:"
-    write(*,*) "Number of blocks: ",negf%str%num_Pls
-    write(*,*) negf%str%mat_PL_end(:)
-    write(*,*) "Contact interactions:",negf%str%cblk(:)     
-
-    open(1001,file='blocks.dat')
-       write(1001,*) 1
-       do i = 1, negf%str%num_Pls       
-          write(1001,*) negf%str%mat_PL_end(i)
-       enddo
-    close(1001)
-
-  end subroutine negf_partition_info
-
 !--------------------------------------------------------------------
   subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
     type(Tnegf), pointer :: negf
@@ -247,8 +244,8 @@ contains
     do i=1,negf%str%num_conts
        if (allocated(negf%HC(i)%val)) call destroy(negf%HC(i))
        if (allocated(negf%SC(i)%val)) call destroy(negf%SC(i))
-       if (allocated(negf%HMC(i)%nzval)) call destroy(negf%HMC(i))
-       if (allocated(negf%SMC(i)%nzval)) call destroy(negf%SMC(i))
+       if (allocated(negf%HMC(i)%val)) call destroy(negf%HMC(i))
+       if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
 
   end subroutine destroy_matrices
@@ -258,7 +255,7 @@ contains
   subroutine compute_dos(negf) 
     type(Tnegf), pointer :: negf
 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Type(z_CSR) ::  Gr
 
     integer :: N, i, i1, it
@@ -307,73 +304,6 @@ contains
 
   end subroutine compute_dos
 
-!-------------------------------------------------------------------------------
-
-  subroutine compute_contacts(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
-    complex(dp) :: Ec
-    Type(Tnegf), pointer :: pnegf
-    integer, intent(in) :: pnt
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-
-
-    Type(z_DNS) :: GS_d
-    Type(z_CSR) :: TpMt
-
-    Integer :: nbl, ncont, l, i1
-    Real(dp) :: ncyc, avncyc
-
-    nbl = pnegf%str%num_PLs
-    ncont = pnegf%str%num_conts
-    avncyc = 0
-
-
-    ! -----------------------------------------------------------------------
-    !  Calculation of contact self-energies
-    ! -----------------------------------------------------------------------
-    ! For the time HC and SC are dense, GS is sparse (already allocated)
-    ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
-    ! -----------------------------------------------------------------------
-    
-    do l= 1,ncont
-       pnegf%activecont=l
-
-       call surface_green(Ec,pnegf%HC(l),pnegf%SC(l),pnegf,pnt,ncyc,GS_d)
-       i1 = nzdrop(GS_d,EPS)
-       
-       call create(GS(l),GS_d%nrow,GS_d%ncol,i1)
-       
-       call dns2csr(GS_d,GS(l))
-       call destroy(GS_d)
-       avncyc = avncyc + ncyc
-       
-    enddo
-    
-    ! -- GF Calculation ----------------------------------------------------
-    ! 
-    !Tlc= Ec*ST - TM 
-    !Tcl= (conjg(Ec)*ST - TM )
-    !Array di GS sparse.
-    
-    !Tlc: matrici di interazione (ES-H) device-contatti (l=layer,c=contact)
-    !Tcl: matrici di interazione (ES-H) contatti-device (l=layer,c=contact
-    
-    do i1=1,ncont
-
-       call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),Ec,Tlc(i1))
-
-       call prealloc_sum(pnegf%HMC(i1),pnegf%SMC(i1),(-1.d0, 0.d0),conjg(Ec),TpMt)
-       
-       call zdagacsr(TpMt,Tcl(i1))
-       
-       call destroy(TpMt)
-
-    enddo
-
-    !if (id0.and.pnegf%verbose.gt.60) call message_clock('Compute Green`s funct ')
-    
-    call SelfEnergies(Ec,ncont,GS,Tlc,Tcl,SelfEneR)
-
-  end subroutine compute_contacts
   
   !-------------------------------------------------------------------------------
   subroutine extract_compute_current(negf)
@@ -454,7 +384,7 @@ contains
     
     type(Tnegf), pointer :: negf
 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     
     Real(dp), Dimension(:), allocatable :: TUN_MAT
     !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
@@ -579,7 +509,7 @@ contains
           
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,Gs,negf%ni,negf%nf,negf%nLDOS, &
+          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
                negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
           
           negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
@@ -831,7 +761,7 @@ end function integrate
   subroutine contour_int_n(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, NumPoles
@@ -1074,7 +1004,7 @@ end function integrate
   subroutine contour_int_p(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, NumPoles
@@ -1272,7 +1202,7 @@ end function integrate
 subroutine contour_int(negf)
 
   type(Tnegf), pointer :: negf 
-  Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+  Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
   type(z_CSR) :: GreenR, TmpMt 
 
   integer :: npid, istart, iend, NumPoles
@@ -1352,6 +1282,7 @@ subroutine contour_int(negf)
      Pc = Rad*exp(j*pnts(i))
      Ec = Centre+Pc
      zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
+
      call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
      call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
@@ -1546,7 +1477,7 @@ end subroutine contour_int
   subroutine real_axis_int(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, ref
@@ -1684,7 +1615,7 @@ end subroutine contour_int
   subroutine real_axis_int_n(negf)
 
     type(Tnegf), pointer :: negf 
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, ref
@@ -1793,7 +1724,7 @@ end subroutine contour_int
           if (negf%writeLDOS) then
              call zgetdiag(GreenR, q_tmp) 
              do i1 = 1,negf%str%central_dim
-                write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
+                write(2001,'((ES14.5))', advance='NO') -real(q_tmp(i1))
              enddo
              write(2001,*)
              write(2002,*) pnts(i)
@@ -2173,12 +2104,9 @@ end subroutine contour_int
 !----------------------------------------------------------------------
 
   
-  subroutine block_partition(mat,nrow,cont_end,surf_end,ncont,nbl,blks)
+  subroutine block_partition(mat,nrow,nbl,blks)
     type(z_CSR), intent(in) :: mat
     integer, intent(in) :: nrow
-    integer, dimension(:), intent(in) :: cont_end
-    integer, dimension(:), intent(in) :: surf_end
-    integer, intent(in) :: ncont
     integer, intent(out) :: nbl
     integer, dimension(:), intent(inout) :: blks 
 
@@ -2186,20 +2114,9 @@ end subroutine contour_int
     integer :: i1, i2
 
     integer :: rn, rnold, tmax, rmax, maxmax
-    integer :: dbuff, minsize, minv, maxv
+    integer :: dbuff, minsize
 
-    minsize = 0
-    do i1 = 1, ncont
-       maxv = 0
-       minv = 400000000
-       do k = surf_end(i1)+1, cont_end(i1)
-          do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
-             if (mat%colind(i).le.nrow .and.  mat%colind(i).lt.minv) minv = mat%colind(i)
-             if (mat%colind(i).le.nrow .and.  mat%colind(i).gt.maxv) maxv = mat%colind(i)
-          end do
-       end do
-       if (maxv-minv+1 .gt. minsize) minsize = maxv - minv + 1
-    end do
+    !nrow = mat%nrow
     
     ! Find maximal stancil of the matrix and on which row
     !  ( Xx     )
@@ -2225,10 +2142,10 @@ end subroutine contour_int
        endif
 
        dbuff = maxmax        ! dbuff should be linked to maxmax
-       minsize = max((dbuff+1)/2,minsize)  
+       minsize = (dbuff+1)/2 ! minsize bisogna identificarlo meglio. 
     enddo
 
-    !write(*,*) 'minsize=',minsize
+    !write(*,*) 'maxmax=',maxmax
     !write(*,*) 'maxrow=',rmax
 
     ! Define central block 
@@ -2375,10 +2292,6 @@ end subroutine contour_int
              if( min .ge. PL_start(k) ) then                
                 exit
              else
-                write(*,*) "(LibNEGF) Partitioning:"
-                write(*,*) "Number of blocks: ",nbl
-                write(*,*) PL_end(1:nbl)
-                write(*,*) "Contact interaction:",cblk(j1)     
                 write(*,*) "ERROR: contact",j1,"interacting with more than one block",min,max
                 stop
              end if

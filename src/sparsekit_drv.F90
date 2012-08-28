@@ -7,7 +7,7 @@ MODULE sparsekit_drv
   private
 
   public :: dns2csr, csr2dns, coo2csr, csr2coo, csr2csc, csc2dns, dns2csc
-  public :: clone, concat, msort, mask
+  public :: clone, extract, concat, msort, mask
   public :: prealloc_sum, prealloc_mult
   public :: check_nnz, nzdrop, trace, getelment
 
@@ -16,8 +16,7 @@ MODULE sparsekit_drv
   public :: zprint_csrdns, zprint_csrcoo, ziluk_st, ztransp_st, ztransp2_st
   public :: zsubmat_st, zcopmat_st, zamub_st, zaplb_st, zcplsamub_st, zpre_amub
   public :: zpre_aplb 
-  public :: zextract, zextract_dns
-  public :: zdagacsr, zdagadns, zspectral
+  public :: zdagger, zspectral
   public :: zgetdiag, zmask_realloc
 
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
@@ -147,6 +146,7 @@ MODULE sparsekit_drv
      module procedure zsumcsrs1s2  
      module procedure zsumdns
      module procedure zsumdnss   
+     module procedure zsumdnss1s2
   end interface
   interface prealloc_mult
      module procedure zmultcsr
@@ -155,6 +155,10 @@ MODULE sparsekit_drv
      module procedure zmultdnss
      module procedure zmatmul
      module procedure zmatmuls
+  end interface
+  interface extract
+     module procedure zextract_csr
+     module procedure zextract_dns
   end interface
   interface concat
      module procedure  zconcat_csr
@@ -174,7 +178,14 @@ MODULE sparsekit_drv
   interface getelment
      module procedure getelm_csr
   end interface
-
+  interface zdagger
+     module procedure zdagacsr   
+     module procedure zdagadns   
+  end interface
+  interface zspectral
+     module procedure zspectral_csr   
+     module procedure zspectral_dns   
+  end interface
   !interface 
   !   function getelm(i1,i2,r,i4,i5,i6,l)
   !     integer, intent(in) :: i1,i2
@@ -2362,6 +2373,25 @@ CONTAINS
 
   end subroutine zsumdnss
 
+  !***********************************************************************
+  subroutine zsumdnss1s2(A_dns,B_dns,s1,s2,C_dns)
+
+    implicit none
+
+    type(z_DNS) :: A_dns,B_dns,C_dns
+    complex(dp) :: s1,s2
+
+    IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
+       WRITE(*,*) 'WARNING (zsumdnss1s2): matrices don''t match';
+    ENDIF
+
+
+    CALL create(C_dns,A_dns%nrow,B_dns%ncol)
+
+    C_dns%val = s1 * A_dns%val + s2 * B_dns%val
+
+  end subroutine zsumdnss1s2
+
 
   !***********************************************************************
 
@@ -2372,7 +2402,7 @@ CONTAINS
   !
   !**************************************************************************
 
-  subroutine zextract(A_csr,i1,i2,j1,j2,A_sub)
+  subroutine zextract_csr(A_csr,i1,i2,j1,j2,A_sub)
 
     !********************************************************************
     !
@@ -2407,7 +2437,7 @@ CONTAINS
 
     ENDIF
 
-  end subroutine zextract
+  end subroutine zextract_csr
 
   !------------------------------------------------------------------------------
   subroutine zextract_dns(A_csr,i1,i2,j1,j2,A_dns)
@@ -2730,7 +2760,7 @@ CONTAINS
   !
   !*************************************************************************
 
-  subroutine zspectral(GreenR1,GreenR2,flagR,A)
+  subroutine zspectral_csr(GreenR1,GreenR2,flagR,A)
 
     !*************************************************************************
     !
@@ -2757,10 +2787,6 @@ CONTAINS
     !Hermitiano di GreenR2 passato in GreenA
     call zdagacsr(GreenR2,GreenA)
 
-    if (flagR.eq.1) then 
-       call destroy(GreenR2)
-    endif
-
     !Cambio segno a GreenA -> -GreenA
     do i=1,GreenA%nnz
       GreenA%nzval(i)=(-1.d0, 0.d0)*GreenA%nzval(i)
@@ -2775,9 +2801,37 @@ CONTAINS
     enddo
 
     call destroy(GreenA)
-    
-  end subroutine zspectral
 
+    if (flagR.eq.1) then 
+       call destroy(GreenR2)
+    endif
+    
+  end subroutine zspectral_csr
+
+  ! DNS version  **********************************************************    
+
+  subroutine zspectral_dns(GreenR1,GreenR2,flagR,A)
+    implicit none
+
+    type(z_DNS) :: GreenR1, GreenR2, GreenA, A
+    integer :: flagR
+
+    integer :: i
+    
+    !Hermitiano di GreenR2 passato in GreenA
+    call zdagger(GreenR2,GreenA)
+
+    call create(A,GreenA%nrow,GreenA%ncol)
+
+    A%val=(0.d0,1.d0)*(GreenR1%val - GreenA%val)
+
+    call destroy(GreenA)
+
+    if (flagR.eq.1) then 
+       call destroy(GreenR2)
+    endif
+
+  end subroutine zspectral_dns
   !*************************************************************************
   !
   !  Subroutine per il sorting delle matrici csr

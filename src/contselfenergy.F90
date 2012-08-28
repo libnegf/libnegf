@@ -35,6 +35,22 @@ module ContSelfEnergy
   public :: surface_green !surface_green_2 
   public :: SelfEnergy
   public :: SelfEnergies
+  public :: compute_contacts
+
+  interface SelfEnergy
+     module procedure SelfEnergy_csr    
+     module procedure SelfEnergy_dns
+  end interface    
+
+  interface SelfEnergies
+     module procedure SelfEnergies_csr    
+     module procedure SelfEnergies_dns
+  end interface    
+  
+  interface compute_contacts
+     module procedure compute_contacts_csr    
+     module procedure compute_contacts_dns
+  end interface    
 
 contains 
   !--------------------------------------------------------------------
@@ -153,6 +169,8 @@ contains
           Co=conjg(transpose(Co))
 
           call decimation2(E,GS,Ao,Bo,Co,npl,n1,n2,ncyc)
+
+          !call sgf_complx(E,Ao,Bo,Co,npl,GS)
 
           call log_deallocate(Ao)
           call log_deallocate(Bo)
@@ -299,9 +317,109 @@ contains
 
   end subroutine decimation2
 
+!-------------------------------------------------------------------------------
+
+  subroutine compute_contacts_csr(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
+    complex(dp) :: Ec
+    Type(Tnegf), pointer :: pnegf
+    integer, intent(in) :: pnt
+    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+
+    Type(z_DNS) :: GS_d
+    Type(z_CSR) :: TpMt
+
+    Integer :: nbl, ncont, i, l
+    Real(dp) :: ncyc, avncyc
+
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    avncyc = 0
+
+    ! -----------------------------------------------------------------------
+    !  Calculation of contact self-energies
+    ! -----------------------------------------------------------------------
+    ! For the time HC and SC are dense, GS is sparse (already allocated)
+    ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
+    ! -----------------------------------------------------------------------
+    
+    do i= 1,ncont
+       pnegf%activecont=i
+
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS_d)
+
+       l = nzdrop(GS_d,EPS)
+       
+       call create(GS(i),GS_d%nrow,GS_d%ncol,l)
+       
+       call dns2csr(GS_d,GS(i))
+       
+       call destroy(GS_d)
+
+       avncyc = avncyc + ncyc
+
+       STOP 'Internal error: HMC has been changed to dns format'
+       !call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),Ec,Tlc(i))
+
+       !call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),conjg(Ec),TpMt)
+
+       call zdagger(TpMt,Tcl(i))
+       
+       call destroy(TpMt)
+
+       call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
+
+    enddo
+
+  end subroutine compute_contacts_csr
+!-------------------------------------------------------------------------------
+
+  subroutine compute_contacts_dns(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
+    complex(dp) :: Ec
+    Type(Tnegf), pointer :: pnegf
+    integer, intent(in) :: pnt
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+
+    Type(z_DNS) :: TpMt
+
+    Integer :: nbl, ncont, l, i
+    Real(dp) :: ncyc, avncyc
+
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    avncyc = 0
+
+    ! -----------------------------------------------------------------------
+    !  Calculation of contact self-energies
+    ! -----------------------------------------------------------------------
+    ! For the time HC and SC are dense, GS is sparse (already allocated)
+    ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
+    ! -----------------------------------------------------------------------
+    
+    do i= 1,ncont
+
+       pnegf%activecont=i
+
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS(i))
+       
+       avncyc = avncyc + ncyc
+
+       call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),Ec,Tlc(i))
+
+       call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),conjg(Ec),TpMt)
+
+       call zdagger(TpMt,Tcl(i))
+       
+       call destroy(TpMt)
+
+       call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
+
+    enddo
+
+  end subroutine compute_contacts_dns
+
 
   !--------------------------------------------------------------------
-  subroutine SelfEnergies(E,ncont,GS,Tlc,Tcl,SelfEneR)
+  subroutine SelfEnergies_csr(E,ncont,GS,Tlc,Tcl,SelfEneR)
     complex(dp) :: E
     integer :: ncont
     type(z_CSR) :: GS(MAXNCONT),Tlc(MAXNCONT),Tcl(MAXNCONT)
@@ -313,10 +431,10 @@ contains
        call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
     end do
     
-  end subroutine SelfEnergies
+  end subroutine SelfEnergies_csr   
 
   ! -------------------------------------------------------------
-  subroutine SelfEnergy(GS,Tlc,Tcl,SelfEneR)
+  subroutine SelfEnergy_csr(GS,Tlc,Tcl,SelfEneR)
 
     type(z_CSR) :: GS,Tlc,Tcl
     !OUTPUT
@@ -334,103 +452,154 @@ contains
        return
     endif
 
-    !print*, 'Tlc GS = TG', Tlc%ncol,GS%nrow    
     call prealloc_mult(Tlc,GS,TG)
-    !print *, 'TG', TG%nrow,TG%nnz
+
     call prealloc_mult(TG,Tcl,SelfEneR)
     
-    !deallocate (TG,TT)
     call destroy(TG)    
     
-  end subroutine SelfEnergy
+  end subroutine SelfEnergy_csr
 
+
+  !--------------------------------------------------------------------
+  subroutine SelfEnergies_dns(E,ncont,GS,Tlc,Tcl,SelfEneR)
+    complex(dp) :: E
+    integer :: ncont
+    type(z_DNS) :: GS(MAXNCONT),Tlc(MAXNCONT),Tcl(MAXNCONT)
+    !OUTPUT
+    type(z_DNS) :: SelfEneR(MAXNCONT)
+    integer :: i 
+    
+    do i = 1,ncont
+       call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
+    end do
+    
+  end subroutine SelfEnergies_dns
+
+  ! -------------------------------------------------------------
+  subroutine SelfEnergy_dns(GS,Tlc,Tcl,SelfEneR)
+
+    type(z_DNS) :: GS,Tlc,Tcl
+    !OUTPUT
+
+    type(z_DNS) :: SelfEneR    
+
+    ! locals 
+    type(z_DNS) :: TG
+
+    call prealloc_mult(Tlc,GS,TG)
+
+    call prealloc_mult(TG,Tcl,SelfEneR)
+    
+    call destroy(TG)    
+    
+  end subroutine SelfEnergy_dns
+
+          
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE COMPLEX BANDSTRUCTURE
   ! This method is similar to the old Umerski... but it works !!
   ! It is ok for real E
   !--------------------------------------------------------------------
-!!$  subroutine surface_green_2(Ec,nc,HC,SC,GS)
-!!$    complex(dp), intent(in) :: Ec
-!!$    integer, intent(in)     :: nc
-!!$    type(z_DNS), intent(in) :: HC,SC
-!!$    type(z_CSR), intent(out) :: GS
-!!$
-!!$    ! Locals: ........................................
-!!$    integer :: PLdim, n0,n1,n2,n3,n4,n5,nmax
-!!$    type(z_DNS) :: Vr, Z0, Z1, Z2
-!!$    type(z_DNS) :: D11,D12,D22,L11,GS_d
-!!$    real(dp), dimension(:), allocatable :: vf
-!!$    complex(dp), dimension(:), allocatable :: kzi
-!!$    type(TStatesSummary) :: summ
-!!$
-!!$
-!!$    if(id0.and.verbose.gt.VBT) call message_clock('Computing SGF ')
-!!$
-!!$    n0 = mbound_end(nc)
-!!$    n1 = n0+1                   !start of the real contact mat element
-!!$    n4 = ncdim(nc)-n0           !dimension of the real contact
-!!$    n5 = n4/2                   !dimension of half real contact (1 PL!)
-!!$    n2 = n0+n5                  !end of half real contact 
-!!$    n3 = n2+1                   !start of the second half real contact
-!!$    nmax=ncdim(nc)              !end of second half real contact
-!!$
-!!$    ! Solve Complex Bands
-!!$    call create(Vr,2*n5,2*n5)
-!!$    call create(Z0,n5,n5)
-!!$    call create(Z1,n5,n5)
-!!$    call log_allocate(vf,2*n5)
-!!$    call log_allocate(kzi,2*n5) 
-!!$
-!!$    Z0%val = Ec * SC%val(n1:n2,n1:n2) - HC%val(n1:n2,n1:n2)
-!!$    Z1%val = Ec * SC%val(n1:n2,n3:nmax) - HC%val(n1:n2,n3:nmax)
-!!$    Z2%val = Ec * SC%val(n3:nmax,n1:n2) - HC%val(n3:nmax,n1:n2) 
-!!$
-!!$    call complex_k(real(Ec),n5,Z0%val,Z1%val,kzi,Z21=Z2%val,Cr=Vr%val,vf=vf)
-!!$
-!!$    call sort_and_normalize(2*n5,kzi,vf,Vr%val,summ)    
-!!$
-!!$    if(id0) call write_clock     
-!!$
-!!$    call log_deallocate(kzi)
-!!$    call log_deallocate(vf)
-!!$
-!!$    if(summ%prop_in.ne.summ%prop_out .or. summ%evan_in.ne.summ%evan_out ) &
-!!$               STOP 'ERROR: Asymmetry found betw. IN/OUT states'   
-!!$    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!!$    ! Set-up C-Matrix (Bloch vectors ordered in columns)
-!!$
-!!$    call create(D12,n5,n5)
-!!$    call create(D22,n5,n5)
-!!$ 
-!!$    D12%val = Vr%val(1:n5,n5+1:2*n5)        !D12
-!!$    D22%val = Vr%val(n5+1:2*n5,n5+1:2*n5)   !D22      
-!!$    
-!!$    call destroy(Vr)
-!!$
-!!$    call create(D11,n5,n5)    
-!!$    D11%val = matmul(Z0%val,D12%val) + matmul(Z1%val,D22%val)
-!!$
-!!$    call destroy(Z0,Z1,D22)
-!!$
-!!$    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-!!$    ! Compute surface G.F.
-!!$    call create(L11,n5,n5)
-!!$
-!!$    call zinv(L11%val,D11%val,n5)
-!!$
-!!$    call destroy(D11)
-!!$    
-!!$    call prealloc_mult(D12,L11,GS_d)
-!!$   
-!!$    call destroy(L11,D12)
-!!$
-!!$    call create(GS,GS_d%nrow,GS_d%ncol,nzdrop(GS_d,EPS))
-!!$    call dns2csr(GS_d,GS)
-!!$
-!!$    call destroy(GS_d)
-!!$
-!!$    if(id0.and.verbose.gt.VBT) call write_clock
-!!$
-!!$  end subroutine Surface_green_2
+  ! Create Surface G.F. using complex band bloch-vectors
+  ! Only for the first contact PL 
+  !    ^-1    a    a   a   a ^-1
+  !   g    = Z  + Z   D   D   
+  !    a      11   12  22  12
+  !----------------------------------------------------------------  
+  subroutine sgf_complx(Ec,Z0,Z1,Z2,npl,GS)
+    complex(dp), intent(in) :: Ec
+    integer :: npl
+    complex(dp), DIMENSION(:,:) :: Z0,Z1,Z2 
+    type(z_DNS) :: GS
+
+    ! Locals: ........................................
+    type(z_DNS) :: Vr, invD12
+    complex(dp), dimension(:,:), allocatable :: TT1, TT2
+    real(dp), dimension(:), allocatable :: vf
+    complex(dp), dimension(:), allocatable :: kzi
+    integer :: i1, i2, j1, j2
+    type(TStatesSummary) :: summ
+
+    !!if(id0.and.verbose.gt.VBT) call message_clock('Computing SGF ')
+    
+    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! STEP 1: Solve Complex Bands and sort traveling bloch states
+    call create(Vr,2*npl,2*npl)
+    call log_allocate(vf,2*npl)
+    call log_allocate(kzi,2*npl) 
+
+    call complex_k(real(Ec),npl,Z0,Z1,kzi,Z21=Z2,Cr=Vr%val,vf=vf)
+
+    call sort_and_normalize(2*npl,kzi,vf,Vr%val,summ)    
+
+    !!if(id0) call write_clock     
+
+    call log_deallocate(kzi)
+    call log_deallocate(vf)
+
+    if(summ%prop_in.ne.summ%prop_out .or. summ%evan_in.ne.summ%evan_out ) &
+               STOP 'ERROR: Asymmetry found betw. IN/OUT states'   
+ 
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    ! Set-up C-Matrix (Bloch vectors ordered in columns)
+
+    ! Extract and invert D12
+    call log_allocate(TT1,npl,npl)
+    call log_allocate(TT2,npl,npl)
+
+    i1 = 1; i2 = npl
+    j1 = npl+1; j2 = 2*npl
+    TT2=Vr%val(i1:i2,j1:j2)  !(D22)
+
+    ! This inverse may not exist. 
+    ! Probably one should invert removing the null-subspace (?)
+    call create(invD12,nPL,nPL)
+    call inverse(invD12%val,TT2,nPL)
+
+    ! Compute D22*D12^-1
+    TT2 = matmul(Vr%val(j1:j2,j1:j2),invD12%val)
+
+    call destroy(Vr)
+
+    ! Compute inverse (like G.F.)
+    TT1 = matmul(Z1,TT2) + Z0
+       
+    call create(GS,npl,npl)   
+       
+    call inverse(GS%val,TT1,npl)
+
+    deallocate(TT1,TT2)
+
+  end subroutine sgf_complx
 
 end module ContSelfEnergy
+
+
+
+
+
+!    call create(D12,npl,npl)
+!    call create(D22,npl,npl)
+! 
+!    D12%val = Vr%val(i1:i2,j1:j2)   !D12
+!    D22%val = Vr%val(j1:j2,j1:j2)   !D22      
+!    
+!    call destroy(Vr)
+!
+!    call create(D11,npl,npl)    
+!    D11%val = matmul(Z0,D12%val) + matmul(Z1,D22%val)!
+!
+!    ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+!    ! Compute surface G.F.
+!    call create(L11,npl,npl)
+!
+!    call zinv(L11%val,D11%val,npl)
+!
+!    call destroy(D11)
+!    
+!    call prealloc_mult(D12,L11,GS)
+!   
+!    call destroy(L11,D12)
+
+
