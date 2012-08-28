@@ -25,13 +25,14 @@ module libnegf
  public :: init_negf, negf_version, destroy_matrices, destroy_negf
  public :: compute_dos
  public :: contour_int_n, contour_int_p, real_axis_int, contour_int
- public :: real_axis_int_ph
+ public :: real_axis_int_n, real_axis_int_ph
  public :: compute_current, integrate
  public :: write_current, write_tunneling_and_dos
  public :: reorder
  public :: sort, swap
  public :: check_if_hermitian,printcsr
  public :: extract_compute_current, extract_compute_density  
+ public :: negf_partition_info
 
  integer, PARAMETER :: VBT=70
 
@@ -123,8 +124,8 @@ contains
     if (nbl .eq. 0) then
 
        call log_allocate(PL_end, 10000)  ! Orribile
-       call block_partition(negf%H, surf_end(1), nbl, PL_end)
-       
+       call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
+           
        !if (negf%verbose.gt.50) then
        !   write(*,*) "(LibNEGF) Partitioning:"
        !   write(*,*) nbl
@@ -189,7 +190,26 @@ contains
 
   end subroutine negf_version
 
-  
+!--------------------------------------------------------------------
+   subroutine negf_partition_info(negf)
+      type(Tnegf), pointer :: negf
+       
+      integer :: i
+
+      write(*,*) "(LibNEGF) Partitioning:"
+      write(*,*) "Number of blocks: ",negf%str%num_Pls
+      write(*,*) negf%str%mat_PL_end(:)
+      write(*,*) "Contact interactions:",negf%str%cblk(:)     
+
+      open(1001,file='blocks.dat')
+        write(1001,*) 1
+        do i = 1, negf%str%num_Pls       
+           write(1001,*)  negf%str%mat_PL_end(i)
+        enddo
+      close(1001)
+
+ end subroutine negf_partition_info
+
 !--------------------------------------------------------------------
   subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
     type(Tnegf), pointer :: negf
@@ -2103,10 +2123,12 @@ end subroutine contour_int
   end subroutine reorder
 !----------------------------------------------------------------------
 
-  
-  subroutine block_partition(mat,nrow,nbl,blks)
+  subroutine block_partition(mat,nrow,cont_end,surf_end,ncont,nbl,blks)
     type(z_CSR), intent(in) :: mat
     integer, intent(in) :: nrow
+    integer, dimension(:), intent(in) :: cont_end
+    integer, dimension(:), intent(in) :: surf_end
+   integer, intent(in) :: ncont
     integer, intent(out) :: nbl
     integer, dimension(:), intent(inout) :: blks 
 
@@ -2114,10 +2136,23 @@ end subroutine contour_int
     integer :: i1, i2
 
     integer :: rn, rnold, tmax, rmax, maxmax
-    integer :: dbuff, minsize
+    integer :: dbuff, minsize, minv, maxv
 
     !nrow = mat%nrow
     
+     minsize = 0
+     do i1 = 1, ncont
+        maxv = 0
+        minv = 400000000
+        do k = surf_end(i1)+1, cont_end(i1)
+           do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
+            if (mat%colind(i).le.nrow .and.  mat%colind(i).lt.minv) minv = mat%colind(i)
+            if (mat%colind(i).le.nrow .and.  mat%colind(i).gt.maxv) maxv = mat%colind(i)
+           end do
+        end do
+        if (maxv-minv+1 .gt. minsize) minsize = maxv - minv + 1
+    end do
+                                                                                
     ! Find maximal stancil of the matrix and on which row
     !  ( Xx     )
     !  ( xXxx   )  
@@ -2142,10 +2177,10 @@ end subroutine contour_int
        endif
 
        dbuff = maxmax        ! dbuff should be linked to maxmax
-       minsize = (dbuff+1)/2 ! minsize bisogna identificarlo meglio. 
+       minsize = max((dbuff+1)/2,minsize)  
     enddo
 
-    !write(*,*) 'maxmax=',maxmax
+    !write(*,*) 'minsize=',minsize
     !write(*,*) 'maxrow=',rmax
 
     ! Define central block 
@@ -2292,6 +2327,10 @@ end subroutine contour_int
              if( min .ge. PL_start(k) ) then                
                 exit
              else
+                write(*,*) "(LibNEGF) Partitioning:"
+                write(*,*) "Number of blocks: ",nbl
+                write(*,*) PL_end(1:nbl)
+                write(*,*) "Contact interaction:",cblk(j1)      
                 write(*,*) "ERROR: contact",j1,"interacting with more than one block",min,max
                 stop
              end if
