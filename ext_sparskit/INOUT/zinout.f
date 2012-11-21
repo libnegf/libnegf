@@ -1,3 +1,30 @@
+!!--------------------------------------------------------------------------!
+!! ComplexSPARSKIT                                                          ! 
+!!                                                                          !
+!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
+!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
+!! Copyright (C) 2005, the Regents of the University of Minnesota           !
+!!                                                                          !
+!! The original library has been modified starting from 2006                !
+!! to offer floating complex support. All the additional and                !
+!! modified code has been written by:                                       !
+!!                                                                          !
+!! Alessandro Pecchia, Gabriele Penazzi                                     !  
+!! Copyright (C) 2006                                                       !
+!!                                                                          !
+!! and is released under LGPL 3.0                                           !  
+!!                                                                          ! 
+!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
+!! it under the terms of the GNU Lesse General Public License as published  !
+!! by the Free Software Foundation, either version 3 of the License, or     !
+!! (at your option) any later version.                                      !
+!!                                                                          !
+!!  You should have received a copy of the GNU Lesser General Public        !
+!!  License along with ComplexSPARSKIT.  If not, see                        !
+!!  <http://www.gnu.org/licenses/>.                                         ! 
+!!--------------------------------------------------------------------------!
+
+
 c----------------------------------------------------------------------c
 c        C o m p l e x     S P A R S K I T                             c
 c----------------------------------------------------------------------c
