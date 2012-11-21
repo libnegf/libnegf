@@ -9,9 +9,11 @@
 !! 
 !! The original library has been modified starting from 2006
 !! to offer floating complex support. All the additional and 
-!! modified code belongs to:
+!! modified code has been written by:
 !!
-!! Copyright (C) 2006 A. Pecchia and G. Penazzi 
+!! Alessandro Pecchia, Gabriele Penazzi
+!!
+!! Copyright (C) 2006 
 !!
 !! and is released under LGPL 3.0 
 !!
