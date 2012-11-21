@@ -1,0 +1,5 @@
+Add license header with the following commands (bash):
+
+$ export LICENSELEN=`wc -l libnegf.txt | cut -f1 -d ' '`
+$ find . -type f -name \*.F90 -print0 | xargs -0 ./addlicense.sh
+
