@@ -1,0 +1,30 @@
+ All the distributed source files belong to:
+
+ libNEGF is a general library for Non-Equilibrium Green's functions.        
+ Copyright (C) 2012                     
+ Developers: Alessandro Pecchia, Gabriele Penazzi                           
+ Former Conctributors: Luca Latessa, Aldo Di Carlo                                           
+ 
+ and are distributed under LGPL license
+
+ with the exception of:
+
+ 1) source files located in ext_metis, belonging to METIS
+ (Copyright 1997, Regents of the University of Minnesota
+ http://glaros.dtc.umn.edu/gkhome/metis/metis/overview)
+ Refer to METIS website for terms of distribution
+
+ 2) source file located in ext_sparskit, except
+    complex implementation (Complex Sparskit),
+    belonging to Sparskit (Copyright (C) 2005, 
+    the Regents of the University of Minnesota)
+    and distributed under LGPL license 
+
+libNEGF is free software: you can redistribute it and/or modify          
+it under the terms of the GNU Lesse General Public License as published  
+by the Free Software Foundation, either version 3 of the License, or     
+(at your option) any later version.                                      
+                                                                         
+  You should have received a copy of the GNU Lesser General Public        
+  License along with libNEGF.  If not, see                                
+  <http://www.gnu.org/licenses/>.     
