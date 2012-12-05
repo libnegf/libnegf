@@ -28,20 +28,30 @@
 !! The order you should invoke the subroutines during initialisation is the
 !! following:
 !!
-!!   negf_initsession
-!!   negf_fillbasicparameters (after upt_initsession)
-!!   negf_inituptight         (after upt_fillbasicparameters)
+!!   negf_init_session
+!!   negf_init                (after negf_init_session)
+!!                             See libnegf.F90
 !!
 !! After initialisation you can call the following methods:
 !!
-!!   negf_createhamiltonian    
-!!   negf_lanczos              (after upt_createhamiltonian)
-!!   negf_getzcsrhamiltonian   (after upt_createhamiltonian)
+!!   negf_set_verbosity   
+!!   negf_getversion
+!!   negf_set_iteration       (set scf iteration, default 1)
+!!   negf_set_outer           (outer blocks of DM, default 2)
+!!   negf_set_kpoint          (integer value for file handling)
+!!   negf_set_reference       (sets ref. contact, default mu_max) 
+!!   negf_set_output          (set output path)
+!!   negf_set_scratch         (set scratch path)
+!!   negf_set_writetunn       (writes tunneling files)
+!!   negf_set_writeldos       (writes ldos files)
+!!   negf_write_partition     (writes H partitioning)
+!!   negf_density             (computes density matrix)
+!!   negf_current             (computes tunneling and current)
 !!
 !! In order to destroy a UPT instance call
 !!
-!!   negf_destructuptight
-!!   negf_destructsession      (after upt_destructuptight)
+!!   negf_destruct_libnegf      (clean the data container)
+!!   negf_destruct_session      (after upt_destruct_libnegf)
 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -82,6 +92,8 @@ subroutine negf_init_session(handler)
 
 end subroutine negf_init_session
 
+!!* Get library version. Reads svn versions=> broken with git  
+!!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_getversion(handler)
   use libnegfAPICommon  ! if:mod:use
   use libnegf  ! if:mod:use
@@ -114,21 +126,6 @@ subroutine negf_init(handler)
   
 end subroutine negf_init
 
-!!* Initialises a new LIBNEGF instance
-!!* @param  handler  Contains the handler for the new instance on return
-!!* @param  infile 
-subroutine negf_fillparameters(handler, infile)
-  use libnegfAPICommon                ! if:mod:use
-  use libnegf, only : negf_version    ! if:mod:use
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: infile                    ! if:var:in
-
-  type(NEGFpointers) :: LIB
-
-  LIB = transfer(handler, LIB)
- 
-end subroutine negf_fillparameters
 
 !!* Destroys a certain LIBNEGF instance
 !!* @param  handler  Handler for the instance to destroy
@@ -149,7 +146,7 @@ subroutine negf_destruct_session(handler)
 end subroutine negf_destruct_session
 
 
-!!* Destructs a given LIBNEGF instance.
+!!* Clean the data containers of a given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_destruct_libnegf(handler)
   use libnegfAPICommon  ! if:mod:use
@@ -275,7 +272,11 @@ subroutine negf_set_scratch(handler, scratch_path)
 
 end subroutine negf_set_scratch
 
-!!* Sets iteration in self-consistent loops
+!!* Instructs whether the device-contact part of the Density-Mat
+!!* needs to be computed (Relevant for charges in non-orthogonal bases)
+!!* outer = 0   No calculations 
+!!* outer = 1   Computes upper diagonal blocks
+!!* outer = 2   Computes both upper and lower blocks (needed by dftb+)
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_outer(handler, outer)
   use libnegfAPICommon    ! if:mod:use  use negf_param 

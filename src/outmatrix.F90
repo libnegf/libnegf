@@ -26,8 +26,8 @@ module outmatrix
   implicit none
   private
 
-  public :: printmat, printmat_f, outmat, outmat_c
-
+  public :: printmat, printmat_f, outmat, outmat_c, inmat_c
+  public :: direct_out_c, direct_in_c
 
   interface printmat_f
     module procedure printmat_fc,printmat_fr
@@ -207,7 +207,7 @@ module outmatrix
     END subroutine outmat
     !--------------------------------------------------
     
-    subroutine  outmat_c(lunit,fmt,A,n,ndim)
+    subroutine  outmat_c(lunit,fmt,A,n,ndim,acc_in)
 
       implicit none
 
@@ -215,26 +215,100 @@ module outmatrix
       integer :: ndim,n,lunit
       logical :: fmt
       complex(kind=dp) :: A(n,n)
+      real(dp), optional :: acc_in
+      real(dp) :: acc 
+
+      acc = EPS
+      if (present(acc_in)) acc = acc_in  
 
       if (fmt) then
-        do i = 1, ndim 
-          do j = 1, ndim
-            if(abs(dble(A(i,j))).gt.EPS.or.abs(dimag(A(i,j))).gt.EPS) then
+        do j = 1, ndim 
+          do i = 1, ndim
+            if(abs(dble(A(i,j))).gt.acc.or.abs(dimag(A(i,j))).gt.acc) then
               write(lunit,'(2i8,(f20.10,f20.10))') i, j, A(i,j)
             endif
           enddo
         enddo
       else
-        do i = 1, ndim 
-          do j = 1, ndim
-            if(abs(dble(A(i,j))).gt.EPS.or.abs(dimag(A(i,j))).gt.EPS) then
-              write(lunit) i, j, A(i,j)
+        do j = 1, ndim 
+          do i = 1, ndim
+            if(abs(dble(A(i,j))).gt.acc.or.abs(dimag(A(i,j))).gt.acc) then
+                    write(lunit) i, j, A(i,j)
             endif
           enddo
         enddo
       endif
 
     end subroutine outmat_c
+
+    subroutine  inmat_c(lunit,fmt,A,n,ndim)
+
+      implicit none
+
+      integer :: i,j
+      integer :: ndim,n,lunit
+      logical :: fmt
+      complex(kind=dp) :: A(n,n)
+      complex(kind=dp) :: mat_el 
+
+      if (fmt) then
+        do
+           read (lunit,*,end=100) i,j,mat_el
+           A(i,j)=mat_el 
+         enddo
+      else
+         do
+           read (lunit,end=100) i,j,mat_el
+           A(i,j)=mat_el 
+         enddo
+      endif
+
+100   return
+
+    end subroutine inmat_c
+
+    subroutine direct_out_c(lunit,A,n)
+
+       implicit none
+
+       integer :: lunit, n
+       complex(dp) :: A(n,n)
+
+       integer :: i,j, k
+
+       do j = 1, n
+         do i = 1, n
+        
+            k = (j-1)*n+i
+
+            write(lunit,rec = k)  A(i,j)
+
+         end do
+       end do 
+         
+    end subroutine direct_out_c
+
+
+    subroutine direct_in_c(lunit,A,n)
+
+       implicit none
+
+       integer :: lunit, n
+       complex(dp) :: A(n,n)
+
+       integer :: i,j, k
+
+       do j = 1, n
+         do i = 1, n
+        
+            k = (j-1)*n+i
+
+            read(lunit,rec = k)  A(i,j)
+
+         end do
+       end do 
+         
+    end subroutine direct_in_c
 
   
   end module outmatrix

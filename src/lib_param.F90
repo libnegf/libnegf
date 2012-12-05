@@ -27,6 +27,7 @@ module lib_param
   use ln_structure, only : TStruct_info
   use input_output
   use elph
+  use energy_mesh, only : mesh
 
   implicit none
   private
@@ -100,14 +101,15 @@ module lib_param
 
      real(dp) :: wght        ! kp weight 
      integer :: kpoint       ! kp index
-     integer :: Epnt         ! Energy point
+     integer :: iE           ! Energy point (integer point)
+     complex(dp) :: Epnt     ! Energy point (complex)
      real(dp), dimension(:,:), pointer :: tunn_mat => null()
      real(dp), dimension(:,:), pointer :: ldos_mat => null()
      real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
      integer :: Np_n(2)      ! Number of points for n 
      integer :: Np_p(2)      ! Number of points for p 
-     integer :: Np_real      ! Number of points for integration over real axis
+     integer :: Np_real(11)  ! Number of points for integration over real axis
      integer :: n_kt         ! Numero di kT per l'integrazione
      integer :: n_poles      ! Numero di poli 
      integer :: iteration    ! Iterazione (SCC)
@@ -119,11 +121,13 @@ module lib_param
      integer :: outer        ! flag switching computation of  
                              ! the Device/Contact DM
                              ! 0 none; 1 upper block; 2 all
+     real(dp) :: int_acc     ! integration accuracy
+     real(dp), dimension(:), pointer :: E_singular => null()
+     real(dp) :: delta_singular
 
-	 real(dp), dimension(:), pointer :: E_singular => null()
-	 real(dp) :: delta_singular
+     type(Telph) :: elph     ! electron-phonon data
 
-	 type(Telph) :: elph     ! electron-phonon data
+     type(mesh) :: emesh
 
   end type Tnegf
 
@@ -324,7 +328,11 @@ contains
      negf%nf(1) = 2
      negf%refcont = 1        ! reference contact (?)
      negf%outer = 2          ! Compute full D.M.
-     
+    
+     negf%int_acc = 1.d-3     ! Integration accuracy 
+
+     call init_elph(negf%elph)
+
    end subroutine set_defaults
 
 end module lib_param

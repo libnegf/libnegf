@@ -30,6 +30,7 @@ public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
+public :: createp, destroyp
 
 interface create
    module procedure zcreate_CSR
@@ -43,6 +44,10 @@ interface create
    module procedure zcreate_EXT_COO
    module procedure zcreate_DNS
    module procedure rcreate_DNS
+end interface
+
+interface createp
+   module procedure zcreate_pCSR
 end interface
 
 interface create_id
@@ -60,7 +65,6 @@ interface initialize
 end interface
 
 
-
 interface destroy
    module procedure zdestroy_CSR
    module procedure rdestroy_CSR
@@ -73,6 +77,10 @@ interface destroy
    module procedure zdestroy_EXT_COO
    module procedure zdestroy_DNS
    module procedure rdestroy_DNS
+end interface
+
+interface destroyp
+   module procedure zdestroy_pCSR
 end interface
 
 interface print_mat
@@ -224,6 +232,27 @@ end Type r_DNS
 contains
 
 !Utilities per z_CSR format
+subroutine zcreate_pCSR(mat,nrow,ncol,nnz)
+  type(z_CSR), pointer :: mat
+  integer :: nrow, ncol, nnz
+  integer :: ierr
+  
+  allocate(mat,stat=ierr)
+  if(ierr.ne.0) stop 'ERROR: pointer zCSR not allocated'
+
+  mat%nnz=nnz
+  mat%nrow=nrow
+  mat%ncol=ncol
+
+  if(nnz.ne.0) then
+     call log_allocate(mat%nzval,nnz)
+     call log_allocate(mat%colind,nnz)
+  endif
+
+  call log_allocate(mat%rowpnt,nrow+1)
+    
+end subroutine zcreate_pCSR
+! ------------------------------------------------------------------
 
 subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   type(z_CSR) :: mat
@@ -281,14 +310,16 @@ subroutine zcreate_id_DNS(mat,nrow,alpha)
 
   call zcreate_DNS(mat,nrow,nrow)
 
+  mat%val = (0.d0,0.d0)
+
   if (present(alpha)) then
- 	 do i=1,nrow
- 	    mat%val(i,i)=alpha
- 	 enddo
+     do i=1,nrow
+        mat%val(i,i)=alpha
+     enddo
   else
-  	 do i=1,nrow
- 	    mat%val(i,i)=1.0_dp
- 	 enddo
+     do i=1,nrow
+        mat%val(i,i)=1.0_dp
+     enddo
  endif
 
 end subroutine zcreate_id_DNS
@@ -422,6 +453,31 @@ subroutine zdestroy_CSR(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
 
 end subroutine zdestroy_CSR
+
+! ------------------------------------------------------------------
+subroutine zdestroy_pCSR(mat1)
+  type(z_CSR), pointer :: mat1
+
+  if (.not.associated(mat1)) then
+      STOP 'ERROR: zCSR pointer not associated'
+      return
+  end if
+
+  mat1%nnz=0
+  mat1%nrow=0
+  mat1%ncol=0
+
+  if (allocated(mat1%nzval)) then
+     call log_deallocate(mat1%nzval)
+     call log_deallocate(mat1%colind)
+  endif
+  call log_deallocate(mat1%rowpnt)
+
+  deallocate(mat1)
+  nullify(mat1)
+
+end subroutine zdestroy_pCSR
+
 ! ------------------------------------------------------------------
 subroutine zPrint_CSR(id,sp,fmt)
 

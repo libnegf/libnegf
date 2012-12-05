@@ -42,7 +42,7 @@ module ContSelfEnergy
  use ln_allocation
  use mat_def
  use sparsekit_drv
- use outmatrix, only : outmat_c
+ use outmatrix, only : outmat_c, inmat_c
  use inversions, only : block2Green, inverse 
  use clock
  use mpi_globals
@@ -51,7 +51,7 @@ module ContSelfEnergy
  implicit none
  private
  
- integer, PARAMETER :: VBT=199
+ integer, PARAMETER :: VBT=99
 
   public :: surface_green !surface_green_2 
   public :: SelfEnergy
@@ -130,14 +130,14 @@ contains
     filename = 'GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
     inquire(file=trim(pnegf%scratch_path)//filename,EXIST=lex)
 
-    if(.not.lex.or.flag.ge.1) then
+    if (.not.lex .and. flag.eq.0) then
+        flag = 2
+    endif     
 
-      if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF '//ofpnt)
-
+    if(flag.ge.1) then
+        if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF '//ofpnt)
     else         !*** load from file ***
-
-      if (id0.and.verbose.gt.VBT) call message_clock('Loading SGF '//ofpnt) 
-
+        if (id0.and.verbose.gt.VBT) call message_clock('Loading SGF '//ofpnt) 
     endif
 
     call create(GS,ngs,ngs)
@@ -216,6 +216,8 @@ contains
              !End finally the full Green's function of the contacts.
              call destroy(gt)
           endif 
+
+          !print*,'GS',maxval(abs(GS%val))
           !...............................................            
           !*** save in file ***
           if (flag.eq.2) then  
@@ -229,12 +231,11 @@ contains
        else         !*** load from file ***
                 
           open (65,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
-          do
-             read (65,end=100) i1,i2,mat_el
-             GS%val(i1,i2)=mat_el 
-          enddo
-100       close(65)
+
+          call inmat_c(65,.false.,GS%val,ngs,ngs)
           
+          close(65)
+
        endif
        
        avncyc=avncyc+1.0*ncyc

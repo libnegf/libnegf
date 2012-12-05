@@ -30,6 +30,7 @@ module elph
 
   use ln_precision, only : dp
   use globals
+  use ln_allocation
 
   implicit none
   private
@@ -38,39 +39,52 @@ module elph
   public :: init_elph
 
   type Telph
+    integer :: nummodes
+    integer :: numselmodes
+    logical, dimension(:), pointer :: selmodes => null()
+    real(dp), dimension(:), pointer :: Wq => null()
+    real(dp), dimension(:), pointer :: Nq => null()
+ 
+    real(dp), dimension(:), pointer :: Mq => null()
 
-	integer :: nummodes
-	integer :: numselmodes
-	logical, dimension(:), pointer :: selmodes => null()
-	real(dp), dimension(:), pointer :: Wq => null()
-	real(dp), dimension(:), pointer :: Nq => null()
+    real(dp) :: self_range(2) !Energy interval for Sigma< 
+    real(dp) :: Erange(2)     !Integration interval
 
-	real(dp), dimension(:), pointer :: Mq => null()
-
-	integer :: scba_iterations
-	logical :: diagonal
-
+    integer :: scba_iterations
+    integer :: scba_iter
+    logical :: diagonal
+ 
+    logical :: Selfene_Gr
+    logical :: Selfene_Gless
+    logical :: Selfene_Hilb
   end type Telph
 
 contains
 
   subroutine init_elph(elph)
-  	Type(Telph) :: elph
-
-  	elph%nummodes = 1
-  	elph%numselmodes = 1
+    Type(Telph) :: elph
+    
+    elph%nummodes = 1
+    elph%numselmodes = 1
 
     call log_allocatep(elph%selmodes, elph%nummodes)
-	call log_allocatep(elph%Wq, elph%nummodes)
-	call log_allocatep(elph%Nq, elph%nummodes)
-	call log_allocatep(elph%Mq, elph%nummodes)
+    call log_allocatep(elph%Wq, elph%nummodes)
+    call log_allocatep(elph%Nq, elph%nummodes)
+    call log_allocatep(elph%Mq, elph%nummodes)
 
-	elph%Wq(1) = 0.050  ! 50 meV phonon
-	elph%Nq(1) = 1      ! should be bose-einstain
-	elph%Mq(1) = 0.1    ! 100 meV phonon coupling
+    elph%Wq(1) = 0.2_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
+    elph%Nq(1) = 0.0_dp              ! should be bose-einstain
+    elph%Mq(1) = 0.1_dp/27.2114_dp    ! 100 meV phonon coupling
+    elph%selmodes(1) = .true.
 
-	elph%scba_iterations = 1
-	elph%diagonal = .true.
+    elph%scba_iterations = 3 ! starts from 0  
+    elph%scba_iter = 0       ! initialize at 0
+    elph%diagonal = .true.
+    
+    elph%Selfene_Gr = .true.
+    elph%Selfene_Gless = .true.
+    elph%Selfene_Hilb = .true.
+
 
   end subroutine init_elph
 

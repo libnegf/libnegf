@@ -39,14 +39,17 @@ module libnegf
  use contselfenergy
  use clock
  use elph
-
+ use energy_mesh 
+  
  implicit none
  private
 
  public :: init_negf, negf_version, destroy_matrices, destroy_negf
+ public :: init_emesh, destroy_emesh
  public :: compute_dos
- public :: contour_int_n, contour_int_p, real_axis_int, contour_int
- public :: real_axis_int_n, real_axis_int_ph
+ public :: contour_int_n, contour_int_p, contour_int
+ public :: real_axis_int, real_axis_int_n 
+ public :: contour_int_ph, real_axis_int_ph, real_axis_int_ph2
  public :: compute_current, integrate
  public :: write_current, write_tunneling_and_dos
  public :: reorder
@@ -57,8 +60,21 @@ module libnegf
 
  integer, PARAMETER :: VBT=70
 
+ type TG_pointer
+   type(z_CSR),  pointer :: pG => null()   
+   integer :: ind   
+ end type TG_pointer
+
 contains
   
+  !--------------------------------------------------------------------
+  ! Init libNEGF
+  ! General initializations of libNEGF are currently done via files.
+  ! "negf.in" contains all parameters information
+  ! all needed info about the structure and matrix format.
+  ! H and S are also read-in from files
+  ! Some parameters are still hard-coded and need to be set from api  
+  !--------------------------------------------------------------------
 
   subroutine init_negf(negf)
     type(Tnegf), pointer :: negf
@@ -182,7 +198,7 @@ contains
     read(101,*) negf%wght
     read(101,*) negf%Np_n(1:2)
     read(101,*) negf%Np_p(1:2)
-    read(101,*) negf%Np_real
+    read(101,*) negf%Np_real(1)
     read(101,*) negf%n_kt
     read(101,*) negf%n_poles
     read(101,*) negf%spin
@@ -254,6 +270,8 @@ contains
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
 
+    !call destroy_emesh(negf)
+
   end subroutine destroy_negf
 !--------------------------------------------------------------------
 
@@ -324,7 +342,7 @@ contains
 
        call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
    
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -385,7 +403,7 @@ contains
        negf%refcont = negf%str%num_conts+1  
     endif
 
-    if (negf%Np_real.gt.0) then
+    if (negf%Np_real(1).gt.0) then
        call real_axis_int_n(negf)
     endif
 
@@ -828,7 +846,6 @@ end function integrate
 
     outer = negf%outer
 
-
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
 
@@ -878,7 +895,7 @@ end function integrate
 
        call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -948,7 +965,7 @@ end function integrate
 
        call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1005,7 +1022,7 @@ end function integrate
 
        call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1035,8 +1052,6 @@ end function integrate
     call destroy(TmpMt)
 
   end subroutine contour_int_n
-
-
 !--------------------------------------------------------------------------------
 !-----------------------------------------------------------------------
 ! Contour integration for density matrix 
@@ -1110,7 +1125,7 @@ end function integrate
 
        call compute_contacts(Ev,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+       call calls_eq_mem_dns(negf,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1166,7 +1181,7 @@ end function integrate
 
        call compute_contacts(Ev,negf,negf%Np_p(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
+       call calls_eq_mem_dns(negf,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1208,7 +1223,7 @@ end function integrate
 
        call compute_contacts(Ev,negf,negf%Np_p(1)+negf%Np_p(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-       call calls_eq_mem_dns(negf%HM,negf%SM,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+       call calls_eq_mem_dns(negf,Ev,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1236,285 +1251,304 @@ end function integrate
 
   end subroutine contour_int_p
 
-!-----------------------------------------------------------------------
-! Contour integration for density matrix 
-! DOES INCLUDE FACTOR 2 FOR SPIN !! 
-!-----------------------------------------------------------------------
-subroutine contour_int(negf)
-
-  type(Tnegf), pointer :: negf 
-  Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-  type(z_CSR) :: GreenR, TmpMt 
-
-  integer :: npid, istart, iend, NumPoles
-  integer :: i, i1, outer, ncont, nbl
-
-  real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
-  real(dp) :: Omega, Lambda, Rad, Centre
-  real(dp) :: muref, kbT, alpha
-  real(dp) :: ncyc, dt, Elow
-
-  complex(dp) :: z1,z2,z_diff, zt
-  complex(dp) :: Ec, ff, Pc
-
-  ncont = negf%str%num_conts
-  nbl = negf%str%num_PLs
-  kbT = negf%kbT
-
-  muref = negf%mu_n
-
-  Omega = negf%n_kt * kbT
-  Lambda = 2.d0* negf%n_poles * KbT * pi
-  NumPoles = negf%n_poles
-
-  outer = negf%outer !Compute lower-outer part of density matrix
-
-
-  call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
-  call initialize(TmpMt)
-  ! -----------------------------------------------------------------------
-  !  Integration loop starts here
-  ! -----------------------------------------------------------------------
-  ! ***********************************************************************
-  ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
-  ! ***********************************************************************
-  ! NEW INTEGRATION FOR COMPLEX DENSITY:
-  !----------------------------------------------------
-  !   g  [ /           ]     g  [ /         it   ] 
-  !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
-  !  2pi [ /           ]    2pi [ /              ]
-  !----------------------------------------------------
-
-  Elow = negf%Ec
-  Centre = (Lambda**2-Elow**2+(muref-Omega)**2)/(2.d0*(muref-Omega-Elow))
-  Rad = Centre - Elow
-
-  if (negf%kbT.ne.0.d0) then        
-     alpha = atan(Lambda/(muref-Centre-Omega)) 
-  else
-     alpha = 0.1d0*pi             
-  end if
-
-  !Setting weights for gaussian integration 
-  allocate(wght(negf%Np_n(1)))
-  allocate(pnts(negf%Np_n(1)))
-
-  call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
-
-  !Computing complex integral (Common for T>=0)
-
-  npid = int(negf%Np_n(1)/numprocs)
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = negf%Np_n(1)
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     Pc = Rad*exp(j*pnts(i))
-     Ec = Centre+Pc
-     zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
-
-     call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-
-     if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
-     endif
-     if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
-     endif
-
-     call destroy(GreenR)
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  deallocate(wght)
-  deallocate(pnts)
-
-  ! *******************************************************************************
-  ! 2. INTEGRATION OVER THE SEGMENT [Ec + j*Lambda, mu(r) + Omega+j*Lambda]
-  ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
-  ! *******************************************************************************
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T=0):
-  !----------------------------------------------------
-  !   2  [ /           ]     1  [ /         it   ] 
-  !  --- [ |  Gr(z) dz ] =   -- [ | Gr(t)Rie  dt ]  
-  !  2pi [ /           ]     pi [ /              ]
-  !----------------------------------------------------
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
-  !----------------------------------------------------
-  !   g  [ /                ]      g   [ /                       ] 
-  !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]  
-  !  2pi [ /                ]     2*pi [ /                       ]
-  !----------------------------------------------------
-
-  allocate(wght(negf%Np_n(2)))
-  allocate(pnts(negf%Np_n(2)))
-
-  if (negf%kbT.eq.0.d0) then                        ! Circle integration T=0
-
-     call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
-     
-  else                                          ! Segment integration T>0
-     
-     z1 = muref + Omega + j*Lambda
-     z2 = muref - Omega + j*Lambda
-     
-     z_diff = z2 - z1
-     
-     call  gauleg(1.d0,0.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
-     
-  endif
-
-  npid = int(negf%Np_n(2)/numprocs)
-
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = negf%Np_n(2)
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     if (negf%kbT.eq.0.d0) then                      ! Circle integration T=0            
-        
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix 
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+  !-----------------------------------------------------------------------
+  ! Performs the complex contur integration
+  !
+  ! T=0                             T>0 
+  !         * * * *                          * * *      +
+  !      *          *                     *         *   + 
+  !    *              *                 *             **+******
+  !   *                *               *                + 
+  !  -*----------------*------------- -*-----------------------------
+  !  Elow              muref          Elow              muref       
+  !
+  !  muref is the energy of the reference contact
+  !
+  !  
+  subroutine contour_int(negf)
+  
+     type(Tnegf), pointer :: negf 
+     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+     type(z_CSR) :: GreenR, TmpMt 
+  
+     integer :: npid, istart, iend, NumPoles
+     integer :: i, i1, outer, ncont, nbl
+  
+     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
+     real(dp) :: Omega, Lambda, Rad, Centre
+     real(dp) :: muref, mumin, kbT, nkT, alpha
+     real(dp) :: ncyc, dt, Elow
+    
+     complex(dp) :: z1,z2,z_diff, zt
+     complex(dp) :: Ec, ff, Pc
+    
+     ncont = negf%str%num_conts
+     nbl = negf%str%num_PLs
+     kbT = negf%kbT
+    
+     muref = negf%mu_n
+  
+     nkT = negf%n_kt * kbT
+     Lambda = 2.d0* negf%n_poles * KbT * pi
+     NumPoles = negf%n_poles
+     mumin = muref - nkT
+    
+     outer = negf%outer !Compute lower-outer part of density matrix
+    
+    
+     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+     call initialize(TmpMt)
+     ! -----------------------------------------------------------------------
+     !  Integration loop starts here
+     ! -----------------------------------------------------------------------
+     ! ***********************************************************************
+     ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
+     ! ***********************************************************************
+     ! NEW INTEGRATION FOR COMPLEX DENSITY:
+     !----------------------------------------------------
+     !   g  [ /           ]     g  [ /         it   ] 
+     !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
+     !  2pi [ /           ]    2pi [ /              ]
+     !----------------------------------------------------
+    
+     Elow = negf%Ec
+     Centre = (Lambda**2-Elow**2+(mumin)**2)/(2.d0*(mumin-Elow))
+     Rad = Centre - Elow
+    
+     if (negf%kbT.ne.0.d0) then        
+        alpha = atan(Lambda/(mumin-Centre)) 
+     else
+        alpha = 0.1d0*pi             
+     end if
+    
+     !Setting weights for gaussian integration 
+     allocate(wght(negf%Np_n(1)))
+     allocate(pnts(negf%Np_n(1)))
+    
+     call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
+    
+     !Computing complex integral (Common for T>=0)
+    
+     npid = int(negf%Np_n(1)/numprocs)
+     istart = id*npid+1
+     if(id.ne.(numprocs-1)) then 
+        iend = (id+1)*npid
+     else
+        iend = negf%Np_n(1)
+     end if
+    
+     do i = istart,iend
+    
+        if (negf%verbose.gt.VBT) then
+           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
+                &', id
+        endif
+    
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+    
         Pc = Rad*exp(j*pnts(i))
         Ec = Centre+Pc
-        dt = negf%spin*wght(i)/(2.d0*pi)
-        zt = dt*Pc*j
-       
-     else                                        ! Segment integration T>0
+        zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
+        negf%iE = i
+
+        call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+  
+        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+  
+        if(negf%DorE.eq.'D') then
+           call concat(TmpMt,zt,GreenR,1,1)
+        endif
+        if(negf%DorE.eq.'E') then
+           call concat(TmpMt,zt*Ec,GreenR,1,1)
+        endif
+    
+        call destroy(GreenR)
+    
+        do i1=1,ncont
+           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+        enddo
+    
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+    
+     enddo
+    
+     deallocate(wght)
+     deallocate(pnts)
+  
+     ! *******************************************************************************
+     ! 2. INTEGRATION OVER THE SEGMENT [Ec + j*Lambda, mu(r) + Omega+j*Lambda]
+     ! (Temp /= 0) OR OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA (Temp == 0)
+     ! *******************************************************************************
+     ! NEW INTEGRATION FOR COMPLEX DENSITY (T=0):
+     !----------------------------------------------------
+     !   2  [ /           ]     1  [ /         it   ] 
+     !  --- [ |  Gr(z) dz ] =   -- [ | Gr(t)Rie  dt ]  
+     !  2pi [ /           ]     pi [ /              ]
+     !----------------------------------------------------
+     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
+     !----------------------------------------------------
+     !   g  [ /                ]      g   [ /                       ] 
+     !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]  
+     !  2pi [ /                ]     2*pi [ /                       ]
+     !----------------------------------------------------
+    
+     allocate(wght(negf%Np_n(2)))
+     allocate(pnts(negf%Np_n(2)))
+    
+     if (negf%kbT.eq.0.d0) then                        ! Circle integration T=0
+    
+        call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
         
-        Ec = z1 + pnts(i)*z_diff
-        ff = fermi_fc(Ec,muref,KbT)
-        zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
-
+     else                                          ! Segment integration T>0
+        
+        z1 = muref + nkT + j*Lambda
+        z2 = muref - nkT + j*Lambda
+        
+        z_diff = z2 - z1
+        
+        call  gauleg(1.d0,0.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
+        
      endif
+  
+     npid = int(negf%Np_n(2)/numprocs)
+ 
+     istart = id*npid+1
+     if(id.ne.(numprocs-1)) then 
+        iend = (id+1)*npid
+     else
+        iend = negf%Np_n(2)
+     end if
+  
+     do i = istart,iend
+  
+        if (negf%verbose.gt.VBT) then
+           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
+                &', id
+        endif
+  
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+  
+        if (negf%kbT.eq.0.d0) then                      ! Circle integration T=0            
+           
+           Pc = Rad*exp(j*pnts(i))
+           Ec = Centre+Pc
+           dt = negf%spin*wght(i)/(2.d0*pi)
+           zt = dt*Pc*j
+          
+        else                                        ! Segment integration T>0
+           
+           Ec = z1 + pnts(i)*z_diff
+           ff = fermi_fc(Ec,muref,KbT)
+           zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
+  
+        endif
+  
+        negf%iE = negf%Np_n(1)+i
 
-     call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+        call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+  
+        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
+        
+        if(negf%DorE.eq.'D') then
+           call concat(TmpMt,zt,GreenR,1,1)
+        endif
+        if(negf%DorE.eq.'E') then
+           call concat(TmpMt,zt*Ec,GreenR,1,1)
+        endif
+  
+        call destroy(GreenR)
+  
+        do i1=1,ncont
+           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+        enddo
+  
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+  
+     enddo
+  
+     deallocate(wght)
+     deallocate(pnts)
+  
+     ! *******************************************************************************
+     ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
+     ! *******************************************************************************          
+     ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
+     !---------------------------------------------------------------------
+     !             [  g                  ]          
+     !  2 pi j* Res[ --- *Gr(z_k)f(z_k)  ] =  j*(-kb T)* Gr(z_k)     
+     !             [ 2pi                 ]         
+     !                                         (-kb*T) <- Residue
+     !---------------------------------------------------------------------
+  
+     npid = int(NumPoles/numprocs)
+     istart = id*npid+1
+     if(id.ne.(numprocs-1)) then 
+        iend = (id+1)*npid
+     else
+        iend = NumPoles
+     end if
+  
+     do i = istart,iend
+  
+        if (negf%verbose.gt.VBT) then
+           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point #',i,'/',iend,'  CPU=&
+                &', id
+        endif
+  
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+  
+        Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
+  
+        zt= -j*negf%spin*KbT
 
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
-
+        negf%iE = negf%Np_n(1)+negf%Np_n(2)+i
+  
+        call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+  
+        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+  
+        if(negf%DorE.eq.'D') then
+           call concat(TmpMt,zt,GreenR,1,1)
+        endif
+        if(negf%DorE.eq.'E') then
+           call concat(TmpMt,zt*Ec,GreenR,1,1)
+        endif
+  
+        call destroy(GreenR)   
+  
+        do i1=1,ncont
+           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+        enddo
+  
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+  
+     enddo
+  
      if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
+        call zspectral(TmpMt,TmpMt,0,negf%rho)
      endif
      if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
+        call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
      endif
-
-     call destroy(GreenR)
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  deallocate(wght)
-  deallocate(pnts)
-
-  ! *******************************************************************************
-  ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
-  ! *******************************************************************************          
-  ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
-  !---------------------------------------------------------------------
-  !             [  g                 ]          
-  !  2 pi j* Res[ --- *Gr(z_k)f(z_k)  ] =  j*(-kb T)* Gr(z_k)     
-  !             [ 2pi                ]         
-  !                                         (-kb*T) <- Residue
-  !---------------------------------------------------------------------
-
-  npid = int(NumPoles/numprocs)
-  istart = id*npid+1
-  if(id.ne.(numprocs-1)) then 
-     iend = (id+1)*npid
-  else
-     iend = NumPoles
-  end if
-
-  do i = istart,iend
-
-     if (negf%verbose.gt.VBT) then
-        write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 3: point #',i,'/',iend,'  CPU=&
-             &', id
-     endif
-
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-     Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
-
-     zt= -j*negf%spin*KbT
-
-     call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-
-     if(negf%DorE.eq.'D') then
-        call concat(TmpMt,zt,GreenR,1,1)
-     endif
-     if(negf%DorE.eq.'E') then
-        call concat(TmpMt,zt*Ec,GreenR,1,1)
-     endif
-
-     call destroy(GreenR)   
-
-     do i1=1,ncont
-        call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-     enddo
-
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-  enddo
-
-  if(negf%DorE.eq.'D') then
-     call zspectral(TmpMt,TmpMt,0,negf%rho)
-  endif
-  if(negf%DorE.eq.'E') then
-     call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
-  endif
+  
+  
+     call destroy(TmpMt)
 
 
-  call destroy(TmpMt)
+  end subroutine contour_int
 
-
-end subroutine contour_int
-
-!--------------------------------------------!
-!--------------------------------------------!
-! Non equilibrium integration over real axis !
-!--------------------------------------------!
-!--------------------------------------------!
-!-----------------------------------------------------------------------
-! Contour integration for density matrix 
-! DOES INCLUDE FACTOR 2 FOR SPIN !! 
-!-----------------------------------------------------------------------
+  !--------------------------------------------!
+  !--------------------------------------------!
+  ! Non equilibrium integration over real axis !
+  !--------------------------------------------!
+  !--------------------------------------------!
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix 
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+  !-----------------------------------------------------------------------
   subroutine real_axis_int(negf)
 
     type(Tnegf), pointer :: negf 
@@ -1522,7 +1556,7 @@ end subroutine contour_int
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, ref
-    integer :: i, i1, ioffset, outer, ncont, nbl, j1, npT
+    integer :: i, i1, ioffset, outer, ncont, j1, npT
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp), DIMENSION(:), allocatable :: frm_f
@@ -1533,7 +1567,6 @@ end subroutine contour_int
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    nbl = negf%str%num_PLs
     kbT = negf%kbT
     ref = negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1554,24 +1587,24 @@ end subroutine contour_int
        
 
        !Compute extended number of points due to kT
-       !npT=nint(negf%Np_real*Omega/(mumax-mumin))
+       !npT=nint(negf%Np_real(1)*Omega/(mumax-mumin))
        ! **** MODIFIED 4/04/2012 because for mumin-mumax -> 0 does not work !!!
        npT = 0
        
-       allocate(pnts(negf%Np_real+2*npT))
-       allocate(wght(negf%Np_real+2*npT))
+       allocate(pnts(negf%Np_real(1)+2*npT))
+       allocate(wght(negf%Np_real(1)+2*npT))
 
        !Setting weights for gaussian integration
         
-       call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real+2*npT)
+       call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real(1)+2*npT)
 
        !Computing real axis integral       
-       npid = int((negf%Np_real+2*npT)/numprocs)
+       npid = int((negf%Np_real(1)+2*npT)/numprocs)
        istart = id*npid+1
        if(id.ne.(numprocs-1)) then 
           iend = (id+1)*npid
        else
-          iend = negf%Np_real+2*npT
+          iend = negf%Np_real(1)+2*npT
        end if
 
        !---------------------------------------------------------
@@ -1601,8 +1634,7 @@ end subroutine contour_int
 
           call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-          call calls_neq_mem_dns(negf%HM,negf%SM,real(Ec),SelfEneR,Tlc,Tcl,GS, &
-               negf%str,frm_f,ref,GreenR,outer)
+          call calls_neq_mem_dns(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,GreenR,outer)
 
           do i1=1,ncont
              call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1660,7 +1692,7 @@ end subroutine contour_int
     type(z_CSR) :: GreenR, TmpMt 
 
     integer :: npid, istart, iend, ref
-    integer :: i, i1, ioffset, outer, ncont, nbl, j1, npT
+    integer :: i, i1, ioffset, outer, ncont, j1, npT
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp), DIMENSION(:), allocatable :: frm_f
@@ -1672,12 +1704,9 @@ end subroutine contour_int
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    nbl = negf%str%num_PLs
     kbT = negf%kbT
     ref = negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
-
-
 
     mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
@@ -1687,7 +1716,6 @@ end subroutine contour_int
        open(2002,file=trim(negf%out_path)//'energy.dat')
        call log_allocate(q_tmp, negf%H%nrow)
     endif
-    !if (mumax.gt.mumin) then
        
        Omega = negf%n_kt * kbT
        outer = negf%outer
@@ -1700,23 +1728,23 @@ end subroutine contour_int
        
 
        !Compute extended number of points due to kT
-       !npT=nint(negf%Np_real*Omega/(mumax-mumin))
+       !npT=nint(negf%Np_real(1)*Omega/(mumax-mumin))
        ! **** MODIFIED 4/04/2012 because for mumin-mumax -> 0 does not work !!!
        npT = 0
        
-       allocate(pnts(negf%Np_real+2*npT))
-       allocate(wght(negf%Np_real+2*npT))
+       allocate(pnts(negf%Np_real(1)+2*npT))
+       allocate(wght(negf%Np_real(1)+2*npT))
 
        !Setting weights for gaussian integration
-       call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real+2*npT)
+       call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real(1)+2*npT)
 
        !Computing real axis integral       
-       npid = int((negf%Np_real+2*npT)/numprocs)
+       npid = int((negf%Np_real(1)+2*npT)/numprocs)
        istart = id*npid+1
        if(id.ne.(numprocs-1)) then 
           iend = (id+1)*npid
        else
-          iend = negf%Np_real+2*npT
+          iend = negf%Np_real(1)+2*npT
        end if
 
        !---------------------------------------------------------------
@@ -1745,11 +1773,9 @@ end subroutine contour_int
 
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-
           call compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-          call calls_neq_mem_dns(negf%HM,negf%SM,real(Ec),SelfEneR,Tlc,Tcl,GS, &
-               negf%str,frm_f,ref,GreenR,outer)
+          call calls_neq_mem_dns(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,GreenR,outer)
        
           do i1=1,ncont
              call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1770,7 +1796,6 @@ end subroutine contour_int
              write(2001,*)
              write(2002,*) pnts(i)
           endif
-
 
 
           call destroy(GreenR) 
@@ -1801,7 +1826,6 @@ end subroutine contour_int
        
        call log_deallocate(frm_f)
 
-    !end if
     if (negf%writeLDOS) then
        close (2001)
        close (2002)
@@ -1809,7 +1833,246 @@ end subroutine contour_int
     endif
 
   end subroutine real_axis_int_n
-  !-----------------------------------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+
+
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix 
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+  !-----------------------------------------------------------------------
+  ! Performs the complex contur integration with phonons
+  !
+  ! T>=0                         
+  !         * * * *              
+  !      *          *            
+  !    *              *          
+  !   *                *         
+  !  -*----------------*--+------
+  !  Elow          mumin muref   
+  !
+  !  muref is the energy of the reference contact
+  !
+  subroutine contour_int_ph(negf)
+ 
+    type(Tnegf), pointer :: negf 
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    type(z_CSR) :: GreenR, TmpMt 
+ 
+    integer :: npid, istart, iend, iter
+    integer :: i, i1, outer, ncont, nbl, n_ext_range
+ 
+    real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
+    real(dp) :: Omega, Lambda, Rad, Centre
+    real(dp) :: muref, kbT, nkT, alpha
+    real(dp) :: ncyc, dt, Elow, Wmax, mumin, mumax
+   
+    complex(dp) :: z1,z2,z_diff, zt
+    complex(dp) :: Ec, ff, Pc
+    logical, dimension(:), pointer :: selmodes
+    real(dp), DIMENSION(:), pointer :: Wq
+   
+    ncont = negf%str%num_conts
+    outer = negf%outer !Compute lower-outer part of density matrix
+    nbl = negf%str%num_PLs
+    muref = negf%mu_n
+    kbT = negf%kbT
+    nkT = negf%n_kt * kbT
+   
+    Lambda = 2.d0* negf%n_poles * KbT * pi
+    selmodes => negf%elph%selmodes
+    Wq => negf%elph%Wq
+    n_ext_range = negf%elph%scba_iterations + 1
+
+    nkT = negf%n_kt * kbT
+    Wmax = maxval(Wq,selmodes)
+    Omega = n_ext_range * Wmax
+
+    mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont)) - nkT - Wmax 
+    mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont)) + nkT + Wmax
+    Elow = negf%Ec
+   
+    call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+    call initialize(TmpMt)
+
+    ! -----------------------------------------------------------------------
+    !  Integration loop starts here
+    ! -----------------------------------------------------------------------
+    ! ***********************************************************************
+    ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
+    ! ***********************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY:
+    !----------------------------------------------------
+    !   g  [ /           ]     g  [ /         it   ] 
+    !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
+    !  2pi [ /           ]    2pi [ /              ]
+    !----------------------------------------------------
+   
+    Centre = (Lambda**2-Elow**2+mumin**2)/(2.d0*(mumin-Elow))
+    Rad = Centre - Elow
+   
+    alpha = 0.1d0*pi             
+   
+    !Setting weights for gaussian integration 
+    allocate(wght(negf%Np_n(1)))
+    allocate(pnts(negf%Np_n(1)))
+   
+    call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
+   
+    !Computing complex integral (Common for T>=0)
+   
+    npid = int(negf%Np_n(1)/numprocs)
+    istart = id*npid+1
+    if(id.ne.(numprocs-1)) then 
+       iend = (id+1)*npid
+    else
+       iend = negf%Np_n(1)
+    end if
+   
+    do i = istart,iend
+   
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
+               &', id
+       endif
+   
+   
+       Pc = Rad*exp(j*pnts(i))
+       Ec = Centre+Pc
+       zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
+       negf%iE = i
+
+       call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
+ 
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+       ! SELF-CONSISTENT BORN IS PERFORMED HERE SINCE Sigma_ph_r_z is local
+       negf%elph%scba_iter = 0
+       do iter = 0, negf%elph%scba_iterations - 1
+
+          negf%elph%scba_iter = iter
+
+          call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+ 
+          call sigma_ph_r_z(negf,Ec)
+       
+          call destroy(GreenR)
+  
+       end do    
+
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+
+       if(negf%DorE.eq.'D') then
+          call concat(TmpMt,zt,GreenR,1,1)
+       endif
+       if(negf%DorE.eq.'E') then
+          call concat(TmpMt,zt*Ec,GreenR,1,1)
+       endif
+   
+       call destroy(GreenR)
+   
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
+   
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
+   
+    enddo
+   
+    deallocate(wght)
+    deallocate(pnts)
+ 
+    ! *******************************************************************************
+    ! 2. OVER THE CIRCLE WITH TETA FROM ZERO TO ALPHA ( Any Temp !!!!)
+    ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY:
+    !----------------------------------------------------
+    !   2  [ /           ]     1  [ /         it   ] 
+    !  --- [ |  Gr(z) dz ] =   -- [ | Gr(t)Rie  dt ]  
+    !  2pi [ /           ]     pi [ /              ]
+    !----------------------------------------------------
+   
+    allocate(wght(negf%Np_n(2)))
+    allocate(pnts(negf%Np_n(2)))
+   
+    call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
+       
+    npid = int(negf%Np_n(2)/numprocs)
+
+    istart = id*npid+1
+    if(id.ne.(numprocs-1)) then 
+       iend = (id+1)*npid
+    else
+       iend = negf%Np_n(2)
+    end if
+ 
+    do i = istart,iend
+ 
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 2: point #',i,'/',iend,'  CPU=&
+               &', id
+       endif
+          
+       Pc = Rad*exp(j*pnts(i))
+       Ec = Centre+Pc
+       dt = negf%spin*wght(i)/(2.d0*pi)
+       zt = dt*Pc*j
+         
+       negf%iE = negf%Np_n(1)+i
+        
+       call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+ 
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+       
+       ! SELF-CONSISTENT BORN IS PERFORMED HERE SINCE Sigma_ph_r_z is local
+       negf%elph%scba_iter = 0
+       do iter = 0, -1 ! negf%elph%scba_iterations - 1
+
+          negf%elph%scba_iter = iter
+
+          call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+ 
+          call sigma_ph_r_z(negf,Ec)
+       
+          call destroy(GreenR)
+  
+       end do    
+
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer) 
+       
+       if(negf%DorE.eq.'D') then
+          call concat(TmpMt,zt,GreenR,1,1)
+       endif
+       if(negf%DorE.eq.'E') then
+          call concat(TmpMt,zt*Ec,GreenR,1,1)
+       endif
+ 
+       call destroy(GreenR)
+ 
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+       enddo
+ 
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+    enddo
+
+ 
+    if(negf%DorE.eq.'D') then
+       call zspectral(TmpMt,TmpMt,0,negf%rho)
+    endif
+    if(negf%DorE.eq.'E') then
+       call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
+    endif
+ 
+    call destroy(TmpMt)
+ 
+    deallocate(wght)
+    deallocate(pnts)
+ 
+
+
+  end subroutine contour_int_ph
+
 
 !-----------------------------------------------------------------------
 ! Contour integration for density matrix
@@ -1818,31 +2081,35 @@ end subroutine contour_int
   subroutine real_axis_int_ph(negf)
 
     type(Tnegf), pointer :: negf
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: G_less, TmpMt
-    Type(z_DNS) :: GS_d
+    Type(z_DNS) :: GS_d, Self_ph_c, HC, work1, work2, Mq_mat, GS2
 
-    integer :: npid, istart, iend, ref, iter
-    integer :: i, i1, ioffset, outer, ncont, nbl, j1, numselmodes, n_ext_range
+    integer :: npid, istart, iend, ref, iter, n_ranges, n1, m
+    integer :: i, i1, k,ioffset, outer, ncont, j1, numselmodes, n_ext_range
 
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp), DIMENSION(:), allocatable :: frm_f
     complex(dp), dimension(:), allocatable :: q_tmp
-    real(dp) :: Omega, nkT, mumin, mumax, Wmax
-    real(dp) :: ncyc, kbT, dt
-	logical, dimension(:), pointer :: selmodes
-	real(dp), DIMENSION(:), pointer :: Wq
+    real(dp) :: Omega, nkT, mumin, mumax, Wmax, Emin(3), Emax(3)
+    real(dp) :: ncyc, kbT, dt, int_range(2), self_range(2), gf_range(2)
+    logical, dimension(:), pointer :: selmodes
+    real(dp), DIMENSION(:), pointer :: Wq
+    real(dp), DIMENSION(:), pointer :: Nq
+    real(dp), DIMENSION(:), pointer :: Mq
 
     complex(dp) :: zt
     complex(dp) :: Ec
 
+    outer = 0  !negf%outer    ! TEMPORARY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
     ncont = negf%str%num_conts
-    nbl = negf%str%num_PLs
     kbT = negf%kbT
-    ref = 10 !negf%refcont
-    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    ref = negf%refcont
     selmodes => negf%elph%selmodes
     Wq => negf%elph%Wq
+    Nq => negf%elph%Nq
+    Mq => negf%elph%Mq 
     n_ext_range = negf%elph%scba_iterations + 1
 
     numselmodes = negf%elph%numselmodes
@@ -1851,148 +2118,306 @@ end subroutine contour_int
     mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
 
     if (negf%writeLDOS) then
-       open(2001,file=trim(negf%out_path)//'LDOS.dat')
-       open(2002,file=trim(negf%out_path)//'energy.dat')
+       open(2001,file=trim(negf%out_path)//'LDOS_ph.dat')
+       open(2002,file=trim(negf%out_path)//'energy_ph.dat')
        call log_allocate(q_tmp, negf%H%nrow)
     endif
 
     nkT = negf%n_kt * kbT
-    outer = negf%outer
-	Wmax = maxval(Wq,selmodes)
-	Omega = n_ext_range * Wmax
+    !
+    Wmax = maxval(Wq,selmodes)
+    Omega = n_ext_range * Wmax
+
+    n_ranges = 1
+    Emin(1) = mumin-nkT-Omega         ! Full Energy range 
+    Emax(1) = mumax+nkT+Omega         ! Full Energy range
+    int_range(1) = mumin - nkT - Wmax ! Integration range
+    int_range(2) = mumax + nkT + Wmax ! Integration range
+    self_range(1) = Emin(1) + Wmax    ! Self-energy range
+    self_range(2) = Emax(1) - Wmax    ! Self-enrgy range
+    gf_range(1) = Emin(1)             ! GF -energy range
+    gf_range(2) = Emax(1)             ! GF -enrgy range
+
+    dt = (Emax(1)-Emin(1))/(negf%Np_real(1)-1)
+    print*, 'Full range:',Emin(1)*27.2114_dp,Emax(1)*27.2114_dp
+    print*, 'Self range:', self_range(1)*27.2114_dp,self_range(2)*27.2114_dp
+    print*, 'Int range:', int_range(1)*27.2114_dp,int_range(2)*27.2114_dp
+    print*,'deltaE:', dt*27.2114_dp
 
     call log_allocate(frm_f,ncont+1)
     frm_f = 0.d0
 
-    call log_allocate(pnts,negf%Np_real)
-    call log_allocate(wght,negf%Np_real)
 
-    !Setting weights for gaussian integration
-    call gauleg(mumin-nkT-Omega, mumax+nkT+Omega, pnts, wght, negf%Np_real)
+    !if(id.ne.(numprocs-1)) then
+    !   iend = (id+1)*npid
+    !else
+    !   iend = negf%Np_real(1)
+    !end if
+    ! --------------------------------------------------------------------
+    ! LOOP 1: Calculations of all contact self-energies
+    ! --------------------------------------------------------------------
+    
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    do k = 1, n_ranges 
+    
+       call log_allocate(pnts,negf%Np_real(k))
+       call log_allocate(wght,negf%Np_real(k))
 
-    !Computing actual point for parallel computations
-    npid = int((negf%Np_real)/numprocs)
-    istart = id*npid+1
-    if(id.ne.(numprocs-1)) then
-       iend = (id+1)*npid
-    else
-       iend = negf%Np_real
-    end if
-
-    scba:do iter = 0, negf%elph%scba_iterations
-
-     	! --------------------------------------------------------------------
-    	! LOOP 1: Calculations of all contact self-energies
-    	! --------------------------------------------------------------------
-    	negf%ReadOldSGF = 2 ! Compute & save Surface GF
-	    do i = istart, iend
-
+       !uniform energy step (necessary for Hilbert Transform)
+       call trapez(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
+       !call gauleg(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
+ 
+       !Computing actual point for parallel computations
+       npid = int((negf%Np_real(k))/numprocs)
+       istart = id*npid+1
+       iend = negf%Np_real(k)
+       
+       do i = istart, iend
+ 
            if (negf%verbose.gt.VBT) then
-             write(6,'(a17,i4,a1,i4,a6,i3,f8.4)') 'SELF-ENERGY: pnt #',i,'/',iend,'  CPU=&
-                  &', id, pnts(i)
+              write(6,'(a17,i4,a1,i4,a6,i3,f8.4)') 'SELF-ENERGY: pnt #',i,'/',iend,'  CPU=&
+                    &', id, pnts(i)*negf%eneconv
            endif
-
+ 
            Ec = cmplx(pnts(i),negf%delta,dp)  ! E + i delta
 
            do i1 = 1, ncont
-             negf%activecont=i1
-             call surface_green(Ec,negf%HC(i1),negf%SC(i1),negf,ioffset+i,ncyc,GS_d)
-           end do
+              negf%activecont=i1
+             
+              call create(HC, negf%HC(i1)%nrow, negf%HC(i1)%nrow)
+              HC%val= negf%HC(i1)%val
+    
+              do iter = 0, negf%elph%scba_iterations
+    
+                 if (negf%iteration.eq.1 ) then
+                     negf%ReadOldSGF = 1 ! Compute (only) Surface GF
+                     if  (iter.eq.negf%elph%scba_iterations) then
+                        negf%ReadOldSGF = 2 ! Compute & save Surface GF
+                     endif
+                 else
+                     negf%ReadOldSGF = 0 ! Reload Surface GF
+                 endif
 
-        end do
+                 call surface_green(Ec,HC,negf%SC(i1),negf,ioffset+i,ncyc,GS_d)
+                 
+                 n1 = GS_d%nrow/2
+                 call create(GS2,n1,n1)
+                 GS2%val = GS_d%val(1:n1,1:n1)
+                 call destroy(GS_d)
+                 call create(Self_ph_c,n1,n1) 
+                 Self_ph_c%val=(0.0_dp,0.0_dp)
+               
+                 do m = 1, numselmodes
+                      if (.not.selmodes(m)) cycle 
+                      ! computes Mq G_s Mq
+                      call create_id(Mq_mat,n1,Mq(m))
+                      call prealloc_mult(Mq_mat, GS2 , work2)
+                      call destroy(GS2)
+                      call prealloc_mult(work2, Mq_mat, work1)
+                      call destroy(work2, Mq_mat)
+                      Self_ph_c%val = Self_ph_c%val + (2.0_dp*Nq(m)+1.0_dp)*work1%val
+                      call destroy(work1)
+                 enddo
+
+                 !print*,'Self_ph',i1, maxval(abs(Self_ph_c%val))
+                 HC%val(1:n1,1:n1) = HC%val(1:n1,1:n1) + Self_ph_c%val                  
+                 HC%val(n1+1:2*n1,n1+1:2*n1) = HC%val(n1+1:2*n1,n1+1:2*n1) + Self_ph_c%val                  
+ 
+                 call destroy(Self_ph_c)              
+
+              end do
+
+              call destroy(HC)
+
+           end do
+ 
+       end do
+
+       ioffset = ioffset + negf%Np_real(k)
+       call log_deallocate(pnts)
+       call log_deallocate(wght)
+    end do
+
+    ! --------------------------------------------------------------------
+    ! --------------------------------------------------------------------
+    !       SCBA   Iterations 
+    ! --------------------------------------------------------------------
+    !---------------------------------------------------------------------
+    scba:do iter = 0, negf%elph%scba_iterations
+       
+        negf%elph%scba_iter = iter ! Will be used by iterative 
+        negf%ReadOldSGF = 0 ! Reload Surface GF
+
+        if (negf%verbose .gt. 60) then
+           write(6,*) 'SCBA ITERATION:',iter,'/',negf%elph%scba_iterations
+        end if
+
+        open(2003,file=trim(negf%out_path)//'Lcurr.dat',status='REPLACE')
+        close(2003)
         ! --------------------------------------------------------------------
         ! --------------------------------------------------------------------
         ! LOOP 2: Calculations of all Gr and G<
         ! --------------------------------------------------------------------
         !---------------------------------------------------------------
-        !    g    --  [ /                                              ]
-        ! ------  >   [ | G<(E) dE                                     ]
-        ! 2*pi*j  --i [ /                                              ]
+        !    g    --  [ /              g    --  [ /                             ]
+        ! ------  >   [ | G<(E) dE =------  >   [ | Gn(E) dE                    ]
+        ! 2*pi*j  --i [ /             2*pi  --i [ /                             ]
         !---------------------------------------------------------------
         call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
         call initialize(TmpMt)
-        negf%ReadOldSGF = 0 ! Reload Surface GF
-        do i = istart, iend
 
-          if (negf%verbose.gt.VBT) then
-             write(6,'(a14,i4,a1,i4,a6,i3,f8.4)') 'Gr & G<: pnt #',i,'/',iend,'  CPU=&
-                  &', id, pnts(i)
-          end if
+        ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+        do k = 1, n_ranges 
+       
+           call log_allocate(pnts,negf%Np_real(k))
+           call log_allocate(wght,negf%Np_real(k))
 
-          Ec = cmplx(pnts(i),negf%delta,dp)
-          negf%Epnt = ioffset + i
+           call trapez(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
+           !call gauleg(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
+         
+           npid = int((negf%Np_real(k))/numprocs)
+           istart = id*npid+1
+           iend = negf%Np_real(k)
+  
+           do i = istart, iend
+ 
+             if ( pnts(i).lt.gf_range(1) .or. pnts(i).gt.gf_range(2) ) cycle
 
-          dt = negf%wght * negf%spin * wght(i)/(2*pi)
-          zt = dt*(1.d0,0.d0)
-
-          do j1 = 1,ncont
-             frm_f(j1)=fermi_f(pnts(i),negf%Efermi(j1)-negf%mu(j1),KbT)
-          enddo
-
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-
-          call  compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-          ! initialize Sigma_ph_r, Sigma_ph_less
-
-          ! Compute Gr and G<
-          call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm_f,ref,G_less,outer,iter)
-
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-          do i1=1,ncont
-             call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-          enddo
-
-          if(negf%DorE.eq.'D') then
-             call concat(TmpMt,zt,G_less,1,1)
-          endif
-          if(negf%DorE.eq.'E') then
-             call concat(TmpMt,zt*Ec,G_less,1,1)
-          endif
-
-          if (negf%writeLDOS) then
-             call zgetdiag(G_less, q_tmp)
-             do i1 = 1,negf%str%central_dim
-                write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
+             if (negf%verbose.gt.VBT) then
+                write(6,'(a14,i4,a1,i4,a6,i3,a6,i3,a4,f8.4)') 'Gr & G<: pnt #',i,'/',iend, &
+                    '  CPU=', id,' Iter=',iter,' E=', pnts(i)*negf%eneconv
+             end if
+ 
+             Ec = cmplx(pnts(i),negf%delta,dp)
+             negf%iE = ioffset + i
+ 
+             dt = negf%wght * negf%spin * wght(i)/(2*pi)
+             zt = dt*(1.d0,0.d0)
+ 
+             do j1 = 1,ncont
+                frm_f(j1)=fermi_f(pnts(i),negf%Efermi(j1)-negf%mu(j1),KbT)
              enddo
-             write(2001,*)
-             write(2002,*) pnts(i)
-          endif
+             
+             call  compute_contacts(Ec,negf,ioffset+i,ncyc,Tlc,Tcl,SelfEneR,GS)
+ 
+             if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+             ! Compute Gr and G<
+             call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm_f,G_less,outer)
+ 
+             if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+             do i1=1,ncont
+                call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+             enddo
+ 
+             if ( pnts(i).ge.int_range(1) .and. pnts(i).le.int_range(2) ) then 
+                if(negf%DorE.eq.'D') then
+                   call concat(TmpMt,zt,G_less,1,1)
+                endif
+                if(negf%DorE.eq.'E') then
+                   call concat(TmpMt,zt*Ec,G_less,1,1)
+                endif
+             endif
 
-          call destroy(G_less)
-
-        end do
+             if (negf%writeLDOS) then
+                call zgetdiag(G_less, q_tmp)
+                do i1 = 1,negf%str%central_dim
+                   write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
+                enddo
+                write(2001,*)
+                write(2002,*) pnts(i)
+             endif
+ 
+             call destroy(G_less)
+ 
+           end do
+ 
+ 
+           ioffset = ioffset + negf%Np_real(k)
+           call log_deallocate(pnts)
+           call log_deallocate(wght)
+        end do  
+        
+        if (iter .eq. negf%elph%scba_iterations) exit
+      
+        call destroy(TmpMt)
         ! --------------------------------------------------------------------
         ! --------------------------------------------------------------------
         ! LOOP 3: Calculations Sigma<
         ! --------------------------------------------------------------------
-        if (negf%elph%scba_iterations.eq.0) exit
+        ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+        do k = 1, n_ranges 
 
-        do i = istart, iend
+            call log_allocate(pnts,negf%Np_real(k))
+            call log_allocate(wght,negf%Np_real(k))
 
-           if ( pnts(i)-mumin+nkT+Omega.lt.Wmax .or. mumax+nkT+Omega-pnts(i).lt.Wmax ) cycle
+            call trapez(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
+            !call gauleg(Emin(k), Emax(k), pnts, wght, negf%Np_real(k))
 
-           if (negf%verbose.gt.VBT) then
-             write(6,'(a14,i4,a1,i4,a6,i3,f8.4)') 'Sigma<,r: pnt #',i,'/',iend,'  CPU=&
-                 &', id, pnts(i)
-           end if
+            npid = int((negf%Np_real(k))/numprocs)
+            istart = id*npid+1
+            iend = negf%Np_real(k)
+  
+ 
+            do i = istart, iend
+               
+               if ( pnts(i).lt.self_range(1) .or. pnts(i).gt.self_range(2) ) cycle
 
-           negf%Epnt = ioffset + i
+               if (negf%verbose.gt.VBT) then
+                 write(6,'(a14,i4,a1,i4,a6,i3,f8.4)') 'Sigma<,r: pnt #',i,'/',iend,'  CPU=&
+                     &', id, pnts(i)*negf%eneconv
+               end if
+ 
+               negf%iE = ioffset + i
+               negf%Epnt = pnts(i)
 
-           call sigma_ph_less(negf,pnts)
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('sigma_ph_less ')
+               call sigma_ph_n(negf,pnts)
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('sigma_ph_great ')
+               call sigma_ph_p(negf,pnts)
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('sigma_ph_r ')
+               call sigma_ph_r(negf, pnts)
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+            end do
+       
+            ! ADD  -i/2 * Mq H[G<+ - G<-] Mq to Sigma_ph_r
+            if (negf%elph%selfene_hilb) then
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('complete_sigma_ph_r ')
+                  call complete_sigma_ph_r(negf ,pnts, ioffset) 
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+            endif
 
-           call sigma_ph_r(negf, pnts)
+            ! Check Self_energy_r
+            do i = istart, iend
+               if ( pnts(i).lt.self_range(1) .or. pnts(i).gt.self_range(2) ) cycle
 
+               negf%iE = ioffset + i
+               negf%Epnt = pnts(i)
+               call check_sigma_ph_r(negf)
+
+            end do
+
+            ioffset = ioffset + negf%Np_real(k)
+            call log_deallocate(pnts)
+            call log_deallocate(wght)
         end do
 
-        call destroy(TmpMt)
+        rewind(2001)
+        rewind(2002)
+         
+        self_range(1) = self_range(1) + Wmax    ! New self-energy range
+        self_range(2) = self_range(2) - Wmax    ! New self-enrgy range
+        gf_range(1) = gf_range(1) + Wmax        ! New gf-energy range
+        gf_range(2) = gf_range(2) - Wmax        ! New gf-enrgy range
 
     end do scba
     ! --------------------------------------------------------------------
 
-   call log_deallocate(wght)
-   call log_deallocate(pnts)
    call log_deallocate(frm_f)
 
    if(negf%DorE.eq.'D') then
@@ -2010,6 +2435,8 @@ end subroutine contour_int
       endif
    endif
 
+    call destroy(TmpMt)
+
     if (negf%writeLDOS) then
        close (2001)
        close (2002)
@@ -2018,10 +2445,494 @@ end subroutine contour_int
 
   end subroutine real_axis_int_ph
   !-----------------------------------------------------------------------------------------------------
+ 
+  subroutine init_emesh(negf, reflevel)
+    type(Tnegf) :: negf
+    integer :: reflevel
+
+    real(dp) :: Emin, Emax, nkT, Wmax, mumin, mumax
+    integer :: np,ncont,ioffset
 
 
+    if (negf%elph%numselmodes .eq. 0) return
+
+    ncont = 2 !TEMPORARY HACKING!!!!!
+    !ncont = negf%str%num_conts
+    
+    !mumin = negf%Ec
+    Wmax = maxval(negf%elph%Wq, negf%elph%selmodes)
+    nkT = negf%n_kt * negf%kbT
+    
+    Emin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont)) - nkT - Wmax
+    Emax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont)) + nkT + Wmax
 
 
+    mumin = Emin - negf%elph%scba_iterations * Wmax
+    mumax = Emax + negf%elph%scba_iterations * Wmax
+
+    np = negf%Np_real(1)
+    
+    if (np.eq.0) np=1 
+
+    !CREATE energy mesh
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+
+    print*,'create emesh:',mumin,mumax,np
+
+    call create_mesh(negf%emesh, reflevel, mumin, mumax, np, ioffset)
+
+    negf%elph%Erange(1) = Emin 
+    negf%elph%Erange(2) = Emax 
+
+    negf%elph%self_range(1) = mumin + Wmax
+    negf%elph%self_range(2) = mumax - Wmax
+
+  end subroutine init_emesh
+
+  !-----------------------------------------------------------------------------------------------------
+  subroutine destroy_emesh(negf)
+    type(Tnegf) :: negf
+
+    call destroy_mesh(negf%emesh)
+
+  end subroutine destroy_emesh
+
+  !-----------------------------------------------------------------------------------------------------
+  subroutine real_axis_int_ph2(negf)
+    type(Tnegf), pointer :: negf
+
+    integer :: npid, istart, iend, ref, iter, lev, nelem, newelem 
+    integer :: i, i1, k,ioffset, outer, j1
+    !, numselmodes, n_ext_range
+    complex(dp), dimension(:), allocatable :: q_tmp
+    real(dp), DIMENSION(:), allocatable :: pnts   ! Gauss-quadrature points
+    !real(dp) :: Omega, nkT, mumin, mumax, Wmax, Emin, Emax
+    !real(dp) :: ncyc, kbT, dt
+    !logical, dimension(:), pointer :: selmodes
+    !real(dp), DIMENSION(:), pointer :: Wq
+    type(elem), pointer :: pel
+    type(TG_pointer) :: G(3)
+    type(z_CSR) :: Dens, TmpMt
+
+
+    ref = negf%refcont
+    iend = negf%Np_real(1)
+    
+    ! TEMPORARY !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    outer = 0  !negf%outer
+
+    if (negf%writeLDOS) then
+       open(2001,file=trim(negf%out_path)//'LDOS_ph.dat')
+       open(2002,file=trim(negf%out_path)//'energy_ph.dat')
+       call log_allocate(q_tmp, negf%H%nrow)
+    endif
+
+
+    scba:do iter = 0, negf%elph%scba_iterations
+      
+       negf%elph%scba_iter = iter 
+       !open(2003,file=trim(negf%out_path)//'Lcurr.dat',status='REPLACE')
+       !close(2003)
+        ! --------------------------------------------------------------------
+        ! --------------------------------------------------------------------
+        ! LOOP 2: Calculations of all Gr and G<
+        ! --------------------------------------------------------------------
+        !---------------------------------------------------------------
+        !    g    --  [ /              g    --  [ /                             ]
+        ! ------  >   [ | G<(E) dE =------  >   [ | Gn(E) dE                    ]
+        ! 2*pi*j  --i [ /             2*pi  --i [ /                             ]
+        !---------------------------------------------------------------
+        
+        call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+        call initialize(TmpMt)
+
+        i=1
+        do while(i.le.negf%emesh%maxind)
+             
+             pel => negf%emesh%pactive(i)%pelem
+             nelem = negf%emesh%maxind
+
+             if (negf%verbose.gt.VBT) then
+                write(6,'(a14,i4,a1,i4,a6,i3,a6,i3,a4,f8.4)') 'Gr & G<: el #',i,'/',nelem, &
+                '  CPU=', id,' Iter=',negf%elph%scba_iter
+             end if
+             
+             print*,'elem',i, pel%map
+             lev = pel%lev 
+             
+             call adaptive_int(lev,negf,negf%emesh,pel,G,Dens)
+    
+             if (negf%writeLDOS) then
+                do j1 = 1, 2      
+                  call zgetdiag(G(j1)%pG, q_tmp)
+                  do i1 = 1,negf%str%central_dim
+                      write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
+                   enddo
+                   write(2001,*)
+                   write(2002,*) pel%pnt(j1)
+                enddo   
+             endif
+      
+             newelem = negf%emesh%maxind - nelem 
+             !print*,'new elements in mesh',newelem
+             i = i + newelem + 1
+
+             call destroyp(G(1)%pG)
+             call destroyp(G(2)%pG)
+             G(1)%pG => G(3)%pG
+             G(1)%ind = G(3)%ind
+             G(3)%pG => null()
+             G(3)%ind = 0
+  
+             if ( pnts(i).ge.negf%elph%Erange(1).and.pnts(i).le.negf%elph%Erange(2) ) then 
+                call concat(TmpMt,Dens,1,1)
+             endif
+
+             call destroy(Dens)
+             print*,'error: ', pel%error
+             print*,'==================================================================='
+
+         end do     
+       
+         print*,'Maximum error: ',get_error(negf%emesh,1)
+
+         if (iter.eq.negf%elph%scba_iterations) exit
+         
+         call destroy(TmpMt)
+         ! --------------------------------------------------------------------
+         ! --------------------------------------------------------------------
+         ! LOOP 3: Calculations Sigma<
+         ! --------------------------------------------------------------------
+ 
+         do i = 1, negf%emesh%maxind
+
+             pel => negf%emesh%pactive(i)%pelem
+             negf%emesh%iactive=i
+
+             do i1 = 1, 2
+
+               if (pel%pnt(i1).lt.negf%elph%self_range(1) .or. &
+                                          pel%pnt(i1).gt.negf%elph%self_range(2)) cycle
+ 
+               if (negf%verbose.gt.VBT) then
+                 write(6,'(a14,i4,a1,i4,a6,i3,f8.4)') 'Sigma<,r: el #',i,'/',nelem,'  CPU=&
+                     &', id, pel%pnt(i1)*negf%eneconv
+               end if
+               
+               negf%iE = pel%map(i1) 
+               negf%Epnt = pel%pnt(i1)
+
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('sigma_ph_n ')
+               call sigma_ph_n(negf,pnts)
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+ 
+               if (id0.and.negf%verbose.gt.VBT) call message_clock('sigma_ph_r ')
+               call sigma_ph_r(negf,pnts)
+               if (id0.and.negf%verbose.gt.VBT) call write_clock
+ 
+            end do
+       
+         end do
+
+         rewind(2001)
+         rewind(2002)
+              
+    end do scba
+
+    if(negf%DorE.eq.'D') then
+      if(allocated(negf%rho%nzval)) then
+         call concat(negf%rho,TmpMt,1,1)
+      else
+         call clone(TmpMt,negf%rho)
+      endif
+    endif
+    if(negf%DorE.eq.'E') then
+      if(allocated(negf%rho_eps%nzval)) then
+         call concat(negf%rho_eps,TmpMt,1,1)
+      else
+         call clone(TmpMt,negf%rho_eps)
+      endif
+    endif
+
+     call destroy(TmpMt)
+
+    if (negf%writeLDOS) then
+       close (2001)
+       close (2002)
+       call log_deallocate(q_tmp)
+    endif
+
+
+  end subroutine real_axis_int_ph2
+
+  !---------------------------------------------------------------------------
+  subroutine test(negf)
+    type(TNegf), pointer :: negf
+    type(mesh) :: emesh
+    type(elem) :: el
+    type(z_CSR) :: Dens, Dens1
+    type(z_CSR), target :: P
+    type(z_CSR), pointer :: P2
+    type(TG_pointer) :: G(3)
+
+    integer :: i,j,lev,nelem, newelem
+
+    print*,'Create mesh'
+    call create_mesh(emesh,6, -1.0_dp, 0.0_dp, 5, 0)
+    print*,'Done'
+
+    i=1
+    do while(i.le.emesh%maxind) 
+      nelem = emesh%maxind
+      print*,'elem',i, emesh%pactive(i)%pelem%map
+      lev = 1
+      
+      call adaptive_int(lev,negf,emesh,emesh%pactive(i)%pelem,G,Dens1)
+
+      newelem = emesh%maxind - nelem 
+      print*,'new elements in mesh',newelem
+      i = i + newelem + 1
+
+      !print*,allocated(Gless(1)%nzval),allocated(Gless(2)%nzval),allocated(Gless(3)%nzval)
+      call destroyp(G(1)%pG)
+      call destroyp(G(2)%pG)
+      G(1)%pG => G(3)%pG
+      G(1)%ind = G(3)%ind
+      G(3)%pG => null()
+      G(3)%ind = 0
+
+      call destroy(Dens1)
+    enddo
+
+    if (allocated(G(1)%pG%nzval)) then
+       print*," Destroy",G(1)%ind
+       call destroyp(G(1)%pG)
+    endif   
+
+  end subroutine test
+  !---------------------------------------------------------------------------
+  
+
+  recursive subroutine adaptive_int(lev,negf,emesh,el,G,Dens)
+    integer, intent(inout) :: lev
+    type(TNegf), pointer :: negf
+    type(mesh) :: emesh
+    type(elem), pointer :: el 
+    type(TG_pointer) :: G(3)
+    type(z_CSR) :: Dens
+    
+    ! local variables
+    type(elem), pointer :: pel
+    !type(z_CSR), target :: Gless2(3)
+    type(TG_pointer) :: G2(3)
+    type(z_CSR) :: Dens1, Dens2
+    integer :: i
+    real(dp) :: dE
+    character(10) :: al
+    logical :: dorefine
+
+    al=''
+    do i=1,lev
+      al = trim(al)//'o'
+    enddo
+
+    print*,trim(al)//' Sub called at lev:',lev
+
+    do i = 1,3
+      if (associated(G(i)%pG) .and. allocated(G(i)%pG%nzval)) then
+         G(i)%ind = el%map(i) 
+         print *,trim(al)//" Gp: ",abs(trace(G(i)%pG)) !G(i)%ind,LOC(G(i)%pG)
+      else   
+         allocate(G(i)%pG)
+         !!print*,'E=',el%pnt(i)*negf%eneconv
+         call compute_gless(negf,el%pnt(i),el%map(i),G(i)%pG)
+         G(i)%ind = el%map(i) 
+         print *,trim(al)//" Create G: ",abs(trace(G(i)%pG))  !G(i)%ind,LOC(G(i)%pG)
+      endif   
+    enddo
+    
+    call trapez23(negf, G, el%pnt, Dens, el%error, dorefine)
+
+    if (dorefine .and. lev.lt.emesh%maxreflev) then
+
+       print*,'refine element', el%ind, 'error',el%error
+
+       pel=>el !Workaround since after refine el points to el%child1 ?!?
+       call refine(emesh,el)
+       !print*, trim(al)//" (el,ch1,ch2):",LOC(pel),LOC(pel%child1),LOC(pel%child2)
+ 
+       !print*,trim(al)//" New mesh"
+       !do i = 1, emesh%maxind
+       !    print*,trim(al),LOC(emesh%pactive(i)%pelem), emesh%pactive(i)%pelem%map
+       !enddo
+ 
+       !print*,trim(al)//" Go to elem",LOC(pel%child1)
+       G2(1)%pG => G(1)%pG 
+       G2(3)%pG => G(2)%pG 
+       G2(2)%pG => null() 
+ 
+       lev = lev + 1
+       call adaptive_int(lev,negf,emesh,pel%child1,G2,Dens1)  
+       lev = lev - 1
+
+       call destroyp(G2(2)%pG)
+       
+       !print*,trim(al)//" Go to elem",LOC(pel%child2)
+       G2(3)%pG => G(3)%pG
+       G2(1)%pG => G(2)%pG
+       G2(2)%pG => null() 
+ 
+       lev = lev + 1
+       call adaptive_int(lev,negf,emesh,pel%child2,G2,Dens2)  
+       lev = lev - 1
+  
+       call destroyp(G2(2)%pG)
+ 
+       call destroy(Dens)
+       call create(Dens,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+       call initialize(Dens)
+
+       call concat(Dens,Dens1,1,1)
+       call concat(Dens,Dens2,1,1)
+
+       call destroy(Dens1,Dens2)
+    
+       print*,'--------------------------------------------------------------'
+
+    else
+
+    !   if (lev.gt.1) then
+    !      call destroyp(G(2)%pG)
+    !      print*,trim(al)//" Destroy",G(2)%ind
+    !   endif
+
+    !if (negf%writeLDOS) then
+    !   do j1 = 1, 2      
+    !      call zgetdiag(Gless(j1), q_tmp)
+    !      do i1 = 1,negf%str%central_dim
+    !         write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
+    !      enddo
+    !      write(2001,*)
+    !      write(2002,*) pel%pnt(j1)
+    !   enddo   
+    endif
+ 
+      
+
+  end subroutine adaptive_int
+
+  !---------------------------------------------------------------------------
+  subroutine trapez23(negf,G, Epnt, Dens, error, refine)
+    type(TNegf), pointer :: negf
+    type(TG_pointer) :: G(3)
+    real(dp), intent(in) :: Epnt(3)
+    type(z_CSR) :: Dens
+    real(dp), intent(out) :: error
+    logical, intent(out) :: refine
+    
+    type(z_CSR) :: I2
+    real(dp) :: dt    
+    complex(dp) :: zt, tr, tr2
+
+    call create(I2,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+    call initialize(I2)
+
+    dt = negf%wght * negf%spin * (Epnt(2)-Epnt(1)) / (2*pi)
+    zt = dt*(1.d0,0.d0)
+    ! Computing I2
+    if(negf%DorE.eq.'D') then
+       call concat(I2,zt,G(1)%pG,1,1)
+       call concat(I2,zt,G(3)%pG,1,1)
+    endif
+    if(negf%DorE.eq.'E') then
+       call concat(I2,zt*Epnt(1),G(1)%pG,1,1)
+       call concat(I2,zt*Epnt(3),G(3)%pG,1,1)
+    endif
+    
+    call clone(I2,Dens)
+
+    ! Computing I3
+    Dens%nzval = Dens%nzval/2.0_dp 
+
+    if(negf%DorE.eq.'D') then
+        call concat(Dens,zt,G(2)%pG,1,1)
+    endif
+    if(negf%DorE.eq.'E') then
+        call concat(Dens,zt*Epnt(2),G(2)%pG,1,1)
+    endif
+    
+    tr2 = trace(I2)
+    tr = trace(Dens) 
+
+    if (abs(tr2).lt.negf%int_acc) then
+            error = abs(tr - tr2)
+    else
+            error = abs(tr - tr2)/abs(tr2)
+    endif
+
+
+    call destroy(I2)
+    refine = .false.
+    if (error > negf%int_acc) then
+       refine = .true.
+    endif
+
+  end subroutine trapez23
+  !---------------------------------------------------------------------------
+  
+  subroutine compute_gless(negf,E,pnt,Gless)
+    type(TNegf), pointer :: negf
+    real(dp) :: E
+    integer :: pnt
+    type(z_CSR) :: Gless
+
+    real(dp), DIMENSION(:), allocatable :: frm_f
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    integer :: i1, j1, ref, ncont, outer, iter
+    complex(dp) :: Ec
+    real(dp) :: ncyc
+
+
+    call log_allocate(frm_f,ncont+1)
+    frm_f = 0.d0
+    ncont = negf%str%num_conts
+    outer = 0
+    iter = negf%elph%scba_iter
+
+    if (negf%iteration.eq.1 .and. iter.eq.0) then
+        negf%ReadOldSGF = 2 ! Compute & save Surface GF
+    else
+        negf%ReadOldSGF = 0 ! Reload Surface GF
+    endif
+
+    Ec = cmplx(E,negf%delta,dp)
+
+    negf%iE = pnt    
+
+    call  compute_contacts(Ec,negf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+    do j1 = 1,ncont
+       frm_f(j1)=fermi_f(E,negf%Efermi(j1)-negf%mu(j1),negf%KbT)
+    enddo
+    
+    if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+
+    ! Compute Gr and G<
+    call calls_neq_ph(negf,E,SelfEneR,Tlc,Tcl,GS,frm_f,Gless,outer)
+
+    if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+    do i1=1,ncont
+       call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+    enddo
+
+    call log_deallocate(frm_f)
+
+  end subroutine compute_gless
+
+
+  !---------------------------------------------------------------------------
 
   subroutine set_ref_cont(negf)
 
@@ -2101,7 +3012,28 @@ end subroutine contour_int
     
   end subroutine gauleg
 
+!--------------------------------------------------------------------  
+  subroutine trapez(x1,x2,x,w,n)
 
+    real(kind=dp), PARAMETER :: ACC = 1d-15
+
+    INTEGER n
+    real(kind=dp) :: x1,x2,x(n),w(n)
+
+    real(dp) :: d
+    integer :: i
+
+    d = (x2-x1)/(n-1)
+
+    w = d * 1.0_dp
+    w(1) = d * 0.5_dp
+    w(n) = d * 0.5_dp
+
+    do i = 1, n
+       x(i) = ( x1*(n-i) + x2*(i-1) ) / (n-1) 
+    enddo
+ 
+    end subroutine trapez
 !--------------------------------------------------------------------  
   
   subroutine reorder(mat)

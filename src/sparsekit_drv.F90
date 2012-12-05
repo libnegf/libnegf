@@ -1905,14 +1905,14 @@ CONTAINS
     N = B_dns%ncol
     K = A_dns%ncol
     
-	IF (allocated(C_dns%val)) THEN
-	   IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-	  	 STOP 'ERROR (zmultdnss): C allocated with wrong size'
-	   ENDIF
-	   beta = (1.d0,0.d0)
+    IF (allocated(C_dns%val)) THEN
+      IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+      ENDIF
+      beta = (1.d0,0.d0)
     ELSE
-    	CALL create(C_dns,M,N)
-    	beta = (0.d0,0.d0)
+      CALL create(C_dns,M,N)
+      beta = (0.d0,0.d0)
     ENDIF
 
     CALL ZGEMM('N','N', M, N, K, s, A_dns%val, M, &
@@ -1941,7 +1941,7 @@ CONTAINS
     type(z_DNS) :: C_dns
     integer :: M,N,K
     complex(dp), parameter :: s = (1.d0, 0.d0)
-    complex(dp), parameter :: beta =(0.d0,0.d0)
+    complex(dp) :: beta
 
     IF (size(A,2).NE.size(B,1)) THEN
        WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
@@ -1951,7 +1951,15 @@ CONTAINS
     N = size(B,2)
     K = size(A,2)   
 
-    CALL create(C_dns,M,N)
+    IF (allocated(C_dns%val)) THEN
+      IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+      ENDIF
+      beta = (1.d0,0.d0)
+    ELSE
+      CALL create(C_dns,M,N)
+      beta = (0.d0,0.d0)
+    ENDIF
     
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
             B, K, beta, C_dns%val, M)
@@ -1980,7 +1988,7 @@ CONTAINS
     complex(dp) :: s 
 
     integer :: M,N,K
-    complex(dp), parameter :: beta =(0.d0,0.d0)
+    complex(dp) ::  beta
 
     IF (size(A,2).NE.size(B,1)) THEN
        WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
@@ -1991,8 +1999,15 @@ CONTAINS
     K = size(A,2)
    
     !L = size(B,1) = K)
-
-    CALL create(C_dns,M,N)
+    IF (allocated(C_dns%val)) THEN
+      IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+      ENDIF
+      beta = (1.d0,0.d0)
+    ELSE
+      CALL create(C_dns,M,N)
+      beta = (0.d0,0.d0)
+    ENDIF
     
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
             B, K, beta, C_dns%val, M)
@@ -2037,14 +2052,14 @@ CONTAINS
     N = B_dns%ncol
     K = A_dns%ncol
 
-	IF (allocated(C_dns%val)) THEN
-	   IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-	  	 STOP 'ERROR (zmultdnss): C allocated with wrong size'
-	   ENDIF
-	   beta = (1.d0,0.d0)
+    IF (allocated(C_dns%val)) THEN
+      IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
+        STOP 'ERROR (zmultdnss): C allocated with wrong size'
+      ENDIF
+      beta = (1.d0,0.d0)
     ELSE
-    	CALL create(C_dns,M,N)
-    	beta = (0.d0,0.d0)
+      CALL create(C_dns,M,N)
+      beta = (0.d0,0.d0)
     ENDIF
     
     ! C = beta C + s A * B

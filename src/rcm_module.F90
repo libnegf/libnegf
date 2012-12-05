@@ -1,23 +1,62 @@
-!!--------------------------------------------------------------------------!
-!! libNEGF: a general library for Non-Equilibrium Green's functions.        !
-!! Copyright (C) 2012                                                       !
-!!                                                                          ! 
-!! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
-!!                                                                          !
-!! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
-!! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
-!!                                                                          !
-!! libNEGF is free software: you can redistribute it and/or modify          !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
-!!--------------------------------------------------------------------------!
-
+!*****************************************************************************
+!
+! GENRCM finds the reverse Cuthill-Mckee ordering for a general graph.
+!
+!  Discussion:
+!
+!    For each connected component in the graph, the routine obtains
+!    an ordering by calling RCM.
+!
+!  Licensing:
+!
+!    This code is distributed under the GNU LGPL license. 
+!
+!  Modified:
+!
+!    04 January 2003
+!
+!  Author:
+!
+!    Original FORTRAN77 version by Alan George, Joseph Liu.
+!    FORTRAN90 version by John Burkardt
+!
+!  Reference:
+!
+!    Alan George, Joseph Liu,
+!    Computer Solution of Large Sparse Positive Definite Systems,
+!    Prentice Hall, 1981.
+!
+!  Parameters:
+!
+!    Input, integer ( kind = 4 ) NODE_NUM, the number of nodes.
+!
+!    Input, integer ( kind = 4 ) ADJ_NUM, the number of adjacency entries.
+!
+!    Input, integer ( kind = 4 ) ADJ_ROW(NODE_NUM+1).  Information about 
+!    row I is stored in entries ADJ_ROW(I) through ADJ_ROW(I+1)-1 of ADJ.
+!
+!    Input, integer ( kind = 4 ) ADJ(ADJ_NUM), the adjacency structure.
+!    For each row, it contains the column indices of the nonzero entries.
+!
+!    Output, integer ( kind = 4 ) PERM(NODE_NUM), the RCM ordering.
+!
+!  Local Parameters:
+!
+!    Local, integer LEVEL_ROW(NODE_NUM+1), the index vector for a level
+!    structure.  The level structure is stored in the currently unused 
+!    spaces in the permutation vector PERM.
+!
+!    Local, integer MASK(NODE_NUM), marks variables that have been numbered.
+!
+!  Additional notes:
+!  The original collection of soubroutines can be found in
+!  http://people.sc.fsu.edu/~jburkardt/f_src/rcm/rcm.f90
+!  They have been readapted in this module by A. Pecchia.
+!
+!  Note: find_root crash for very large matrices because of stack overflow
+!        part of the problem has been solved but not all. work in progress       
+!
+!*****************************************************************************
 
 module rcm_module
 
@@ -1111,9 +1150,9 @@ subroutine d2vec_permute ( n, a, p )
 
   return
 end subroutine d2vec_permute
+  
 
-subroutine degree ( root, adj_num, adj_row, adj, mask, deg, iccsze, ls, &
-  node_num )
+subroutine degree(root, adj_num, adj_row, adj, mask, deg, iccsze, ls, node_num)
 
 !*******************************************************************************
 !
@@ -1162,12 +1201,16 @@ subroutine degree ( root, adj_num, adj_row, adj, mask, deg, iccsze, ls, &
 !
   implicit none
 
+  integer root
   integer adj_num
   integer node_num
 
   integer adj(adj_num)
   integer adj_row(node_num+1)
   integer deg(node_num)
+  integer mask(node_num)
+  integer ls(node_num)
+
   integer i
   integer iccsze
   integer ideg
@@ -1175,13 +1218,10 @@ subroutine degree ( root, adj_num, adj_row, adj, mask, deg, iccsze, ls, &
   integer jstop
   integer jstrt
   integer lbegin
-  integer ls(node_num)
   integer lvlend
   integer lvsize
-  integer mask(node_num)
   integer nbr
   integer node
-  integer root
 !
 !  The sign of ADJ_ROW(I) is used to indicate if node I has been considered.
 !
@@ -1491,19 +1531,21 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
 !
   implicit none
 
-  integer adj_num
-  integer node_num
+  integer :: adj_num
+  integer :: node_num
 
-  integer adj(adj_num)
-  integer adj_row(node_num+1)
-  integer i
-  integer iccsze
-  integer mask(node_num)
-  integer level_num
-  integer level_row(node_num+1)
-  integer num
-  integer perm(node_num)
-  integer root
+  integer, dimension(:) ::  adj
+  integer, dimension(:) ::  adj_row
+  integer ::  perm(node_num)
+  ! locals
+  integer ::  i
+  integer ::  iccsze
+  integer, dimension(:), allocatable ::  mask, level_row
+  integer :: level_num, level, num, root, err
+
+  allocate(mask(node_num),stat=err)
+  allocate(level_row(node_num+1),stat=err)
+  if (err.ne.0) STOP 'ERROR: RCM allocation error'
 
   mask(1:node_num) = 1
 
@@ -1521,27 +1563,30 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
 !  ROOT_FIND is stored starting at PERM(NUM).
 !  root_find ( root, adj_num, adj_row, adj, mask, level_num, &
 !                   level_row, level, node_num )
-      call root_find ( root, adj_num, adj_row, adj, mask, level_num, &
-        level_row, perm(num), node_num )
+   call root_find(root, adj_num, adj_row, adj, mask, level_num, &
+                  level_row, perm(num:), node_num )
+
 !
 !  RCM orders the component using ROOT as the starting node.
 !
-      call rcm ( root, adj_num, adj_row, adj, mask, perm(num), iccsze, &
-        node_num )
-
-      num = num + iccsze
+   call rcm(root, adj_num, adj_row, adj, mask, perm(num:), iccsze, &
+            node_num )
+   
+   num = num + iccsze
 !
 !  We can stop once every node is in one of the connected components.
 !
       if ( node_num < num ) then
-        return
-      end if
-
+          return
+         end if
+   
     end if
 
   end do
 
-  return
+  deallocate(mask)
+  deallocate(level_row)
+
 end subroutine genrcm
 
 subroutine graph_01_adj ( node_num, adj_num, adj_row, adj )
@@ -2826,12 +2871,17 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
 !
   implicit none
 
+  integer root
   integer adj_num
   integer node_num
 
   integer adj(adj_num)
   integer adj_row(node_num+1)
-  integer deg(node_num)
+  integer mask(node_num)
+  integer perm(node_num)
+
+
+  integer, dimension(:), allocatable :: deg
   integer fnbr
   integer i
   integer iccsze
@@ -2844,15 +2894,16 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
   integer lnbr
   integer lperm
   integer lvlend
-  integer mask(node_num)
   integer nbr
   integer node
-  integer perm(node_num)
-  integer root
+  integer err
+
+  allocate(deg(node_num),stat=err)
+  if (err.ne.0) STOP 'ERROR allocation in rcm'
 !
 !  Find the degrees of the nodes in the component specified by MASK and ROOT.
 !
-  call degree ( root, adj_num, adj_row, adj, mask, deg, iccsze, perm, node_num )
+  call degree(root, adj_num, adj_row, adj, mask, deg, iccsze, perm, node_num)
 
   mask(root) = 0
 
@@ -2935,12 +2986,13 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
     end do
 
   end do
+
+  deallocate(deg)
 !
 !  We now have the Cuthill-McKee ordering.  Reverse it.
 !
-  call ivec_reverse ( iccsze, perm )
+  call ivec_reverse( iccsze, perm )
 
-  return
 end subroutine rcm
 
 subroutine root_find ( root, adj_num, adj_row, adj, mask, level_num, &
@@ -3026,20 +3078,20 @@ subroutine root_find ( root, adj_num, adj_row, adj, mask, level_num, &
 
   integer adj_num
   integer node_num
-
+  integer level_num
   integer adj(adj_num)
   integer adj_row(node_num+1)
+  integer mask(node_num)
+  integer level(node_num)
+  integer level_row(node_num+1)
+  ! locals
   integer iccsze
   integer j
   integer jstrt
   integer k
   integer kstop
   integer kstrt
-  integer level(node_num)
-  integer level_num
   integer level_num2
-  integer level_row(node_num+1)
-  integer mask(node_num)
   integer mindeg
   integer nabor
   integer ndeg

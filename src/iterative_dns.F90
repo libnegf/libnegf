@@ -38,15 +38,18 @@
 MODULE iterative_dns
 
   USE ln_precision
+  USE ln_constants, only : pi
   USE ln_allocation
   USE mat_def
   USE sparsekit_drv
   USE inversions
   USE ln_structure, only : TStruct_Info
   USE lib_param, only : MAXNCONT, Tnegf
-  USE outmatrix, only : outmat_c
+  USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
   USE clock
+  USE transform
 
+  IMPLICIT NONE
   private
 
   public :: allocate_gsmr_dns
@@ -64,6 +67,13 @@ MODULE iterative_dns
  
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
+  public :: calls_neq_ph
+
+  public :: sigma_ph_n
+  public :: sigma_ph_p
+  public :: sigma_ph_r
+  public :: sigma_ph_r_z
+  public :: check_sigma_ph_r
 
   public :: sub_ESH_dns
   public :: rebuild_dns
@@ -71,12 +81,14 @@ MODULE iterative_dns
   public :: Make_gsml_mem_dns
   public :: Make_Grdiag_mem_dns
   public :: Make_Grcol_mem_dns
-  public :: Make_Spectral_mem_dns
-  public :: Make_GreenR_mem2_dns  ! New. Best.
-  public :: Make_Gl_mem_dns
+  !public :: Make_Spectral_mem_dns
+  public :: Make_Gr_mem_dns  ! New. Best.
+  public :: Make_Gn_mem_dns
   !public :: Outer_A_mem_dns
-  public :: Outer_GreenR_mem_dns
-  public :: Outer_Gl_mem_dns
+  public :: Outer_Gr_mem_dns
+  public :: Outer_Gn_mem_dns
+
+  public :: complete_sigma_ph_r
 
   LOGICAL, PARAMETER :: debug=.false. 
   !Dropout value
@@ -85,7 +97,6 @@ MODULE iterative_dns
   TYPE(z_DNS), DIMENSION(:), ALLOCATABLE :: gsmr
   TYPE(z_DNS), DIMENSION(:), ALLOCATABLE :: gsml
   TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Gr
-  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Glsub
 
 CONTAINS
 
@@ -96,7 +107,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_eq_mem_dns(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,A,struct,outer)
+  SUBROUTINE calls_eq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,A,struct,outer)
 
     !****************************************************************************
     !
@@ -119,11 +130,11 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_CSR) :: H, S, A
+    TYPE(Tnegf), pointer :: pnegf
+    COMPLEX(dp) :: E
     TYPE(z_DNS), DIMENSION(:) :: SelfEneR
     TYPE(z_DNS), DIMENSION(:) :: Tlc, Tcl, gsurfR
-    !TYPE(z_DNS) :: SelfEner_d 
-    COMPLEX(dp) :: E
+    TYPE(z_CSR) :: A
     TYPE(Tstruct_info) :: struct
     INTEGER :: outer
 
@@ -139,7 +150,7 @@ CONTAINS
     indblk => struct%mat_PL_start
 
     !Costruiamo matrice densa ESH_tot
-    CALL prealloc_sum(S,H,E,(-1.d0, 0.d0),ESH_tot)
+    CALL prealloc_sum(pnegf%HM,pnegf%SM,(-1.d0, 0.d0),E,ESH_tot)
 
     !Costruiamo l'array di dense ESH
     !Allocazione dell'array di dense ESH
@@ -156,6 +167,11 @@ CONTAINS
        ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
        !call destroy(SelfEneR_d)
     ENDDO
+
+    if (pnegf%elph%numselmodes.gt.0) then
+       ! Reload and add Sigma_ph_r to ESH
+       call add_sigma_ph_r(pnegf, ESH, pnegf%elph%scba_iter)
+    endif
 
     !Allocazione delle gsmr
     ALLOCATE(gsmr(nbl),stat=ierr)
@@ -182,22 +198,27 @@ CONTAINS
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-       CALL Outer_GreenR_mem_dns(Tlc,Tcl,gsurfR,struct,.FALSE.,A)   
+       CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.FALSE.,A)   
     CASE(2)
-       CALL Outer_GreenR_mem_dns(Tlc,Tcl,gsurfR,struct,.TRUE.,A) 
+       CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.TRUE.,A) 
     END SELECT
 
     !CALL Make_Spectral_mem(struct,0,A)
     !if (debug) write(*,*) 'Compute GreenR'   
     !Nota: Il flag 0 indica che non teniamo le Gr calcolate 
     !E' necessario metterlo a 1 se dopo il calcolo della spectral 
-    !effettuiamo il calcolo dei contributi aggiunti della Gless
-    !(omesso perchè è implementato un driver a parte)
-    !CALL Make_GreenR_mem(H%nrow,0,A)
-    call Make_GreenR_mem2_dns(S,nbl,indblk,Ain)
+    !effettuiamo il calcolo dei contributi aggiunti della Gn=-iG<
+    call Make_Gr_mem_dns(pnegf%SM,nbl,indblk,Ain)
+
+    if (pnegf%elph%numselmodes.gt.0) then
+      ! save diagonal blocks of Gn = -i G<
+      DO i = 1, nbl
+         call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
+      ENDDO
+    endif   
 
     !Distruzione dell'array Gr
-    CALL destroy_Gr()
+    CALL destroy_blk(Gr)
     DEALLOCATE(Gr)
 
     CALL destroy_ESH(ESH)
@@ -222,7 +243,7 @@ CONTAINS
 
   !****************************************************************************
   !
-  ! Driver for computing Gless contributions due to all contacts but reference:
+  ! Driver for computing G_n contributions due to all contacts but reference:
   !
   !   Sum   [f_j(E)-f_r(E)] Gr Gam_j Ga
   !   j!=r
@@ -231,7 +252,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem_dns(H,S,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,ref,Glout,out)
+  SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,Glout,out)
 
     !****************************************************************************
     !
@@ -246,7 +267,7 @@ CONTAINS
     !ref: reference contact excluded from summation
     !
     !Output:
-    !Aout: Gless contributions (Device + Contacts overlap regions -> effective conductor)
+    !Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
     !
     !*****************************************************************************
 
@@ -254,20 +275,22 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_CSR) :: H,S,Glout
+    TYPE(Tnegf), pointer :: pnegf
+    TYPE(z_CSR) :: Glout
     TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
     !TYPE(z_DNS) :: SelfEner_d 
     REAL(dp) :: E
     TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref
     INTEGER :: out
 
     !Work
+    INTEGER :: ref
     COMPLEX(dp) :: Ec
     INTEGER :: i,ierr,i1,ncont,nbl, lbl
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Gn
     TYPE(z_CSR) :: ESH_tot, Gl
     LOGICAL :: destr, mask(MAXNCONT)
 
@@ -275,15 +298,16 @@ CONTAINS
     ncont = struct%num_conts
     indblk => struct%mat_PL_start
     cblk => struct%cblk
-    Ec=cmplx(E,0.d0,dp)
+    ref = pnegf%refcont
 
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writeMemInfo(6)
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
+    Ec=cmplx(E,0.d0,dp)
 
     !Costruiamo la matrice sparsa ESH
-    CALL prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL prealloc_sum(pnegf%HM,pnegf%SM,(-1.d0, 0.d0),Ec,ESH_tot)
 
     !Costruiamo l'array di sparse ESH
     !Allocazione dell'array di sparse ESH
@@ -364,33 +388,35 @@ CONTAINS
     !if (debug) write(*,*) '----------------------------------------------------'
 
     !Calcolo degli outer blocks 
-    !if (debug) write(*,*) 'Compute Outer_Gless' 
+    !if (debug) write(*,*) 'Compute Outer_G_n' 
     SELECT CASE (out)
     CASE(0)
     CASE(1)
-       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.false.,Glout)
+       CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.false.,Glout)
     CASE(2)
-       CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
+       CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
     END SELECT
 
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
 
-    !Calcolo della Gless nel device
-    !if (debug) write(*,*) 'Compute Gless' 
+    !Calcolo della G_n nel device
+    !if (debug) write(*,*) 'Compute G_n' 
     !Allocazione degli array di sparse
-    ALLOCATE(Glsub(nbl,nbl),stat=ierr)
-    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Glsub(nbl,nbl)'
+    ALLOCATE(Gn(nbl,nbl),stat=ierr)
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+ 
+    call init_blkmat(Gn,ESH)
 
-    CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,ref,struct,S,Gl)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
     
-    call blk2csr(struct,S,Gl)
+    call blk2csr(Gn,struct,pnegf%SM,Gl)
 
-    DEALLOCATE(Glsub)
+    DEALLOCATE(Gn)
 
     !Distruzione dell'array Gr
-    CALL destroy_Gr()
+    CALL destroy_blk(Gr)
     DEALLOCATE(Gr)
 
     CALL destroy_ESH(ESH)
@@ -414,7 +440,7 @@ CONTAINS
 
 !****************************************************************************
 !
-! Driver for computing Gless contributions including el-ph interactions
+! Driver for computing G_n = -iG< contributions including el-ph interactions
 !
 !   Sum   f_j(E) Gr Gam_j Ga +   Gr Sigma_ph< Ga
 !    j
@@ -423,7 +449,7 @@ CONTAINS
 !
 !****************************************************************************
 
-SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,ref,Glout,out,iter)
+SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 
 !****************************************************************************
 !
@@ -438,7 +464,7 @@ SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,ref,Glout,out,iter)
 !ref: reference contact excluded from summation
 !
 !Output:
-!Aout: Gless contributions (Device + Contacts overlap regions -> effective conductor)
+!Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
 !
 !*****************************************************************************
 IMPLICIT NONE
@@ -449,25 +475,28 @@ TYPE(z_CSR) :: Glout
 TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
 REAL(dp) :: E
 REAL(dp), DIMENSION(:) :: frm
-INTEGER :: ref
 INTEGER :: out
-INTEGER :: iter
 
 !Work
 COMPLEX(dp) :: Ec
 INTEGER :: i,ierr,i1,ncont,nbl, lbl
+INTEGER :: ref, iter
 INTEGER, DIMENSION(:), POINTER :: cblk, indblk
-TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
-TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_r, Sigma_ph_less
+TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
 TYPE(z_CSR) :: ESH_tot, Gl
 LOGICAL :: destr, mask(MAXNCONT)
 TYPE(Tstruct_info) :: struct
+REAL(dp) :: Iloc
+REAL(dp), DIMENSION(:), allocatable :: cfrm
 
 struct = pnegf%str
 nbl = struct%num_PLs
 ncont = struct%num_conts
 indblk => struct%mat_PL_start
 cblk => struct%cblk
+ref = pnegf%refcont
+iter = pnegf%elph%scba_iter
+
 Ec=cmplx(E,0.d0,dp)
 
 !if (debug) write(*,*) '----------------------------------------------------'
@@ -488,21 +517,11 @@ Ec=cmplx(E,0.d0,dp)
  call destroy(ESH_tot)
 
  DO i=1,ncont
-       !call create(SelfEner_d, SelfEner(i)%nrow, SelfEner(i)%ncol)
-       !call csr2dns(SelfEneR(i),SelfEneR_d)
        ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
-       !call destroy(SelfEneR_d)
  ENDDO
 
-
- ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
- IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
- ALLOCATE(Sigma_ph_less(nbl,nbl),stat=ierr)
- IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_less'
-
  ! Reload and add Sigma_ph_r to ESH
- call reload_r(pnegf, ESH, Sigma_ph_r, iter)
-
+ call add_sigma_ph_r(pnegf, ESH, iter)
 
  !Allocazione delle gsmr
  ALLOCATE(gsmr(nbl),stat=ierr)
@@ -540,11 +559,18 @@ Ec=cmplx(E,0.d0,dp)
 
 
  !Chiamata di Make_Grcol_mem per i contatti necessari 
- DO i=1,ncont 
-   IF (i.NE.ref) THEN
-     CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
-   ENDIF
- ENDDO
+ !DO i=1,ncont 
+ !  IF (i.NE.ref) THEN
+ !    CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+ !  ENDIF
+ !ENDDO
+
+ !print*
+ !print*,'Column-blocks'
+ DO i=1,nbl
+   CALL Make_Grcol_mem_dns(ESH,i,indblk)
+ ENDDO  
+
 
  !Distruzione delle gsmall
  do i=2,nbl 
@@ -562,41 +588,87 @@ Ec=cmplx(E,0.d0,dp)
 !if (debug) write(*,*) '----------------------------------------------------'
 
  !Calcolo degli outer blocks 
- !if (debug) write(*,*) 'Compute Outer_Gless' 
+ !if (debug) write(*,*) 'Compute Outer_G_n' 
  SELECT CASE (out)
  CASE(0)
  CASE(1)
-   CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
+   CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
  CASE(2)
-   CALL Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
+   CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
  END SELECT
 
 !if (debug) write(*,*) '----------------------------------------------------'
 !if (debug) call writePeakInfo(6)
 !if (debug) write(*,*) '----------------------------------------------------'
 
- !Calcolo della Gless nel device
- !if (debug) write(*,*) 'Compute Gless' 
+ !Calcolo della G_n nel device
+ !if (debug) write(*,*) 'Compute G_n' 
  !Allocazione degli array di sparse
- ALLOCATE(Glsub(nbl,nbl),stat=ierr)
- IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Glsub(nbl,nbl)'
+ ALLOCATE(Gn(nbl,nbl),stat=ierr)
+ IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
 
- CALL Make_Gl_mem_dns(ESH,SelfEneR,frm,ref,struct,pnegf%SM,Gl)
+ call init_blkmat(Gn,ESH)
 
- call Make_Gl_ph(pnegf,ESH,Sigma_ph_less,iter)
+ CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
- ! save diagonal blocks of Gless
+ call Make_Gn_ph(pnegf,ESH,iter,Gn)
+
+ !print*
+ ! save diagonal blocks of G_n
  DO i = 1, nbl
-   call write_blkmat(Glsub(i,i),pnegf%scratch_path,'G_less_',i,i,pnegf%Epnt)
-   call write_blkmat(Gr(i,i),pnegf%scratch_path,'Gr_',i,i,pnegf%Epnt)
+   !print*,'(G_n) G_n',minval(abs(Gn(i,i)%val)), maxval(abs(Gn(i,i)%val))
+   call write_blkmat(Gn(i,i),pnegf%scratch_path,'G_n_',i,i,pnegf%iE)
+   !print*,'(G_r) G_r',minval(abs(Gn(i,i)%val)),maxval(abs(Gr(i,i)%val))
+   call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
  ENDDO
 
- call blk2csr(pnegf%str,pnegf%SM,Gl)
 
- DEALLOCATE(Glsub)
+ !open(5001,file=trim(pnegf%out_path)//'Lcurr.dat',position='APPEND')
+ !write(5001,'(ES15.5)',advance='NO') real(Ec)
+ !do i = 1, nbl
+ !  do i1 = 1, ESH(i,i)%nrow-1
+ !     Iloc = 2*aimag(Glsub(i,i)%val(i1,i1+1))*ESH(i,i)%val(i1+1,i1)
+ !     write(5001,'(ES15.5)',advance='NO') Iloc
+ !  enddo
+ !enddo    
+ !write(5001,*)
+ !close(5001)
+
+ ! the following destroys Gn
+ call blk2csr(Gn,pnegf%str,pnegf%SM,Gl)
+
+ DEALLOCATE(Gn)
  
+ ! Temporary -----------------------------------------------------------
+ ! Computation of G_p for Sigma_p
+ !
+    allocate(cfrm(10))
+    cfrm = 1.0_dp - frm
+    cfrm(ref) = 0.0_dp
+ !
+    ALLOCATE(Gp(nbl,nbl),stat=ierr)
+ !
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+    call init_blkmat(Gp,ESH)
+ !   
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,struct,Gp)
+    deallocate(cfrm)
+ !   
+    call Make_Gp_ph(pnegf,ESH,iter,Gp)
+ !   
+    ! save diagonal blocks of G_p
+    DO i = 1, nbl
+      !print*
+      !print*,'(G_p) G_p',minval(abs(Gn(i,i)%val)),maxval(abs(Gn(i,i)%val))
+      call write_blkmat(Gp(i,i),pnegf%scratch_path,'G_p_',i,i,pnegf%iE)
+    ENDDO
+ !   
+    call destroy_blk(Gp)
+    DEALLOCATE(Gp)
+ ! ------------------------------------------------------------------------
+
  !Distruzione dell'array Gr
- CALL destroy_Gr()
+ CALL destroy_blk(Gr)
  DEALLOCATE(Gr)
 
  CALL destroy_ESH(ESH)
@@ -618,23 +690,47 @@ Ec=cmplx(E,0.d0,dp)
 
   END SUBROUTINE calls_neq_ph
 
-
   !**********************************************************************
-  SUBROUTINE destroy_Gr()
+  SUBROUTINE init_blkmat(Matrix,S)
+    type(z_DNS), dimension(:,:) :: Matrix,S
+
+    integer :: nbl, j
+
+    nbl = SIZE(Matrix,1)
+
+    call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)      
+    Matrix(1,1)%val=(0.d0,0.d0)
+    DO j=2,nbl-1
+       call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)      
+       Matrix(j-1,j)%val=(0.d0,0.d0)
+       call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)      
+       Matrix(j,j)%val=(0.d0,0.d0)
+       call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)      
+       Matrix(j,j-1)%val=(0.d0,0.d0)
+    ENDDO
+    IF (nbl.gt.1) then
+       call create(Matrix(nbl,nbl),S(1,1)%nrow,S(1,1)%ncol)      
+       Matrix(nbl,nbl)%val=(0.d0,0.d0)
+    ENDIF
+
+  END SUBROUTINE init_blkmat  
+  !**********************************************************************
+  SUBROUTINE destroy_blk(M)
+    type(z_DNS), DIMENSION(:,:) :: M
     integer :: i, i1, nbl
 
-    nbl=size(Gr,1)
+    nbl=size(M,1)
 
     DO i=1,nbl
        DO i1=1,nbl
-          IF (ALLOCATED(Gr(i,i1)%val)) THEN
-             CALL destroy(Gr(i,i1))
-             !if (debug) WRITE(*,*) 'Deallocating Gr out of Make_Gl_mem'
+          IF (ALLOCATED(M(i,i1)%val)) THEN
+             CALL destroy(M(i,i1))
+             !if (debug) WRITE(*,*) 'Deallocating Gr out of Make_Gn_mem'
           ENDIF
        ENDDO
     ENDDO
 
-  END SUBROUTINE destroy_Gr
+  END SUBROUTINE destroy_blk
 
   !**********************************************************************
   SUBROUTINE destroy_ESH(ESH)
@@ -702,41 +798,48 @@ Ec=cmplx(E,0.d0,dp)
   !  Reloads the retarded elph self-energy and add it to ES-H
   !
   !***********************************************************************
-  SUBROUTINE reload_r(pnegf, ESH, Sigma_ph_r, iter)
+  SUBROUTINE add_sigma_ph_r(pnegf, ESH, iter)
 
-  	TYPE(Tnegf), pointer :: pnegf
-  	TYPE(z_DNS), DIMENSION(:,:) :: ESH, Sigma_ph_r
+     TYPE(Tnegf), pointer :: pnegf
+     TYPE(z_DNS), DIMENSION(:,:) :: ESH
+     INTEGER :: iter
 
-  	INTEGER :: n, nbl, nrow
+     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_r
+     INTEGER :: n, nbl, nrow, ierr
 
-  	nbl = pnegf%str%num_PLs
+     nbl = pnegf%str%num_PLs
+    
+     ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
+     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
 
-  	if (pnegf%elph%diagonal) THEN
+     if (pnegf%elph%diagonal) THEN
 
-  		DO n = 1, nbl
+        DO n = 1, nbl
 
-  		   nrow = ESH(n,n)%nrow
+           nrow = ESH(n,n)%nrow
 
-	       call create(Sigma_ph_r(n,n), nrow, nrow)
+           call create(Sigma_ph_r(n,n), nrow, nrow)
 
-  		   if (iter .eq. 0) then
-  		      Sigma_ph_r(n,n)%val = (0.0_dp, 0.0_dp)
-  		   else
-	          call read_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%Epnt)
- 		   endif
+           Sigma_ph_r(n,n)%val = (0.0_dp, 0.0_dp)
+           if (iter .gt. 0) then
+              call read_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+           else
+              call write_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+           endif
 
-	       ESH(n,n)%val = ESH(n,n)%val - Sigma_ph_r(n,n)%val
+           ESH(n,n)%val = ESH(n,n)%val - Sigma_ph_r(n,n)%val
 
-	       call destroy(Sigma_ph_r(n,n))
+           call destroy(Sigma_ph_r(n,n))
 
-        END DO
+         END DO
 
-  	ELSE
+     ELSE
 
-  	ENDIF
+     ENDIF
 
+     DEALLOCATE(Sigma_ph_r)
 
-  END SUBROUTINE reload_r
+  END SUBROUTINE add_sigma_ph_r 
 
   !***********************************************************************
   !
@@ -1132,7 +1235,7 @@ Ec=cmplx(E,0.d0,dp)
 
           nrow=indblk(i+1)-indblk(i)
 
-          max=MAXVAL(ABS(Gr(i-1,n)%val(:,:)))
+          max=MAXVAL(ABS(Gr(i-1,n)%val))
 
           IF (max.GT.drop) THEN
 
@@ -1164,7 +1267,7 @@ Ec=cmplx(E,0.d0,dp)
 
           nrow=indblk(i+1)-indblk(i)
 
-          max=MAXVAL(ABS(Gr(i+1,n)%val(:,:)))
+          max=MAXVAL(ABS(Gr(i+1,n)%val))
 
           IF (max.GT.drop) THEN
 
@@ -1387,7 +1490,7 @@ Ec=cmplx(E,0.d0,dp)
   !
   !****************************************************************************
 
-  SUBROUTINE Make_GreenR_mem2_dns(P,nbl,indblk,A)
+  SUBROUTINE Make_Gr_mem_dns(P,nbl,indblk,A)
 
     !****************************************************************************
     !Input:
@@ -1421,7 +1524,7 @@ Ec=cmplx(E,0.d0,dp)
 
        call create(GrCsr,Gr(1,1)%nrow,Gr(1,1)%ncol,Gr(1,1)%nrow*Gr(1,1)%ncol)
        call dns2csr(Gr(1,1),GrCsr)
-       call destroy(Gr(1,1))
+
        call mask(GrCsr,P,A)
        call destroy(GrCsr)
 
@@ -1492,7 +1595,7 @@ Ec=cmplx(E,0.d0,dp)
        WRITE(*,*) '**********************'
     endif
 
-  END SUBROUTINE Make_GreenR_mem2_dns
+  END SUBROUTINE Make_Gr_mem_dns
 
 
 
@@ -1500,12 +1603,12 @@ Ec=cmplx(E,0.d0,dp)
 
   !****************************************************************************
   !
-  ! Calculate Gless contributions for all contacts (except reference)
+  ! Calculate G_n contributions for all contacts (except reference)
   ! Writing on memory
   !
   !****************************************************************************
 
-  SUBROUTINE Make_Gl_mem_dns(ESH,SelfEneR,frm,ref,struct,P,Gl)
+  SUBROUTINE Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
     !******************************************************************************
     !Input:  
@@ -1519,21 +1622,19 @@ Ec=cmplx(E,0.d0,dp)
     !layers interacting with all contacts but collector
     !
     !Output:
-    !Gl: sparse matrix containing G less contacts contribution
+    !Gl: sparse matrix containing G  contacts contribution
     !*******************************************************************************  
 
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_CSR) :: Gl
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
     TYPE(z_DNS), DIMENSION(:) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref
+    INTEGER :: ref 
 
     !Work
-    TYPE(z_CSR) :: P, Gam1, Gl_sp
     Type(z_DNS) :: Gam
     TYPE(z_DNS) :: work1,Ga
     INTEGER :: ierr,i,j,cb
@@ -1546,154 +1647,319 @@ Ec=cmplx(E,0.d0,dp)
     nbl = struct%num_PLs
     cblk => struct%cblk
 
-    !***
-    !Iterazione sui contatti
-    !***
-
+    !*******************************************
+    ! Contact Iteration
+    !*******************************************
     DO j=1,ncont
-
+   
        IF (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.drop) THEN
-
-          !Calcolo della Gamma corrispondente
-          cb=cblk(j)
-          !nota:cb indica l'indice di blocco corrispondente al contatto j-esimo
+ 
+          cb=cblk(j) ! block corresponding to contact j
 
           CALL zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
-          !conversione in densa
-         ! !call create(Gam,Gam1%nrow,Gam1%ncol)
-
-         ! !call csr2dns(Gam1,Gam)
-
-         ! !call destroy(Gam1)
-
-          !***
-          !Iterazione sui blocchi 
-          !***          
-          ! [frm(j)-frm(ref)]
           frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
 
-          !Calcolo del sottoblocco Gl(1,1) fuori iterazione
-
+          ! Computation of Gl(1,1) 
           CALL prealloc_mult(Gr(1,cb),Gam,work1)    
- 
           CALL zdagger(Gr(1,cb),Ga)
-  
-          !G(1,j) va tenuta per la prima iterazione blocco sopradiagonale
+          CALL prealloc_mult(work1,Ga,frmdiff,Gn(1,1))
+          CALL destroy(work1, Ga)
 
-          CALL prealloc_mult(work1,Ga,frmdiff,Glsub(1,1))
-          CALL destroy(work1)
-          CALL destroy(Ga)
-
-          !Calcolo sottoblocchi diagonali, sopradiagonali e sottodiagonali
+          ! Computation of all tridiagonal blocks
           DO i=2,nbl
 
-             !Calcolo blocchi sopradiagonali
              CALL prealloc_mult(Gr(i-1,cb),Gam,work1)
-   
              CALL zdagger(Gr(i,cb),Ga)
- 
-             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i-1,i))
-
+             CALL prealloc_mult(work1,Ga,frmdiff,Gn(i-1,i))
              CALL destroy(work1)
-             !Teniamo Ga per il calcolo del blocco diagonale
-
-             !Calcolo blocchi diagonali
+             
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
+             CALL prealloc_mult(work1,Ga,frmdiff,Gn(i,i))
 
-             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i))
-
-             CALL destroy(work1)
-             call destroy(Ga)
+             CALL destroy(work1, Ga)
 
              CALL prealloc_mult(Gr(i,cb),Gam,work1)
              CALL zdagger(Gr(i-1,cb),Ga)
-             CALL prealloc_mult(work1,Ga,frmdiff,Glsub(i,i-1))
+             CALL prealloc_mult(work1,Ga,frmdiff,Gn(i,i-1))
 
-             CALL destroy(work1)
-             call destroy(Ga)
+             CALL destroy(work1, Ga)
 
           ENDDO
 
           call destroy(Gam)
 
-       ENDIF
+      ENDIF 
 
     ENDDO
 
-  END SUBROUTINE Make_Gl_mem_dns
+  END SUBROUTINE Make_Gn_mem_dns
 
 
   !****************************************************************************
   !
-  ! Calculate Gless contributions due to el-ph
+  ! Calculate G_n contributions due to el-ph
   ! Writing on memory
   !
   !****************************************************************************
-  SUBROUTINE Make_Gl_ph(pnegf,ESH,Sigma_ph_less,iter)
+  SUBROUTINE Make_Gn_ph(pnegf,ESH,iter,Gn)
 
     TYPE(Tnegf), pointer :: pnegf
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Sigma_ph_less
+    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
     INTEGER :: iter
 
-
-    Type(z_DNS) :: Ga, work1
-    INTEGER :: n, nbl, nrow
+    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n
+    Type(z_DNS) :: Ga, work1, work2
+    INTEGER :: n, k, nbl, nrow, ierr
 
     nbl = pnegf%str%num_PLs
+    ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
-    if (pnegf%elph%diagonal) THEN
+    DO n = 1, nbl
+      nrow = ESH(n,n)%nrow
+      call create(Sigma_ph_n(n,n), nrow, nrow)
+    
+      Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
+    
+      if (iter .gt. 0) then
+         call read_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
+      else 
+         call write_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
+      endif
+    END DO
+    
+    ! Computing diagonal blocks of Gn(n,n)
 
-      DO n = 1, nbl
+    DO n = 1, nbl
 
-  	nrow = ESH(n,n)%nrow
+      DO k = 1, nbl
 
-	call create(Sigma_ph_less(n,n), nrow, nrow)
+         CALL zdagger(Gr(n,k),Ga)
+         CALL prealloc_mult(Gr(n,k), Sigma_ph_n(k,k), work1)
+         CALL prealloc_mult(work1, Ga, work2)
+         Gn(n,n)%val = Gn(n,n)%val + work2%val
+         call destroy(work1, work2, Ga)
 
-  	if (iter .eq. 0) then
-  	   Sigma_ph_less(n,n)%val = (0.0_dp, 0.0_dp)
-  	else
-	   call read_blkmat(Sigma_ph_less(n,n),pnegf%scratch_path,'Sigma_ph_less_',n,n,pnegf%Epnt)
-  	endif
+      END DO    
+    
+    END DO
+    
+    DO n = 1, nbl
+      CALL destroy(Sigma_ph_n(n,n))
+    END DO
 
-        CALL zdagadns(Gr(n,n),Ga)
+    DEALLOCATE(Sigma_ph_n)
 
-        CALL prealloc_mult(Gr(n,n), Sigma_ph_less(n,n), work1)
+  END SUBROUTINE Make_Gn_ph
+  
+  !****************************************************************************
+  !
+  ! Calculate G_p=iG> contributions due to el-ph
+  ! Writing on memory
+  !
+  !****************************************************************************
+  SUBROUTINE Make_Gp_ph(pnegf,ESH,iter,Gp)
 
-        CALL prealloc_mult(work1, Ga, Glsub(n,n))
+    TYPE(Tnegf), pointer :: pnegf
+    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gp
+    INTEGER :: iter
 
-        CALL destroy(work1,Ga)
+    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_p
+    Type(z_DNS) :: Ga, work1, work2 
+    INTEGER :: n, k, nbl, nrow, ierr
 
-      END DO
- 
+    nbl = pnegf%str%num_PLs
+    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
+
+
+    DO n = 1, nbl
+
+      nrow = ESH(n,n)%nrow
+
+      call create(Sigma_ph_p(n,n), nrow, nrow)
+
+      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
+      if (iter .gt. 0) then
+         call read_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+      else 
+         call write_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+      endif
+    
+    END DO
+
+    DO n = 1, nbl
+
+      DO k = 1, nbl
+
+         CALL zdagger(Gr(n,k),Ga)
+         CALL prealloc_mult(Gr(n,k), Sigma_ph_p(k,k), work1)
+         CALL prealloc_mult(work1, Ga, work2)
+         Gp(n,n)%val = Gp(n,n)%val + work2%val
+         call destroy(work1, work2, Ga)
+
+      END DO    
+    
+    END DO
+    
+    DO n = 1, nbl
+      CALL destroy(Sigma_ph_p(n,n))
+    END DO
+
+    DEALLOCATE(Sigma_ph_p)
+
+  END SUBROUTINE Make_Gp_ph
+
+  !Concatenation for every contact in G_n. Performs a sum on elements, not a replacement
+  !Similar to Make_GreenR_mem2, except for sum of elements
+  !Note: to backup old version zconcat calls (and Glsub deallocations) must be
+  !      uncommented and all this part removed
+  !If only one block is present, concatenation is not needed and it's implemented in a
+  !more trivial way
+  SUBROUTINE blk2csr(Gn,struct,P,Gl)
+
+    TYPE(z_DNS), DIMENSION(:,:) :: Gn
+    TYPE(Tstruct_info), intent(in) :: struct
+    TYPE(z_CSR) :: Gl
+    TYPE(z_CSR) :: P, Gl_sp
+
+    INTEGER, DIMENSION(:), POINTER :: indblk, cblk
+    INTEGER :: nbl, oldx, row, col, iy, ix, x, y, ii, jj
+
+    nbl = struct%num_PLs
+    cblk => struct%cblk
+    indblk => struct%mat_PL_start
+
+    !create Gl with same pattern of P
+
+    CALL create(Gl,P%nrow,P%ncol,P%nnz)
+    Gl%rowpnt = P%rowpnt
+    Gl%colind = P%colind
+    Gl%nzval = (0.d0, 0.d0)
+
+    IF (nbl.EQ.1) THEN
+        IF (ALLOCATED(Gn(1,1)%val)) THEN
+            ii = nzdrop(Gn(1,1),drop) 
+        ELSE   
+            ii = 0 
+        ENDIF    
+
+        IF (ii.gt.0) then
+           call create(Gl_sp, Gn(1,1)%nrow, Gn(1,1)%ncol, ii)
+           call dns2csr(Gn(1,1),Gl_sp)
+           call zmask_realloc(Gl_sp,P)
+           call concat(Gl,Gl_sp,1,1)
+           call destroy(Gl_sp)
+        ENDIF  
+
+        call destroy(Gn(1,1))
+
     ELSE
+
+        !Cycle upon all rows
+        x = 1
+        DO ii = 1, Gl%nrow
+                !Choose which block (row) we're dealing with
+                oldx = x
+                IF (oldx.EQ.nbl) THEN 
+                   x = oldx
+                ELSE
+                   DO ix = oldx, oldx+1
+                      IF ( (ii.GE.indblk(ix)).AND.(ii.LT.indblk(ix+1)) ) x = ix
+                   ENDDO
+                ENDIF
+
+                IF (x.EQ.0) THEN
+                   WRITE(*,*) 'Error in Make_GreenR_mem2: &
+                               &could not find row block of index ',ii,ix
+                   STOP
+                ENDIF
+
+                !Offset: row is the index for separate blocks
+                row = ii - indblk(x) + 1
+
+                !Cycle upon columns of Gl (which has been ALREADY MASKED by ESH)
+                DO jj = Gl%rowpnt(ii), Gl%rowpnt(ii+1) -1
+                   !Choose which block column we're dealing with
+                   y = 0
+                   if (x.eq.1) then
+                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
+                         y = 1
+                      ELSEIF ( (Gl%colind(jj).GE.indblk(x + 1)).AND.(Gl%colind(jj).LT.indblk(x + 2)) ) then 
+                         y = 2
+                      ENDIF
+                   elseif (x.eq.nbl) then
+                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
+                         y = nbl
+                      ELSEIF ( (Gl%colind(jj).GE.indblk(x - 1)).AND.(Gl%colind(jj).LT.indblk(x)) ) then 
+                         y = nbl - 1
+                      ENDIF
+                   else
+                      DO iy = x-1, x+1
+                         if ( (Gl%colind(jj).GE.indblk(iy)).AND.(Gl%colind(jj).LT.indblk(iy + 1)) ) y = iy
+                      ENDDO
+                   ENDIF
+                   IF (y.EQ.0) THEN
+                      WRITE(*,*) 'ERROR in Make_Gn_mem: probably wrong PL size', x
+                      write(*,*) 'row',ii,Gl%colind(jj)
+                      write(*,*) 'block indeces:',indblk(1:nbl)
+                      STOP
+                   ENDIF
+                   
+                   col = Gl%colind(jj) - indblk(y) + 1
+
+                   IF (allocated(Gn(x,y)%val)) THEN
+                       Gl%nzval(jj) = Gl%nzval(jj) + Gn(x,y)%val(row,col)
+                   ENDIF
+
+                ENDDO
+
+                IF(oldx.NE.x) THEN
+
+                   IF (x.eq.2)  THEN 
+                      CALL destroy(Gn(x-1,x-1))
+                      CALL destroy(Gn(x-1,x))
+
+                   ELSEIF  (x.GT.2)  THEN 
+                      CALL destroy(Gn(x-1,x-1))
+                      CALL destroy(Gn(x-1,x-2))
+                      CALL destroy(Gn(x-1,x))
+                   endif
+
+                ENDIF
+
+        ENDDO
+
+        CALL destroy(Gn(nbl, nbl))
+        CALL destroy(Gn(nbl, nbl - 1))
 
     ENDIF
 
+  END SUBROUTINE blk2csr
 
-  END SUBROUTINE Make_Gl_ph
-
-  ! Computes Sigma_ph< and save it file
-  !
-  SUBROUTINE Sigma_ph_less(pnegf,Epnt)
+  ! ******************************************************************************
+  ! Computes Sigma_ph_n and save it file
+  ! ******************************************************************************
+  SUBROUTINE Sigma_ph_n(pnegf,Epnt)
 
     TYPE(Tnegf),POINTER :: pnegf
-    REAL(dp), DIMENSION(:) :: Epnt
+    REAL(dp), DIMENSION(:),allocatable :: Epnt
 
     !Local variables
-    TYPE(z_DNS) :: work1,work2,work3
+    TYPE(z_DNS) :: work1,work2
     TYPE(z_DNS) :: Mq_mat
-    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_less, G_less_interP, G_less_interN
+    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_n, G_n_interP, G_n_interN
 
     REAL(dp), DIMENSION(:), POINTER :: Wq
     REAL(dp), DIMENSION(:), POINTER :: Nq
     REAL(dp), DIMENSION(:), POINTER :: Mq
     LOGICAL, DIMENSION(:), POINTER :: selmodes
 
-    INTEGER :: i, m, iE
+    INTEGER :: i, m, iE, i1,i2
     INTEGER :: nummodes, numselmodes, nbl
     INTEGER, DIMENSION(:), pointer :: indblk
-
+    REAL(dp) :: E1, E2, En
 
     nbl = pnegf%str%num_PLs
     indblk => pnegf%str%mat_PL_start
@@ -1705,97 +1971,223 @@ Ec=cmplx(E,0.d0,dp)
     numselmodes = pnegf%elph%numselmodes
     nummodes = pnegf%elph%nummodes
 
-    iE = pnegf%Epnt
+    iE = pnegf%iE
 
-    allocate(G_less_interP(nbl,nbl))
-    allocate(G_less_interN(nbl,nbl))
-    allocate(Sigma_less(nbl,nbl))
+    allocate(G_n_interP(nbl,nbl))
+    allocate(G_n_interN(nbl,nbl))
+    allocate(Sigma_n(nbl,nbl))
 
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
-      call create(Sigma_less(i,i), m, m)
-      Sigma_less(i,i)%val = (0.d0, 0.d0)
-      call create(G_less_interP(i,i), m, m)
-      call create(G_less_interN(i,i), m, m)
+      call create(Sigma_n(i,i), m, m)
+      Sigma_n(i,i)%val = (0.d0, 0.d0)
+      call create(G_n_interP(i,i), m, m)
+      call create(G_n_interN(i,i), m, m)
     enddo
-
-    !PROCEDURA PER CALCOLARE LA Sigma_ph_less
+    
     do m = 1 , nummodes
 
       if (.not.selmodes(m)) cycle
-      !Ora faccio il loop sui punti energetici.
-      !Epnt e' l'energia del punto i-esimo
-      i1 = iE + 1
-      do while (Epnt(i1) .lt. Epnt(iE)+Wq(m))
-          i1 = i1 + 1
-      end do
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
+      
+      En = real(pnegf%Epnt)+Wq(m)
+      
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_n_', G_n_interP)
 
-      call interpolation(i1-1, i1, Epnt(iE)+Wq(m), Epnt, pnegf%scratch_path, &
-                         'G_less_', G_less_interP)
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
+      
+      En = real(pnegf%Epnt)-Wq(m)
+      
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                              'G_n_', G_n_interN)
 
-      !Ora faccio il loop sui punti energetici.
-      !Epnt e' l'energia del punto i-esimo
-      i1 = iE - 1
-      do while (Epnt(i1) .gt. Epnt(iE)-Wq(m))
-          i1 = i1 - 1
-      end do
-
-      call interpolation(i1, i1+1, Epnt(iE)-Wq(m), Epnt, pnegf%scratch_path, &
-                         'G_less_', G_less_interN)
 
       do i = 1, nbl
 
-        call create_id(Mq_mat,G_less_interN(i,i)%nrow,Mq(m))
+        i1 =  G_n_interN(i,i)%nrow
 
-        call prealloc_mult( Mq_mat, G_less_interN(i,i), work1)
+        call create(work1, i1, i1)       
 
-        call prealloc_mult ( work1, Mq_mat, work2)
+        work1%val = (Nq(m)+1.0_dp)*G_n_interP(i,i)%val + Nq(m)* G_n_interN(i,i)%val
 
-        call destroy(work1)
+        call create_id(Mq_mat,i1,Mq(m))
 
-        call prealloc_mult( Mq_mat, G_less_interP(i,i), work1)
-
-        call prealloc_mult ( work1, Mq_mat, work3)
+        call prealloc_mult( Mq_mat, work1, work2)
 
         call destroy(work1)
 
-        Sigma_less(i,i)%val = Sigma_less(i,i)%val + (Nq(m)+1)*work2%val + Nq(m)*work3%val
+        call prealloc_mult( work2, Mq_mat, work1)
 
-        call destroy(work2, work3, Mq_mat)
+        call destroy(work2)
+
+        Sigma_n(i,i)%val = Sigma_n(i,i)%val + work1%val 
+
+        call destroy(work1, Mq_mat)
 
      end do
 
-  end do
+   end do
 
-  do i = 1, nbl
-    call write_blkmat(Sigma_less(i,i),pnegf%scratch_path,'Sigma_ph_less_',i,i,iE)
-    call destroy(Sigma_less(i,i))
-    call destroy(G_less_interN(i,i))
-    call destroy(G_less_interP(i,i))
-  enddo
+   !Throw away all non diagonal parts
+   !do i = 1, nbl
+   !   i1 = Sigma_n(i,i)%nrow
+   !   do m = 1, i1 
+   !      Sigma_n(i,i)%val(1:m-1,m) = (0.0_dp,0.0_dp) 
+   !      Sigma_n(i,i)%val(m+1:i1,m) = (0.0_dp,0.0_dp) 
+   !   enddo
+   !enddo
+   !
 
-  deallocate(Sigma_less,G_less_interN, G_less_interP)
+   do i = 1, nbl
+     call write_blkmat(Sigma_n(i,i),pnegf%scratch_path,'Sigma_ph_n_',i,i,iE)
+     call destroy(Sigma_n(i,i))
+     call destroy(G_n_interN(i,i))
+     call destroy(G_n_interP(i,i))
+   enddo
 
-END SUBROUTINE Sigma_ph_less
+   deallocate(Sigma_n,G_n_interN, G_n_interP)
+
+ END SUBROUTINE Sigma_ph_n
 
 
+  ! ******************************************************************************
+  ! Computes Sigma_ph> and save it file
+  ! ******************************************************************************
+  SUBROUTINE Sigma_ph_p(pnegf,Epnt)
+
+    TYPE(Tnegf),POINTER :: pnegf
+    REAL(dp), DIMENSION(:),allocatable :: Epnt
+
+    !Local variables
+    TYPE(z_DNS) :: work1,work2
+    TYPE(z_DNS) :: Mq_mat
+    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_p, G_p_interP, G_p_interN
+
+    REAL(dp), DIMENSION(:), POINTER :: Wq
+    REAL(dp), DIMENSION(:), POINTER :: Nq
+    REAL(dp), DIMENSION(:), POINTER :: Mq
+    LOGICAL, DIMENSION(:), POINTER :: selmodes
+
+    INTEGER :: i, m, iE, i1,i2
+    INTEGER :: nummodes, numselmodes, nbl
+    INTEGER, DIMENSION(:), pointer :: indblk
+    REAL(dp) :: E1, E2, En
+
+    nbl = pnegf%str%num_PLs
+    indblk => pnegf%str%mat_PL_start
+
+    selmodes => pnegf%elph%selmodes
+    Wq => pnegf%elph%Wq
+    Mq => pnegf%elph%Mq
+    Nq => pnegf%elph%Nq
+    numselmodes = pnegf%elph%numselmodes
+    nummodes = pnegf%elph%nummodes
+
+    iE = pnegf%iE
+
+    allocate(G_p_interP(nbl,nbl))
+    allocate(G_p_interN(nbl,nbl))
+    allocate(Sigma_p(nbl,nbl))
+
+    do i = 1, nbl
+      m = indblk(i+1)-indblk(i)
+      call create(Sigma_p(i,i), m, m)
+      Sigma_p(i,i)%val = (0.d0, 0.d0)
+      call create(G_p_interP(i,i), m, m)
+      call create(G_p_interN(i,i), m, m)
+    enddo
+    
+    do m = 1 , nummodes
+
+      if (.not.selmodes(m)) cycle
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
+    
+      En = real(pnegf%Epnt)+Wq(m)
+      
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_p_', G_p_interP)
+      
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(pnegf%Epnt)-Wq(m)
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                              'G_p_', G_p_interN)
+
+      do i = 1, nbl
+
+        !print*
+        !print*,'(sigma_r) G_p+',maxval(abs(G_p_interP(i,i)%val))
+        !print*,'(sigma_r) G_p-',maxval(abs(G_p_interN(i,i)%val))
+
+        i1 =  G_p_interN(i,i)%nrow
+
+        call create(work1, i1, i1)       
+
+        work1%val = (Nq(m)+1.0_dp)*G_p_interN(i,i)%val + Nq(m)* G_p_interP(i,i)%val
+
+        call create_id(Mq_mat,i1,Mq(m))
+
+        call prealloc_mult( Mq_mat, work1, work2)
+
+        call destroy(work1)
+
+        call prealloc_mult ( work2, Mq_mat, work1)
+
+        call destroy(work2)
+
+        Sigma_p(i,i)%val = Sigma_p(i,i)%val + work1%val 
+
+        call destroy(work1, Mq_mat)
+
+     end do
+
+   end do
+   
+   ! throw away all non diagonal parts
+   !do i = 1, nbl
+   !   i1 = Sigma_p(i,i)%nrow
+   !   do m = 1, i1 
+   !      Sigma_p(i,i)%val(1:m-1,m) = (0.0_dp,0.0_dp) 
+   !      Sigma_p(i,i)%val(m+1:i1,m) = (0.0_dp,0.0_dp) 
+   !   enddo
+   !enddo
+   !
+
+   do i = 1, nbl
+     call write_blkmat(Sigma_p(i,i),pnegf%scratch_path,'Sigma_ph_p_',i,i,iE)
+     call destroy(Sigma_p(i,i))
+     call destroy(G_p_interN(i,i))
+     call destroy(G_p_interP(i,i))
+   enddo
+
+  deallocate(Sigma_p,G_p_interN, G_p_interP)
+
+END SUBROUTINE Sigma_ph_p
+
+!----------------------------------------------------------------------------------
 SUBROUTINE Sigma_ph_r(pnegf,Epnt)
 
   TYPE(Tnegf),POINTER :: pnegf
-  REAL(dp), DIMENSION(:) :: Epnt
+  REAL(dp), DIMENSION(:),allocatable :: Epnt
 
   !Local variables
   TYPE(z_DNS) :: work1,work2,work3
   TYPE(z_DNS) :: Mq_mat
-  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_r
+  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_r, G_r_interP, G_r_interN
+  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: G_n_interP, G_n_interN, G_r
 
+  REAL(dp), DIMENSION(:), POINTER :: Wq
   REAL(dp), DIMENSION(:), POINTER :: Nq
   REAL(dp), DIMENSION(:), POINTER :: Mq
   LOGICAL, DIMENSION(:), POINTER :: selmodes
-  INTEGER :: i, m, iE
+  INTEGER :: i, m, iE, i1, i2
   INTEGER :: nummodes, numselmodes, nbl
   INTEGER, DIMENSION(:), pointer :: indblk
-
+  REAL(dp) :: E1, E2, En
 
   nbl = pnegf%str%num_PLs
   indblk => pnegf%str%mat_PL_start
@@ -1803,55 +2195,407 @@ SUBROUTINE Sigma_ph_r(pnegf,Epnt)
 
   selmodes => pnegf%elph%selmodes
   Mq => pnegf%elph%Mq
+  Wq => pnegf%elph%Wq
   Nq => pnegf%elph%Nq
   nummodes = pnegf%elph%nummodes
+  numselmodes = pnegf%elph%numselmodes
 
+  iE=pnegf%iE
+
+  allocate(G_r_interP(nbl,nbl))
+  allocate(G_r_interN(nbl,nbl))
+  allocate(G_n_interP(nbl,nbl))
+  allocate(G_n_interN(nbl,nbl))
   allocate(Sigma_r(nbl,nbl))
-  allocate(Gr(nbl,nbl))
+  !allocate(G_r(nbl,nbl))
 
+    
+      
   do i = 1, nbl
-     m = indblk(i+1)-indblk(i)
+      m = indblk(i+1)-indblk(i)
       call create(Sigma_r(i,i), m, m)
       Sigma_r(i,i)%val = (0.d0, 0.d0)
-      call create(Gr(i,i),m,m)
+      call create(G_r_interP(i,i), m, m)
+      call create(G_r_interN(i,i), m, m)
+      call create(G_n_interP(i,i), m, m)
+      call create(G_n_interN(i,i), m, m)
+      !call create(G_r(i,i), m, m)
+      !call read_blkmat(G_r(i,i),pnegf%scratch_path,'Gr_',i,i,iE)
   enddo
 
-  call read_blkmat(Gr(i,i),pnegf%scratch_path,'Gr_',i,i,pnegf%Epnt)
-
-  do m=1 , nummodes
+  do m = 1 , nummodes
 
       if (.not.selmodes(m)) cycle
 
-      call create_id(Mq_mat,Sigma_r(i,i)%nrow,Mq(m))
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(pnegf%Epnt)+Wq(m)
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_n_', G_n_interP)
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_r_', G_r_interP)
 
-      call prealloc_mult( Mq_mat, Gr(i,i), work1)
+      ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
+      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(pnegf%Epnt)-Wq(m)
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_n_', G_n_interN)
+      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+                             'G_r_', G_r_interN)
 
-      call prealloc_mult ( work1, Mq_mat, work2)
+      do i = 1, nbl
+         !print*
+         !print*,'(sigma_r) G_r+',maxval(abs(G_r_interP(i,i)%val))
+         !print*,'(sigma_r) G_r-',maxval(abs(G_r_interN(i,i)%val))
+         
+         !print*,'(sigma_r) G_n+',maxval(abs(G_n_interP(i,i)%val))
+         !print*,'(sigma_r) G_n-',maxval(abs(G_n_interN(i,i)%val))
+                         
+         i1 = Sigma_r(i,i)%nrow
 
-      call destroy(work1)
+         call create(work1,i1,i1)
+ 
+         work1%val = (0.d0,0.d0)
 
-      Sigma_r(i,i)%val = Sigma_r(i,i)%val + (2*Nq(m)+1)*work2%val
+         if (pnegf%elph%selfene_gr) then
+             !print*,'SelfEneR_Gr'    
+             ! Via I: should be exact for E >> Ef_max
+             work1%val = (Nq(m)+1.0_dp)*G_r_interN(i,i)%val + Nq(m)*G_r_interP(i,i)%val
+             ! Via II: should be exact for E << Ef_min
+             !work1%val = (Nq(m)+1.0_dp)*G_r_interP(i,i)%val + Nq(m)*G_r_interN(i,i)%val
+             ! Via III: should work as a compromise
+             !work1%val = Nq(m)*(G_r_interP(i,i)%val + G_r_interN(i,i)%val) + G_r(i,i)%val
+         endif   
+            
+         if (pnegf%elph%selfene_gless) then
+             !print*,'SelfEneR_G<'    
+             ! should be 1/2 [G<- - G<+] == i/2 [Gn- - Gn+]    
+             work1%val = work1%val + &
+                    (0.0_dp,0.5_dp) * (G_n_interN(i,i)%val - G_n_interP(i,i)%val)
+         endif
 
-      call destroy(work1, Mq_mat)
+         if (pnegf%elph%selfene_gless .or. pnegf%elph%selfene_gr) then
+
+             call create_id(Mq_mat,i1,Mq(m))
+                      
+             call prealloc_mult(Mq_mat, work1, work2)
+
+             call destroy(work1)
+
+             call prealloc_mult(work2, Mq_mat, work1)
+
+             call destroy(work2)
+
+             Sigma_r(i,i)%val = Sigma_r(i,i)%val + work1%val 
+
+             call destroy(work1, Mq_mat)
+
+          else
+
+             Sigma_r(i,i)%val = (0.d0,0.d0) 
+             call destroy(work1)
+
+          endif   
+
+      enddo
 
   enddo
+   
+  ! throw away all non diagonal parts
+  !do i = 1, nbl
+  !    i1 = Sigma_r(i,i)%nrow
+  !    do m = 1, i1 
+  !       Sigma_r(i,i)%val(1:m-1,m) = (0.0_dp,0.0_dp) 
+  !       Sigma_r(i,i)%val(m+1:i1,m) = (0.0_dp,0.0_dp) 
+  !    enddo
+  ! enddo
+  !
 
   do i = 1, nbl
-    call write_blkmat(Sigma_r(i,i),pnegf%scratch_path,'Sigma_ph_r_',i,i,pnegf%Epnt)
+   !print*          
+   !print*,'(sigma_r) Sigma_ph_r',maxval(abs(Sigma_r(i,i)%val)), iE
+    call write_blkmat(Sigma_r(i,i),pnegf%scratch_path,'Sigma_ph_r_',i,i,iE)
     call destroy(Sigma_r(i,i))
-    call destroy(Gr(i,i))
+    call destroy(G_r_interP(i,i))
+    call destroy(G_r_interN(i,i))
+    call destroy(G_n_interP(i,i))
+    call destroy(G_n_interN(i,i))
+    !call destroy(G_r(i,i))
   enddo
 
-  deallocate(Sigma_r,Gr)
+  deallocate(Sigma_r,G_r_interP,G_r_interN,G_n_interP,G_n_interN)
+  !deallocate(G_r)
 
 END SUBROUTINE Sigma_ph_r
 
+SUBROUTINE Sigma_ph_r_z(pnegf,z)
 
-SUBROUTINE interpolation(i1,i2, E, pnts, path, name, G_less_interp)
+  TYPE(Tnegf),POINTER :: pnegf
+  COMPLEX(dp) :: z
+  
+  !Local variables
+  TYPE(z_DNS) :: work1,work2,work3
+  TYPE(z_DNS) :: Mq_mat
+  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_r, G_r
+  REAL(dp), DIMENSION(:), POINTER :: Wq
+  REAL(dp), DIMENSION(:), POINTER :: Nq
+  REAL(dp), DIMENSION(:), POINTER :: Mq
+  LOGICAL, DIMENSION(:), POINTER :: selmodes
+  INTEGER :: i, m, iE,i1
+  INTEGER :: nummodes, numselmodes, nbl
+  INTEGER, DIMENSION(:), pointer :: indblk
+
+  nbl = pnegf%str%num_PLs
+  indblk => pnegf%str%mat_PL_start
+
+
+  selmodes => pnegf%elph%selmodes
+  Mq => pnegf%elph%Mq
+  Wq => pnegf%elph%Wq
+  Nq => pnegf%elph%Nq
+  nummodes = pnegf%elph%nummodes
+  numselmodes = pnegf%elph%numselmodes
+
+  iE=pnegf%iE
+
+  allocate(Sigma_r(nbl,nbl))
+  allocate(G_r(nbl,nbl))
+
+  do i = 1, nbl
+      m = indblk(i+1)-indblk(i)
+      call create(Sigma_r(i,i), m, m)
+      Sigma_r(i,i)%val = (0.d0, 0.d0)
+      call create(G_r(i,i), m, m)
+  enddo 
+
+  do m = 1 , nummodes
+
+    if (.not.selmodes(m)) cycle
+    
+    do i = 1, nbl
+    
+      call read_blkmat(G_r(i,i),pnegf%scratch_path,'Gr_',i,i,iE)
+
+      i1 = Sigma_r(i,i)%nrow
+
+      call create(work1,i1,i1)
+ 
+      work1%val = (0.d0,0.d0)
+
+      if (pnegf%elph%selfene_gr) then
+          !print*,'SelfEneR_Gr'    
+          work1%val = (2*Nq(m)+1.0_dp)*G_r(i,i)%val
+
+          call create_id(Mq_mat,i1,Mq(m))
+                   
+          call prealloc_mult(Mq_mat, work1, work2)
+
+          call destroy(work1)
+
+          call prealloc_mult(work2, Mq_mat, work1)
+
+          call destroy(work2)
+
+          Sigma_r(i,i)%val = Sigma_r(i,i)%val +  work1%val 
+
+          call destroy(work1, Mq_mat)
+       
+       else
+          Sigma_r(i,i)%val = (0.d0,0.d0) 
+       endif
+    
+     enddo  
+     
+   enddo  
+
+   do i = 1, nbl
+    !print*          
+    !print*,'(sigma_r) Sigma_ph_r',maxval(abs(Sigma_r(i,i)%val)), pnegf%iE
+    call write_blkmat(Sigma_r(i,i),pnegf%scratch_path,'Sigma_ph_r_',i,i,iE)
+    call destroy(Sigma_r(i,i))
+    call destroy(G_r(i,i))
+  enddo
+
+END SUBROUTINE Sigma_ph_r_z
+
+! ----------------------------------------------------------
+SUBROUTINE check_sigma_ph_r(pnegf)
+  TYPE(Tnegf),POINTER :: pnegf
+  REAL(dp), DIMENSION(:),allocatable :: Epnt
+  integer :: ioffset
+  
+  TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_r, Sigma_p, Sigma_n
+  TYPE(z_DNS) :: Gam, T 
+  integer :: nbl, n, sizebl, i_start, i_stop, psize, maxpos(2)
+  real(dp) :: Wmax, maxdev, tmp, maxG
+  INTEGER, DIMENSION(:), pointer :: indblk
+
+  nbl = pnegf%str%num_PLs
+  indblk => pnegf%str%mat_PL_start
+
+  allocate(Sigma_n(nbl,nbl))
+  allocate(Sigma_p(nbl,nbl))
+  allocate(Sigma_r(nbl,nbl))
+
+  maxdev = 0.0_dp
+  maxG = 0.0_dp
+  psize = 0
+
+  do n = 1, nbl
+    sizebl = indblk(n+1)-indblk(n)
+    call create(Sigma_r(n,n),sizebl,sizebl)
+    call create(Sigma_n(n,n),sizebl,sizebl)
+    call create(Sigma_p(n,n),sizebl,sizebl)
+    call read_blkmat(Sigma_r(n,n), pnegf%scratch_path, 'Sigma_ph_r_',n,n, pnegf%iE)
+    call read_blkmat(Sigma_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
+    call read_blkmat(Sigma_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+
+    call zspectral(Sigma_r(n,n),Sigma_r(n,n),0,Gam)
+
+    call create(T,sizebl,sizebl)
+
+    !print*,'CHECK Sigma_ph_n+Sigma_ph_p',maxval(abs(Sigma_n(n,n)%val+Sigma_p(n,n)%val))
+  
+    T%val = Sigma_n(n,n)%val + Sigma_p(n,n)%val - Gam%val 
+    
+    tmp = maxval(abs(Gam%val))
+    if (tmp .gt. maxG) maxG=tmp
+
+    tmp = maxval(abs(T%val))/maxval(abs(Gam%val)) 
+    if (tmp .gt. maxdev) then
+        maxdev = tmp
+        maxpos = maxloc(abs(T%val)) + psize
+    endif     
+
+    !print*
+  
+    psize = psize + sizebl
+
+    call destroy(Sigma_r(n,n))
+    call destroy(Sigma_n(n,n))
+    call destroy(Sigma_p(n,n))
+    call destroy(Gam)
+    call destroy(T)
+
+  enddo
+
+  print*,'CHECK Sigma_ph_r',pnegf%iE, maxG, maxdev
+
+  deallocate(Sigma_n, Sigma_p, Sigma_r)
+
+
+END SUBROUTINE check_sigma_ph_r
+
+
+! ----------------------------------------------------------
+! Search points for interpolations. 
+! Wq has a sign (+/- Wq)
+!
+SUBROUTINE search_points(pnegf, Wq, Epnt, i1, i2, E1, E2)
+ use energy_mesh, only : elem 
+ type(TNegf), pointer :: pnegf
+ real(dp) :: Wq                
+ real(dp), dimension(:), allocatable :: Epnt
+ integer, intent(out) :: i1,i2 
+ real(dp), intent(out) :: E1, E2
+
+ integer :: iE, iel, istart, iend, ip
+ Type(elem), pointer :: pel
+ real(dp) :: En
+
+ if (Wq.eq.0) then
+    i1 = pnegf%iE
+    i2 = pnegf%iE
+    E1 = pnegf%Epnt
+    E2 = pnegf%Epnt
+    return
+ endif
+
+ if (allocated(Epnt)) then
+   ! Remove offset such that search can work on Epnt(1..N)      
+   iE = pnegf%iE - pnegf%Np_n(1) - pnegf%Np_n(2) - pnegf%n_poles
+   En = real(pnegf%Epnt) + Wq !Wq carry the right sign      
+   !print*
+   !print*,'iE', iE, real(pnegf%Epnt) + Wq 
+
+   if (sign(1.0_dp,Wq) .gt. 0) then
+     i2 = iE + 1
+     if (i2.gt.size(Epnt)) then
+        i2 = size(Epnt)
+     else    
+        do while (Epnt(i2) .lt. En)
+           i2 = i2 + 1
+        end do
+     endif
+     i1 = i2 - 1
+   else
+     i1 = iE - 1
+     if (i1.lt.1) then
+        i1 = 1 
+     else
+        do while (Epnt(i1) .gt. En)
+           i1 = i1 - 1
+        end do
+     endif   
+     i2 = i1 + 1
+   endif
+   E1 = Epnt(i1)
+   E2 = Epnt(i2)
+   ! add back the offset to the point
+   i1 = i1 + pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles
+   i2 = i2 + pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles
+ 
+ else  
+ 
+   !if (.not.allocated(pnegf%emesh%pactive)) STOP 'emesh not initialized'
+
+   En = real(pnegf%Epnt) + Wq       
+         
+   if (sign(1.0_dp,Wq) .gt. 0) then
+     istart = pnegf%emesh%iactive
+     iend = pnegf%emesh%maxind
+
+     elloop1: do iel = istart, iend
+        pel => pnegf%emesh%pactive(iel)%pelem
+        do ip = 1, 3
+           if (pel%pnt(ip) .gt. En) then
+              exit elloop1 
+           endif     
+        end do
+     end do elloop1   
+     i1 = pel%map(ip-1)
+     i2 = pel%map(ip)
+     E1 = pel%pnt(ip-1)
+     E2 = pel%pnt(ip)
+   else
+     istart = pnegf%emesh%iactive
+     iend = 1
+
+     elloop2: do iel = istart, iend, -1
+        pel => pnegf%emesh%pactive(iel)%pelem
+        do ip = 3, 1, -1
+           if (pel%pnt(ip) .lt. En) then
+              exit elloop2 
+           endif     
+        end do
+     end do elloop2  
+     i1 = pel%map(ip)
+     i2 = pel%map(ip+1)
+     E1 = pel%pnt(ip)
+     E2 = pel%pnt(ip+1)
+   end if
+ end if
+ !print*
+ !print*,E1,En,E2
+ !print*,'interpolate between:',i1,i2
+
+END SUBROUTINE search_points 
+
+
+SUBROUTINE interpolation(i1,i2, E1, E2, E, path, name, G_interp)
      INTEGER, intent(in) :: i1, i2
-     REAL(dp) :: E
-     REAL(dp), DIMENSION(:) :: pnts
-     TYPE(z_DNS), DIMENSION(:,:) :: G_less_interp
+     REAL(dp) :: E1, E2, E
+     TYPE(z_DNS), DIMENSION(:,:) :: G_interp
      CHARACTER(*) :: path
      CHARACTER(*) :: name
 
@@ -1859,50 +2603,235 @@ SUBROUTINE interpolation(i1,i2, E, pnts, path, name, G_less_interp)
      TYPE(z_DNS) :: work1,work2
      INTEGER :: i
 
-     do i = 1, size(G_less_interp,1)
-
-        call create(work1,G_less_interp(i,i)%nrow,G_less_interp(i,i)%ncol)
-
+     do i = 1, size(G_interp,1)
+        
+        call create(work1,G_interp(i,i)%nrow,G_interp(i,i)%ncol)
+        work1%val = (0.d0,0.d0)
         call read_blkmat(work1, path, name, i, i, i1)
 
-        call create(work2,G_less_interp(i,i)%nrow,G_less_interp(i,i)%ncol)
+        if (E1.ne.E2 .and. i1.ne.i2) then
+         
+          call create(work2,G_interp(i,i)%nrow,G_interp(i,i)%ncol)
+          work2%val = (0.d0,0.d0)
+          call read_blkmat(work2, path, name, i, i, i2)
 
-        call read_blkmat(work1, path, name, i, i, i2)
+          G_interp(i,i)%val = ((E-E1)*work2%val + (E2-E)*work1%val)/(E2-E1)
 
-        G_less_interp(i,i)%val = ((E-pnts(i1))*work1%val + (pnts(i2)-E)*work2%val)/(pnts(i2)-pnts(i1))
+          call destroy(work2)
+      
+        else
+
+          G_interp(i,i)%val = work1%val
+        
+        endif
+        
+        call destroy(work1)
 
      end do
 
+
 END SUBROUTINE interpolation
 
-  ! READ Matrices
-  SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
-  	TYPE(z_DNS) :: Matrix
-  	CHARACTER(*) :: path
-  	CHARACTER(*) :: name
-  	INTEGER :: i, j, iE
+!*********************************************************************
+!ADD Hilbert-transform part to Sigma_ph_r  
+!
+!********************************************************************
+SUBROUTINE complete_sigma_ph_r(pnegf, Epnt, ioffset)
+
+  TYPE(Tnegf),POINTER :: pnegf
+  REAL(dp), DIMENSION(:) :: Epnt
+  INTEGER :: ioffset
+
+  ! Locals
+  INTEGER :: i,j,k,n,m, iE, bl, sizebl,i_start,i_stop, ierr, nummodes
+  REAL(dp), DIMENSION(:), POINTER :: Wq
+  REAL(dp), DIMENSION(:), POINTER :: Mq
+  REAL(dp) :: Wmax, dE, tmp
+  
+  CHARACTER(64) :: filename
+  character(4) :: ofblki, ofblkj
+  character(10) :: ofpnt
+  complex(dp), DIMENSION(:), allocatable :: temp1 
+  type(z_DNS), DIMENSION(:), allocatable :: Gn_E, Sigma_r_E
+  type(z_DNS) :: work1, work2, work3, Mq_mat 
+  complex(dp) :: temp2 
+  LOGICAL, DIMENSION(:), POINTER :: selmodes
+
+  Mq => pnegf%elph%Mq
+  Wq => pnegf%elph%Wq
+  selmodes => pnegf%elph%selmodes
+
+  n = size(Epnt)
+  nummodes = size(Wq)
+
+  Wmax = maxval(Wq)
+  dE = Epnt(2)-Epnt(1)
+  ! ENERGY-INTERVAL FOR SELF-ENERGIES:
+  i_start = aint(Wmax/dE) + 1
+  i_stop =  (n - i_start) 
+  i_start = i_start + 1
+  
+  ! PROBLEM: 
+  ! The Hilb-Transf should be resticted on the sub interval
+  ! Emin+m*Wmax ... Emax-m*Wmax
+  ! However the number of points should be always 2^p
+  ! This condition is difficult to fulfill.
+  ! Possible solution: interpolation between grids.
+
+  ! CREATE THE ARRAY OF MATRICES (one for each E-point)
+  allocate(Gn_E(n),stat=ierr)
+  allocate(Sigma_r_E(n),stat=ierr)
+  if(ierr.ne.0) STOP 'ERROR in allocation of Gn_E'
+  call log_allocate(temp1,n)
+
+  print*
+  print*,'HILBERT TRANSFORM memory:',sizebl*sizebl*n*16
+  print*,'HILBERT TRANSFORM interval:',i_start,i_stop
+ 
+  ! LOOP ON blocks
+  do bl = 1, pnegf%str%num_PLs
+
+    sizebl =  pnegf%str%mat_PL_start(bl+1) - pnegf%str%mat_PL_start(bl)
+    if (bl.le.9999) write(ofblki,'(i4.4)') bl 
+    if (bl.gt.9999) stop 'ERROR: too many blks (> 9999)'
+ 
+    ! LOAD ALL G< FROM FILES and store in Gn_E(iE)
+    do iE = 1, n
+      call create(Gn_E(iE),sizebl,sizebl)
+      call read_blkmat(Gn_E(iE), pnegf%scratch_path, 'G_n_', bl, bl,iE+ioffset)
+    enddo
+    
+    ! LOAD ALL Sigma_r in the right interval
+    do iE = i_start, i_stop
+      call create(Sigma_r_E(iE),sizebl,sizebl)
+      call read_blkmat(Sigma_r_E(iE), pnegf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
+    enddo
+
+    do m = 1, nummodes 
+      if (.not.selmodes(m)) cycle
+
+      ! COMPUTE   Mq G< Mq   (assume diagonal now) 
+      do iE = 1, n
+        !call create_id(Mq_mat,sizebl,Mq(m))
+        !call prealloc_mult(Mq_mat, Gn_E(iE), work1)
+        !call prealloc_mult(work1, Mq_mat, work2)
+        !call destroy(work1, Mq_mat)
+        !Gn_E(iE)%val = work2%val
+        !call destroy(work2)
+        tmp = Mq(m)*Mq(m)
+        Gn_E(iE)%val = tmp*Gn_E(iE)%val
+      enddo
+
+      ! PERFORM Hilbert in Energy for each (i,j)     
+      do j = 1, sizebl  
+        do i = 1, sizebl
+
+!          k = (j-1)*sizebl+i
+!          do iE = 1, n
+!             if (iE.le.99999) write(ofpnt,'(i5.5)') iE+ioffset
+!             filename = 'G_n_'//trim(ofblki)//'_'//trim(ofblki)//'_'//trim(ofpnt)//'.dat'
+!             open(100,file=trim(pnegf%scratch_path)//trim(filename), access='DIRECT', recl=4)
+!             READ(100, rec = k)  temp1(iE)
+!             close(100)
+!          enddo
+
+           ! SETUP a vector out of all G<_ij(E)
+           ! Here we could perform an efficient interpolation on a regular grid 2^p
+           do iE = 1, n
+             temp1(iE) = Gn_E(iE)%val(i,j)
+           enddo
+ 
+           Wq(m) = Wq(m)*2.0_dp*pi/((n-1)*dE)
+ 
+           call Hilbert_shift(temp1, Wq(m))
+         
+           Wq(m) = Wq(m)*((n-1)*dE)/(2.0_dp*pi)
+ 
+           ! UPDATE the self-energies with the Hilbert part. 
+           do iE = i_start, i_stop
+             ! Should be  -i/2 H[ G<+ - G<-  ] = 1/2 H[ Gn+ - Gn- ]
+             Sigma_r_E(iE)%val(i,j) =  Sigma_r_E(iE)%val(i,j) + (0.5_dp, 0.0)* temp1(iE) 
+           enddo
 
 
-  	CHARACTER(64) :: filename
+!          do iE = i_start+1, i_stop
+!             if (iE.le.99999) write(ofpnt,'(i5.5)') iE+ioffset
+!             filename = 'Sigma_ph_r_'//trim(ofblki)//'_'//trim(ofblki)//'_'//trim(ofpnt)//'.dat'
+!             open(100,file=trim(pnegf%scratch_path)//trim(filename), access='DIRECT', recl=4)
+!             READ (100, rec = k) temp2 
+!             temp2 = temp2 - (0.0_dp, 0.5_dp)* temp1(iE)   
+!             WRITE (100, rec = k) temp2
+!             close(100)
+!          enddo
+
+        enddo ! Loop on block size   
+      enddo ! Loop on block size 
+
+    enddo !Loop on modes 
+
+    do iE = i_start, i_stop
+      call write_blkmat(Sigma_r_E(iE), pnegf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
+    enddo
+
+    do iE = 1, n
+      call destroy(Gn_E(iE))
+    enddo
+    do iE = i_start, i_stop
+      call destroy(Sigma_r_E(iE))
+    enddo
+
+   enddo !Loop on blocks 
+  
+   call log_deallocate(temp1)
+   deallocate(Gn_E)
+   deallocate(Sigma_r_E)
+
+END SUBROUTINE complete_sigma_ph_r 
+
+  
+! READ Matrices
+SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
+
+    TYPE(z_DNS) :: Matrix
+    CHARACTER(*) :: path
+    CHARACTER(*) :: name
+    INTEGER :: i, j, iE
+
+    CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
     character(10) :: ofpnt
+    logical :: lex
+    integer :: i1,i2
+    complex(dp) :: mat_el
 
-    if (n.le.9999) write(ofblki,'(i4.4)') i
-	if (n.gt.9999) stop 'ERROR: too many blks (> 9999)'
-    if (n.le.9999) write(ofblkj,'(i4.4)') j
-	if (n.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    Matrix%val = (0.d0,0.d0)
 
-	if (iE.le.99999) write(ofpnt,'(i5.5)') iE
+    if (i.le.9999) write(ofblki,'(i4.4)') i
+    if (i.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (j.le.9999) write(ofblkj,'(i4.4)') j 
+    if (j.gt.9999) stop 'ERROR: too many blks (> 9999)'
 
-	filename = trim(name)//ofblki//'_'//ofblkj//'_'//ofpnt//'.dat'
+    if (iE.le.99999) write(ofpnt,'(i5.5)') iE
 
-	open(1001,file=trim(path)//filename, form='UNFORMATTED')
-    DO
-        read (1001,end = 100) i1,i2,mat_el
-        Matrix%val(i1,i2)=mat_el
-    ENDDO
-    100 close(1001)
+    filename = trim(name)//trim(ofblki)//'_'//trim(ofblkj)//'_'//trim(ofpnt)//'.dat'
+    
+    inquire(file=trim(path)//trim(filename),EXIST=lex)
+    if (.not.lex) then
+       RETURN
+       !WRITE(*,*) 'ERROR: FILE '//trim(filename)//' DOES NOT EXIST'
+       !STOP
+    endif   
+
+    open(9091,file=trim(path)//trim(filename), form='UNFORMATTED')
+    
+    call inmat_c(9091,.false.,Matrix%val,Matrix%nrow,Matrix%ncol)
+
+    !open(9001,file=trim(path)//trim(filename), access='DIRECT', recl=4)
+
+    !call direct_in_c(9001,Matrix%val,Matrix%nrow)
+
+    close(9091)
 
   END SUBROUTINE read_blkmat
 
@@ -1911,34 +2840,37 @@ END SUBROUTINE interpolation
 
     TYPE(z_DNS) :: Matrix
     CHARACTER(*) :: path
-  	CHARACTER(*) :: name
-  	INTEGER :: i, j, iE
+    CHARACTER(*) :: name
+    INTEGER :: i, j, iE
 
-
-  	CHARACTER(64) :: filename
+    CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
     character(10) :: ofpnt
 
-    if (n.le.9999) write(ofblki,'(i4.4)') i
-	if (n.gt.9999) stop 'ERROR: too many blks (> 9999)'
-    if (n.le.9999) write(ofblkj,'(i4.4)') j
-	if (n.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (i.le.9999) write(ofblki,'(i4.4)') i
+    if (i.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (j.le.9999) write(ofblkj,'(i4.4)') j
+    if (j.gt.9999) stop 'ERROR: too many blks (> 9999)'
 
-	if (iE.le.99999) write(ofpnt,'(i5.5)') iE
+    if (iE.le.99999) write(ofpnt,'(i5.5)') iE
 
-	filename = trim(name)//ofblki//'_'//ofblkj//'_'//ofpnt//'.dat'
+    filename = trim(name)//trim(ofblki)//'_'//trim(ofblkj)//'_'//trim(ofpnt)//'.dat'
 
-	open(1001,file=trim(path)//filename, form='UNFORMATTED')
+    open(9001,file=trim(path)//trim(filename), form='UNFORMATTED', status='REPLACE')
 
-	call outmat_c(1001,.false.,Matrix%val,Matrix%nrow,Matrix%ncol)
+    call outmat_c(9001,.false.,Matrix%val,Matrix%nrow,Matrix%ncol) !,1.0d-36)
+    
+    !open(9001,file=trim(path)//trim(filename), status='REPLACE', access='DIRECT', recl=4)
+   
+    !call direct_out_c(9001,Matrix%val,Matrix%nrow)
 
-	close(1001)
+    close(9001)
 
   END SUBROUTINE write_blkmat
 
   !****************************************************************************
   !
-  !  Calculate Gless contributions for all contacts but collector, in the 
+  !  Calculate Gn contributions for all contacts but collector, in the 
   !  contacts regions, where overlap with device orbitals is non-zero
   !  writing on memory
   !
@@ -2042,121 +2974,6 @@ END SUBROUTINE interpolation
 
 !  END SUBROUTINE Outer_A_mem_dns
 
-  !Concatenation for every contact in Gless. Performs a sum on elements, not a replacement
-  !Similar to Make_GreenR_mem2, except for sum of elements
-  !Note: to backup old version zconcat calls (and Glsub deallocations) must be
-  !      uncommented and all this part removed
-  !If only one block is present, concatenation is not needed and it's implemented in a
-  !more trivial way
-  SUBROUTINE blk2csr(struct,P,Gl)
-
-  	TYPE(Tstruct_info), intent(in) :: struct
-    TYPE(z_CSR) :: Gl
-    TYPE(z_CSR) :: P, Gl_sp
-
-    INTEGER, DIMENSION(:), POINTER :: indblk, cblk
-    INTEGER :: nbl, oldx, row, col, iy, ix, x, y, ii, jj
-
-    nbl = struct%num_PLs
-    cblk => struct%cblk
-    indblk => struct%mat_PL_start
-
-    !create Gl with same pattern of P
-    CALL create(Gl,P%nrow,P%ncol,P%nnz)
-    Gl%rowpnt = P%rowpnt
-    Gl%colind = P%colind
-    Gl%nzval = (0.d0, 0.d0)
-
-    IF (nbl.EQ.1) THEN
-
-        call create(Gl_sp, Glsub(1,1)%nrow, Glsub(1,1)%ncol, nzdrop(Glsub(1,1),drop) )
-        call dns2csr(Glsub(1,1),Gl_sp)
-        call destroy(Glsub(1,1))
-        call zmask_realloc(Gl_sp,P)
-        call concat(Gl,Gl_sp,1,1)
-        call destroy(Gl_sp)
-
-    ELSE
-
-        !Cycle upon all rows
-        x = 1
-        DO ii = 1, Gl%nrow
-                !Choose which block (row) we're dealing with
-                oldx = x
-                IF (oldx.EQ.nbl) THEN 
-                   x = oldx
-                ELSE
-                   DO ix = oldx, oldx+1
-                      IF ( (ii.GE.indblk(ix)).AND.(ii.LT.indblk(ix+1)) ) x = ix
-                   ENDDO
-                ENDIF
-
-                IF (x.EQ.0) THEN
-                   WRITE(*,*) 'Error in Make_GreenR_mem2: &
-                               &could not find row block of index ',ii,ix
-                   STOP
-                ENDIF
-
-                !Offset: row is the index for separate blocks
-                row = ii - indblk(x) + 1
-
-                !Cycle upon columns of Gl (which has been ALREADY MASKED by ESH)
-                DO jj = Gl%rowpnt(ii), Gl%rowpnt(ii+1) -1
-                   !Choose which block column we're dealing with
-                   y = 0
-                   if (x.eq.1) then
-                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
-                         y = 1
-                      ELSEIF ( (Gl%colind(jj).GE.indblk(x + 1)).AND.(Gl%colind(jj).LT.indblk(x + 2)) ) then 
-                         y = 2
-                      ENDIF
-                   elseif (x.eq.nbl) then
-                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
-                         y = nbl
-                      ELSEIF ( (Gl%colind(jj).GE.indblk(x - 1)).AND.(Gl%colind(jj).LT.indblk(x)) ) then 
-                         y = nbl - 1
-                      ENDIF
-                   else
-                      DO iy = x-1, x+1
-                         if ( (Gl%colind(jj).GE.indblk(iy)).AND.(Gl%colind(jj).LT.indblk(iy + 1)) ) y = iy
-                      ENDDO
-                   ENDIF
-                   IF (y.EQ.0) THEN
-                      WRITE(*,*) 'ERROR in Make_Gl_mem: probably wrong PL size', x
-                      write(*,*) 'row',ii,Gl%colind(jj)
-                      write(*,*) 'block indeces:',indblk(1:nbl)
-                      STOP
-                   ENDIF
-                   
-                   col = Gl%colind(jj) - indblk(y) + 1
-
-                   Gl%nzval(jj) = Gl%nzval(jj) + Glsub(x,y)%val(row,col)
-
-                ENDDO
-
-                IF(oldx.NE.x) THEN
-
-                   IF (x.eq.2)  THEN 
-                      CALL destroy(Glsub(x-1,x-1))
-                      CALL destroy(Glsub(x-1,x))
-
-                   ELSEIF  (x.GT.2)  THEN 
-                      CALL destroy(Glsub(x-1,x-1))
-                      CALL destroy(Glsub(x-1,x-2))
-                      CALL destroy(Glsub(x-1,x))
-                   endif
-
-                ENDIF
-
-
-        ENDDO
-
-        CALL destroy(Glsub(nbl, nbl))
-        CALL destroy(Glsub(nbl, nbl - 1))
-
-    ENDIF
-
-  END SUBROUTINE blk2csr
 
   !****************************************************************************
   !
@@ -2168,7 +2985,7 @@ END SUBROUTINE interpolation
   !
   !****************************************************************************
 
-  SUBROUTINE Outer_GreenR_mem_dns(Tlc,Tcl,gsurfR,struct,lower,Aout)
+  SUBROUTINE Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,lower,Aout)
 
     !****************************************************************************
     !Input:
@@ -2293,19 +3110,19 @@ END SUBROUTINE interpolation
        WRITE(*,*) '********************'
     endif
 
-  END SUBROUTINE Outer_GreenR_mem_dns
+  END SUBROUTINE Outer_Gr_mem_dns
 
 
 
   !****************************************************************************
   !
-  !  Calculate Gless contributions for all contacts except collector, in the
+  !  Calculate Gn contributions for all contacts except collector, in the
   !  outer region where contacts-device overlap is non-zero - writing on 
   !  memory
   !
   !****************************************************************************
 
-  SUBROUTINE Outer_Gl_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
+  SUBROUTINE Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
 
     !****************************************************************************
     !Input:
@@ -2321,7 +3138,7 @@ END SUBROUTINE interpolation
     !but collector 
     !
     !Output:
-    !Glout: sparse matrix containing G less contributions in the region 
+    !Glout: sparse matrix containing G_n  contributions in the region 
     !       corresponding to non-zero overlap
     !
     !****************************************************************************
@@ -2555,7 +3372,7 @@ END SUBROUTINE interpolation
        WRITE(*,*) '********************'
     endif
 
-  END SUBROUTINE Outer_Gl_mem_dns
+  END SUBROUTINE Outer_Gn_mem_dns
 
 
   !---------------------------------------------------
@@ -2829,7 +3646,7 @@ END SUBROUTINE interpolation
 
           !Checks whether previous block is non null. 
           !If so next block is also null => TUN = 0       
-          max=maxval(abs(Gr(i-1,nt1)%val(:,:)))
+          max=maxval(abs(Gr(i-1,nt1)%val))
 
           if (max.lt.drop) then
              TUN = 0.d0
