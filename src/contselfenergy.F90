@@ -19,19 +19,8 @@
 !!--------------------------------------------------------------------------!
 
 
-!*************************************************************************
-!  Copyright (c) 2004 by Univ. Rome 'Tor Vergata'. All rights reserved.  *  
-!  Authors: A. Pecchia, L. Latessa, A. Di Carlo                          *
-!                                                                        *
-!  Permission is hereby granted to use or copy this program for any      *
-!  purpose, provided the above notices are retained on all copies, and   *
-!  a notice that the code was modifided is included with the above       *
-!  copyright.                                                            *
-!  Permission to redistribute the code to third parties is restricted    *
-!  by the licence agreement.                                             *
-!*************************************************************************
 !---------------------------------------------------------------------
-!    Subroutine : SelfEnergy dei contatti
+!    Subroutine : SelfEnergy for contacts
 !---------------------------------------------------------------------
 module ContSelfEnergy
 
