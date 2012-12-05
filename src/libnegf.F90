@@ -218,12 +218,13 @@ contains
 
   subroutine negf_version(negf)
     type(Tnegf), pointer :: negf
-    character(3), parameter :: SVNVER= __SVNREVISION 
+    !character(3), parameter :: SVNVER= __SVNREVISION 
+    !character(3),parameter :: MODIF= __MODIFIED 
+    character(3), parameter :: GITVER= __GITREVISION 
     character(10),parameter :: DATE= __COMPDATE 
-    character(3),parameter :: MODIF= __MODIFIED 
  
-    write(*,'(a21,a3,a2,2x,a10)') '(libnegf) version: 1.',TRIM(SVNVER), & 
-                                           TRIM(MODIF), TRIM(DATE) 
+    write(*,'(a21,a20,2x,a10)') '(libnegf) version: 1.',TRIM(GITVER), & 
+                                         TRIM(DATE) 
 
   end subroutine negf_version
 
