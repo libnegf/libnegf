@@ -44,26 +44,44 @@ module libnegf
  implicit none
  private
 
- public :: init_negf, negf_version, destroy_matrices, destroy_negf
- public :: init_emesh, destroy_emesh
- public :: compute_dos
- public :: contour_int_n, contour_int_p, contour_int
- public :: real_axis_int, real_axis_int_n 
- public :: contour_int_ph, real_axis_int_ph, real_axis_int_ph2
- public :: compute_current, integrate
+ public :: init_negf, destroy_negf
+ public :: negf_version, destroy_matrices
+ private :: block_partition ! chop structure into PLs (CAREFUL!!!)
+                            ! H need to be already ordered properly 
+ public :: negf_partition_info  !write down partition info
+ private :: find_cblock         ! Find interacting contact block
+ 
+ public :: extract_compute_current  ! high-level wrapping routines
+                                    ! Extract HM and SM
+                                    ! run DM calculation
+ public :: extract_compute_density  ! high-level wrapping
+                                    ! Extract HM and SM
+                                    ! run total current calculation
+
+ public :: contour_int     ! standard contour integrations for DFT(B) 
+ public :: real_axis_int   ! real-axis integration for DFT
+ public :: contour_int_n   ! contour integration for CB
+ public :: real_axis_int_n ! real axis integration for CB
+ public :: contour_int_p   ! contour integration for VB 
+ public :: compute_current, integrate ! tunneling/current stuff
+ public :: compute_dos                ! compute local dos only
  public :: write_current, write_tunneling_and_dos
- public :: reorder
- public :: sort, swap
- public :: check_if_hermitian,printcsr
- public :: extract_compute_current, extract_compute_density  
- public :: negf_partition_info
-
- integer, PARAMETER :: VBT=70
-
+ public :: reorder, sort, swap            ! not used 
+ public :: check_if_hermitian, printcsr   ! debugging routines
+ ! ////////////////////////////////////////////////////////////
+ ! Under development:
+ public :: init_emesh, destroy_emesh
+ private :: adaptive_int, trapez23 
+ public :: contour_int_ph, real_axis_int_ph, real_axis_int_ph2
+ !
  type TG_pointer
    type(z_CSR),  pointer :: pG => null()   
    integer :: ind   
  end type TG_pointer
+ ! ////////////////////////////////////////////////////////////
+
+ integer, PARAMETER :: VBT=70
+
 
 contains
   
@@ -2942,7 +2960,7 @@ end function integrate
     integer :: nc_vec(1), ncont, minmax
 
     ncont = negf%str%num_conts
-    minmax = negf%refcont
+    minmax = negf%minmax
 
     if (minmax.eq.0) then
        negf%muref = minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))

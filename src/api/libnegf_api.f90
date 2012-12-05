@@ -30,12 +30,12 @@
 !!
 !!   negf_init_session
 !!   negf_init                (after negf_init_session)
-!!                             See libnegf.F90
+!!                             See in libnegf.F90
 !!
 !! After initialisation you can call the following methods:
 !!
 !!   negf_set_verbosity   
-!!   negf_getversion
+!!   negf_get_version
 !!   negf_set_iteration       (set scf iteration, default 1)
 !!   negf_set_outer           (outer blocks of DM, default 2)
 !!   negf_set_kpoint          (integer value for file handling)
@@ -94,7 +94,7 @@ end subroutine negf_init_session
 
 !!* Get library version. Reads svn versions=> broken with git  
 !!* @param  handler  Contains the handler for the new instance on return
-subroutine negf_getversion(handler)
+subroutine negf_get_version(handler)
   use libnegfAPICommon  ! if:mod:use
   use libnegf  ! if:mod:use
   implicit none
@@ -107,7 +107,7 @@ subroutine negf_getversion(handler)
  
   call negf_version(LIB%pNEGF)
 
-end subroutine negf_getversion
+end subroutine negf_get_version
 
 !!* Initialises a new LIBNEGF instance
 !!* @param  handler  Contains the handler for the new instance on return
@@ -322,7 +322,7 @@ subroutine negf_set_reference(handler, minmax)
   
   LIB = transfer(handler, LIB) 
 
-  LIB%pNEGF%refcont = minmax
+  LIB%pNEGF%minmax = minmax
 
 end subroutine negf_set_reference
 

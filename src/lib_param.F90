@@ -116,8 +116,8 @@ module lib_param
      integer :: activecont   ! contact selfenergy
      integer :: ni(MAXNCONT) ! ni
      integer :: nf(MAXNCONT) ! nf
+     integer :: minmax       ! in input: 0 take minimum, 1 take maximum mu  
      integer :: refcont      ! reference contact (for non equilib)
-                             ! in input: 0 take minimum, 1 take maximum mu  
      integer :: outer        ! flag switching computation of  
                              ! the Device/Contact DM
                              ! 0 none; 1 upper block; 2 all
@@ -127,7 +127,7 @@ module lib_param
 
      type(Telph) :: elph     ! electron-phonon data
 
-     type(mesh) :: emesh
+     type(mesh) :: emesh     ! energy mesh for adaptive Simpson
 
   end type Tnegf
 
