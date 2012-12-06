@@ -8,7 +8,7 @@ SOURCES = clock.F90  ln_extract.F90 \
           lib_param.F90 elph.F90 ln_precision.F90 mpi_globals.F90  \
           contselfenergy.F90 inversions.F90 libnegf.F90 ln_structure.F90 \
           outmatrix.F90 rcm_module.F90 fermi.F90  transform.F90 \
-          ln_allocation.F90  load.F90   sparsekit_drv.F90 \
+          ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
           globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
 	  population.F90 mkl_dfti.F90 energy_mesh.F90
 
@@ -43,7 +43,7 @@ clean:
 	rm -f *.mod *.o *.f90
 
 distclean:
-	rm -f *.o *.mod *.a
+	rm -f *.f90 *.o *.mod *.a
 
 
 
@@ -73,8 +73,9 @@ contselfenergy.o: outmatrix.o clock.o complexbands.o mpi_globals.o
 contselfenergy.o: ln_structure.o
 sparsekit_drv.o:  mat_def.o ln_allocation.o
 libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_structure.o
-libnegf.o:    sparsekit_drv.o inversions.o iterative.o rcm_module.o 
-libnegf.o:     ln_extract.o contselfenergy.o iterative_dns.o fermi.o energy_mesh.o
+libnegf.o:    rcm_module.o integrations.o ln_extract.o
+integrations.o: sparsekit_drv.o inversions.o iterative.o iterative_dns.o
+integrations.o: energy_mesh.o fermi.o contselfenergy.o	
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
