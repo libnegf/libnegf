@@ -325,12 +325,13 @@ contains
      negf%ni = 0             ! ni
      negf%ni(1) = 1
      negf%nf = 0             ! nf
-     negf%nf(1) = 2
-     negf%refcont = 1        ! reference contact (?)
-     negf%outer = 2          ! Compute full D.M.
+     negf%nf(1) = 2          !
+     negf%minmax = 1         ! Set reference cont to max(mu)  
+     negf%refcont = 1        ! call set_ref_cont()
+     negf%outer = 2          ! Compute full D.M. L,U extra
     
-     negf%int_acc = 1.d-3     ! Integration accuracy 
-
+     negf%int_acc = 1.d-3    ! Integration accuracy 
+                             ! Only in adaptive refinement 
      call init_elph(negf%elph)
 
    end subroutine set_defaults

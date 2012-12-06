@@ -31,6 +31,7 @@ MODULE sparsekit_drv
   public :: clone, extract, concat, msort, mask
   public :: prealloc_sum, prealloc_mult
   public :: check_nnz, nzdrop, trace, getelment
+  public :: check_if_hermitian
 
   public :: zsumcsr1
   public :: ramub_st
@@ -3107,6 +3108,97 @@ end subroutine zcooxcsr_st
   end function getelm_csr
 
 !---------------------------------------------
+         
+  SUBROUTINE check_if_hermitian(ham)
+
+    TYPE(z_CSR) :: ham
+
+    ! Local variables:
+ 
+    INTEGER :: row, p, col, file_num, count
+    COMPLEX( dp ) :: matel1, matel2
+    
+    call msort(ham)
+
+    file_num = 111
+
+    open(file_num,file='herm_check.dat')
+
+    count = 0
+    do row = 1, ham%nrow
+ 
+       do p = ham%rowpnt(row), ham%rowpnt(row+1) - 1 !row+1,n_ham
+          
+          col = ham%colind(p)
+          
+          matel1 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, row, col)
+          matel2 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, col, row)
+          
+          if( abs(matel1-conjg(matel2)).gt. 1.d-10 ) then
+             
+             count = count + 1
+             write(file_num,*) row,col,matel1                
+             write(file_num,*) col,row,matel2
+             write(file_num,*)
+                          
+          end if
+          
+       enddo
+    enddo
+    if (count .ne. 0) then
+       write(*,*) 'Found',count,'wrong elements'
+    end if
+
+    close(file_num)
+
+  END SUBROUTINE check_if_hermitian
+
+  !--------------------------------------------------------------
+  ! Returns value of element M(row, col) from sparse matrix
+  !
+  COMPLEX (dp) FUNCTION sprs_element(M, colind, rowpnt, row, col)
+
+    !--------------------------------------------------
+    ! IN data
+    INTEGER, INTENT( IN ) :: row, col
+    !-------------------------------------------------
+    ! OUT data
+    INTEGER, DIMENSION(:) :: colind
+    INTEGER, DIMENSION(:) :: rowpnt    
+    COMPLEX (dp), DIMENSION(:) :: M
+    !-------------------------------------------------
+    INTEGER :: index, ibeg, iend, imid
+
+
+    index = 0
+    ibeg = rowpnt( row )
+    iend = rowpnt( row + 1 ) - 1
+
+    DO WHILE (iend.GE.ibeg)
+
+       imid = (ibeg + iend) / 2
+
+       IF ( colind(imid) .eq. col ) THEN
+          index = imid
+          exit
+       END IF
+       
+       IF ( colind(imid) .GT. col) then
+          iend = imid - 1
+       ELSE
+          ibeg = imid + 1
+       END IF
+       
+    END DO
+
+    IF ( index .EQ. 0 ) THEN
+       sprs_element = 0.d0
+    ELSE
+       sprs_element = M(index)
+    END IF
+    
+  END FUNCTION sprs_element
+
 
 end module sparsekit_drv
 

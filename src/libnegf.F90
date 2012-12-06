@@ -32,6 +32,7 @@ module libnegf
  use rcm_module
  use mat_def
  use ln_extract
+ use sparsekit_drv
  use integrations
 
  implicit none
@@ -43,13 +44,17 @@ module libnegf
                             ! H need to be already ordered properly 
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
- 
- public :: extract_compute_current  ! high-level wrapping routines
+ public :: set_ref_cont
+
+ public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
-                                    ! run DM calculation
+                                    ! run total current calculation
  public :: extract_compute_density  ! high-level wrapping
                                     ! Extract HM and SM
                                     ! run total current calculation
+ public :: extract_compute_current  ! high-level wrapping routines
+                                    ! Extract HM and SM
+                                    ! run DM calculation
  ! MOVED TO integrations.F90 
  !public :: contour_int     ! standard contour integrations for DFT(B) 
  !public :: real_axis_int   ! real-axis integration for DFT
@@ -312,21 +317,59 @@ contains
   end subroutine destroy_matrices
   
   !-------------------------------------------------------------------------------
-  subroutine extract_compute_current(negf)
-
+  ! Compact collection of calls to extract device/contact H and S 
+  ! and compute density matrix using contour + real axis integration
+  ! Should be used for dftt calculations
+  !  
+  ! NOTE: the returned DensMat and EnMat are masked with S
+  ! Matrix Structure:  CSR 
+  !                    %nrow=%ncol=(Full squared Hamiltonian size)
+  !                    %nnz = Only non-zero elements of the blocks
+  !
+  !                    +-----+--+--+--+
+  !                    !  D  !C1!C2!C3!  masked with the S matrix 
+  !                    !     !  !  !  !
+  !                    +-----+--+--+--+
+  !                    ! C1  !0 !0 !0 !  The lower part of DensMat
+  !                    +-----+--+--+--+  is filled with 0.
+  !                    ! C2  !0 !0 !0 !
+  !                    +-----+--+--+--+  negf%outer=0,1,2 is used
+  !                    ! C3  !0 !0 !0 !  in order to compute Ci
+  !                    +-----+--+--+--+
+  !-------------------------------------------------------------------------------
+  subroutine compute_density_dft(negf)
     type(Tnegf), pointer :: negf
 
-    !print*, '(negf) extract device'
     call extract_device(negf)
-    !print*, '(negf) extract cont'
-    call extract_cont(negf)
-    !print*, '(negf) extract current'
-    call compute_current(negf)
-    !print*, '(negf) del mats'
-    call destroy_matrices(negf)
-    !print*, '(negf) ciao ciao'
-  end subroutine extract_compute_current
 
+    call extract_cont(negf)
+
+    ! Reference contact for contour/real axis separation
+    call set_ref_cont(negf)
+    
+    !Decide what to do with surface GFs.
+    !sets readOldSGF: if it is 0 or 1 it is left so 
+    if (negf%readOldSGF.eq.2) then
+      if(negf%iteration.eq.1) then        
+        negf%readOldSGF=2  ! compute and save SGF on files
+      else
+        negf%readOldSGF=0  ! read from files
+      endif
+    endif
+
+    call contour_int(negf)
+
+    call real_axis_int(negf)
+
+  end subroutine compute_density_dft
+
+
+  !-------------------------------------------------------------------------------
+  ! Compact collection of calls to extract device/contact H and S 
+  ! and compute density matrix
+  !
+  ! It has been used to interface libnegf to TiberCAD
+  ! Computes density for CB semiconductor 
   !-------------------------------------------------------------------------------
   subroutine extract_compute_density(negf, q)
 
@@ -360,29 +403,50 @@ contains
     !print*, '(negf) extract ndofs =', size(q), negf%S%nrow
 
     ! We need not to include S
-    !call prealloc_mult(negf%rho, negf%S, tmp )
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
 
-       !print*, '(negf) get diag of rho'
        call zgetdiag(negf%rho, q_tmp)
 
-       !print*, '(negf) transfer on q'
        do k = 1, size(q)
           q(k) = real(q_tmp(k))
        enddo
 
        call log_deallocate(q_tmp)
-       !call destroy(tmp)
     else
        q = 0.d0
     endif
 
-    !print*, '(negf) del mats'
     call destroy_matrices(negf)
-    !print*, '(negf) ciao ciao'
 
   end subroutine extract_compute_density
+
+  !-------------------------------------------------------------------------------
+  subroutine extract_compute_current(negf)
+
+    type(Tnegf), pointer :: negf
+
+    integer :: flagbkup
+
+    call extract_device(negf)
+    
+    call extract_cont(negf)
+    
+    if (negf%readOldSGF.ne.1) then
+       flagbkup = negf%readOldSGF
+       negf%readOldSGF = 1
+    end if
+
+    call compute_current(negf)
+    
+    call write_tunneling_and_dos(negf)
+    
+    call destroy_matrices(negf)
+ 
+    negf%readOldSGF = flagbkup
+  
+  end subroutine extract_compute_current
+
 
   ! --------------------------------------------------------------------------------
   subroutine write_current(negf)
@@ -468,6 +532,30 @@ contains
     endif
     
   end subroutine write_tunneling_and_dos
+  !---------------------------------------------------------------------------
+
+  subroutine set_ref_cont(negf)
+
+    type(TNegf), pointer :: negf
+
+    integer :: nc_vec(1), ncont, minmax
+
+    ncont = negf%str%num_conts
+    minmax = negf%minmax
+
+    if (minmax.eq.0) then
+       negf%muref = minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       nc_vec = minloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))  
+    else
+       negf%muref = maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       nc_vec = maxloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    endif
+
+    negf%refcont = nc_vec(1)
+    
+    !! print*, 'ref  muref', negf%refcont, negf%muref
+     
+  end subroutine set_ref_cont
 
   !////////////////////////////////////////////////////////////////////////
   ! RCM algorithm for reordering.

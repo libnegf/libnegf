@@ -44,7 +44,7 @@ module integrations
  private
 
  public :: contour_int     ! standard contour integrations for DFT(B) 
- public :: real_axis_int   ! real-axis integration for DFT
+ public :: real_axis_int   ! real-axis integration for DFT(B)
  public :: contour_int_n   ! contour integration for CB
  public :: real_axis_int_n ! real axis integration for CB
  public :: contour_int_p   ! contour integration for VB 
@@ -55,7 +55,7 @@ module integrations
  ! Under development:
  public :: init_emesh, destroy_emesh
  private :: adaptive_int, trapez23 
- public :: contour_int_ph, real_axis_int_ph, real_axis_int_ph2
+ !public :: contour_int_ph, real_axis_int_ph, real_axis_int_ph2
  !
  type TG_pointer
    type(z_CSR),  pointer :: pG => null()   
@@ -68,297 +68,6 @@ module integrations
 
 contains
   
-
-  !------------------------------------------------------------------------------- 
-  subroutine compute_current(negf)
-    
-    
-    type(Tnegf), pointer :: negf
-
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    
-    Real(dp), Dimension(:), allocatable :: TUN_MAT
-    !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
-    
-    Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
-    Real(dp), Dimension(:), allocatable :: LEDOS
-    Real(dp) :: ncyc, Ec_min, mumin, mumax
-    
-    Complex(dp) :: Ec
-    
-    Integer, Dimension(:), pointer :: cblk, indblk
-    Integer :: i, Nstep, npid, istart, iend, i1
-    Integer :: size_ni, size_nf, icpl, ncont, icont
-    Integer :: nbl
-    Integer :: iLDOS
-    
-    Character(6) :: ofKP
-    Logical :: do_LEDOS, lex
-
-    do_LEDOS = .false.
-    if(negf%nLDOS.gt.0) do_LEDOS=.true.
-    
-    nbl = negf%str%num_PLs
-    ncont = negf%str%num_conts
-    cblk => negf%str%cblk
-    indblk => negf%str%mat_PL_start
-    
-    Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
-    npid = int((Nstep+1)/numprocs)
-    
-    !Get out if Emax<Emin and Nstep<0
-    if (Nstep.lt.0) then
-       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
-       call log_allocatep(negf%tunn_mat,0,0)
-       call log_allocatep(negf%currents,1)
-       negf%currents(1) = 0.0_dp 
-       if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
-       return
-    endif
-    
-    !Extract Contacts in main
-    !Tunneling set-up
-    do i=1,size(negf%ni)
-       if (negf%ni(i).eq.0) then
-          size_ni=i-1
-          exit
-       endif
-    enddo
-    
-    do i=1,size(negf%nf)
-       if (negf%nf(i).eq.0) then
-          size_nf=i-1
-          exit
-       endif
-    enddo
-
-    !check size_ni .ne. size_nf
-    if (size_ni.ne.size_nf) then 
-       size_ni=min(size_ni,size_nf)
-       size_nf=min(size_ni,size_nf)
-    endif
-    
-    call log_allocate(mumin_array,size_ni)
-    call log_allocate(mumax_array,size_ni)
-    
-    ! find bias window for each contact pair
-    do icpl=1,size_ni
-       mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-       mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-    enddo
-    
-    ncyc=0
-    istart = 1
-    iend = npid
-    
-    call log_allocate(TUN_MAT,size_ni)
-    call log_allocatep(negf%tunn_mat,Nstep+1,size_ni)   
-    !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
-    !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
-    negf%tunn_mat = 0.0_dp 
-
-    if (do_LEDOS) then
-       call log_allocatep(negf%ldos_mat,Nstep+1,negf%nLDOS)
-       call log_allocate(LEDOS,negf%nLDOS)          
-       negf%ldos_mat(:,:)=0.d0
-    endif
-    
-    
-    !Loop on energy points: tunneling 
-    do i1 = istart,iend
-       
-       Ec_min = negf%Emin + id*npid*negf%Estep
-       Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
-
-       if (negf%verbose.gt.VBT) then
-          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i1,'/',iend,'  CPU=&
-             &', id
-       endif
-
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
-
-       call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
-       
-       do icont=1,ncont
-          call destroy(Tlc(icont))
-          call destroy(Tcl(icont))
-       enddo
-
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
-       
-       if (.not.do_LEDOS) then
-          
-          call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
-               negf%str,TUN_MAT)
-          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
-          
-       else
-          
-          LEDOS(:) = 0.d0
-          
-          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
-               negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
-          
-          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
-          negf%ldos_mat(i1,:) = LEDOS(:) * negf%wght
-          
-       endif
-
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
-       
-       do icont=1,ncont
-          call destroy(SelfEneR(icont))
-          call destroy(GS(icont))
-       enddo
-       
-    enddo !Loop on energy i1 = istart,iend
-
-    !---------------------------------------------------------------------------
-    !   COMPUTATION OF CURRENTS 
-    !---------------------------------------------------------------------------
-    call log_allocatep(negf%currents,size_ni)
-    negf%currents(:)=0.d0
-    
-    do icpl=1,size_ni
-       
-       mumin=mumin_array(icpl)
-       mumax=mumax_array(icpl)
-
-       !checks if the energy interval is appropriate
-       !if (id0.and.mumin.lt.mumax) then
-               
-        !if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
-        !  write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
-        !  write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
-        !  write(*,*) 'kT=',negf%kbT*negf%eneconv    
-        !  write(*,*) 'Suggested interval:', &
-        !        (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
-        ! endif
-       !endif
-       
-       negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
-            negf%Emin,negf%Emax,negf%Estep)
-       
-    enddo
-   
-    if (negf%verbose.gt.VBT) then 
-     do i1=1,size_ni
-       write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-            '; k-point:',negf%kpoint,'; current:', negf%currents(i1),' A'
-     enddo
-    endif
-
-    call log_deallocate(TUN_MAT)
-    !call log_deallocate(TUN_PMAT)
-    !call log_deallocate(TUN_TOT_PMAT)  
-    
-    call log_deallocate(mumin_array)
-    call log_deallocate(mumax_array)
-    
-    if(do_LEDOS) then
-       call log_deallocate(LEDOS)
-    endif
-    
-    
-  end subroutine compute_current
- 
-
-!////////////////////////////////////////////////////////////////////////
-!************************************************************************
-!
-! Function to integrate the tunneling and get the current
-!
-!************************************************************************
-
-function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
-
-  implicit none
-
-  real(dp) :: integrate
-  real(dp), intent(in) :: mumin,mumax,emin,emax,estep
-  real(dp), dimension(:), intent(in) :: TUN_TOT
-  real(dp), intent(in) :: kT 
-
-  REAL(dp) :: destep,kbT,TT1,TT2,E3,E4,TT3,TT4
-  REAL(dp) :: E1,E2,c1,c2,curr
-  INTEGER :: i,i1,N,Nstep,imin,imax
-  
-  curr=0.d0
-  N=0
-  destep=1.0d10 
-  Nstep=NINT((emax-emin)/estep);
-
-  if (kT.lt.3.d-6) then
-    kbT = 1.d-5
-  else
-    kbT = kT     
-  endif
-  ! Find initial step for integration
-
-  imin=0
-  do i=0,Nstep
-     E1=emin+estep*i     
-     imin=i-1
-     if(E1.ge.mumin-10*kbT) then 
-        exit
-     endif
-  enddo
-
-  ! Find final step for integration 
-  imax=0
-  do i=Nstep,imin,-1    
-     E1=emin+estep*i 
-     imax=i+1
-     if(E1.le.mumax+10*kbT) then 
-        exit
-     endif
-  enddo
-
-
-  !rest the min and max to the actual interval
-  if (imin.lt.0) imin=0
-  if (imax.gt.Nstep) imax=Nstep 
-
-  ! performs the integration with simple trapezium rule. 
-  do i=imin,imax-1
-     
-     E1=emin+estep*i  
-     TT1=TUN_TOT(i+1)     
-     E2=emin+estep*(i+1)
-     TT2=TUN_TOT(i+2)
-     
-     ! Each step is devided into substeps in order to
-     ! smooth out the Fermi function
-     do while (destep.ge.2*kbT) 
-        N=N+1
-        destep=(E2-E1)/N
-     enddo
-     
-     ! within each substep the tunneling is linearly 
-     ! interpolated
-     do i1=0,N-1
-        
-        E3=E1+(E2-E1)*i1/N
-        E4=E3+(E2-E1)/N
-        TT3=( TT2-TT1 )*i1/N + TT1
-        TT4=TT3 + (TT2-TT1)/N
-        
-        c1=2.d0*eovh*(fermi_f(E3,mumax,KbT)-fermi_f(E3,mumin,KbT))*TT3
-        c2=2.d0*eovh*(fermi_f(E4,mumax,KbT)-fermi_f(E4,mumin,KbT))*TT4
-        
-        curr=curr+(c1+c2)*(E4-E3)/2.d0
-        
-     enddo
-     
-  enddo
-  
-  integrate = curr
-  
-end function integrate
 
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
@@ -897,8 +606,7 @@ end function integrate
      NumPoles = negf%n_poles
      mumin = muref - nkT
     
-     outer = negf%outer !Compute lower-outer part of density matrix
-    
+     outer = negf%outer 
     
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
@@ -1718,7 +1426,7 @@ end function integrate
     call log_allocate(frm_f,ncont+1)
     frm_f = 0.d0
     ncont = negf%str%num_conts
-    outer = 0
+    outer = negf%outer 
     iter = negf%elph%scba_iter
 
     if (negf%iteration.eq.1 .and. iter.eq.0) then
@@ -1740,7 +1448,7 @@ end function integrate
     if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
     ! Compute Gr and G<
-    call calls_neq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,GS,frm_f,Gless,outer)
+    call calls_neq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,Gless,outer)
 
     if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -1751,33 +1459,6 @@ end function integrate
     call log_deallocate(frm_f)
 
   end subroutine compute_gless
-
-
-  !---------------------------------------------------------------------------
-
-  subroutine set_ref_cont(negf)
-
-    type(TNegf), pointer :: negf
-
-    integer :: nc_vec(1), ncont, minmax
-
-    ncont = negf%str%num_conts
-    minmax = negf%minmax
-
-    if (minmax.eq.0) then
-       negf%muref = minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       nc_vec = minloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))  
-    else
-       negf%muref = maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       nc_vec = maxloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-    endif
-
-    negf%refcont = nc_vec(1)
-    
-    !! print*, 'ref  muref', negf%refcont, negf%muref
-     
-  end subroutine set_ref_cont
-
   
   !----------------------------------------------------------------------------
   ! Gauss - Legendre quadrature weights and points
@@ -1855,5 +1536,295 @@ end function integrate
  
   end subroutine trapez
   !--------------------------------------------------------------------  
+
+  !------------------------------------------------------------------------------- 
+  subroutine compute_current(negf)
+    
+    type(Tnegf), pointer :: negf
+
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    
+    Real(dp), Dimension(:), allocatable :: TUN_MAT
+    !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
+    
+    Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
+    Real(dp), Dimension(:), allocatable :: LEDOS
+    Real(dp) :: ncyc, Ec_min, mumin, mumax
+    
+    Complex(dp) :: Ec
+    
+    Integer, Dimension(:), pointer :: cblk, indblk
+    Integer :: i, Nstep, npid, istart, iend, i1
+    Integer :: size_ni, size_nf, icpl, ncont, icont
+    Integer :: nbl
+    Integer :: iLDOS
+    
+    Character(6) :: ofKP
+    Logical :: do_LEDOS, lex
+
+    do_LEDOS = .false.
+    if(negf%nLDOS.gt.0) do_LEDOS=.true.
+    
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    cblk => negf%str%cblk
+    indblk => negf%str%mat_PL_start
+    
+    Nstep=NINT((negf%Emax-negf%Emin)/negf%Estep)
+    npid = int((Nstep+1)/numprocs)
+    
+    !Get out if Emax<Emin and Nstep<0
+    if (Nstep.lt.0) then
+       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
+       call log_allocatep(negf%tunn_mat,0,0)
+       call log_allocatep(negf%currents,1)
+       negf%currents(1) = 0.0_dp 
+       if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
+       return
+    endif
+    
+    !Extract Contacts in main
+    !Tunneling set-up
+    do i=1,size(negf%ni)
+       if (negf%ni(i).eq.0) then
+          size_ni=i-1
+          exit
+       endif
+    enddo
+    
+    do i=1,size(negf%nf)
+       if (negf%nf(i).eq.0) then
+          size_nf=i-1
+          exit
+       endif
+    enddo
+
+    !check size_ni .ne. size_nf
+    if (size_ni.ne.size_nf) then 
+       size_ni=min(size_ni,size_nf)
+       size_nf=min(size_ni,size_nf)
+    endif
+    
+    call log_allocate(mumin_array,size_ni)
+    call log_allocate(mumax_array,size_ni)
+    
+    ! find bias window for each contact pair
+    do icpl=1,size_ni
+       mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+       mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
+            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
+    enddo
+    
+    ncyc=0
+    istart = 1
+    iend = npid
+    
+    call log_allocate(TUN_MAT,size_ni)
+    call log_allocatep(negf%tunn_mat,Nstep+1,size_ni)   
+    !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
+    !call log_allocate(TUN_TOT_PMAT,Nstep+1,size_ni,num_channels) 
+    negf%tunn_mat = 0.0_dp 
+
+    if (do_LEDOS) then
+       call log_allocatep(negf%ldos_mat,Nstep+1,negf%nLDOS)
+       call log_allocate(LEDOS,negf%nLDOS)          
+       negf%ldos_mat(:,:)=0.d0
+    endif
+    
+    
+    !Loop on energy points: tunneling 
+    do i1 = istart,iend
+       
+       Ec_min = negf%Emin + id*npid*negf%Estep
+       Ec = (Ec_min + negf%Estep*(i1-1))*(1.d0,0.d0) !+negf%delta*(0.d0,1.d0) 
+
+       if (negf%verbose.gt.VBT) then
+          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',i1,'/',iend,'  CPU=&
+             &', id
+       endif
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
+
+       call compute_contacts(Ec+negf%delta*(0.d0,1.d0),negf,i1,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       
+       do icont=1,ncont
+          call destroy(Tlc(icont))
+          call destroy(Tcl(icont))
+       enddo
+
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
+       
+       if (.not.do_LEDOS) then
+          
+          call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+               negf%str,TUN_MAT)
+          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
+          
+       else
+          
+          LEDOS(:) = 0.d0
+          
+          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
+               negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
+          
+          negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
+          negf%ldos_mat(i1,:) = LEDOS(:) * negf%wght
+          
+       endif
+
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       
+       do icont=1,ncont
+          call destroy(SelfEneR(icont))
+          call destroy(GS(icont))
+       enddo
+       
+    enddo !Loop on energy i1 = istart,iend
+
+    !---------------------------------------------------------------------------
+    !   COMPUTATION OF CURRENTS 
+    !---------------------------------------------------------------------------
+    call log_allocatep(negf%currents,size_ni)
+    negf%currents(:)=0.d0
+    
+    do icpl=1,size_ni
+       
+       mumin=mumin_array(icpl)
+       mumax=mumax_array(icpl)
+
+       !checks if the energy interval is appropriate
+       !if (id0.and.mumin.lt.mumax) then
+               
+        !if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
+        !  write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
+        !  write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
+        !  write(*,*) 'kT=',negf%kbT*negf%eneconv    
+        !  write(*,*) 'Suggested interval:', &
+        !        (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
+        ! endif
+       !endif
+       
+       negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
+            negf%Emin,negf%Emax,negf%Estep)
+       
+    enddo
+   
+    if (negf%verbose.gt.VBT) then 
+     do i1=1,size_ni
+       write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
+            '; k-point:',negf%kpoint,'; current:', negf%currents(i1),' A'
+     enddo
+    endif
+
+    call log_deallocate(TUN_MAT)
+    !call log_deallocate(TUN_PMAT)
+    !call log_deallocate(TUN_TOT_PMAT)  
+    
+    call log_deallocate(mumin_array)
+    call log_deallocate(mumax_array)
+    
+    if(do_LEDOS) then
+       call log_deallocate(LEDOS)
+    endif
+    
+    
+  end subroutine compute_current
+ 
+
+!////////////////////////////////////////////////////////////////////////
+!************************************************************************
+!
+! Function to integrate the tunneling and get the current
+!
+!************************************************************************
+
+function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
+
+  implicit none
+
+  real(dp) :: integrate
+  real(dp), intent(in) :: mumin,mumax,emin,emax,estep
+  real(dp), dimension(:), intent(in) :: TUN_TOT
+  real(dp), intent(in) :: kT 
+
+  REAL(dp) :: destep,kbT,TT1,TT2,E3,E4,TT3,TT4
+  REAL(dp) :: E1,E2,c1,c2,curr
+  INTEGER :: i,i1,N,Nstep,imin,imax
+  
+  curr=0.d0
+  N=0
+  destep=1.0d10 
+  Nstep=NINT((emax-emin)/estep);
+
+  if (kT.lt.3.d-6) then
+    kbT = 1.d-5
+  else
+    kbT = kT     
+  endif
+  ! Find initial step for integration
+
+  imin=0
+  do i=0,Nstep
+     E1=emin+estep*i     
+     imin=i-1
+     if(E1.ge.mumin-10*kbT) then 
+        exit
+     endif
+  enddo
+
+  ! Find final step for integration 
+  imax=0
+  do i=Nstep,imin,-1    
+     E1=emin+estep*i 
+     imax=i+1
+     if(E1.le.mumax+10*kbT) then 
+        exit
+     endif
+  enddo
+
+
+  !rest the min and max to the actual interval
+  if (imin.lt.0) imin=0
+  if (imax.gt.Nstep) imax=Nstep 
+
+  ! performs the integration with simple trapezium rule. 
+  do i=imin,imax-1
+     
+     E1=emin+estep*i  
+     TT1=TUN_TOT(i+1)     
+     E2=emin+estep*(i+1)
+     TT2=TUN_TOT(i+2)
+     
+     ! Each step is devided into substeps in order to
+     ! smooth out the Fermi function
+     do while (destep.ge.2*kbT) 
+        N=N+1
+        destep=(E2-E1)/N
+     enddo
+     
+     ! within each substep the tunneling is linearly 
+     ! interpolated
+     do i1=0,N-1
+        
+        E3=E1+(E2-E1)*i1/N
+        E4=E3+(E2-E1)/N
+        TT3=( TT2-TT1 )*i1/N + TT1
+        TT4=TT3 + (TT2-TT1)/N
+        
+        c1=2.d0*eovh*(fermi_f(E3,mumax,KbT)-fermi_f(E3,mumin,KbT))*TT3
+        c2=2.d0*eovh*(fermi_f(E4,mumax,KbT)-fermi_f(E4,mumin,KbT))*TT4
+        
+        curr=curr+(c1+c2)*(E4-E3)/2.d0
+        
+     enddo
+     
+  enddo
+  
+  integrate = curr
+  
+end function integrate
          
 end module integrations 

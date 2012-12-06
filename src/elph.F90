@@ -19,13 +19,6 @@
 !!--------------------------------------------------------------------------!
 
 
-/*
- * elph.F90
- *
- *  Created on: Jun 26, 2012
- *      Author: dmariani
- */
-
 module elph
 
   use ln_precision, only : dp
@@ -64,20 +57,20 @@ contains
   subroutine init_elph(elph)
     Type(Telph) :: elph
     
-    elph%nummodes = 1
-    elph%numselmodes = 1
+    elph%nummodes = 0
+    elph%numselmodes = 0
 
     call log_allocatep(elph%selmodes, elph%nummodes)
     call log_allocatep(elph%Wq, elph%nummodes)
     call log_allocatep(elph%Nq, elph%nummodes)
     call log_allocatep(elph%Mq, elph%nummodes)
 
-    elph%Wq(1) = 0.2_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
+    elph%Wq(1) = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
     elph%Nq(1) = 0.0_dp              ! should be bose-einstain
-    elph%Mq(1) = 0.1_dp/27.2114_dp    ! 100 meV phonon coupling
+    elph%Mq(1) = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
     elph%selmodes(1) = .true.
 
-    elph%scba_iterations = 3 ! starts from 0  
+    elph%scba_iterations = 0 ! starts from 0  
     elph%scba_iter = 0       ! initialize at 0
     elph%diagonal = .true.
     
