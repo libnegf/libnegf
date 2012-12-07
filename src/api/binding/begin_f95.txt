@@ -7,7 +7,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-!!* Defines Fortran 95 bindings to the Fortran 77 binding of UPTIGHT in order
+!!* Defines Fortran 95 bindings to the Fortran 77 binding of libNEGF in order
 !!* to be able to test the F77 bindings from F95 with some basic type checking
 !!* at compile time.
 module LibNEGFAPIFDef

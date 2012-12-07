@@ -73,6 +73,14 @@ cpp_wrapped_binding: libnegf_api.f90
             -s "$(FNAME_SUFFIX)" -p "$(FNAME_PREFIX)" \
             $(if $(FNAME_UPPERCASE),-u) $^ > libnegf.h
 
+f95_binding: libnegf_api.f90
+	./bind_fortran -f f95 \
+            -b ./binding/begin_f95.txt -n -t \
+            -e ./binding/end_f95.txt \
+            -s "$(FNAME_SUFFIX)" -p "$(FNAME_PREFIX)" \
+            $(if $(FNAME_UPPERCASE),-u) $^ > libnegf.h
+
+
 .PHONY: update
 update: $(TARGET) cpp_wrapped_binding
 	@echo "copy $(TARGET) in $(TIBERCADNEGF)"; \
