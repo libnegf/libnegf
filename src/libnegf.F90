@@ -39,6 +39,8 @@ module libnegf
  private
 
  public :: init_negf, destroy_negf
+ public :: set_H, set_S, read_HS
+ public :: read_negf_in
  public :: negf_version, destroy_matrices
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly 
@@ -48,13 +50,13 @@ module libnegf
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
-                                    ! run total current calculation
- public :: extract_compute_density  ! high-level wrapping
-                                    ! Extract HM and SM
-                                    ! run total current calculation
- public :: extract_compute_current  ! high-level wrapping routines
+                                    ! run DM calculation
+ public :: compute_density_efa      ! high-level wrapping
                                     ! Extract HM and SM
                                     ! run DM calculation
+ public :: compute_current          ! high-level wrapping routines
+                                    ! Extract HM and SM
+                                    ! run total current calculation
  ! MOVED TO integrations.F90 
  !public :: contour_int     ! standard contour integrations for DFT(B) 
  !public :: real_axis_int   ! real-axis integration for DFT
@@ -151,6 +153,56 @@ contains
     endif
 
   end subroutine read_HS
+
+  !--------------------------------------------------------------------
+  subroutine set_H(negf, nrow, nzval, colind, rowpnt)
+    type(Tnegf) :: negf
+    integer :: nrow
+    complex(dp) :: nzval(*)
+    integer :: colind(*)
+    integer :: rowpnt(*)
+
+    integer :: nnz, i
+
+    nnz = rowpnt(nrow+1)-1
+
+    call create(negf%H,nrow,nrow,nnz)
+
+    do i = 1, nnz
+      negf%H%nzval(i) = nzval(i)
+      negf%H%colind(i) = colind(i)
+    enddo
+    do i = 1,nrow+1
+      negf%H%rowpnt(i) = rowpnt(i)
+    enddo  
+
+  end subroutine set_H
+
+  !--------------------------------------------------------------------
+  subroutine set_S(negf, nrow, nzval, colind, rowpnt)
+    type(Tnegf) :: negf
+    integer :: nrow
+    complex(dp) :: nzval(*)
+    integer :: colind(*)
+    integer :: rowpnt(*)
+
+    integer :: nnz, i
+
+    nnz = rowpnt(nrow+1)-1
+
+    call create(negf%S,nrow,nrow,nnz)
+
+    do i = 1, nnz
+      negf%S%nzval(i) = nzval(i)
+      negf%S%colind(i) = colind(i)
+    enddo
+    do i = 1,nrow+1
+      negf%S%rowpnt(i) = rowpnt(i)
+    enddo  
+
+  end subroutine set_S
+
+
 
   !--------------------------------------------------------------------
    subroutine read_negf_in(negf)
@@ -382,7 +434,7 @@ contains
   ! It has been used to interface libnegf to TiberCAD
   ! Computes density for CB semiconductor 
   !-------------------------------------------------------------------------------
-  subroutine extract_compute_density(negf, q)
+  subroutine compute_density_efa(negf, q)
 
     type(Tnegf) :: negf
     real(dp), dimension(:) :: q
@@ -430,10 +482,10 @@ contains
 
     call destroy_matrices(negf)
 
-  end subroutine extract_compute_density
+  end subroutine compute_density_efa
 
   !-------------------------------------------------------------------------------
-  subroutine extract_compute_current(negf)
+  subroutine compute_current(negf)
 
     type(Tnegf) :: negf
 
@@ -448,7 +500,7 @@ contains
        negf%readOldSGF = 1
     end if
 
-    call compute_current(negf)
+    call tunneling_and_current(negf)
     
     call write_tunneling_and_dos(negf)
     
@@ -456,7 +508,7 @@ contains
  
     negf%readOldSGF = flagbkup
   
-  end subroutine extract_compute_current
+  end subroutine compute_current
 
 
   ! --------------------------------------------------------------------------------

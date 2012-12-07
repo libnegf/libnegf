@@ -48,7 +48,8 @@ module integrations
  public :: contour_int_n   ! contour integration for CB
  public :: real_axis_int_n ! real axis integration for CB
  public :: contour_int_p   ! contour integration for VB 
- public :: compute_current, integrate ! tunneling/current stuff
+ public :: tunneling_and_current
+ public :: integrate       ! integration of tunneling
  public :: compute_dos                ! compute local dos only
 
  ! ////////////////////////////////////////////////////////////
@@ -1538,7 +1539,7 @@ contains
   !--------------------------------------------------------------------  
 
   !------------------------------------------------------------------------------- 
-  subroutine compute_current(negf)
+  subroutine tunneling_and_current(negf)
     
     type(Tnegf) :: negf
 
@@ -1731,7 +1732,7 @@ contains
     endif
     
     
-  end subroutine compute_current
+  end subroutine tunneling_and_current
  
 
 !////////////////////////////////////////////////////////////////////////

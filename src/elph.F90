@@ -59,25 +59,34 @@ contains
     
     elph%nummodes = 0
     elph%numselmodes = 0
-
-    call log_allocatep(elph%selmodes, elph%nummodes)
-    call log_allocatep(elph%Wq, elph%nummodes)
-    call log_allocatep(elph%Nq, elph%nummodes)
-    call log_allocatep(elph%Mq, elph%nummodes)
-
-    elph%Wq(1) = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
-    elph%Nq(1) = 0.0_dp              ! should be bose-einstain
-    elph%Mq(1) = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
-    elph%selmodes(1) = .true.
-
     elph%scba_iterations = 0 ! starts from 0  
     elph%scba_iter = 0       ! initialize at 0
-    elph%diagonal = .true.
-    
-    elph%Selfene_Gr = .true.
-    elph%Selfene_Gless = .true.
-    elph%Selfene_Hilb = .true.
 
+    if (elph%nummodes .eq. 0) then
+      
+      elph%diagonal = .false.
+      elph%Selfene_Gr = .false.
+      elph%Selfene_Gless =.false.
+      elph%Selfene_Hilb = .false.
+     
+    else
+
+      call log_allocatep(elph%selmodes, elph%nummodes)
+      call log_allocatep(elph%Wq, elph%nummodes)
+      call log_allocatep(elph%Nq, elph%nummodes)
+      call log_allocatep(elph%Mq, elph%nummodes)
+ 
+      elph%Wq(1) = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
+      elph%Nq(1) = 0.0_dp              ! should be bose-einstain
+      elph%Mq(1) = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
+      elph%selmodes(1) = .true.
+ 
+      elph%diagonal = .true.
+      elph%Selfene_Gr = .true.
+      elph%Selfene_Gless = .true.
+      elph%Selfene_Hilb = .true.
+    
+    endif
 
   end subroutine init_elph
 

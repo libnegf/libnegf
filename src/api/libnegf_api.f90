@@ -251,7 +251,7 @@ subroutine negf_current(handler, current)
   
   LIB = transfer(handler, LIB) 
 
-  call extract_compute_current(LIB%pNEGF)
+  call compute_current(LIB%pNEGF)
 
   current = LIB%pNEGF%currents(1) ! just take first value (2 contacts)
 
@@ -261,7 +261,7 @@ end subroutine negf_current
 
 !!* Compute charge Density given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_density(handler,ndofs,density)
+subroutine negf_density_efa(handler,ndofs,density)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use 
@@ -274,9 +274,28 @@ subroutine negf_density(handler,ndofs,density)
   
   LIB = transfer(handler, LIB) 
 
-  call extract_compute_density(LIB%pNEGF, density)
+  call compute_density_efa(LIB%pNEGF, density)
 
-end subroutine negf_density
+end subroutine negf_density_efa
+
+!!* Compute charge Density given LIBNEGF instance.
+!!* @param handler Number for the LIBNEGF instance to destroy.
+subroutine negf_density_dft(handler,ndofs,density)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use ln_precision      !if:mod:use
+  use libnegf           ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: ndofs                     ! if:var:in 
+  real(dp) :: density(ndofs)           ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  
+  LIB = transfer(handler, LIB) 
+
+  call compute_density_dft(LIB%pNEGF, density)
+
+end subroutine negf_density_dft
 
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
