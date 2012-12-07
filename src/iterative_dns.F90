@@ -130,7 +130,7 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf), pointer :: pnegf
+    TYPE(Tnegf) :: pnegf
     COMPLEX(dp) :: E
     TYPE(z_DNS), DIMENSION(:) :: SelfEneR
     TYPE(z_DNS), DIMENSION(:) :: Tlc, Tcl, gsurfR
@@ -275,7 +275,7 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf), pointer :: pnegf
+    TYPE(Tnegf) :: pnegf
     TYPE(z_CSR) :: Glout
     TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
     !TYPE(z_DNS) :: SelfEner_d 
@@ -470,7 +470,7 @@ SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 IMPLICIT NONE
 
 !In/Out
-TYPE(Tnegf), pointer :: pnegf
+TYPE(Tnegf) :: pnegf
 TYPE(z_CSR) :: Glout
 TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
 REAL(dp) :: E
@@ -800,7 +800,7 @@ Ec=cmplx(E,0.d0,dp)
   !***********************************************************************
   SUBROUTINE add_sigma_ph_r(pnegf, ESH, iter)
 
-     TYPE(Tnegf), pointer :: pnegf
+     TYPE(Tnegf) :: pnegf
      TYPE(z_DNS), DIMENSION(:,:) :: ESH
      INTEGER :: iter
 
@@ -1704,7 +1704,7 @@ Ec=cmplx(E,0.d0,dp)
   !****************************************************************************
   SUBROUTINE Make_Gn_ph(pnegf,ESH,iter,Gn)
 
-    TYPE(Tnegf), pointer :: pnegf
+    TYPE(Tnegf) :: pnegf
     TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
     INTEGER :: iter
 
@@ -1761,7 +1761,7 @@ Ec=cmplx(E,0.d0,dp)
   !****************************************************************************
   SUBROUTINE Make_Gp_ph(pnegf,ESH,iter,Gp)
 
-    TYPE(Tnegf), pointer :: pnegf
+    TYPE(Tnegf) :: pnegf
     TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gp
     INTEGER :: iter
 
@@ -2493,7 +2493,7 @@ END SUBROUTINE check_sigma_ph_r
 !
 SUBROUTINE search_points(pnegf, Wq, Epnt, i1, i2, E1, E2)
  use energy_mesh, only : elem 
- type(TNegf), pointer :: pnegf
+ type(TNegf) :: pnegf
  real(dp) :: Wq                
  real(dp), dimension(:), allocatable :: Epnt
  integer, intent(out) :: i1,i2 

@@ -69,7 +69,7 @@ contains
   subroutine surface_green(E,HC,SC,pnegf,pnt,avncyc,GS)
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
-    type(Tnegf), pointer :: pnegf
+    type(Tnegf) :: pnegf
     real(dp), intent(inout) :: avncyc  ! Average num. cycles
     integer, intent(in)     :: pnt     ! Step of the energy integration
     type(z_DNS), intent(out) :: GS
@@ -332,7 +332,7 @@ contains
 
   subroutine compute_contacts_csr(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
     complex(dp) :: Ec
-    Type(Tnegf), pointer :: pnegf
+    Type(Tnegf) :: pnegf
     integer, intent(in) :: pnt
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
@@ -386,7 +386,7 @@ contains
 
   subroutine compute_contacts_dns(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
     complex(dp) :: Ec
-    Type(Tnegf), pointer :: pnegf
+    Type(Tnegf) :: pnegf
     integer, intent(in) :: pnt
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 

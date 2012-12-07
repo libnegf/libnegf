@@ -69,7 +69,7 @@ module libnegf
  public :: printcsr   ! debugging routines
 
  integer, PARAMETER :: VBT=70
-
+ integer, PARAMETER :: MAXNUMPLs = 10000
 
 contains
   
@@ -83,10 +83,7 @@ contains
   !--------------------------------------------------------------------
 
   subroutine init_negf(negf)
-    type(Tnegf), pointer :: negf
-    Integer :: ncont, nbl, i
-    Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
-    character(11) :: fmtstring
+    type(Tnegf) :: negf
 
     call set_defaults(negf)
 
@@ -98,8 +95,15 @@ contains
     negf%form%type = "PETSc" 
     negf%form%fmt = "F" 
 
+   end subroutine init_negf
+
+  !--------------------------------------------------------------------
+  subroutine read_HS(negf)
+    type(Tnegf) :: negf
+    character(11) :: fmtstring
+    
     open(101, file=negf%file_struct, form='formatted')  
-  
+
     read(101,*) negf%file_re_H 
     read(101,*) negf%file_im_H
 
@@ -110,7 +114,8 @@ contains
     !print*, '(init_negf) files: ', trim(negf%file_im_H)
     !print*, '(init_negf) files: ', trim(negf%file_re_S) 
     !print*, '(init_negf) files: ', trim(negf%file_im_S) 
-
+ 
+    close(101)
 
     if(negf%form%formatted) then
        fmtstring = 'formatted'
@@ -127,6 +132,8 @@ contains
     close(401)
     close(402)
 
+    if (trim(negf%file_re_S).eq.'') negf%isSid = .true.
+         
     if(.not.negf%isSid) then
        open(401, file=negf%file_re_S, form=trim(fmtstring))
        open(402, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
@@ -143,6 +150,22 @@ contains
 
     endif
 
+  end subroutine read_HS
+
+  !--------------------------------------------------------------------
+   subroutine read_negf_in(negf)
+    type(Tnegf) :: negf
+    Integer :: ncont, nbl, i
+    Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
+
+    open(101, file=negf%file_struct, form='formatted')  
+  
+    read(101,*) negf%file_re_H 
+    read(101,*) negf%file_im_H
+
+    read(101,*) negf%file_re_S
+    read(101,*) negf%file_im_S
+
     read(101,*) ncont
 
     call log_allocate(cblk,ncont)
@@ -156,7 +179,6 @@ contains
        call log_allocate(PL_end,nbl)
 
        read(101,*) PL_end(1:nbl)
-       !read(101,*) cblk(1:ncont)
 
     end if
 
@@ -166,20 +188,9 @@ contains
 
     if (nbl .eq. 0) then
 
-       call log_allocate(PL_end, 10000)  ! Orribile
+       call log_allocate(PL_end, MAXNUMPLs)  
        call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
            
-       !if (negf%verbose.gt.50) then
-       !   write(*,*) "(LibNEGF) Partitioning:"
-       !   write(*,*) nbl
-       !   write(*,*) PL_end(1:nbl)
-       !   open(1001,file='blocks.dat')
-       !   write(1001,*) 1
-       !   do i = 1, nbl       
-       !      write(1001,*) PL_end(i)
-       !   enddo
-       !   close(1001)
-       !endif
     endif
     
     call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
@@ -219,11 +230,11 @@ contains
 
     !print*, '(init NEGF) done'
 
-  end subroutine init_negf
+  end subroutine read_negf_in
 !--------------------------------------------------------------------
 
   subroutine negf_version(negf)
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
     !character(3), parameter :: SVNVER= __SVNREVISION 
     !character(3),parameter :: MODIF= __MODIFIED 
     character(3), parameter :: GITVER= __GITREVISION 
@@ -236,7 +247,7 @@ contains
 
 !--------------------------------------------------------------------
    subroutine negf_partition_info(negf)
-      type(Tnegf), pointer :: negf
+      type(Tnegf) :: negf
        
       integer :: i
 
@@ -256,7 +267,7 @@ contains
 
 !--------------------------------------------------------------------
   subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
     Integer :: ncont, nbl
     Integer, dimension(:) :: PL_end, cont_end, surf_end, cblk
 
@@ -266,7 +277,7 @@ contains
 
 !--------------------------------------------------------------------
   subroutine destroy_negf(negf)
-    type(Tnegf), pointer :: negf   
+    type(Tnegf) :: negf   
 
     call destroy_matrices(negf)
 
@@ -283,7 +294,7 @@ contains
 !--------------------------------------------------------------------
 
   subroutine destroy_matrices(negf)
-    type(Tnegf), pointer :: negf   
+    type(Tnegf) :: negf   
     integer :: i
 
     if (allocated(negf%H%nzval)) then
@@ -338,7 +349,7 @@ contains
   !                    +-----+--+--+--+
   !-------------------------------------------------------------------------------
   subroutine compute_density_dft(negf)
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     call extract_device(negf)
 
@@ -373,7 +384,7 @@ contains
   !-------------------------------------------------------------------------------
   subroutine extract_compute_density(negf, q)
 
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
     real(dp), dimension(:) :: q
     complex(dp), dimension(:), allocatable :: q_tmp
     type(z_CSR) :: tmp
@@ -424,7 +435,7 @@ contains
   !-------------------------------------------------------------------------------
   subroutine extract_compute_current(negf)
 
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     integer :: flagbkup
 
@@ -479,7 +490,7 @@ contains
   !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
   subroutine write_tunneling_and_dos(negf)
 
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     integer :: Nstep, i, i1, iLDOS, size_ni
     character(6) :: ofKP
@@ -536,7 +547,7 @@ contains
 
   subroutine set_ref_cont(negf)
 
-    type(TNegf), pointer :: negf
+    type(TNegf) :: negf
 
     integer :: nc_vec(1), ncont, minmax
 
@@ -695,6 +706,7 @@ contains
              if(k.lt.rn) then
                 rn = j       
                 nbl = nbl + 1
+                if (nbl.gt.MAXNUMPLs) call errormsg()
                 blks(nbl) = j-1 ! fine del blocco precedente
                 exit
              endif
@@ -734,6 +746,7 @@ contains
           if(k.gt.rn) then  
              rn = j
              nbl = nbl + 1 
+             if (nbl.gt.MAXNUMPLs) call errormsg()
              blks(nbl) = j-1 ! fine del blocco 
              exit
           endif
@@ -745,6 +758,7 @@ contains
     enddo
 
     nbl = nbl + 1
+    if (nbl.gt.MAXNUMPLs) call errormsg()
     blks(nbl) = nrow
 
     ! Sorting blocks
@@ -762,6 +776,17 @@ contains
 
   end subroutine block_partition
 
+!----------------------------------------------------------------------------
+  subroutine errormsg()
+
+     write(*,*) "ERROR: Maximum number of PLs exceeded"
+     write(*,*) "increase the value of MAXNUMPLS in libnegf.F90"
+     write(*,*) "and recompile the library"
+
+     STOP !should rise an exception
+
+  end subroutine errormsg
+ 
 !----------------------------------------------------------------------------
   subroutine find_cblocks(mat ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
     type(z_CSR), intent(in) :: mat

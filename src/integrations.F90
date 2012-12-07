@@ -72,7 +72,7 @@ contains
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
   subroutine compute_dos(negf) 
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Type(z_CSR) ::  Gr
@@ -129,7 +129,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine contour_int_n(negf)
 
-    type(Tnegf), pointer :: negf 
+    type(Tnegf) :: negf
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
@@ -369,7 +369,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine contour_int_p(negf)
 
-    type(Tnegf), pointer :: negf 
+    type(Tnegf) :: negf
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
@@ -580,7 +580,7 @@ contains
   !  
   subroutine contour_int(negf)
   
-     type(Tnegf), pointer :: negf 
+     type(Tnegf) :: negf
      Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
      type(z_CSR) :: GreenR, TmpMt 
   
@@ -860,7 +860,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine real_axis_int(negf)
 
-    type(Tnegf), pointer :: negf 
+    type(Tnegf) :: negf
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
@@ -996,7 +996,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine real_axis_int_n(negf)
 
-    type(Tnegf), pointer :: negf 
+    type(Tnegf) :: negf
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: GreenR, TmpMt 
 
@@ -1197,7 +1197,7 @@ contains
 
   !---------------------------------------------------------------------------
   subroutine test(negf)
-    type(TNegf), pointer :: negf
+    type(Tnegf) :: negf
     type(mesh) :: emesh
     type(elem) :: el
     type(z_CSR) :: Dens, Dens1
@@ -1245,7 +1245,7 @@ contains
 
   recursive subroutine adaptive_int(lev,negf,emesh,el,G,Dens)
     integer, intent(inout) :: lev
-    type(TNegf), pointer :: negf
+    type(TNegf) :: negf
     type(mesh) :: emesh
     type(elem), pointer :: el 
     type(TG_pointer) :: G(3)
@@ -1353,7 +1353,7 @@ contains
 
   !---------------------------------------------------------------------------
   subroutine trapez23(negf,G, Epnt, Dens, error, refine)
-    type(TNegf), pointer :: negf
+    type(TNegf) :: negf
     type(TG_pointer) :: G(3)
     real(dp), intent(in) :: Epnt(3)
     type(z_CSR) :: Dens
@@ -1411,7 +1411,7 @@ contains
   !---------------------------------------------------------------------------
   
   subroutine compute_gless(negf,E,pnt,Gless)
-    type(TNegf), pointer :: negf
+    type(TNegf) ::  negf
     real(dp) :: E
     integer :: pnt
     type(z_CSR) :: Gless
@@ -1540,7 +1540,7 @@ contains
   !------------------------------------------------------------------------------- 
   subroutine compute_current(negf)
     
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     

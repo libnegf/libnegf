@@ -39,7 +39,7 @@ contains
 
   subroutine extract_device(negf)
 
-    Type(Tnegf), pointer :: negf
+    Type(Tnegf) :: negf
 
     Integer :: nmdim
 
@@ -54,7 +54,7 @@ contains
 
   subroutine extract_cont(negf)
 
-    Type(Tnegf), pointer :: negf
+    Type(Tnegf) :: negf
 
     Integer :: i, ncont, i1, i2, j1, j2
     Integer :: cstart(MAXNCONT),cend(MAXNCONT)
