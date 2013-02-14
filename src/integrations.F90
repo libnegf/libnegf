@@ -1801,7 +1801,7 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
      
      ! Each step is devided into substeps in order to
      ! smooth out the Fermi function
-     do while (destep.ge.2*kbT) 
+     do while (destep.ge.kbT/10.d0) 
         N=N+1
         destep=(E2-E1)/N
      enddo
