@@ -241,7 +241,7 @@ CONTAINS
     TYPE(r_CSR) :: sp
 
     IF ((coo%nrow.NE.sp%nrow).OR.(coo%ncol.NE.sp%ncol)) THEN
-       WRITE(*,*) 'WARNING (rcoocsr_st): matrices don''t match'; 
+       STOP 'ERROR (rcoocsr_st): matrices don''t match'; 
     ENDIF
 
     IF (coo%nnz.EQ.0) THEN 
@@ -272,7 +272,7 @@ CONTAINS
     INTEGER :: ierr
 
     IF ((coo%nrow.NE.sp%nrow).OR.(coo%ncol.NE.sp%ncol)) THEN
-       WRITE(*,*) 'WARNING (rcsrcoo_st): matrices don''t match'; 
+       STOP 'ERROR (rcsrcoo_st): matrices don''t match'; 
     ENDIF
 
     IF (sp%nnz.NE.0) THEN 
@@ -300,7 +300,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-       WRITE(*,*) 'WARNING (rcsrdns_st): matrices don''t match'; 
+       STOP 'ERROR (rcsrdns_st): matrices don''t match'; 
     endif
 
     dense%val(:,:)=0.d0
@@ -313,7 +313,7 @@ CONTAINS
     ENDIF
 
     if (ierr.ne.0) then 
-       stop 'Error in rcsrdns routine'
+       stop 'Error in rcsrdns_st routine'
     endif
 
   END SUBROUTINE rcsrdns_st
@@ -334,7 +334,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-       WRITE(*,*) 'WARNING (rcsrdns_st): matrices don''t match'; 
+       STOP 'ERROR (rcsrdns_st): matrices don''t match'; 
     endif
 
     IF (sp%nnz.NE.0) THEN
@@ -350,7 +350,7 @@ CONTAINS
     ENDIF
 
     if (ierr.ne.0) then 
-       stop 'Error in rcsrdns routine'
+       stop 'Error in rcsrdns_st routine'
     endif
 
   END SUBROUTINE rdnscsr_st
@@ -372,8 +372,8 @@ CONTAINS
     integer :: ierr,B_ncol
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
-    if(C_csr%nrow.ne.A_csr%nrow) STOP 'Warning in amub subroutine: nrow differ'
-    if(C_csr%ncol.ne.B_csr%ncol) STOP 'Warning in amub subroutine: ncol differ'
+    if(C_csr%nrow.ne.A_csr%nrow) STOP 'Warning in ramub_st subroutine: nrow differ'
+    if(C_csr%ncol.ne.B_csr%ncol) STOP 'Warning in ramub_st subroutine: ncol differ'
 
     B_ncol=B_csr%ncol
     C_csr%ncol=B_ncol
@@ -384,7 +384,7 @@ CONTAINS
               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
               C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
+    if (ierr.ne.0) write(*,*) 'Error in ramub_st subroutine: exceeding C%nnz dimension'
 
     call log_deallocate(iw)  
 
@@ -404,8 +404,8 @@ CONTAINS
     INTEGER, DIMENSION(:), ALLOCATABLE :: iw 
     INTEGER :: ierr,A_ncol
 
-    IF(A_csr%nrow.NE.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    IF(A_csr%ncol.NE.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    IF(A_csr%nrow.NE.B_csr%nrow) STOP 'Error in rsumcsr subroutine: nrow differ'
+    IF(A_csr%ncol.NE.B_csr%ncol) STOP 'Error in rsumcsr subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -436,7 +436,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in rsumcsr subroutine: exceeding C%nnz dimension'
 
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
@@ -450,7 +450,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in rsumcsr subroutine: exceeding C%nnz dimension'
        call log_deallocate(iw)
 
     ENDIF
@@ -500,8 +500,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
     ierr=0
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in rsumcsrs subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in rsumcsrs subroutine: ncol differ'
 
      IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -531,7 +531,7 @@ CONTAINS
               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
               C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
-    if (ierr.ne.0) write(*,*) 'Error in aplsb subroutine: exceeding C%nnz dimension'
+    if (ierr.ne.0) write(*,*) 'Error in rsumcsrs subroutine: exceeding C%nnz dimension'
     !write(*,*) 'Pre-allocation done'
 
     C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
@@ -549,7 +549,7 @@ CONTAINS
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
     !write(*,*) 'Sum done'
-    if (ierr.ne.0) write(*,*) 'Error in aplsb1 subroutine: exceeding C%nnz dimension'
+    if (ierr.ne.0) write(*,*) 'Error in rsumcsrs subroutine: exceeding C%nnz dimension'
     call log_deallocate(iw)    
 
     ENDIF
@@ -593,12 +593,12 @@ CONTAINS
   logical, ALLOCATABLE, DIMENSION(:) :: iw
 
   allocate(iw(A%ncol),stat=ierr)
-  if(ierr.ne.0) STOP 'RMASK: ALLOCATION FAILED'
+  if(ierr.ne.0) STOP 'RZMASK: ALLOCATION FAILED'
 
   CALL amask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
               M%rowpnt,C%nzval,C%colind,C%rowpnt,iw,C%nnz,ierr)
 
-  IF (ierr.GT.1) STOP 'ERROR IN RMASK: NOT ENOUGH SPACE IN ARRAY C'
+  IF (ierr.GT.1) STOP 'ERROR IN RZMASK: NOT ENOUGH SPACE IN ARRAY C'
 
   deallocate(iw)
 
@@ -628,12 +628,12 @@ CONTAINS
   logical, ALLOCATABLE, DIMENSION(:) :: iw
 
   allocate(iw(A%ncol),stat=ierr)
-  if(ierr.ne.0) STOP 'RMASK: ALLOCATION FAILED'
+  if(ierr.ne.0) STOP 'ZMASK: ALLOCATION FAILED'
 
   CALL zamask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
               M%rowpnt,C%nzval,C%colind,C%rowpnt,iw,C%nnz,ierr)
 
-  IF (ierr.GT.1) STOP 'ERROR IN RMASK: NOT ENOUGH SPACE IN ARRAY C'
+  IF (ierr.GT.1) STOP 'ERROR IN ZMASK: NOT ENOUGH SPACE IN ARRAY C'
 
   deallocate(iw)
 
@@ -719,7 +719,7 @@ CONTAINS
     INTEGER :: ierr
 
     IF(dense%nrow.ne.sp%nrow) THEN
-       STOP 'ERROR in DNSCSR: MATRICES DO NOT MATCH'
+       STOP 'ERROR in zdnscsr_st: MATRICES DO NOT MATCH'
     ENDIF
 
     IF (sp%nnz.NE.0) THEN
@@ -791,7 +791,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-       WRITE(*,*) 'WARNING (zcsrdns_st): matrices don''t match'; 
+       STOP 'ERROR (zcsrdns_st): matrices don''t match'; 
     endif
 
     dense%val(:,:)=(0.d0, 0.d0)
@@ -828,7 +828,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-       WRITE(*,*) 'WARNING (zcsrdns_st): matrices don''t match'; 
+       STOP 'ERROR (zcsrdns_st): matrices don''t match'; 
     endif
 
     IF (sp%nnz.NE.0) THEN
@@ -871,7 +871,7 @@ CONTAINS
     logical :: values
 
     if ((coo%nrow.ne.sp%nrow).or.(coo%ncol.ne.sp%ncol)) then
-       WRITE(*,*) 'WARNING (zcoocsr_st): matrices don''t match'; 
+       STOP 'ERROR (zcoocsr_st): matrices don''t match'; 
     endif
 
     if (coo%nnz.ne.0) then
@@ -906,7 +906,7 @@ CONTAINS
     integer :: ierr
 
     if ((coo%nrow.ne.csr%nrow).or.(coo%ncol.ne.csr%ncol)) then
-       WRITE(*,*) 'WARNING (zcsrcoo_st): matrices don''t match'; 
+       STOP 'ERROR (zcsrcoo_st): matrices don''t match'; 
     endif
 
     if (csr%nnz.ne.0) then
@@ -935,7 +935,7 @@ CONTAINS
     integer :: job, ipos
 
     if ((A_csr%nrow.ne.A_csc%nrow).or.(A_csr%ncol.ne.A_csc%ncol)) then
-       WRITE(*,*) 'WARNING (zcsrcsc_st): matrices don''t match'; 
+       STOP 'ERROR (zcsrcsc_st): matrices don''t match'; 
     endif
 
     IF (A_csr%nnz.NE.0) THEN
@@ -971,7 +971,7 @@ CONTAINS
     integer :: job, ipos
 
     if ((A_csr%nrow.ne.A_csc%nrow).or.(A_csr%ncol.ne.A_csc%ncol)) then
-       WRITE(*,*) 'WARNING (zcsrcsc_st): matrices don''t match'; 
+       STOP 'ERROR (zcsrcsc_st): matrices don''t match'; 
     endif
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1193,7 +1193,7 @@ CONTAINS
 
        call log_deallocate(iwk)
        if (ierr.ne.0) then
-          write(*,*) 'WARNING: error in transp subroutine'
+          write(*,*) 'WARNING: error in ztransp_st subroutine'
        endif
   
     endif
@@ -1252,8 +1252,7 @@ CONTAINS
     nc=j2-j1+1
 
     IF ((Asub_csr%nrow.NE.nr).OR.(Asub_csr%ncol.NE.nc)) THEN
-       WRITE(*,*) 'WARNING (zsubmat_csr): matrix doesn''t match';
-       WRITE(*,*) 'A_csr%nrow is',A_csr%nrow,' - nr is ',nr
+       STOP 'ERROR (zsubmat_st): matrix doesn''t match';
     ENDIF
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1280,7 +1279,7 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr
 
     IF ((A_csr%nrow.NE.B_csr%nrow).OR.(A_csr%ncol.NE.B_csr%ncol).OR.(A_csr%nnz.NE.B_csr%nnz)) THEN
-       WRITE(*,*) 'WARNING (zcopmat_st): matrices don''t match';
+       STOP 'ERROR (zcopmat_st): matrices don''t match';
     ENDIF
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1319,8 +1318,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
 
-    if(C_csr%nrow.ne.A_csr%nrow) STOP 'Warning in amub subroutine: nrow differ'
-    if(C_csr%ncol.ne.B_csr%ncol) STOP 'Warning in amub subroutine: ncol differ'
+    if(C_csr%nrow.ne.A_csr%nrow) STOP 'Warning in zamub_st subroutine: nrow differ'
+    if(C_csr%ncol.ne.B_csr%ncol) STOP 'Warning in zamub_st subroutine: ncol differ'
 
     !Allocazione work array iw
 
@@ -1331,7 +1330,7 @@ CONTAINS
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
+    if (ierr.ne.0) write(*,*) 'Error in zamub_st subroutine: exceeding C%nnz dimension'
 
     call log_deallocate(iw)  
 
@@ -1356,8 +1355,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw 
 
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in zaplb_st subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in zaplb_st subroutine: ncol differ'
 
     !Allocazione work array iw
     A_ncol=A_csr%ncol
@@ -1369,7 +1368,7 @@ CONTAINS
     call zaplb (A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                 B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
                 C_csr%rowpnt,C_csr%nnz,iw,ierr)
-	
+
     if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
 
     call log_deallocate(iw)  
@@ -1415,7 +1414,7 @@ CONTAINS
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
+    if (ierr.ne.0) write(*,*) 'Error in zcplsamub_st subroutine: exceeding C%nnz dimension'
 
     call log_deallocate(iw)  
 
@@ -1464,7 +1463,7 @@ CONTAINS
                C_csr%rowpnt,A_csr%nrow*B_ncol,iw,ierr)
 
     if (ierr.gt.0) then 
-       STOP 'Error in pre_amub, C_csr%colind is too short'
+       STOP 'Error in nnz_mult, C_csr%colind is too short'
     endif
 
     call log_deallocate(C_csr%nzval)
@@ -1520,7 +1519,7 @@ CONTAINS
                 C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
     if (ierr.gt.0) then 
-       STOP 'Error in pre_aplb, C_csr%colind is too short'
+       STOP 'Error in nnz_sum, C_csr%colind is too short'
     endif
 
     C_nnz=C_csr%rowpnt(A_csr%nrow+1)-1
@@ -1579,7 +1578,7 @@ CONTAINS
                  rowpnt,A_csr%nrow*A_ncol,ierr)
 
     if (ierr.gt.0) then 
-       STOP 'Error in pre_aplb1, C_csr%colind is too short'
+       STOP 'Error in nnz_sum1, C_csr%colind is too short'
     endif
 
     C_nnz=rowpnt(A_csr%nrow+1)-1
@@ -1622,7 +1621,7 @@ CONTAINS
     !Check i1, i2, j1, j2 validity
     if ((i1.lt.1).or.(i2.gt.A_csr%nrow).or.(j2.lt.j1) &
         & .or.(i2.lt.i1).or.(j1.lt.1).or.(j2.gt.A_csr%ncol)) then
-       STOP 'Error in check_nzval: wrong row or column specification'
+       STOP 'Error in zcheck_nnz: wrong row or column specification'
     endif
 
     nnz=0
@@ -1722,8 +1721,7 @@ CONTAINS
 
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-       WRITE(*,*) 'WARNING (zmult_csr): matrices don''t match';
-       WRITE(*,*) 'A%ncol=',A_csr%ncol,'B%nrow=',B_csr%nrow       
+       STOP 'ERROR (zmultcsr): matrices don''t match';
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0)) THEN
@@ -1747,7 +1745,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,rowpnt,&
             A_csr%nrow*B_ncol,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zmultcsr subroutine: exceeding C%nnz dimension'
 
        !Riallocazioni esatte di C_csr
        call log_deallocate(colind)
@@ -1766,7 +1764,7 @@ CONTAINS
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-          if (ierr.ne.0) write(*,*) 'Error in amub subroutine: exceeding C%nnz dimension'
+          if (ierr.ne.0) write(*,*) 'Error in zmultcsr subroutine: exceeding C%nnz dimension'
 
        else
 
@@ -1809,8 +1807,7 @@ CONTAINS
 
     integer, DIMENSION(:), ALLOCATABLE :: iw 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-       WRITE(*,*) 'WARNING (zmultccsr): matrices don''t match';
-       WRITE(*,*) 'A%ncol=',A_csr%ncol,'B%nrow=',B_csr%nrow  
+       STOP 'ERROR (zmultccsr): matrices don''t match';
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -1857,7 +1854,7 @@ CONTAINS
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
           if (ierr.ne.0) &
-               write(*,*) 'Error in zamubs subroutine: exceeding C%nnz dimension'
+               write(*,*) 'Error in zmultcsrs subroutine: exceeding C%nnz dimension'
 
        else
 
@@ -1899,7 +1896,7 @@ CONTAINS
     complex(dp) :: beta
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zmultdns): matrices don''t match';
+       STOP 'ERROR (zmultdns): matrices don''t match';
     ENDIF
 
     M = A_dns%nrow
@@ -1908,7 +1905,7 @@ CONTAINS
     
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+         STOP 'ERROR (zmultdns): C allocated with wrong size'
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
@@ -1945,7 +1942,7 @@ CONTAINS
     complex(dp) :: beta
 
     IF (size(A,2).NE.size(B,1)) THEN
-       WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
+       STOP 'ERROR (zmatmul): matrices don''t match';
     ENDIF
 
     M = size(A,1)
@@ -1954,7 +1951,7 @@ CONTAINS
 
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+         STOP 'ERROR (zmatmul): C allocated with wrong size'
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
@@ -1992,7 +1989,7 @@ CONTAINS
     complex(dp) ::  beta
 
     IF (size(A,2).NE.size(B,1)) THEN
-       WRITE(*,*) 'WARNING (zmatmul): matrices don''t match';
+       STOP 'ERROR (zmatmuls): matrices don''t match';
     ENDIF
 
     M = size(A,1)
@@ -2002,7 +1999,7 @@ CONTAINS
     !L = size(B,1) = K)
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-         STOP 'ERROR (zmultdnss): C allocated with wrong size'
+         STOP 'ERROR (zmatmuls): C allocated with wrong size'
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
@@ -2079,8 +2076,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw 
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in zsumcsr subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in zsumcsr subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2111,7 +2108,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zsumcsr subroutine: exceeding C%nnz dimension'
 
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
@@ -2125,7 +2122,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zsumcsr subroutine: exceeding C%nnz dimension'
 
        call log_deallocate(iw)
 
@@ -2148,8 +2145,8 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in zsumcsr1 subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in zsumcsr1 subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2177,7 +2174,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,A_csr%nrow*A_ncol,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb1 subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zsumcsr1 subroutine: exceeding C%nnz dimension'
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
        call log_deallocate(C_csr%nzval)
@@ -2190,7 +2187,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
             C_csr%rowpnt,C_csr%nnz,ierr)
 
-       if (ierr.ne.0) write(*,*) 'Error in aplb1 subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zsumcsr1 subroutine: exceeding C%nnz dimension'
 
     ENDIF
 
@@ -2286,8 +2283,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in zsumcsrs1s2 subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in zsumcsrs1s2 subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2381,7 +2378,7 @@ CONTAINS
     type(z_DNS) :: A_dns,B_dns,C_dns
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zsumdns): matrices don''t match';
+       STOP 'ERROR (zsumdns): matrices don''t match';
     ENDIF
   
 
@@ -2400,7 +2397,7 @@ CONTAINS
     complex(dp) :: s
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zsumdns): matrices don''t match';
+       STOP 'ERROR (zsumdns): matrices don''t match';
     ENDIF
 
 
@@ -2419,7 +2416,7 @@ CONTAINS
     complex(dp) :: s1,s2
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-       WRITE(*,*) 'WARNING (zsumdnss1s2): matrices don''t match';
+       STOP 'ERROR (zsumdnss1s2): matrices don''t match';
     ENDIF
 
 
@@ -2459,7 +2456,7 @@ CONTAINS
     integer :: nnz 
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       WRITE(*,*) 'WARNING (zextract): bad indeces specification';
+       STOP 'ERROR (zextract_csr): bad indeces specification';
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2, 0);
@@ -2485,7 +2482,7 @@ CONTAINS
     integer :: i,k
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       WRITE(*,*) 'WARNING (zextract_dns): bad indeces specification';
+       STOP 'ERROR (zextract_dns): bad indeces specification';
     ENDIF
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
@@ -2531,7 +2528,7 @@ CONTAINS
     INTEGER :: i1,j1
     
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
-       STOP 'Warning in concat_st: A_csr is to small, B_csr exceeds rows'
+       STOP 'Warning in zconcat_csr: A_csr is to small, B_csr exceeds rows'
     ENDIF
 
     IF (B_csr%nnz.eq.0) RETURN
@@ -2599,7 +2596,7 @@ CONTAINS
     COMPLEX(kind=dp) :: s
 
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
-       STOP 'Warning in concat_st: A_csr is to small, B_csr exceeds rows'
+       STOP 'Warning in zconcatm_csr: A_csr is to small, B_csr exceeds rows'
     ENDIF
 
     IF (B_csr%nnz.EQ.0) RETURN
@@ -2672,7 +2669,7 @@ CONTAINS
     COMPLEX(kind=dp) :: s
 
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
-       STOP 'Warning in concat_st: A_csr is to small, B_csr exceeds rows'
+       STOP 'Warning in zrconcatm_csr: A_csr is to small, B_csr exceeds rows'
     ENDIF
 
     IF (B_csr%nnz.EQ.0) RETURN
