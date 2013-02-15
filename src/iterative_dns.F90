@@ -709,7 +709,7 @@ Ec=cmplx(E,0.d0,dp)
        Matrix(j,j-1)%val=(0.d0,0.d0)
     ENDDO
     IF (nbl.gt.1) then
-       call create(Matrix(nbl,nbl),S(1,1)%nrow,S(1,1)%ncol)      
+       call create(Matrix(nbl,nbl),S(nbl,nbl)%nrow,S(nbl,nbl)%ncol)      
        Matrix(nbl,nbl)%val=(0.d0,0.d0)
     ENDIF
 
