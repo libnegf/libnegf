@@ -30,16 +30,16 @@ MODULE sparsekit_drv
   public :: dns2csr, csr2dns, coo2csr, csr2coo, csr2csc, csc2dns, dns2csc
   public :: clone, extract, concat, msort, mask
   public :: prealloc_sum, prealloc_mult
-  public :: check_nnz, nzdrop, trace, getelment
+  public :: check_nnz, nzdrop, getdiag, trace, getelement
   public :: check_if_hermitian
 
   public :: zsumcsr1
   public :: ramub_st
   public :: zprint_csrdns, zprint_csrcoo, ziluk_st, ztransp_st, ztransp2_st
-  public :: zsubmat_st, zcopmat_st, zamub_st, zaplb_st, zcplsamub_st, zpre_amub
-  public :: zpre_aplb 
+  public :: zsubmat_st, zcopymat_st, zamub_st, zaplb_st, zcplsamub_st
+   
   public :: zdagger, zspectral
-  public :: zgetdiag, zmask_realloc
+  public :: zmask_realloc
 
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
   private :: rcoocsr_st, rcsrcoo_st, rcsrdns_st, zdnscsr_st, zdnscsc_st, zcooxcsr_st
@@ -49,7 +49,7 @@ MODULE sparsekit_drv
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs 
 
-  external :: zcsort, csort, amask, zamask,  getelm
+  external :: zcsort, csort, amask, zamask,  getelm, zgetelm
   !public :: rprint_csrdns
   
 
@@ -103,7 +103,7 @@ MODULE sparsekit_drv
   !zdagacsr(A,B)                 :: preallocates B = Hermitian conjugate of A
   !ztransp2_st(A_csr,B_csr)     ::  B = A^T
 
-  !zgetdiag(A,D,nrow)            :: A CSR matrix, D vector of size nrow
+  !getdiag(A,D)            :: A CSR matrix, D vector of size nrow
 
   !zextract(A,r1,r2,c1,c2,S)     :: preallocates sub-block and extracts
 
@@ -159,6 +159,7 @@ MODULE sparsekit_drv
      !module procedure rmask
      module procedure zmask
      module procedure rzmask
+     module procedure zmask_dns
   end interface
   interface prealloc_sum
      module procedure rsumcsr
@@ -193,12 +194,17 @@ MODULE sparsekit_drv
   interface check_nnz
      module procedure zcheck_nnz
   end interface
+  interface getdiag
+     module procedure getdiag_csr
+     module procedure rgetdiag_csr
+  end interface
   interface trace
      module procedure ztrace_csr
      module procedure ztrace_dns
   end interface
-  interface getelment
-     module procedure getelm_csr
+  interface getelement
+     module procedure rgetelm_csr
+     module procedure zgetelm_csr
   end interface
   interface zdagger
      module procedure zdagacsr   
@@ -566,12 +572,15 @@ CONTAINS
 
   implicit none
 
-  TYPE(r_cSR) :: A
+  TYPE(r_CSR) :: A
   INTEGER, DIMENSION(:), ALLOCATABLE :: iwork
 
-  CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
-  CALL csort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
-  call log_deallocate(iwork)  
+   if (.not.A%sorted) then
+     CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
+     CALL csort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
+     call log_deallocate(iwork)  
+     A%sorted=.true.
+   endif  
 
   end subroutine rcsort_st
 
@@ -639,6 +648,29 @@ CONTAINS
 
   END SUBROUTINE zmask
 
+  !*************************************************************************
+  ! Mask of dense matrix (set elements to 0.0)
+  !*************************************************************************
+  SUBROUTINE zmask_dns(A,M)
+
+  implicit none
+
+  TYPE(z_DNS) :: M
+  TYPE(z_DNS) :: A
+
+  INTEGER :: i, k
+       
+   if(A%nrow .ne. M%nrow .and. A%ncol.ne.M%ncol) then
+     STOP 'ERROR (zmask_dns): Matrices do not match'     
+   endif 
+
+   do i = 1, A%ncol
+     do k = 1, A%nrow
+       if(abs(M%val(k,i)).eq.0.0_dp) A%val(k,i)=cmplx(0.0_dp,0.0_dp)
+     enddo
+   enddo
+
+  END SUBROUTINE zmask_dns
 
   !**********************************************************************
   !
@@ -2850,7 +2882,6 @@ CONTAINS
     type(z_DNS) :: GreenR1, GreenR2, GreenA, A
     integer :: flagR
 
-    integer :: i
     
     !Hermitiano di GreenR2 passato in GreenA
     call zdagger(GreenR2,GreenA)
@@ -2879,9 +2910,12 @@ CONTAINS
   TYPE(z_cSR) :: A
   INTEGER, DIMENSION(:), ALLOCATABLE :: iwork
 
-  CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
-  CALL zcsort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
-  call log_deallocate(iwork)  
+   if (.not.A%sorted) then
+     CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
+     CALL zcsort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
+     call log_deallocate(iwork)  
+     A%sorted = .true.
+   endif
 
   end subroutine zcsort_st
   
@@ -2967,11 +3001,12 @@ end subroutine zcooxcsr_st
   !------------------------------------------------------------------------
   
   subroutine zcooxcsr(nrow,nnz,a,ir,jc,lp,ao,jao,iao)
-    
+    integer  :: nrow,nnz 
     complex(8)  :: a(*),ao(*),x
     integer     :: ir(*),jc(*),jao(*),iao(*)
     logical     :: lp(*)
 
+    integer :: l, k, j, k0, i, iad
     
     do k=1,nrow+1  
       iao(k) = 0
@@ -3029,7 +3064,7 @@ end subroutine zcooxcsr_st
   end subroutine zcooxcsr
   !------------- end of coocsr ------------------------------------------- 
   !----------------------------------------------------------------------- 
-  subroutine zgetdiag(A_csr,D_vec)
+  subroutine getdiag_csr(A_csr,D_vec)
 
     !************************************************************************
     !
@@ -3048,7 +3083,7 @@ end subroutine zcooxcsr_st
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       STOP 'Error in zgetdiag. D_vec has dimension lower than nrow'
+       STOP 'Error in getdiag_csr. D_vec has dimension lower than nrow'
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3058,8 +3093,39 @@ end subroutine zcooxcsr_st
 
     call log_deallocate(idiag)
 
-  end subroutine zgetdiag
+  end subroutine getdiag_csr
 
+ !----------------------------------------------------------------------- 
+  subroutine rgetdiag_csr(A_csr,D_vec)
+
+    !************************************************************************
+    !
+    !Input:
+    !A_csr: matrice di partenza in forma sparsa csr
+    !D_vec: vector of dimension nrow
+    !
+    !****************************************************************************
+
+    implicit none
+
+    type(r_CSR) :: A_csr
+    real(kind=dp), dimension(:) :: D_vec
+
+    integer :: len
+    integer, allocatable, dimension(:) :: idiag
+
+    IF(SIZE(D_vec).lt.A_csr%nrow) THEN
+       STOP 'Error in getdiag. D_vec has dimension lower than nrow'
+    ENDIF
+
+    call log_allocate(idiag,A_csr%nrow)
+
+    call getdia(A_csr%nrow,A_csr%ncol,0,A_csr%nzval,A_csr%colind, &
+                 A_csr%rowpnt,len,D_vec,idiag,0)
+
+    call log_deallocate(idiag)
+
+  end subroutine rgetdiag_csr  
   !---------------------------------------------
     
   function ztrace_csr(mat) result(trace)
@@ -3095,15 +3161,30 @@ end subroutine zcooxcsr_st
 
 !---------------------------------------------
 
-  function getelm_csr(i1,i2,Grm) result(getelm_out)
+  function rgetelm_csr(i1,i2,Grm) result(getelm_out)
     type(r_CSR) :: Grm
     integer :: i1, i2, iadd
     real(dp) :: getelm_out, getelm
-    
-    getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
-    
-  end function getelm_csr
+   
+    if (Grm%sorted) then 
+      getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
+    else
+      getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
+    endif
+  end function rgetelm_csr
 
+  function zgetelm_csr(i1,i2,Grm) result(getelm_out)
+    type(z_CSR) :: Grm
+    integer :: i1, i2, iadd
+    complex(dp) :: getelm_out, zgetelm
+    
+    if (Grm%sorted) then 
+      getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
+    else
+      getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
+    endif
+
+  end function zgetelm_csr
 !---------------------------------------------
          
   SUBROUTINE check_if_hermitian(ham)
