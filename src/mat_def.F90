@@ -119,6 +119,7 @@ Type z_CSR
   integer :: nnz
   integer :: nrow 
   integer :: ncol
+  logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
   integer, DIMENSION(:), ALLOCATABLE :: colind
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt
@@ -130,6 +131,7 @@ Type z_CSC
   integer :: nnz
   integer :: nrow 
   integer :: ncol
+  logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: rowind 
   integer, DIMENSION(:), ALLOCATABLE :: colpnt 
@@ -141,6 +143,7 @@ Type z_MSR
   integer :: nnz
   integer :: nrow
   integer :: ncol
+  logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: index 
 end Type z_MSR
@@ -188,6 +191,7 @@ Type r_CSR
   integer :: nnz
   integer :: nrow
   integer :: ncol
+  logical :: sorted
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
   integer, DIMENSION(:), ALLOCATABLE :: colind 
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
@@ -199,6 +203,7 @@ Type r_CSC
   integer :: nnz
   integer :: nrow 
   integer :: ncol
+  logical :: sorted
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: rowind 
   integer, DIMENSION(:), ALLOCATABLE :: colpnt 
@@ -210,6 +215,7 @@ Type r_MSR
   integer :: nnz
   integer :: ncol
   integer :: nrow
+  logical :: sorted
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: index 
 end Type r_MSR
@@ -243,6 +249,7 @@ subroutine zcreate_pCSR(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
 
   if(nnz.ne.0) then
      call log_allocate(mat%nzval,nnz)
@@ -261,6 +268,7 @@ subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
 
   if(nnz.ne.0) then
      call log_allocate(mat%nzval,nnz)
@@ -588,6 +596,7 @@ subroutine zcreate_CSC(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
   if(nnz.ne.0) then
      call log_allocate(mat%nzval,nnz)
      call log_allocate(mat%rowind,nnz)
@@ -731,6 +740,7 @@ subroutine zcreate_MSR(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
   if(nnz.ne.0) then
      call log_allocate(mat%nzval,nnz+1)
      call log_allocate(mat%index,nnz+1)
@@ -1082,6 +1092,7 @@ subroutine rcreate_CSR(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
   if(nnz.ne.0) then
      call log_allocate(mat%nzval,nnz)
      call log_allocate(mat%colind,nnz)
@@ -1259,6 +1270,7 @@ subroutine rcreate_CSC(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
   if (nnz.ne.0) then
      call log_allocate(mat%nzval,nnz)
      call log_allocate(mat%rowind,nnz)
@@ -1306,6 +1318,7 @@ subroutine rcreate_MSR(mat,nrow,ncol,nnz)
   mat%nnz=nnz
   mat%nrow=nrow
   mat%ncol=ncol
+  mat%sorted = .false.
   if (nnz.ne.0) then
      call log_allocate(mat%nzval,nnz+1)
      call log_allocate(mat%index,nnz+1)

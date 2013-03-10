@@ -3742,9 +3742,9 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
     ! Local variables
     Type(z_CSR) :: ESH_tot, GrCSR
-    Type(z_DNS) :: SelfEner_d 
     Type(z_DNS), Dimension(:,:), allocatable :: ESH
-    Type(r_CSR) :: Grm                          ! Green Retarded nella molecola           
+    Type(r_CSR) :: Grm                          ! Green Retarded nella molecola          
+    real(dp), dimension(:), allocatable :: diag    
     Real(dp) :: tun
     Complex(dp) :: zc
     Integer :: ni(MAXNCONT)
@@ -3823,23 +3823,19 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        call destroy(GrCSR)
     enddo
 
-    !Sort Grm for fast trace   
-    call msort(Grm)
-
     !Compute LDOS on the specified intervals
-    do iLDOS=1,nLDOS
-
-       if( LDOS(2,iLDOS).le.str%central_dim ) then
-
-          do i2 = LDOS(1,iLDOS), LDOS(2,iLDOS)
-
-             LEDOS(iLDOS)=LEDOS(iLDOS) + getelment(i2,i2,Grm)
-
-          enddo
-
-       endif
-
-    enddo
+    if (nLDOS.gt.0) then
+       call log_allocate(diag, Grm%nrow)
+       call getdiag(Grm,diag)
+       do iLDOS=1,nLDOS
+          if( LDOS(2,iLDOS).le.str%central_dim ) then
+             do i2 = LDOS(1,iLDOS), LDOS(2,iLDOS)
+                LEDOS(iLDOS)=LEDOS(iLDOS) + diag(i2)
+             enddo
+          endif
+       enddo
+       call log_deallocate(diag)
+    endif        
 
     call destroy(Grm)
 
