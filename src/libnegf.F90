@@ -28,7 +28,6 @@ module libnegf
  use mpi_globals, only : id, numprocs, id0
  use input_output
  use ln_structure
- !use sparsekit_drv
  use rcm_module
  use mat_def
  use ln_extract
@@ -41,7 +40,8 @@ module libnegf
  public :: init_negf, destroy_negf
  public :: set_H, set_S, read_HS
  public :: read_negf_in
- public :: negf_version, destroy_matrices
+ public :: negf_version 
+ public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S,rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly 
  public :: negf_partition_info  !write down partition info
@@ -69,6 +69,8 @@ module libnegf
  public :: write_current, write_tunneling_and_dos
  public :: reorder, sort, swap            ! not used 
  public :: printcsr   ! debugging routines
+ public :: printcsrij   ! debugging routines
+ public :: getel   ! debugging routines
 
  integer, PARAMETER :: VBT=70
  integer, PARAMETER :: MAXNUMPLs = 10000
@@ -207,7 +209,7 @@ contains
   !--------------------------------------------------------------------
    subroutine read_negf_in(negf)
     type(Tnegf) :: negf
-    Integer :: ncont, nbl, i
+    Integer :: ncont, nbl
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
 
     open(101, file=negf%file_struct, form='formatted')  
@@ -439,7 +441,6 @@ contains
     type(Tnegf) :: negf
     real(dp), dimension(:) :: q
     complex(dp), dimension(:), allocatable :: q_tmp
-    type(z_CSR) :: tmp
 
     integer :: k
 
@@ -469,7 +470,7 @@ contains
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
 
-       call zgetdiag(negf%rho, q_tmp)
+       call getdiag(negf%rho, q_tmp)
 
        do k = 1, size(q)
           q(k) = real(q_tmp(k))
@@ -488,15 +489,15 @@ contains
   subroutine compute_current(negf)
 
     type(Tnegf) :: negf
-
+    
     integer :: flagbkup
 
     call extract_device(negf)
     
     call extract_cont(negf)
     
+    flagbkup = negf%readOldSGF
     if (negf%readOldSGF.ne.1) then
-       flagbkup = negf%readOldSGF
        negf%readOldSGF = 1
     end if
 
@@ -849,7 +850,7 @@ contains
     integer, dimension(:), intent(in) :: surf_end
     integer, dimension(:), intent(inout) :: cblk
 
-    integer :: j1,k,i,min,max, cbl
+    integer :: j1,k,i,min,max
     integer, dimension(:), allocatable :: PL_start
 
     call log_allocate(PL_start,nbl)
@@ -975,5 +976,23 @@ contains
     
     call zprint_csrcoo(id, mat, 'c')
   end subroutine printcsr
+
+  subroutine printcsrij(id, mat, i, j)
+    integer :: id
+    type(z_csr) :: mat
+    integer :: i, j
+
+    write(id,*) i,j,getelement(i,j,mat)
+
+  end subroutine printcsrij
+
+  function getel(mat,i,j) result(el)
+    type(z_csr) :: mat
+    integer :: i, j
+    complex(dp) :: el
+    
+    el = getelement(i,j,mat)
+
+  end function getel
 
 end module libnegf

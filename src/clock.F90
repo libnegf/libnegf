@@ -25,7 +25,8 @@ module clock
   private
   
  integer, PARAMETER :: NMAXCLKS=5
- integer, public, save :: t1(NMAXCLKS),t2(NMAXCLKS),cr,cm,nclks=0
+ integer, public, save :: t1(NMAXCLKS),t2(NMAXCLKS),cr,cm,nclks=0,cpos=0
+ logical, public, save :: sus(NMAXCLKS)=.false.
 
  public :: message_clock, set_clock, write_clock
  
@@ -41,9 +42,16 @@ contains
    write(str_mess,'(I2)') l_mess
    write(str_dots,'(I2)') 54-l_mess
 
+   if (nclks.gt.0 .and. cpos.gt.0) then
+       write(6,*)
+       sus(nclks) = .true.
+   endif
+
    write(6,FMT='(A'//str_mess//','//str_dots//'("."))',ADVANCE='NO') message 
-   
+
    call flush(6)
+
+   cpos=54
 
    call set_clock
 
@@ -62,15 +70,17 @@ contains
  subroutine write_clock
 
    if (nclks.gt.0) then
+      if (sus(nclks)) then
+         write(6,FMT='(54("."))',ADVANCE='NO')  
+         sus(nclks)=.false.
+      endif   
       call SYSTEM_CLOCK(t2(nclks),cr,cm) 
       write(6,*) (t2(nclks)-t1(nclks))*1.0/cr,"sec"
       nclks=nclks-1
+      cpos=0
    endif
 
  end subroutine write_clock
-
-
- 
 
 
 end module clock

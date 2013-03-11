@@ -253,7 +253,7 @@ contains
     negf%H%nzval = H%nzval
     negf%H%colind = H%colind
     negf%H%rowpnt = H%rowpnt
-          
+    negf%H%sorted = H%sorted      
 
     if (present(S)) then
        negf%isSid=.false.
@@ -261,6 +261,7 @@ contains
        negf%S%nzval = S%nzval
        negf%S%colind = S%colind
        negf%S%rowpnt = S%rowpnt
+       negf%S%sorted = S%sorted      
     else
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 

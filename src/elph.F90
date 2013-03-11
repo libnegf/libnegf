@@ -50,15 +50,23 @@ module elph
     logical :: Selfene_Gr
     logical :: Selfene_Gless
     logical :: Selfene_Hilb
+    logical :: memory
+    logical :: check
   end type Telph
 
 contains
 
-  subroutine init_elph(elph)
+  subroutine init_elph(elph,nummodes)
     Type(Telph) :: elph
-    
-    elph%nummodes = 0
-    elph%numselmodes = 0
+    integer, optional :: nummodes
+
+    if (present(nummodes)) then
+       elph%nummodes = nummodes
+       elph%numselmodes = nummodes
+    else
+       elph%nummodes = 0
+       elph%numselmodes = 0
+    endif
     elph%scba_iterations = 0 ! starts from 0  
     elph%scba_iter = 0       ! initialize at 0
 
@@ -76,16 +84,18 @@ contains
       call log_allocatep(elph%Nq, elph%nummodes)
       call log_allocatep(elph%Mq, elph%nummodes)
  
-      elph%Wq(1) = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
-      elph%Nq(1) = 0.0_dp              ! should be bose-einstain
-      elph%Mq(1) = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
-      elph%selmodes(1) = .true.
+      elph%Wq = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
+      elph%Nq = 0.0_dp              ! should be bose-einstain
+      elph%Mq = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
+      elph%selmodes = .true.
  
       elph%diagonal = .true.
       elph%Selfene_Gr = .true.
       elph%Selfene_Gless = .true.
       elph%Selfene_Hilb = .true.
-    
+      
+      elph%memory = .true.
+      elph%check = .false. 
     endif
 
   end subroutine init_elph

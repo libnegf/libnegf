@@ -77,9 +77,8 @@ contains
 
     complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co
     type(z_DNS) :: gt
-    complex(kind=dp) :: mat_el
 
-    integer :: i,i1,i2,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
+    integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
     integer :: ncyc,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
@@ -392,7 +391,7 @@ contains
 
     Type(z_DNS) :: TpMt
 
-    Integer :: nbl, ncont, l, i
+    Integer :: nbl, ncont, i
     Real(dp) :: ncyc, avncyc
 
     nbl = pnegf%str%num_PLs
