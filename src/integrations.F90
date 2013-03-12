@@ -1099,7 +1099,7 @@ contains
           endif
 
           if (negf%writeLDOS) then
-             call zgetdiag(GreenR, q_tmp) 
+             call getdiag(GreenR, q_tmp) 
              do i1 = 1,negf%str%central_dim
                 write(2001,'((ES14.5))', advance='NO') -real(q_tmp(i1))
              enddo

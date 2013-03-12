@@ -3136,7 +3136,7 @@ end subroutine zcooxcsr_st
     
     call log_allocate(D_vec,mat%nrow)
 
-    call zgetdiag(mat,D_vec)
+    call getdiag(mat,D_vec)
 
     trace = sum(D_vec)
 
