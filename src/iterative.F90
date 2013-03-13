@@ -2130,7 +2130,7 @@ CONTAINS
     Real(kind=dp) :: tun
     Integer :: ni(MAXNCONT)
     Integer :: nf(MAXNCONT)
-    Integer :: nbl,ncont,size_ni
+    Integer :: i,icpl,nit,nft,nbl,ncont,size_ni,ierr
 
     nbl = str%num_PLs
     ncont = str%num_conts
