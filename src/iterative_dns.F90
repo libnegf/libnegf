@@ -287,12 +287,12 @@ CONTAINS
     !Work
     INTEGER :: ref
     COMPLEX(dp) :: Ec
-    INTEGER :: i,ierr,i1,ncont,nbl, lbl
+    INTEGER :: i,ierr,ncont,nbl, lbl
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Gn
     TYPE(z_CSR) :: ESH_tot, Gl
-    LOGICAL :: destr, mask(MAXNCONT)
+    LOGICAL :: mask(MAXNCONT)
 
     nbl = struct%num_PLs
     ncont = struct%num_conts
