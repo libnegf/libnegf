@@ -785,7 +785,7 @@ end subroutine rinv
     Type(z_DNS) :: G11,G12,G21,G22
     Type(z_dns) :: h11,gr22
     Type(z_DNS) :: work1,work2,work4
-    Integer :: bl1, b22, n2, k
+    Integer :: bl1, b22, n2
     Integer, parameter :: maxiter=2
 
     if (n.le.10) then
@@ -872,7 +872,7 @@ end subroutine rinv
     Type(z_DNS) :: G33,G13,G23,G32,G31
     Type(z_dns) :: h22,gr11,gr33
     Type(z_DNS) :: work1,work2,work3,work4
-    Integer :: n, bl1, bl2, bl3, n2
+    Integer :: n, bl1, bl2, bl3, n2, n3
 
     !bl1 = n/3
     !bl2 = n/3
