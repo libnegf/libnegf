@@ -479,14 +479,13 @@ INTEGER :: out
 
 !Work
 COMPLEX(dp) :: Ec
-INTEGER :: i,ierr,i1,ncont,nbl, lbl
+INTEGER :: i,ierr,ncont,nbl, lbl
 INTEGER :: ref, iter
 INTEGER, DIMENSION(:), POINTER :: cblk, indblk
 TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
 TYPE(z_CSR) :: ESH_tot, Gl
-LOGICAL :: destr, mask(MAXNCONT)
+LOGICAL :: mask(MAXNCONT)
 TYPE(Tstruct_info) :: struct
-REAL(dp) :: Iloc
 REAL(dp), DIMENSION(:), allocatable :: cfrm
 
 struct = pnegf%str
@@ -1637,9 +1636,9 @@ Ec=cmplx(E,0.d0,dp)
     !Work
     Type(z_DNS) :: Gam
     TYPE(z_DNS) :: work1,Ga
-    INTEGER :: ierr,i,j,cb
+    INTEGER :: i,j,cb
     INTEGER :: ncont, nbl
-    INTEGER :: oldx, row, col, iy, ix, x, y, ii, jj
+    !INTEGER :: oldx, row, col, iy, ix, x, y, ii, jj
     INTEGER, DIMENSION(:), POINTER :: cblk
     COMPLEX(dp) :: frmdiff
 
