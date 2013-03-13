@@ -589,7 +589,7 @@ contains
      integer :: i, i1, outer, ncont, nbl
   
      real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
-     real(dp) :: Omega, Lambda, Rad, Centre
+     real(dp) :: Lambda, Rad, Centre
      real(dp) :: muref, mumin, kbT, nkT, alpha
      real(dp) :: ncyc, dt, Elow
     
@@ -641,6 +641,10 @@ contains
      call gauleg(pi,alpha,pnts,wght,negf%Np_n(1))
     
      !Computing complex integral (Common for T>=0)
+     if (negf%verbose.gt.30) then
+        write(*,'(a26,i3,a1,i5,a6)') 'CONTOUR INTEGRATION: CPU',id,',',&
+                                      negf%Np_n(1)+negf%Np_n(2),' points'    
+     end if
     
      npid = int(negf%Np_n(1)/numprocs)
      istart = id*npid+1
@@ -649,11 +653,12 @@ contains
      else
         iend = negf%Np_n(1)
      end if
-    
+       
+     
      do i = istart,iend
     
         if (negf%verbose.gt.VBT) then
-           write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
+           write(6,'(a17,i4,a1,i3,a6,i3)') 'INTEGRAL 1: point #',i,'/',iend,'  CPU=&
                 &', id
         endif
     
@@ -905,7 +910,6 @@ contains
        allocate(wght(negf%Np_real(1)+2*npT))
 
        !Setting weights for gaussian integration
-        
        call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real(1)+2*npT)
 
        !Computing real axis integral       
@@ -915,6 +919,11 @@ contains
           iend = (id+1)*npid
        else
           iend = negf%Np_real(1)+2*npT
+       end if
+
+       if (negf%verbose.gt.30) then
+          write(*,'(a26,i3,a1,i5,a6)') 'REAL AXIS INTEGRATION: CPU',id,',',&
+                                       iend-istart+1,' points'    
        end if
 
        !---------------------------------------------------------
@@ -954,7 +963,7 @@ contains
              call concat(TmpMt,zt,GreenR,1,1)
           endif
           if(negf%DorE.eq.'E') then
-             call concat(TmpMt,zt*Ec,GreenR,1,1)
+             call concat(TmpMt,zt*real(Ec),GreenR,1,1)
           endif
 
           call destroy(GreenR) 
@@ -1095,7 +1104,7 @@ contains
              call concat(TmpMt,zt,GreenR,1,1)
           endif
           if(negf%DorE.eq.'E') then
-             call concat(TmpMt,zt*Ec,GreenR,1,1)
+             call concat(TmpMt,zt*real(Ec),GreenR,1,1)
           endif
 
           if (negf%writeLDOS) then
@@ -1200,13 +1209,10 @@ contains
   subroutine test(negf)
     type(Tnegf) :: negf
     type(mesh) :: emesh
-    type(elem) :: el
-    type(z_CSR) :: Dens, Dens1
-    type(z_CSR), target :: P
-    type(z_CSR), pointer :: P2
+    type(z_CSR) :: Dens1
     type(TG_pointer) :: G(3)
 
-    integer :: i,j,lev,nelem, newelem
+    integer :: i,lev,nelem, newelem
 
     print*,'Create mesh'
     call create_mesh(emesh,6, -1.0_dp, 0.0_dp, 5, 0)
@@ -1258,7 +1264,6 @@ contains
     type(TG_pointer) :: G2(3)
     type(z_CSR) :: Dens1, Dens2
     integer :: i
-    real(dp) :: dE
     character(10) :: al
     logical :: dorefine
 
@@ -1339,7 +1344,7 @@ contains
 
     !if (negf%writeLDOS) then
     !   do j1 = 1, 2      
-    !      call zgetdiag(Gless(j1), q_tmp)
+    !      call getdiag(Gless(j1), q_tmp)
     !      do i1 = 1,negf%str%central_dim
     !         write(2001,'((ES14.5))', advance='NO') real(q_tmp(i1))
     !      enddo
@@ -1419,7 +1424,7 @@ contains
 
     real(dp), DIMENSION(:), allocatable :: frm_f
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    integer :: i1, j1, ref, ncont, outer, iter
+    integer :: i1, j1, ncont, outer, iter
     complex(dp) :: Ec
     real(dp) :: ncyc
 
@@ -1558,12 +1563,11 @@ contains
     Integer :: i, Nstep, npid, istart, iend, i1
     Integer :: size_ni, size_nf, icpl, ncont, icont
     Integer :: nbl
-    Integer :: iLDOS
     
-    Character(6) :: ofKP
-    Logical :: do_LEDOS, lex
+    Logical :: do_LEDOS
 
     do_LEDOS = .false.
+ 
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     
     nbl = negf%str%num_PLs
@@ -1656,16 +1660,18 @@ contains
           call destroy(Tcl(icont))
        enddo
 
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
        
        if (.not.do_LEDOS) then
           
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
+
           call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
                negf%str,TUN_MAT)
           negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
           
        else
           
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
           call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
@@ -1754,42 +1760,20 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
   REAL(dp) :: destep,kbT,TT1,TT2,E3,E4,TT3,TT4
   REAL(dp) :: E1,E2,c1,c2,curr
   INTEGER :: i,i1,N,Nstep,imin,imax
-  
+
   curr=0.d0
   N=0
   destep=1.0d10 
   Nstep=NINT((emax-emin)/estep);
 
-  if (kT.lt.3.d-6) then
-    kbT = 1.d-5
+  if (kT.lt.0.01_dp*Kb) then
+    kbT = Kb*0.01_dp
   else
     kbT = kT     
   endif
-  ! Find initial step for integration
 
   imin=0
-  do i=0,Nstep
-     E1=emin+estep*i     
-     imin=i-1
-     if(E1.ge.mumin-10*kbT) then 
-        exit
-     endif
-  enddo
-
-  ! Find final step for integration 
-  imax=0
-  do i=Nstep,imin,-1    
-     E1=emin+estep*i 
-     imax=i+1
-     if(E1.le.mumax+10*kbT) then 
-        exit
-     endif
-  enddo
-
-
-  !rest the min and max to the actual interval
-  if (imin.lt.0) imin=0
-  if (imax.gt.Nstep) imax=Nstep 
+  imax=Nstep 
 
   ! performs the integration with simple trapezium rule. 
   do i=imin,imax-1
@@ -1806,8 +1790,8 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
         destep=(E2-E1)/N
      enddo
      
-     ! within each substep the tunneling is linearly 
-     ! interpolated
+     ! Within each substep the tunneling is linearly interpolated
+     ! Possibly perform a cubic-spline interpolation in future 
      do i1=0,N-1
         
         E3=E1+(E2-E1)*i1/N
@@ -1823,7 +1807,7 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
      enddo
      
   enddo
-  
+
   integrate = curr
   
 end function integrate
