@@ -1750,7 +1750,7 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
     complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
     integer :: ierr,B_ncol,nnz
-
+    integer :: a_bw, b_bw, ml, mu, bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        STOP 'ERROR (zmultcsr): matrices don''t match';
@@ -1763,11 +1763,19 @@ CONTAINS
 
     ELSE
 
+       ! G. P. preallocation for exact calculation of nonzero values.
+       ! The first guess is built depending on A and B bandwidth
+       ! I consider the maximum bandwidth
+       call zbandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
+       call zbandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
+       nnz = (a_bw + b_bw) * A_csr%nrow
+
+      
        B_ncol=B_csr%ncol
        !Pre-moltiplicazione per il controllo dei valori non nulli da allocare
        !Alloca le parti di C_csr di interesse
        call log_allocate(nzval,1)
-       call log_allocate(colind,(A_csr%nrow*B_ncol))
+       call log_allocate(colind,nnz)
        call log_allocate(rowpnt,(A_csr%nrow+1))
        rowpnt=0
        !Allocazione work array iw
@@ -1848,6 +1856,14 @@ CONTAINS
        C_csr%rowpnt=1
 
     else
+
+       ! G. P. preallocation for exact calculation of nonzero values.
+       ! The first guess is built depending on A and B bandwidth
+       ! I consider the maximum bandwidth
+       call zbandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
+       call zbandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
+       nnz = (a_bw + b_bw) * A_csr%nrow
+                                            
 
        B_ncol=B_csr%ncol
        !Pre-moltiplicazione per il controllo dei valori non nulli da allocare
