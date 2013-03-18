@@ -1746,11 +1746,8 @@ CONTAINS
 
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer, DIMENSION(:), ALLOCATABLE :: iw 
-    integer, DIMENSION(:), ALLOCATABLE :: colind 
-    integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
-    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
-    integer :: ierr,B_ncol,nnz
-    integer :: a_bw, b_bw, ml, mu, bndav
+    integer :: ierr,nnz
+    integer :: a_bw, b_bw, ml, mu, iband, bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        STOP 'ERROR (zmultcsr): matrices don''t match';
@@ -1766,53 +1763,55 @@ CONTAINS
        ! G. P. preallocation for exact calculation of nonzero values.
        ! The first guess is built depending on A and B bandwidth
        ! I consider the maximum bandwidth
-       call zbandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
-       call zbandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
-       nnz = (a_bw + b_bw) * A_csr%nrow
+       call bandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
+       a_bw = max(ml + 1, mu + 1)
+       call bandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
+       b_bw = max(ml + 1, mu + 1)
+       ! TODO: The last integer should be 2 according to my exstimation, but it turns out to
+       ! be too small. 4 seems to work, you must check what's wrong here (also in
+       ! zmultcsrs)
+       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 4
 
-      
-       B_ncol=B_csr%ncol
-       !Pre-moltiplicazione per il controllo dei valori non nulli da allocare
-       !Alloca le parti di C_csr di interesse
-       call log_allocate(nzval,1)
-       call log_allocate(colind,nnz)
-       call log_allocate(rowpnt,(A_csr%nrow+1))
-       rowpnt=0
+       !Preliminar product on indexes only. This is used to determine the exact amount 
+       !of memory which needs to be allocate, avoiding a temporary unused heavy
+       !complex array
+       call log_allocate(C_csr%nzval,1)
+       call log_allocate(C_csr%colind,nnz)
+       call log_allocate(C_csr%rowpnt,(A_csr%nrow+1))
+       C_csr%rowpnt=0
+
        !Allocazione work array iw
-       call log_allocate(iw,B_ncol)
+       call log_allocate(iw,B_csr%ncol)
+       call zamub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+            B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
+            nnz,iw,ierr)
 
-       call zamub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
-            B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,rowpnt,&
-            A_csr%nrow*B_ncol,iw,ierr)
-
-       if (ierr.ne.0) write(*,*) 'Error in zmultcsr subroutine: exceeding C%nnz dimension'
+       if (ierr.ne.0) write(*,*) 'Error in zmultcsr subroutine: exceeding C%nnz dimension', ierr
 
        !Riallocazioni esatte di C_csr
-       call log_deallocate(colind)
-       call log_deallocate(nzval)
+       call log_deallocate(C_csr%colind)
+       call log_deallocate(C_csr%nzval)
 
-       nnz=rowpnt(A_csr%nrow+1)-1
+       nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
-       call log_deallocate(rowpnt)
+       call log_deallocate(C_csr%rowpnt)
 
        if(nnz.ne.0) then 
 
-          call create(C_csr,A_csr%nrow,B_ncol,nnz)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
           !Prodotto C_csr=A_csr*B_csr
-          call zamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+          call zamub(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
           if (ierr.ne.0) write(*,*) 'Error in zmultcsr subroutine: exceeding C%nnz dimension'
-
        else
 
-          call create(C_csr,A_csr%nrow,B_ncol,1)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,1)
           C_csr%nnz=0
 
        endif
-
        call log_deallocate(iw)  
 
     ENDIF
@@ -1843,9 +1842,10 @@ CONTAINS
 
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
-    integer :: ierr,B_ncol,nnz
-
+    integer :: ierr,nnz
+    integer :: a_bw, b_bw, ml, mu, bndav
     integer, DIMENSION(:), ALLOCATABLE :: iw 
+   
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        STOP 'ERROR (zmultccsr): matrices don''t match';
     ENDIF
@@ -1856,28 +1856,32 @@ CONTAINS
        C_csr%rowpnt=1
 
     else
-
+ 
+    
        ! G. P. preallocation for exact calculation of nonzero values.
        ! The first guess is built depending on A and B bandwidth
        ! I consider the maximum bandwidth
-       call zbandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
-       call zbandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
-       nnz = (a_bw + b_bw) * A_csr%nrow
-                                            
+       call bandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
+       a_bw = max(ml + 1, mu + 1)
+       call bandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
+       b_bw = max(ml + 1, mu + 1)
 
-       B_ncol=B_csr%ncol
-       !Pre-moltiplicazione per il controllo dei valori non nulli da allocare
-       !Alloca le parti di C_csr di interesse
+       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 4
 
+       !Preliminar product on indexes only. This is used to determine the exact amount 
+       !of memory which needs to be allocate, avoiding a temporary unused heavy
+       !complex array
        call log_allocate(C_csr%nzval,1)
-       call log_allocate(C_csr%colind,A_csr%nrow*B_ncol)
-       call log_allocate(C_csr%rowpnt,A_csr%nrow+1)
-       !Allocazione work array iw
-       call log_allocate(iw,B_ncol)
+       call log_allocate(C_csr%colind,nnz)
+       call log_allocate(C_csr%rowpnt,(A_csr%nrow+1))
+       C_csr%rowpnt=0
 
-       call zamub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       !Allocazione work array iw
+       call log_allocate(iw,B_csr%ncol)
+
+       call zamub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
-            C_csr%rowpnt,A_csr%nrow*B_ncol,iw,ierr)
+            C_csr%rowpnt,nnz,iw,ierr)
 
        if (ierr.ne.0) write(*,*) 'Error in zmultcsrs subroutine: exceeding C%nnz dimension'
 
@@ -1888,16 +1892,12 @@ CONTAINS
        call log_deallocate(C_csr%nzval)
        call log_deallocate(C_csr%rowpnt)
 
-       !write(*,*) C_csr%rowpnt
-       !write(*,*) A_csr%nrow
-       !write(*,*) A_csr%nrow,B_ncol,nnz
-
        if(nnz.ne.0) then 
 
-          call create(C_csr,A_csr%nrow,B_ncol,nnz)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
           !Prodotto C_csr=A_csr*B_csr
-          call zamubs(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
+          call zamubs(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -1906,7 +1906,7 @@ CONTAINS
 
        else
 
-          call create(C_csr,A_csr%nrow,B_ncol,1)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,1)
           C_csr%nnz=0      
 
        endif
@@ -1914,7 +1914,7 @@ CONTAINS
        call log_deallocate(iw)  
 
     ENDIF
-
+write(*,*) 'Ok'
   end subroutine zmultcsrs
 
   !*****************************************************************
