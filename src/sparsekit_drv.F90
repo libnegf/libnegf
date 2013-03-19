@@ -1764,13 +1764,12 @@ CONTAINS
        ! The first guess is built depending on A and B bandwidth
        ! I consider the maximum bandwidth
        call bandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
-       a_bw = max(ml + 1, mu + 1)
+       a_bw = max(ml + 1, mu + 1) * 2
        call bandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
-       b_bw = max(ml + 1, mu + 1)
-       ! TODO: The last integer should be 2 according to my exstimation, but it turns out to
-       ! be too small. 4 seems to work, you must check what's wrong here (also in
-       ! zmultcsrs)
-       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 4
+       b_bw = max(ml + 1, mu + 1) * 2
+
+       ! Bandwidth of products is two time the bandwith of factors
+       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 2
 
        !Preliminar product on indexes only. This is used to determine the exact amount 
        !of memory which needs to be allocate, avoiding a temporary unused heavy
@@ -1862,11 +1861,12 @@ CONTAINS
        ! The first guess is built depending on A and B bandwidth
        ! I consider the maximum bandwidth
        call bandwidth(A_csr%ncol, A_csr%colind, A_csr%rowpnt, ml, mu, a_bw, bndav)
-       a_bw = max(ml + 1, mu + 1)
+       a_bw = max(ml + 1, mu + 1) * 2
        call bandwidth(B_csr%ncol, B_csr%colind, B_csr%rowpnt, ml, mu, b_bw, bndav)
-       b_bw = max(ml + 1, mu + 1)
+       b_bw = max(ml + 1, mu + 1) * 2
 
-       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 4
+       ! Bandwidth of products is two time the bandwith of factors
+       nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 2
 
        !Preliminar product on indexes only. This is used to determine the exact amount 
        !of memory which needs to be allocate, avoiding a temporary unused heavy
