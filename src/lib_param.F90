@@ -33,7 +33,7 @@ module lib_param
   private
 
   public :: Tnegf
-  public :: fill_parameters, pass_HS
+  public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   integer, public, parameter :: MAXNCONT=10
@@ -77,17 +77,16 @@ module lib_param
      real(dp) :: dos               ! Holding variable
      real(dp) :: eneconv           ! Energy conversion factor
 
-     type(z_CSR) :: H
-     type(z_CSR) :: S
-     type(z_CSR) :: HM
-     type(z_CSR) :: SM     
+     type(z_CSR), pointer :: H     ! Points to externally allocated H
+     type(z_CSR), pointer :: S
+     !type(z_CSR) :: HM             ! Not used anymore
+     !type(z_CSR) :: SM             ! Not used anymore
      type(z_DNS) :: HC(MAXNCONT)
      type(z_DNS) :: SC(MAXNCONT)
      type(z_DNS) :: HMC(MAXNCONT)
      type(z_DNS) :: SMC(MAXNCONT)
-     type(z_CSR) :: Gr             ! Holding output Matrix
-     type(z_CSR) :: rho            ! Holding output Matrix
-     type(z_CSR) :: rho_eps        ! Holding output Matrix
+     type(z_CSR), pointer :: rho            ! Holding output Matrix
+     type(z_CSR), pointer :: rho_eps        ! Holding output Matrix
      logical    :: isSid          
 
      type(TStruct_Info) :: str     ! system structure
@@ -97,7 +96,8 @@ module lib_param
      real(dp) :: Emax        ! 
      real(dp) :: Estep       ! Tunneling or dos E step
      real(dp) :: kbT         ! electronic temperature
-     real(dp) :: spin        ! spin degeneracy
+     real(dp) :: g_spin      ! spin degeneracy
+     integer  :: spin        ! spin component
 
      real(dp) :: wght        ! kp weight 
      integer :: kpoint       ! kp index
@@ -197,7 +197,7 @@ contains
 
   subroutine fill_parameters(negf, verbose, mu_n, mu_p, Ec, Ev, &
         DeltaEc, DeltaEv, delta, Emin, Emax, Estep, &
-        kbT, Np_n, Np_p, n_kt, n_poles, spin)
+        kbT, Np_n, Np_p, n_kt, n_poles, g_spin)
 
     type(Tnegf) :: negf
     integer :: verbose
@@ -219,7 +219,7 @@ contains
     integer :: Np_p(2)   
     integer :: n_kt
     integer :: n_poles
-    real(dp) :: spin   
+    real(dp) :: g_spin   
 
     negf%verbose = verbose
 
@@ -240,28 +240,21 @@ contains
     negf%Np_p = Np_p
     negf%n_kt = n_kt
     negf%n_poles = n_poles
-    negf%spin = spin
+    negf%g_spin = g_spin
 
   end subroutine fill_parameters
-
+  ! -----------------------------------------------------
+  !  Pass H,S as externally allocated matrices
+  ! -----------------------------------------------------
   subroutine pass_HS(negf,H,S)
     type(Tnegf) :: negf    
-    type(z_CSR) :: H
-    type(z_CSR), optional :: S
+    type(z_CSR), target :: H
+    type(z_CSR), optional, target :: S
 
-    call create(negf%H,H%nrow,H%ncol,H%nnz)
-    negf%H%nzval = H%nzval
-    negf%H%colind = H%colind
-    negf%H%rowpnt = H%rowpnt
-    negf%H%sorted = H%sorted      
+    negf%H => H
 
     if (present(S)) then
-       negf%isSid=.false.
-       call create(negf%S,S%nrow,S%ncol,S%nnz)
-       negf%S%nzval = S%nzval
-       negf%S%colind = S%colind
-       negf%S%rowpnt = S%rowpnt
-       negf%S%sorted = S%sorted      
+       negf%S => S      
     else
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 
@@ -269,7 +262,60 @@ contains
 
   end subroutine pass_HS
 
+  ! -----------------------------------------------------
+  !  Pass an externally allocated density matrix
+  ! -----------------------------------------------------
+  subroutine pass_DM(negf,rho, rhoE)
+    type(Tnegf) :: negf    
+    type(z_CSR), optional, target :: rho
+    type(z_CSR), optional, target :: rhoE
+ 
+    if (present(rho)) then
+       negf%rho => rho
+       if(allocated(negf%rho%nzval)) then
+          call destroy(negf%rho)
+       endif   
+    endif 
 
+    if (present(rhoE)) then
+       negf%rho_eps => rhoE
+       if (allocated(negf%rho_eps%nzval)) then
+          call destroy(negf%rho_eps)
+       endif 
+    end if
+
+  end subroutine pass_DM
+ 
+  ! -----------------------------------------------------
+  !  Allocate and copy H,S 
+  ! -----------------------------------------------------
+  subroutine copy_HS(negf,H,S)
+    type(Tnegf) :: negf    
+    type(z_CSR), target :: H
+    type(z_CSR), optional, target :: S
+
+    call create(negf%H,H%nrow,H%ncol,H%nnz)
+    negf%H%nzval = H%nzval
+    negf%H%colind = H%colind
+    negf%H%rowpnt = H%rowpnt
+    negf%H%sorted = H%sorted   
+    
+    if (present(S)) then
+       negf%isSid=.false.
+       call create(negf%S,S%nrow,S%ncol,S%nnz)
+       negf%S%nzval = S%nzval
+       negf%S%colind = S%colind
+       negf%S%rowpnt = S%rowpnt
+       negf%S%sorted = S%sorted
+    else
+       negf%isSid=.true.
+       call create_id(negf%S,negf%H%nrow) 
+    endif
+
+  end subroutine copy_HS
+  
+  
+  
   subroutine set_defaults(negf)
     type(Tnegf) :: negf    
 
@@ -315,7 +361,7 @@ contains
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
      negf%kbT = 0.d0        ! electronic temperature
-     negf%spin = 2.d0        ! spin degeneracy
+     negf%g_spin = 2.d0        ! spin degeneracy
 
      negf%Np_n = (/20, 20/)   ! Number of points for n 
      negf%Np_p = (/20, 20/)   ! Number of points for p 

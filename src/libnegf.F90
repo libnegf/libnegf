@@ -272,7 +272,7 @@ contains
     read(101,*) negf%Np_real(1)
     read(101,*) negf%n_kt
     read(101,*) negf%n_poles
-    read(101,*) negf%spin
+    read(101,*) negf%g_spin
     read(101,*) negf%delta
     read(101,*) negf%nLDOS
     call log_allocatep(negf%LDOS,2,negf%nLDOS)
@@ -351,26 +351,26 @@ contains
     type(Tnegf) :: negf   
     integer :: i
 
-    if (allocated(negf%H%nzval)) then
+    !if (allocated(negf%H%nzval)) then
        !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
-       call destroy(negf%H) 
-    end if
-    if (allocated(negf%S%nzval)) then
+    !   call destroy(negf%H) 
+    !end if
+    !if (allocated(negf%S%nzval)) then
        !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
-       call destroy(negf%S) 
-    end if
-    if (allocated(negf%rho%nzval)) then
+    !   call destroy(negf%S) 
+    !end if
+    !if (allocated(negf%rho%nzval)) then
        !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
-       call destroy(negf%rho) 
-    end if
-    if (allocated(negf%rho_eps%nzval)) then
+    !   call destroy(negf%rho) 
+    !end if
+    !if (allocated(negf%rho_eps%nzval)) then
        !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
-       call destroy(negf%rho_eps) 
-    end if
+    !   call destroy(negf%rho_eps) 
+    !end if
 
 
-    if (allocated(negf%HM%nzval)) call destroy(negf%HM)
-    if (allocated(negf%SM%nzval)) call destroy(negf%SM)
+    !if (allocated(negf%HM%nzval)) call destroy(negf%HM)
+    !if (allocated(negf%SM%nzval)) call destroy(negf%SM)
 
     do i=1,negf%str%num_conts
        if (allocated(negf%HC(i)%val)) call destroy(negf%HC(i))
@@ -466,7 +466,7 @@ contains
 
     !print*, '(negf) extract ndofs =', size(q), negf%S%nrow
 
-    ! We need not to include S
+    ! We need not to include S !!!!
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
 
@@ -597,7 +597,13 @@ contains
     
   end subroutine write_tunneling_and_dos
   !---------------------------------------------------------------------------
-
+  ! Sets the Reference contact for non-eq calculations
+  ! 
+  ! The behaviour depends on how negf%minmax has been set.
+  !
+  ! minmax = 0 : refcont is chosen at the minimum   mu
+  ! minmax = 1 : refcont is chosen at the maximum   mu 
+  ! 
   subroutine set_ref_cont(negf)
 
     type(TNegf) :: negf
