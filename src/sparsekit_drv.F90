@@ -1337,7 +1337,6 @@ CONTAINS
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !B_ncol: numero di colonne in A_csr e B_csr
     !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -1420,7 +1419,6 @@ CONTAINS
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
     !  s  : scalare
-    !B_ncol: numero di colonne in A_csr e B_csr
     !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -1465,7 +1463,6 @@ CONTAINS
     !A_csr: A matrix in CSR format
     !B_csr: B_matrix in csr format
     !A_ncol: number of columns of A matrix
-    !B_ncol: number of columns of B matrix
     !Output:
     !C_nnz: number of nonzero values needed in C_nnz
     !
@@ -1575,7 +1572,6 @@ CONTAINS
     !A_csr: A matrix in CSR format
     !B_csr: B_matrix in csr format
     !A_ncol: number of columns of A matrix
-    !B_ncol: number of columns of B matrix
     !Output:
     !C_nnz: number of nonzero values needed in C_nnz
     !
@@ -1731,7 +1727,6 @@ CONTAINS
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !B_ncol: numero di colonne in A_csr e B_csr
     !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -1769,7 +1764,7 @@ CONTAINS
        !Preliminar product on indexes only. This is used to determine the exact amount 
        !of memory which needs to be allocate, avoiding a temporary unused heavy
        !complex array
-       call log_allocate(C_csr%nzval,1)
+       call log_allocate(C_csr%nzval,MISMATCH)
        call log_allocate(C_csr%colind,nnz)
        call log_allocate(C_csr%rowpnt,(A_csr%nrow+1))
        C_csr%rowpnt=0
@@ -1780,9 +1775,6 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
             nnz,iw,ierr)
 
-       call zamub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
-            B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,rowpnt,&
-            A_csr%nrow*B_ncol,iw,ierr)
 
        if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND) 
 
@@ -1807,7 +1799,7 @@ CONTAINS
 
        else
 
-          call create(C_csr,A_csr%nrow,B_ncol,MISMATCH)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,MISMATCH)
           C_csr%nnz=0
 
        endif
@@ -1832,7 +1824,6 @@ CONTAINS
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -1845,9 +1836,8 @@ CONTAINS
     integer :: ierr,nnz
     integer :: a_bw, b_bw, ml, mu, bndav
     integer, DIMENSION(:), ALLOCATABLE :: iw 
-   
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-       STOP 'ERROR (zmultccsr): matrices don''t match';
+        call error_msg('(zmultccsr)',MISMATCH) 
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -1902,12 +1892,11 @@ CONTAINS
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-          if (ierr.ne.0) &
-               write(*,*) 'Error in zmultcsrs subroutine: exceeding C%nnz dimension'
+          if (ierr.ne.0) call error_msg('(zamubs)',OUTOFBOUND) 
 
        else
 
-          call create(C_csr,A_csr%nrow,B_csr%ncol,1)
+          call create(C_csr,A_csr%nrow,B_csr%ncol,MISMATCH)
           C_csr%nnz=0      
 
        endif
@@ -1915,7 +1904,7 @@ CONTAINS
        call log_deallocate(iw)  
 
     ENDIF
-write(*,*) 'Ok'
+
   end subroutine zmultcsrs
 
   !*****************************************************************
@@ -1931,7 +1920,6 @@ write(*,*) 'Ok'
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -1976,7 +1964,6 @@ write(*,*) 'Ok'
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -2022,7 +2009,6 @@ write(*,*) 'Ok'
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -2078,7 +2064,6 @@ write(*,*) 'Ok'
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
@@ -2403,7 +2388,6 @@ write(*,*) 'Ok'
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !A_ncol,B_ncol: numero di colonne in A_csr e B_csr
     !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
     !nella subroutine
     !
