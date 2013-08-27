@@ -51,7 +51,7 @@ module integrations
  public :: tunneling_and_current
  public :: integrate       ! integration of tunneling
  public :: compute_dos                ! compute local dos only
-
+ public :: menage_scratch
  ! ////////////////////////////////////////////////////////////
  ! Under development:
  public :: init_emesh, destroy_emesh
@@ -202,7 +202,7 @@ contains
 
        ff = fermi_fc(Ec,muref,KbT)
 
-       zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
+       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
        call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -272,7 +272,7 @@ contains
 
        ff = fermi_fc(Ec,muref,KbT)
 
-       zt = negf%spin *  z_diff * ff * wght(i) / (2.d0 *pi)
+       zt = negf%g_spin *  z_diff * ff * wght(i) / (2.d0 *pi)
 
        call compute_contacts(Ec,negf,negf%Np_n(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -329,7 +329,7 @@ contains
 
        Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
 
-       zt= -j * KbT * negf%spin *(1.d0,0.d0) 
+       zt= -j * KbT * negf%g_spin *(1.d0,0.d0) 
 
        call compute_contacts(Ec,negf,negf%Np_n(1)+negf%Np_n(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -432,7 +432,7 @@ contains
 
        ff = (1.d0,0.d0) - fermi_fc(Ev,muref,KbT)
 
-       zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
+       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
        call compute_contacts(Ev,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -488,7 +488,7 @@ contains
 
        ff = (1.d0,0.d0) - fermi_fc(Ev,muref,KbT)
 
-       zt = z_diff * negf%spin * ff * wght(i) / (2.d0 *pi)
+       zt = z_diff * negf%g_spin * ff * wght(i) / (2.d0 *pi)
 
        call compute_contacts(Ev,negf,negf%Np_p(1)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -530,7 +530,7 @@ contains
 
        Ev =  muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
 
-       zt= j*negf%spin*KbT*(1.d0,0.d0) 
+       zt= j*negf%g_spin*KbT*(1.d0,0.d0) 
 
        call compute_contacts(Ev,negf,negf%Np_p(1)+negf%Np_p(2)+i,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -642,7 +642,7 @@ contains
     
      !Computing complex integral (Common for T>=0)
      if (negf%verbose.gt.30) then
-        write(*,'(a26,i3,a1,i5,a6)') 'CONTOUR INTEGRATION: CPU',id,',',&
+        write(*,'(a26,i3,a1,i5,a7)') 'CONTOUR INTEGRATION: CPU',id,',',&
                                       negf%Np_n(1)+negf%Np_n(2),' points'    
      end if
     
@@ -666,9 +666,9 @@ contains
     
         Pc = Rad*exp(j*pnts(i))
         Ec = Centre+Pc
-        zt = j * Pc * negf%spin * wght(i)/(2.d0*pi)
+        zt = j * Pc * negf%g_spin * wght(i)/(2.d0*pi)
         negf%iE = i
-
+        
         call compute_contacts(Ec,negf,i,ncyc,Tlc,Tcl,SelfEneR,GS)
   
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
@@ -750,14 +750,14 @@ contains
            
            Pc = Rad*exp(j*pnts(i))
            Ec = Centre+Pc
-           dt = negf%spin*wght(i)/(2.d0*pi)
+           dt = negf%g_spin*wght(i)/(2.d0*pi)
            zt = dt*Pc*j
           
         else                                        ! Segment integration T>0
            
            Ec = z1 + pnts(i)*z_diff
            ff = fermi_fc(Ec,muref,KbT)
-           zt = negf%spin * z_diff * ff * wght(i) / (2.d0 *pi)
+           zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
   
         endif
   
@@ -817,7 +817,7 @@ contains
   
         Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
   
-        zt= -j*negf%spin*KbT
+        zt= -j*negf%g_spin*KbT
 
         negf%iE = negf%Np_n(1)+negf%Np_n(2)+i
   
@@ -885,9 +885,14 @@ contains
     kbT = negf%kbT
     ref = negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
- 
-    mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-    mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+
+    if (ncont.gt.0) then 
+       mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    else
+       mumin=negf%Efermi(1)
+       mumax=negf%Efermi(1)
+    endif  
 
     if (mumax.gt.mumin) then
        
@@ -910,6 +915,7 @@ contains
        allocate(wght(negf%Np_real(1)+2*npT))
 
        !Setting weights for gaussian integration
+        
        call gauleg(mumin-Omega,mumax+Omega,pnts,wght,negf%Np_real(1)+2*npT)
 
        !Computing real axis integral       
@@ -947,7 +953,7 @@ contains
 
           Ec = cmplx(pnts(i),negf%delta,dp)
 
-          dt = negf%wght * negf%spin * wght(i)/(2*pi)
+          dt = negf%wght * negf%g_spin * wght(i)/(2*pi)
 
           zt = dt*(1.d0,0.d0)
 
@@ -1027,8 +1033,13 @@ contains
     ref = negf%refcont
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
 
-    mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-    mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    if (ncont.gt.0) then 
+       mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+    else
+       mumin=negf%Efermi(1)
+       mumax=negf%Efermi(1)
+    endif  
 
     if (negf%writeLDOS) then
        open(2001,file=trim(negf%out_path)//'LDOS.dat')
@@ -1085,7 +1096,7 @@ contains
 
           Ec = cmplx(pnts(i),negf%delta,dp)
 
-          dt = negf%wght * negf%spin * wght(i)/(2*pi)
+          dt = negf%wght * negf%g_spin * wght(i)/(2*pi)
 
           zt = dt*(1.d0,0.d0)
 
@@ -1152,6 +1163,27 @@ contains
     endif
 
   end subroutine real_axis_int_n
+
+  !-----------------------------------------------------------------------
+  ! Creates the memory scratch for ph GF
+  ! Needs to be invoked before contour_int_ph
+  !-----------------------------------------------------------------------
+  subroutine menage_scratch(negf,flag)
+    type(TNegf) :: negf
+    integer :: flag
+
+    integer :: i
+
+    i = negf%Np_n(1)+negf%Np_n(2)+negf%n_poles +negf%Np_real(1)    
+    select case(flag)
+    case(1)
+       call create_scratch(negf%str%num_PLs,i)
+    case(0)
+       call destroy_scratch(negf%str%num_PLs,i)
+    end select   
+
+  end subroutine menage_scratch 
+
   !------------------------------------------------------------------------
  
   subroutine init_emesh(negf, reflevel)
@@ -1373,7 +1405,7 @@ contains
     call create(I2,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(I2)
 
-    dt = negf%wght * negf%spin * (Epnt(2)-Epnt(1)) / (2*pi)
+    dt = negf%wght * negf%g_spin * (Epnt(2)-Epnt(1)) / (2*pi)
     zt = dt*(1.d0,0.d0)
     ! Computing I2
     if(negf%DorE.eq.'D') then
@@ -1477,7 +1509,7 @@ contains
     real(kind=dp) :: x1,x2,x(n),w(n)
 
     INTEGER i,k,m
-    real(kind=dp) :: p1,p2,p3,pp,xl,xm,z,z1
+    real(kind=dp) :: p0,p1,p2,pp,xl,xm,z,z1
 
     m=(n+1)/2
 
@@ -1486,24 +1518,34 @@ contains
 
     do i=1,m
 
+       ! Approssimazione degli zeri dei polinomi di Legendre:
        z=cos(Pi*(i-0.25d0)/(n+0.5d0))
 
+       ! Legendre polynomial, p1, evaluated by rec. relations:
+       ! P(0)=1; P(-1)=0
+       ! P(n) = (2n-1)*x*P(n-1) - (n-1)*P(n-2)
+       !
+       ! Derivative pp using the relation of p1 and p2:
+       ! P'(n) = (2n-1)*P(n-1) + (2n-1)*x*P'(n-1) - (n-1)*P'(n-2)
+       !
+       ! Newton method is used to refine the zeros
+       !
        do
-          p1=1.d0
-          p2=0.d0
+          p0=1.d0  !p(0)
+          p1=0.d0  !p(-1)
 
           ! Legendre polynomial p1 evaluated by rec. relations:
           do k=1,n
-             p3=p2
-             p2=p1
-             p1=((2.d0*k-1.d0)*z*p2-(k-1.d0)*p3)/k
+             p2=p1 !p(-2)=p(-1)
+             p1=p0 !p(-1)=p(0)
+             p0=((2.d0*k-1.d0)*z*p1-(k-1.d0)*p2)/k 
           enddo
-          ! Derivative pp using the relation of p1 and p2:
-          pp=n*(z*p1-p2)/(z*z-1.d0)
+          
+          pp=n*(z*p0-p1)/(z*z-1.d0)
 
           ! Newton method to refine the zeros:
           z1=z
-          z=z1-p1/pp
+          z=z1-p0/pp
 
           if(abs(z-z1).le.ACC) exit
        enddo
@@ -1530,7 +1572,7 @@ contains
     real(dp) :: d
     integer :: i
 
-    d = (x2-x1)/(n-1)
+    d = (x2-x1)/(1.0_dp*(n-1))
 
     w = d * 1.0_dp
     w(1) = d * 0.5_dp
@@ -1541,6 +1583,60 @@ contains
     enddo
  
   end subroutine trapez
+  !--------------------------------------------------------------------  
+  subroutine simpsons(x1,x2,x,w,n)
+    real(kind=dp), PARAMETER :: ACC = 1d-15
+
+    INTEGER n
+    real(kind=dp) :: x1,x2,x(n),w(n)
+
+    real(dp) :: d
+    integer :: i
+
+    if (mod(n-1,2).ne.0) STOP 'ERROR: N is not multiple of 2'
+
+    d = (x2-x1)/((n-1)*1.0_dp)
+
+    w = d * 4.0_dp/3.0_dp
+    w(1) = d * 1.0_dp/3.0_dp
+    w(n) = d * 1.0_dp/3.0_dp
+    do i = 3,n-1,2
+      w(i) = d* 2.0_dp/3.0_dp
+    enddo
+
+    do i = 1, n
+       x(i) = ( x1*(n-i) + x2*(i-1) ) / (n-1) 
+    enddo
+
+
+  end subroutine simpsons
+  !--------------------------------------------------------------------  
+  subroutine three_eigth(x1,x2,x,w,n)
+
+    real(kind=dp), PARAMETER :: ACC = 1d-15
+
+    INTEGER n
+    real(kind=dp) :: x1,x2,x(n),w(n)
+
+    real(dp) :: d
+    integer :: i
+
+    if (mod(n-1,3).ne.0) STOP 'ERROR: N-1 is not multiple of 3'
+
+    d = (x2-x1)/((n-1)*1.0_dp)
+
+    w = d * 9.0_dp/8.0_dp
+    w(1) = d * 3.0_dp/8.0_dp
+    w(n) = d * 3.0_dp/8.0_dp
+    do i = 4,n-1,3
+      w(i) = d* 6.0_dp/8.0_dp
+    enddo
+
+    do i = 1, n
+       x(i) = ( x1*(n-i) + x2*(i-1) ) / (n-1) 
+    enddo
+ 
+  end subroutine three_eigth
   !--------------------------------------------------------------------  
 
   !------------------------------------------------------------------------------- 
@@ -1587,7 +1683,7 @@ contains
        if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
        return
     endif
-    
+   
     !Extract Contacts in main
     !Tunneling set-up
     do i=1,size(negf%ni)
@@ -1665,7 +1761,7 @@ contains
           
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
-          call tunneling_dns(negf%HM,negf%SM,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
                negf%str,TUN_MAT)
           negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
           
@@ -1674,7 +1770,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%HM,negf%SM,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
+          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
                negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
           
           negf%tunn_mat(i1,:) = TUN_MAT(:) * negf%wght
@@ -1715,7 +1811,7 @@ contains
        !endif
        
        negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
-            negf%Emin,negf%Emax,negf%Estep)
+            negf%Emin,negf%Emax,negf%Estep,negf%g_spin)
        
     enddo
    
@@ -1748,7 +1844,7 @@ contains
 !
 !************************************************************************
 
-function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
+function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep,spin_g)
 
   implicit none
 
@@ -1756,6 +1852,7 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
   real(dp), intent(in) :: mumin,mumax,emin,emax,estep
   real(dp), dimension(:), intent(in) :: TUN_TOT
   real(dp), intent(in) :: kT 
+  real(dp), intent(in) :: spin_g 
 
   REAL(dp) :: destep,kbT,TT1,TT2,E3,E4,TT3,TT4
   REAL(dp) :: E1,E2,c1,c2,curr
@@ -1785,7 +1882,7 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
      
      ! Each step is devided into substeps in order to
      ! smooth out the Fermi function
-     do while (destep.ge.kbT/10.d0) 
+     do while (destep.ge.kbT/10.0_dp) 
         N=N+1
         destep=(E2-E1)/N
      enddo
@@ -1799,10 +1896,10 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
         TT3=( TT2-TT1 )*i1/N + TT1
         TT4=TT3 + (TT2-TT1)/N
         
-        c1=2.d0*eovh*(fermi_f(E3,mumax,KbT)-fermi_f(E3,mumin,KbT))*TT3
-        c2=2.d0*eovh*(fermi_f(E4,mumax,KbT)-fermi_f(E4,mumin,KbT))*TT4
+        c1=eovh*(fermi_f(E3,mumax,KbT)-fermi_f(E3,mumin,KbT))*TT3
+        c2=eovh*(fermi_f(E4,mumax,KbT)-fermi_f(E4,mumin,KbT))*TT4
         
-        curr=curr+(c1+c2)*(E4-E3)/2.d0
+        curr=curr+spin_g*(c1+c2)*(E4-E3)/2.d0
         
      enddo
      
@@ -1811,5 +1908,42 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep)
   integrate = curr
   
 end function integrate
+  
+  subroutine partial_charge(negf,DensMat,qmulli,qtot)
+    type(TNegf) :: negf
+    type(z_CSR) :: DensMat
+    real(dp), dimension(:) :: qmulli
+    real(dp) :: qtot
+    
+    integer nrow,ii,jj,jcol,ka,kb
+    real(dp) :: dd
+
+    nrow = negf%S%nrow 
+    qmulli = 0.d0
+    
+    ! Partial Sum_j[G_ij S_ji]
+    do ii=1, nrow 
+      do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
+        dd = DensMat%nzval(ka)
+        jj = DensMat%colind(ka)
+        
+        do kb=negf%S%rowpnt(jj),negf%S%rowpnt(jj+1)-1
+          jcol = negf%S%colind(kb)
+          if (jcol .eq. ii) then
+            qmulli(jcol) = qmulli(jcol) + real(dd*negf%S%nzval(kb))
+          endif
+        enddo
+      enddo
+    enddo
+    
+    !.............................................................
+    ! Calculation of total charge 
+    
+    qtot = 0.d0
+    do ii = 1,nrow
+      qtot = qtot+qmulli(ii)
+    enddo
+    
+  end subroutine partial_charge 
          
 end module integrations 
