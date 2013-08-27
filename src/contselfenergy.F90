@@ -78,19 +78,21 @@ contains
     complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co
     type(z_DNS) :: gt
 
-    integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
+    integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp,nsp
     integer :: ncyc,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
     real(kind=dp) :: dens
     character(2) :: ofcont
+    character(1) :: ofspin
     character(10) :: ofkpnt
     character(10) :: ofpnt
     character(64) :: filename
     logical :: lex
 
     i = pnegf%activecont
+    nsp = pnegf%spin
     nkp = pnegf%kpoint
     flag = pnegf%ReadOldSGF
     verbose = pnegf%verbose
@@ -113,9 +115,10 @@ contains
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt  
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
     if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
-
+    if (nsp.eq.1) ofspin='u'
+    if (nsp.eq.2) ofspin='d'
     
-    filename = 'GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
+    filename = 'GS'//ofspin//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
     inquire(file=trim(pnegf%scratch_path)//filename,EXIST=lex)
 
     if (.not.lex .and. flag.eq.0) then

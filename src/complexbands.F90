@@ -32,7 +32,6 @@ module complexbands
 
   private :: diagonalize
 
-  real(dp), parameter, public :: EPS12 = 1d-12
   real(dp), parameter :: MAXK = 12.0_dp
   real(dp), parameter :: NULK = 15.0_dp
  
