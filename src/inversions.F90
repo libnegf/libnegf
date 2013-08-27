@@ -530,7 +530,6 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   INTEGER, DIMENSION(:), ALLOCATABLE :: PERM, iwork, wind
   INTEGER :: iwork_lenght
-  real(dp), parameter :: EPS10 = 1.d-10
 
   iwork_lenght=MAX(A_csr%nrow+1,2*A_csr%nnz)
   CALL log_allocate(iwork,iwork_lenght)
@@ -724,9 +723,14 @@ subroutine zinv(inA,A,n)
   integer :: n
 
   !integer :: lwork=n
-  INTEGER :: ipiv(n),info
-  complex(kind=dp) :: work(n)
+  INTEGER :: ipiv(n),info, lwork, NB
+  integer, external :: ilaenv
+  complex(dp), dimension(:), allocatable  :: work
   
+  lwork = n*ilaenv(1,'zgetri','',N,-1,-1,-1)
+
+  call log_allocate(work,lwork)
+
   inA=A
   call zgetrf( n, n, inA, n, ipiv, info )
 
@@ -736,14 +740,14 @@ subroutine zinv(inA,A,n)
      stop
   end if
 
-  call zgetri( n, inA, n, ipiv, work, n, info )
+  call zgetri( n, inA, n, ipiv, work, lwork, info )
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in INVERSION part 2',info
      stop
   end if
-  
-  return
+
+  call log_deallocate(work)
   
 end subroutine zinv
 !---------------------------------------------------------------------------
@@ -753,8 +757,13 @@ subroutine rinv(inA,A,n)
   real(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
-  INTEGER :: ipiv(n),info
-  real(dp) :: work(n)
+  INTEGER :: ipiv(n),info, lwork, NB
+  integer, external :: ilaenv
+  complex(dp), dimension(:), allocatable  :: work
+ 
+  lwork = n * ilaenv(1,'dgetri','',N,-1,-1,-1)
+
+  call log_allocate(work,lwork)
   
   inA=A
   call  dgetrf(n, n, inA, n, ipiv, info )
@@ -762,19 +771,25 @@ subroutine rinv(inA,A,n)
      write(*,*) 'ERROR in INVERSION part 1',info
      stop
   end if
-  call dgetri( n, inA, n, ipiv, work, n, info )
+  call dgetri( n, inA, n, ipiv, work, lwork, info )
   if (info.ne.0)  then
      write(*,*) 'ERROR in INVERSION part 2',info
      stop
   end if
   
-  return
-  
+  call log_deallocate(work)
+
 end subroutine rinv
 
 
   !--------------------------------------------------------------------------
-
+  !
+  !  (G11   )|(      )
+  !  (   G22)|(      )
+  !  ----------------- 
+  !  (      )|(G11   )
+  !  (      )|(   G22)
+  !
   recursive subroutine block2Green(G,A,n,iter)
 
     complex(dp), dimension(:,:), intent(out) :: G
@@ -782,6 +797,7 @@ end subroutine rinv
     integer, intent(in) :: n
     integer, intent(inout) :: iter
     ! Locals
+    complex(dp), dimension(:,:), allocatable :: B
     Type(z_DNS) :: G11,G12,G21,G22
     Type(z_dns) :: h11,gr22
     Type(z_DNS) :: work1,work2,work4
@@ -801,15 +817,27 @@ end subroutine rinv
 
     if (iter.lt.maxiter) then
        iter = iter + 1
-       call block2Green(gr22%val,A(n2:n,n2:n),b22,iter)     
+       allocate(B(n2:n,n2:n))
+       B=A(n2:n,n2:n)
+       call block2Green(gr22%val,B,b22,iter)
+       deallocate(B)     
        iter = iter - 1
     else
-       call inverse(gr22%val,A(n2:n,n2:n),b22)    !g22 in uscita
+       allocate(B(n2:n,n2:n))
+       B=A(n2:n,n2:n)
+       call inverse(gr22%val,B,b22)    !g22 in uscita
+       deallocate(B)     
     endif
 
-    call prealloc_mult(A(1:bl1,n2:n),gr22%val,work1)
+    allocate(B(1:bl1,n2:n))
+    B=A(1:bl1,n2:n)
+    call prealloc_mult(B,gr22%val,work1)
+    deallocate(B)
 
-    call prealloc_mult(work1%val,A(n2:n,1:bl1),(-1.d0,0.d0),work2)
+    allocate(B(n2:n,1:bl1))
+    B=A(n2:n,1:bl1)
+    call prealloc_mult(work1%val,B,(-1.d0,0.d0),work2)
+    deallocate(B)
 
     !keep work1 = T12 * g22
 
@@ -833,7 +861,10 @@ end subroutine rinv
 
     call prealloc_mult(G11%val,work1%val,(-1.d0,0.d0),G12)
 
-    call prealloc_mult(gr22%val,A(n2:n,1:bl1),work2)
+    allocate(B(n2:n,1:bl1))
+    B=A(n2:n,1:bl1)
+    call prealloc_mult(gr22%val,B,work2)
+    deallocate(B)
 
     call prealloc_mult(work2,G11,G21)    !blocco G21 
 
@@ -872,7 +903,7 @@ end subroutine rinv
     Type(z_DNS) :: G33,G13,G23,G32,G31
     Type(z_dns) :: h22,gr11,gr33
     Type(z_DNS) :: work1,work2,work3,work4
-    Integer :: n, bl1, bl2, bl3, n2, n3
+    Integer :: n, bl1, bl2, bl3, n2
 
     !bl1 = n/3
     !bl2 = n/3
@@ -971,5 +1002,49 @@ end subroutine rinv
 
   end subroutine block3Green
 
+  !---------------------------------------------------
+  ! SOLVE linear system with matrix as RHS
+  !
+  ! A U = T
+  !
+  ! A is an n x n complex matrix
+  ! 
+  subroutine zlin(A,T,gT,n)
+    complex(dp), dimension(:,:) :: A, T, gT
+    integer :: n
+  
+    INTEGER :: ipiv(n),info, lwork, NB, nrhs
+    integer, external :: ilaenv
+    complex(dp), dimension(:), allocatable  :: work
+    complex(dp), dimension(:,:), allocatable :: LU
+
+    call log_allocate(LU,n,n)
+    LU=A
+
+    ! LU factorization
+    call zgetrf( n, n, LU, n, ipiv, info )
+  
+    if (info.ne.0)  then
+       write(*,*)
+       write(*,*) 'ERROR in INVERSION part 1',info
+       stop
+    end if
+  
+    nrhs = size(T,2)
+    lwork = n*ilaenv(1,'zgetrs','',N,-1,-1,-1)
+    call log_allocate(work,lwork)
+
+    gT = T
+    call zgetrs( 'N', n, nrhs, LU, n, ipiv, gT, n, info )
+    if (info.ne.0)  then
+       write(*,*)
+       write(*,*) 'ERROR in INVERSION part 2',info
+       stop
+    end if
+  
+    call log_deallocate(work)
+    call log_deallocate(LU)
+
+  end subroutine zlin
 
 END MODULE

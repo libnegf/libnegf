@@ -78,8 +78,6 @@ MODULE iterative
   public :: Outer_Gl_mem
 
   LOGICAL, PARAMETER :: debug=.false. 
-  !Dropout value
-  REAL(dp), PARAMETER :: drop=1e-20
 
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsmr
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsml
@@ -630,7 +628,7 @@ CONTAINS
        CALL zINV_LAPACK(ESH(sbl,sbl), gsmr_d%val)
 #endif
 
-       !CALL create( gsmr(sbl),nrow,nrow,nzdrop(gsmr_d,drop) )
+       !CALL create( gsmr(sbl),nrow,nrow,nzEPS(gsmr_d,EPS) )
 
        !CALL dns2csr(gsmr_d,gsmr(sbl))
 
@@ -669,7 +667,7 @@ CONTAINS
 
        CALL destroy(work1)
 
-       !CALL create(gsmr(i),nrow,nrow,nzdrop(gsmr_d,drop) )
+       !CALL create(gsmr(i),nrow,nrow,nzEPS(gsmr_d,EPS) )
 
        !CALL dns2csr(gsmr_d,gsmr(i))
 
@@ -741,7 +739,7 @@ CONTAINS
        CALL zINV_LAPACK(ESH(sbl,sbl), gsml_d%val)
 #endif
 
-    !CALL create(gsml(sbl),nrow,nrow,nzdrop(gsml_d,drop))
+    !CALL create(gsml(sbl),nrow,nrow,nzEPS(gsml_d,EPS))
 
     !CALL dns2csr(gsml_d,gsml(sbl))
 
@@ -779,7 +777,7 @@ CONTAINS
 
        CALL destroy(work1)
 
-       !CALL create(gsml(i),nrow,nrow,nzdrop(gsml_d,drop))
+       !CALL create(gsml(i),nrow,nrow,nzEPS(gsml_d,EPS))
 
        !CALL dns2csr(gsml_d,gsml(i))
 
@@ -870,7 +868,7 @@ CONTAINS
 
     CALL destroy(work1)
 
-    !CALL create(Gr(1,1),nrow,nrow,nzdrop(Gr_d,drop))
+    !CALL create(Gr(1,1),nrow,nrow,nzEPS(Gr_d,EPS))
 
     !CALL dns2csr(Gr_d,Gr(1,1))
 
@@ -992,7 +990,7 @@ CONTAINS
              max=0
           ENDIF
 
-          IF (max.GT.drop) THEN
+          IF (max.GT.EPS) THEN
 
              CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
              CALL prealloc_mult(work1,Gr(i-1,n),Gr(i,n))
@@ -1025,7 +1023,7 @@ CONTAINS
              max=0
           ENDIF
 
-          IF (max.GT.drop) THEN
+          IF (max.GT.EPS) THEN
 
              CALL prealloc_mult(gsml(i),ESH(i,i+1),(-1.d0, 0.d0),work1)
              CALL prealloc_mult(work1,Gr(i+1,n),Gr(i,n))
@@ -1480,7 +1478,7 @@ CONTAINS
 
     DO j=1,ncont
 
-       IF (j.NE.min.AND.ABS(frm(j)-frm(min)).GT.drop) THEN
+       IF (j.NE.min.AND.ABS(frm(j)-frm(min)).GT.EPS) THEN
 
           !Calcolo della Gamma corrispondente
           cb=cblk(j)
@@ -1958,7 +1956,7 @@ CONTAINS
 
        !Esegue le operazioni relative al contatto solo se è valida la condizione
        !sulle distribuzioni di Fermi e se non si tratta del contatto a potenziale minimo
-       IF ((ABS(frm(k)-frm(min)).GT.drop).AND.(k.NE.min)) THEN
+       IF ((ABS(frm(k)-frm(min)).GT.EPS).AND.(k.NE.min)) THEN
 
           !Calcolo della Gamma corrispondente
           cb=cblk(k)
@@ -2216,7 +2214,7 @@ CONTAINS
     Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl
     Type(z_CSR) :: work1, work2, GAM1, GAM2, GA, TRS
     Real(kind=dp) :: max
-    Real(kind=dp), parameter :: drop=1e-20
+    Real(kind=dp), parameter :: EPS=1e-20
    
     !Arrange contacts in way that order between first and second is always the
     !same (always ct1 > ct2)
@@ -2250,7 +2248,7 @@ CONTAINS
              max=0.d0
           endif
           
-          if (max.gt.drop) then
+          if (max.gt.EPS) then
 !print*,'(tunneling) gsmr',gsmr(i)%nrow,gsmr(i)%ncol,gsmr(i)%nnz
 !print*,'(tunneling) ESH',ESH(i,i-1)%nnz            
              call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
