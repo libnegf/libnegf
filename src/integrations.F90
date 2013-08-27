@@ -51,7 +51,6 @@ module integrations
  public :: tunneling_and_current
  public :: integrate       ! integration of tunneling
  public :: compute_dos                ! compute local dos only
- public :: menage_scratch
  ! ////////////////////////////////////////////////////////////
  ! Under development:
  public :: init_emesh, destroy_emesh
@@ -1163,26 +1162,6 @@ contains
     endif
 
   end subroutine real_axis_int_n
-
-  !-----------------------------------------------------------------------
-  ! Creates the memory scratch for ph GF
-  ! Needs to be invoked before contour_int_ph
-  !-----------------------------------------------------------------------
-  subroutine menage_scratch(negf,flag)
-    type(TNegf) :: negf
-    integer :: flag
-
-    integer :: i
-
-    i = negf%Np_n(1)+negf%Np_n(2)+negf%n_poles +negf%Np_real(1)    
-    select case(flag)
-    case(1)
-       call create_scratch(negf%str%num_PLs,i)
-    case(0)
-       call destroy_scratch(negf%str%num_PLs,i)
-    end select   
-
-  end subroutine menage_scratch 
 
   !------------------------------------------------------------------------
  
