@@ -53,6 +53,7 @@ end interface
 interface create_id
    module procedure zcreate_id_CSR
    module procedure zcreate_id_DNS
+   module procedure zclone_id_CSR
 end interface
 
 interface recreate
@@ -311,6 +312,38 @@ subroutine zcreate_id_CSR(mat,nrow)
 end subroutine zcreate_id_CSR
 
 !-------------------------------------------------------------------
+
+subroutine zclone_id_CSR(mat, matH)
+  type(z_CSR) :: mat, matH
+
+  integer :: nrow, i, j, nnz
+
+  call zcreate_CSR(mat,matH%nrow,matH%nrow,matH%nnz)
+
+  nrow = matH%nrow
+  nnz = matH%nnz 
+
+  do i=1,nrow+1
+     mat%rowpnt(i)=matH%rowpnt(i)
+  enddo
+
+  do i=1,nnz
+     mat%colind(i)=matH%colind(i)
+  enddo
+  
+  do i=1,nrow
+    do j =mat%rowpnt(i), mat%rowpnt(i+1)-1  
+      if (mat%colind(j) .eq. i) then 
+         mat%nzval(j)=(1.d0,0.d0)
+      else
+         mat%nzval(j)=(0.d0,0.d0)
+      end if
+    enddo
+  enddo
+
+end subroutine zclone_id_CSR
+
+! ------------------------------------------------------------------
 subroutine zcreate_id_DNS(mat,nrow,alpha)
   type(z_DNS) :: mat
   integer nrow, i
