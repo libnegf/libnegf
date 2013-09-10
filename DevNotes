@@ -1,4 +1,1 @@
-The last commit synchronized on the commit Alex did on the dftb+ old _gdftb branch (update at end of August
-2013) are master/9d6ee94 and elph/142e079.
-
-These are compiling and running the tests on the _gdftb branch
+Version compatible with DFTB+/branches/_gdftb (tested)
