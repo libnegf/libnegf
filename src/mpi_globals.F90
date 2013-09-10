@@ -23,12 +23,30 @@ module mpi_globals
 
 #ifdef MPI
   
-  include 'mpif.h'                                   !#MPI#
+  use libmpifx_module
   
-  ! MPI COMMON VARIABLES
-  INTEGER, SAVE ::  mpi_comm, id, numprocs, ierr
+  INTEGER, SAVE ::  mpi_comm
+  INTEGER, SAVE ::  numprocs
+  INTEGER, SAVE ::  id
   LOGICAL, SAVE ::  id0
-  
+
+  contains
+    
+    subroutine negf_mpi_init(comm)
+      type(mpifx_comm) :: comm
+      
+      id = comm%rank
+      numprocs = comm%size
+      
+      id0 = .false.
+      if (id.eq.0) id0 = .true.  
+
+      print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
+      print*, 'CPU',id,'READY'
+      print*, 'PRINTING CPU:',id0
+      
+    end subroutine negf_mpi_init
+
 #else
   
   logical, parameter ::  id0 = .true.
