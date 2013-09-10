@@ -85,8 +85,8 @@ module lib_param
      type(z_DNS) :: SC(MAXNCONT)
      type(z_DNS) :: HMC(MAXNCONT)
      type(z_DNS) :: SMC(MAXNCONT)
-     type(z_CSR), pointer :: rho            ! Holding output Matrix
-     type(z_CSR), pointer :: rho_eps        ! Holding output Matrix
+     type(z_CSR), pointer :: rho  => null()    ! Holding output Matrix
+     type(z_CSR), pointer :: rho_eps => null() ! Holding output Matrix
      logical    :: isSid          
 
      type(TStruct_Info) :: str     ! system structure

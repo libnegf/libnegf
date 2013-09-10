@@ -47,7 +47,7 @@ MODULE iterative_dns
   USE lib_param, only : MAXNCONT, Tnegf
   USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
   USE clock
-  USE transform
+  !USE transform
 
   IMPLICIT NONE
   private
@@ -2481,7 +2481,7 @@ END SUBROUTINE interpolation
 
 !*********************************************************************
 !ADD Hilbert-transform part to Sigma_ph_r  
-!
+!Need to set back FFT transforms
 !********************************************************************
 SUBROUTINE complete_sigma_ph_r(pnegf, Epnt, ioffset)
 
@@ -2587,7 +2587,7 @@ SUBROUTINE complete_sigma_ph_r(pnegf, Epnt, ioffset)
  
            Wq(m) = Wq(m)*2.0_dp*pi/((n-1)*dE)
  
-           call Hilbert_shift(temp1, Wq(m))
+           !call Hilbert_shift(temp1, Wq(m))
          
            Wq(m) = Wq(m)*((n-1)*dE)/(2.0_dp*pi)
  

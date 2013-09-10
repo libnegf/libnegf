@@ -334,14 +334,12 @@ contains
     type(Tnegf) :: negf   
 
     call destroy_matrices(negf)
-
     call kill_Tstruct(negf%str) 
-
     if (associated(negf%LDOS)) call log_deallocatep(negf%LDOS)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
-    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
-
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)
+    
     !call destroy_emesh(negf)
 
   end subroutine destroy_negf
@@ -422,7 +420,11 @@ contains
       endif
     endif
 
+    call contour_int_def(negf)
+
     call contour_int(negf)
+
+    call real_axis_int_def(negf)
 
     call real_axis_int(negf)
 
@@ -451,14 +453,16 @@ contains
     call set_ref_cont(negf)
 
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
-       call contour_int_n(negf)
+       call contour_int_n_def(negf)
+       call contour_int(negf)
     else 
        ! HACKING: THIS WAY COMPUTES DM FOR ALL CONTACTS
        negf%refcont = negf%str%num_conts+1  
     endif
 
     if (negf%Np_real(1).gt.0) then
-       call real_axis_int_n(negf)
+       !call real_axis_int_n_def(negf)
+       call real_axis_int(negf)
     endif
 
     !print*, '(negf) rho:'
@@ -500,6 +504,8 @@ contains
     if (negf%readOldSGF.ne.1) then
        negf%readOldSGF = 1
     end if
+
+    call tunneling_int_def(negf)
 
     call tunneling_and_current(negf)
     
@@ -549,49 +555,50 @@ contains
     character(6) :: ofKP
     real(dp) :: E
 
-    if (negf%writeTunn) then
-
-       Nstep = size(negf%tunn_mat,1) - 1 
-       size_ni = size(negf%tunn_mat,2)
-
-       write(ofKP,'(i6.6)') negf%kpoint
-    
-       open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
-
-       !print*,'ENE CONV=',negf%eneconv
-       negf%eneconv=1.d0
-
-       do i = 1,Nstep+1
+    if (associated(negf%tunn_mat) .and. negf%writeTunn .and. id0) then
+        
+        Nstep = size(negf%tunn_mat,1) 
+        size_ni = size(negf%tunn_mat,2)
+        
+        write(ofKP,'(i6.6)') negf%kpoint
+        
+        open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
+        
+        !print*,'ENE CONV=',negf%eneconv
+        negf%eneconv=1.d0
+        
+        do i = 1,Nstep
        
           E=(negf%Emin+negf%Estep*(i-1))
-       
+          
           WRITE(1021,'(E17.8,20(E17.8))') E*negf%eneconv, &
-            (negf%tunn_mat(i,i1), i1=1,size_ni)
-       
-       enddo
-    
-       close(1021)
-
+              (negf%tunn_mat(i,i1), i1=1,size_ni)
+          
+        enddo
+        
+        close(1021)
+        
     endif
-    
-    if(negf%writeLDOS .and. negf%nLDOS.gt.0) then
 
-       Nstep = size(negf%ldos_mat,1) - 1 
-
-       write(ofKP,'(i6.6)') negf%kpoint
-
-       open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
-       
-       do i = 1,Nstep+1
+    if (associated(negf%ldos_mat) .and. negf%writeLDOS .and. negf%nLDOS.gt.0&
+        & .and. id0) then
+        
+        Nstep = size(negf%ldos_mat,1)
+        
+        write(ofKP,'(i6.6)') negf%kpoint
+        
+        open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
+        
+        do i = 1,Nstep
           
           E=(negf%Emin+negf%Estep*(i-1))
           
           WRITE(1021,'(E17.8,10(E17.8))') E*negf%eneconv, & 
-               ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
+              ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
           
-       end do
-       
-       close(1021)
+        end do
+        
+        close(1021)
        
     endif
     

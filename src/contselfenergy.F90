@@ -332,20 +332,20 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine compute_contacts_csr(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
+  subroutine compute_contacts_csr(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
     complex(dp) :: Ec
     Type(Tnegf) :: pnegf
-    integer, intent(in) :: pnt
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
     Type(z_DNS) :: GS_d
     Type(z_CSR) :: TpMt
 
-    Integer :: nbl, ncont, i, l
+    Integer :: pnt,nbl, ncont, i, l
     Real(dp) :: ncyc, avncyc
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
+    pnt = pnegf%iE
     avncyc = 0
 
     ! -----------------------------------------------------------------------
@@ -386,17 +386,20 @@ contains
   end subroutine compute_contacts_csr
 !-------------------------------------------------------------------------------
 
-  subroutine compute_contacts_dns(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
-    complex(dp) :: Ec
-    Type(Tnegf) :: pnegf
-    integer, intent(in) :: pnt
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+  subroutine compute_contacts_dns(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    complex(dp), intent(in) :: Ec
+    Type(Tnegf), intent(inout) :: pnegf
+    real(dp), intent(out) :: ncyc
+    Type(z_DNS), Dimension(MAXNCONT), intent(in) :: Tlc, Tcl
+    Type(z_DNS), Dimension(MAXNCONT), intent(out) :: SelfEneR, GS
+
 
     Type(z_DNS) :: TpMt
 
-    Integer :: nbl, ncont, i
-    Real(dp) :: ncyc, avncyc
+    Integer :: pnt, nbl, ncont, i
+    real(dp) :: avncyc
 
+    pnt = pnegf%iE
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
     avncyc = 0

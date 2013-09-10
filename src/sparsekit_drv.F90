@@ -216,11 +216,11 @@ MODULE sparsekit_drv
   !interface 
   !   function getelm(i1,i2,r,i4,i5,i6,l)
   !     integer, intent(in) :: i1,i2
-  !     real(8), dimension(:), intent(in) :: r
+  !     real(dp), dimension(:), intent(in) :: r
   !     integer, dimension(:), intent(in) :: i4,i5
   !     integer, intent(out) :: i6 
   !     logical, intent(in) :: l
-  !     real(8) :: getelm
+  !     real(dp) :: getelm
   !   end function getelm
   !end interface 
 
