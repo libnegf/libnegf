@@ -508,8 +508,11 @@ contains
     call tunneling_int_def(negf)
 
     call tunneling_and_current(negf)
-    
-    call write_tunneling_and_dos(negf)
+   
+    !!GP Locally writing energy dependent data is not meaningful in the MPI
+    !implementation, because the gathering is done externally.
+    ! An implementation node by node is still active, for debugging purposes 
+    !call write_tunneling_and_dos(negf)
     
     call destroy_matrices(negf)
  
@@ -519,19 +522,23 @@ contains
 
 
   ! --------------------------------------------------------------------------------
+  ! GP Left in MPI version for debug purpose only. This will write a separate
+  ! file for every ID, which is not possible on all architectures 
   subroutine write_current(negf)
 
     type(Tnegf), pointer :: negf
 
     integer :: i1
     logical :: lex
+    character(6) :: idstr
 
-    inquire(file=trim(negf%out_path)//'current.dat',EXIST=lex)
+    write(idstr,'(i6.6)') id
+    inquire(file=trim(negf%out_path)//'current_'//idstr//'.dat',EXIST=lex)
     
     if (lex) then
-       open(101,file=trim(negf%out_path)//'current.dat',position='APPEND')
+       open(101,file=trim(negf%out_path)//'current_'//idstr//'.dat',position='APPEND')
     else
-       open(101,file=trim(negf%out_path)//'current.dat')
+       open(101,file=trim(negf%out_path)//'current_'//idstr//'.dat')
     endif
 
     do i1=1,size(negf%currents)
@@ -547,22 +554,25 @@ contains
   !-------------------------------------------------------------------------------
   
   !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
+  ! GP Left in MPI version for debug purpose only. This will write a separate
+  ! file for every ID, which is not possible on all architectures 
   subroutine write_tunneling_and_dos(negf)
 
     type(Tnegf) :: negf
 
     integer :: Nstep, i, i1, iLDOS, size_ni
-    character(6) :: ofKP
+    character(6) :: ofKP, idstr
     real(dp) :: E
 
-    if (associated(negf%tunn_mat) .and. negf%writeTunn .and. id0) then
+    if (associated(negf%tunn_mat) .and. negf%writeTunn) then
         
         Nstep = size(negf%tunn_mat,1) 
         size_ni = size(negf%tunn_mat,2)
         
         write(ofKP,'(i6.6)') negf%kpoint
+        write(idstr,'(i6.6)') id
         
-        open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'.dat')
+        open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'_'//idstr//'.dat')
         
         !print*,'ENE CONV=',negf%eneconv
         negf%eneconv=1.d0
@@ -580,14 +590,14 @@ contains
         
     endif
 
-    if (associated(negf%ldos_mat) .and. negf%writeLDOS .and. negf%nLDOS.gt.0&
-        & .and. id0) then
+    if (associated(negf%ldos_mat) .and. negf%writeLDOS .and. negf%nLDOS.gt.0) then
         
         Nstep = size(negf%ldos_mat,1)
         
         write(ofKP,'(i6.6)') negf%kpoint
+        write(idstr,'(i6.6)') id
         
-        open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'.dat')
+        open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'_'//idstr//'.dat')
         
         do i = 1,Nstep
           
