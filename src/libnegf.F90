@@ -38,7 +38,7 @@ module libnegf
  private
 
  public :: init_negf, destroy_negf
- public :: set_H, set_S, read_HS
+ public :: set_H, set_S, set_S_id, read_HS
  public :: read_negf_in
  public :: negf_version 
  public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S,rho,rhoE)
@@ -105,6 +105,7 @@ contains
   subroutine read_HS(negf)
     type(Tnegf) :: negf
     character(11) :: fmtstring
+    logical :: doesexist  
     
     open(101, file=negf%file_struct, form='formatted')  
 
@@ -114,6 +115,10 @@ contains
     read(101,*) negf%file_re_S
     read(101,*) negf%file_im_S
 
+    if (trim(negf%file_re_S).eq.'identity') then
+         negf%isSid = .true.     
+    endif
+    
     !print*, '(init_negf) files: ', trim(negf%file_re_H)
     !print*, '(init_negf) files: ', trim(negf%file_im_H)
     !print*, '(init_negf) files: ', trim(negf%file_re_S) 
@@ -126,23 +131,38 @@ contains
     else
        fmtstring = 'unformatted'
     endif
+  
+    inquire(file=trim(negf%file_re_H), exist= doesexist)  
+    inquire(file=trim(negf%file_im_H), exist= doesexist)  
+    if (.not.doesexist) then
+       write(*,*) "libNEGF error. Hamiltonian files not found"
+       stop  
+    endif
 
     open(401, file=negf%file_re_H, form=trim(fmtstring))
     open(402, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
 
     !print*, '(init_negf) Reading H...'
+    allocate(negf%H)
     call read_H(401,402,negf%H,negf%form)
-
     close(401)
     close(402)
 
     if (trim(negf%file_re_S).eq.'') negf%isSid = .true.
          
     if(.not.negf%isSid) then
+       inquire(file=trim(negf%file_re_H), exist= doesexist)  
+       inquire(file=trim(negf%file_im_H), exist= doesexist)  
+       if (.not.doesexist) then
+          write(*,*) "libNEGF error. overlap files not found"
+          stop  
+       endif
+
        open(401, file=negf%file_re_S, form=trim(fmtstring))
        open(402, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
 
        !print*, '(init_negf) Reading S...'
+       allocate(negf%S)
        call read_H(401,402, negf%S,negf%form)
        
        close(401)
@@ -150,9 +170,14 @@ contains
 
     else
        ! create an Id matrix for S
-       call create_id( negf%S,negf%H%nrow) 
+       !print*, '(init_negf) set identity S...'
+       !call create_id( negf%S,negf%H%nrow) 
+       allocate(negf%S)
+       call create_id( negf%S, negf%H) 
 
     endif
+    
+    negf%intHS=.true.
 
   end subroutine read_HS
 
@@ -164,19 +189,27 @@ contains
     integer :: colind(*)
     integer :: rowpnt(*)
 
-    integer :: nnz, i
+    integer :: nnz, i, base
 
-    nnz = rowpnt(nrow+1)-1
+    base = 0
+    if (rowpnt(1) == 0) base = 1
 
+    nnz = rowpnt(nrow+1)-rowpnt(1)
+
+    allocate(negf%H)
     call create(negf%H,nrow,nrow,nnz)
 
     do i = 1, nnz
       negf%H%nzval(i) = nzval(i)
-      negf%H%colind(i) = colind(i)
+      negf%H%colind(i) = colind(i) + base
     enddo
     do i = 1,nrow+1
-      negf%H%rowpnt(i) = rowpnt(i)
+      negf%H%rowpnt(i) = rowpnt(i) + base 
     enddo  
+    negf%intHS=.true.
+
+    !print*,'nrow = ',negf%H%nrow
+    !print*,'nnz = ',negf%H%rowpnt(nrow+1)-1, negf%H%nnz
 
   end subroutine set_H
 
@@ -188,31 +221,49 @@ contains
     integer :: colind(*)
     integer :: rowpnt(*)
 
-    integer :: nnz, i
+    integer :: nnz, i, base
 
-    nnz = rowpnt(nrow+1)-1
+    base = 0
+    if (rowpnt(1) == 0) base = 1
 
+    nnz = rowpnt(nrow+1)-rowpnt(1)
+
+    allocate(negf%S)
     call create(negf%S,nrow,nrow,nnz)
 
     do i = 1, nnz
       negf%S%nzval(i) = nzval(i)
-      negf%S%colind(i) = colind(i)
+      negf%S%colind(i) = colind(i) + base
     enddo
     do i = 1,nrow+1
-      negf%S%rowpnt(i) = rowpnt(i)
+      negf%S%rowpnt(i) = rowpnt(i) + base
     enddo  
+    negf%intHS=.true.
+    
+    !print*,'nrow = ',negf%H%nrow
+    !print*,'nnz = ',negf%H%rowpnt(nrow+1)-1, negf%H%nnz
+
 
   end subroutine set_S
-
-
-
   !--------------------------------------------------------------------
-   subroutine read_negf_in(negf)
+  subroutine set_S_id(negf, nrow)
+    type(Tnegf) :: negf
+    integer :: nrow
+    !integer :: nnz
+
+    allocate(negf%S)
+    call create_id(negf%S, nrow) 
+
+  end subroutine set_S_id
+  
+  !--------------------------------------------------------------------
+  subroutine read_negf_in(negf)
     type(Tnegf) :: negf
     Integer :: ncont, nbl
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
+    character(32) :: tmp
 
-    open(101, file=negf%file_struct, form='formatted')  
+    open(101, file=trim(negf%file_struct), form='formatted')  
   
     read(101,*) negf%file_re_H 
     read(101,*) negf%file_im_H
@@ -220,31 +271,32 @@ contains
     read(101,*) negf%file_re_S
     read(101,*) negf%file_im_S
 
-    read(101,*) ncont
+    if (trim(negf%file_re_S).eq.'identity') then
+         negf%isSid = .true.     
+    endif
+
+    read(101,*) tmp, ncont
 
     call log_allocate(cblk,ncont)
     call log_allocate(cont_end,ncont)
     call log_allocate(surf_end,ncont)
 
-    read(101,*) nbl
+    read(101,*) tmp, nbl
 
     if (nbl .gt. 0) then
 
        call log_allocate(PL_end,nbl)
 
-       read(101,*) PL_end(1:nbl)
+       read(101,*) tmp,  PL_end(1:nbl)
 
     end if
 
-    
-    read(101,*) cont_end(1:ncont)
-    read(101,*) surf_end(1:ncont)
+    read(101,*) tmp,  cont_end(1:ncont)
+    read(101,*) tmp,  surf_end(1:ncont)
 
     if (nbl .eq. 0) then
-
        call log_allocate(PL_end, MAXNUMPLs)  
        call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
-           
     endif
     
     call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
@@ -261,24 +313,24 @@ contains
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
 
-    read(101,*) negf%mu_n, negf%mu_p
-    read(101,*) negf%Ec, negf%Ev
-    read(101,*) negf%DeltaEc, negf%DeltaEv
-    read(101,*) negf%Emin, negf%Emax, negf%Estep
-    read(101,*) negf%kbT
-    read(101,*) negf%wght
-    read(101,*) negf%Np_n(1:2)
-    read(101,*) negf%Np_p(1:2)
-    read(101,*) negf%Np_real(1)
-    read(101,*) negf%n_kt
-    read(101,*) negf%n_poles
-    read(101,*) negf%g_spin
-    read(101,*) negf%delta
-    read(101,*) negf%nLDOS
+    read(101,*) tmp,  negf%mu_n, negf%mu_p
+    read(101,*) tmp,  negf%Ec, negf%Ev
+    read(101,*) tmp,  negf%DeltaEc, negf%DeltaEv
+    read(101,*) tmp,  negf%Emin, negf%Emax, negf%Estep
+    read(101,*) tmp,  negf%kbT
+    read(101,*) tmp,  negf%wght
+    read(101,*) tmp,  negf%Np_n(1:2)
+    read(101,*) tmp,  negf%Np_p(1:2)
+    read(101,*) tmp,  negf%Np_real(1)
+    read(101,*) tmp,  negf%n_kt
+    read(101,*) tmp,  negf%n_poles
+    read(101,*) tmp,  negf%g_spin
+    read(101,*) tmp,  negf%delta
+    read(101,*) tmp,  negf%nLDOS
     call log_allocatep(negf%LDOS,2,negf%nLDOS)
-    read(101,*) negf%LDOS
-    read(101,*) negf%Efermi(1:ncont)  ! Will be 0 from TC
-    read(101,*) negf%mu(1:ncont)      ! Will be the Electrochemical potential
+    read(101,*) tmp,  negf%LDOS
+    read(101,*) tmp,  negf%Efermi(1:ncont)  ! Will be 0 from TC
+    read(101,*) tmp,  negf%mu(1:ncont)      ! Will be the Electrochemical potential
 
     close(101)
 
@@ -307,7 +359,7 @@ contains
 
       write(*,*) "(LibNEGF) Partitioning:"
       write(*,*) "Number of blocks: ",negf%str%num_Pls
-      write(*,*) negf%str%mat_PL_end(:)
+      !write(*,*) negf%str%mat_PL_end(:)
       write(*,*) "Contact interactions:",negf%str%cblk(:)     
 
       open(1001,file='blocks.dat')
@@ -334,12 +386,14 @@ contains
     type(Tnegf) :: negf   
 
     call destroy_matrices(negf)
+
     call kill_Tstruct(negf%str) 
+
     if (associated(negf%LDOS)) call log_deallocatep(negf%LDOS)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
-    if (associated(negf%currents)) call log_deallocatep(negf%currents)
-    
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
+
     !call destroy_emesh(negf)
 
   end subroutine destroy_negf
@@ -349,27 +403,6 @@ contains
     type(Tnegf) :: negf   
     integer :: i
 
-    !if (allocated(negf%H%nzval)) then
-       !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
-    !   call destroy(negf%H) 
-    !end if
-    !if (allocated(negf%S%nzval)) then
-       !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
-    !   call destroy(negf%S) 
-    !end if
-    !if (allocated(negf%rho%nzval)) then
-       !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
-    !   call destroy(negf%rho) 
-    !end if
-    !if (allocated(negf%rho_eps%nzval)) then
-       !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
-    !   call destroy(negf%rho_eps) 
-    !end if
-
-
-    !if (allocated(negf%HM%nzval)) call destroy(negf%HM)
-    !if (allocated(negf%SM%nzval)) call destroy(negf%SM)
-
     do i=1,negf%str%num_conts
        if (allocated(negf%HC(i)%val)) call destroy(negf%HC(i))
        if (allocated(negf%SC(i)%val)) call destroy(negf%SC(i))
@@ -377,7 +410,65 @@ contains
        if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
 
+    call destroy_HS(negf)
+    call destroy_DM(negf)
+
   end subroutine destroy_matrices
+ 
+!--------------------------------------------------------------------
+  subroutine destroy_HS(negf)
+    type(Tnegf) :: negf
+
+    if (negf%intHS) then
+      if (associated(negf%H)) then
+        if (allocated(negf%H%nzval)) then
+           !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
+           call destroy(negf%H)
+        end if
+        deallocate(negf%H)
+        nullify(negf%H)
+      endif
+
+      if (associated(negf%S)) then
+        if (allocated(negf%S%nzval)) then
+           !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
+           call destroy(negf%S) 
+        end if
+        deallocate(negf%S)
+        nullify(negf%S) 
+      endif
+
+    endif
+
+  end subroutine destroy_HS   
+
+!--------------------------------------------------------------------
+  subroutine destroy_DM(negf)
+    type(Tnegf) :: negf   
+
+    if (negf%intDM) then
+      
+      if (associated(negf%rho)) then
+        if (allocated(negf%rho%nzval)) then
+           !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
+           call destroy(negf%rho) 
+        end if
+        deallocate(negf%rho)
+        nullify(negf%rho)
+      endif  
+      
+      if (associated(negf%rho_eps)) then
+        if (allocated(negf%rho_eps%nzval)) then
+           !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
+           call destroy(negf%rho_eps) 
+        end if
+        deallocate(negf%rho_eps)
+        nullify(negf%rho_eps) 
+      endif
+
+    endif  
+
+  end subroutine destroy_DM  
   
   !-------------------------------------------------------------------------------
   ! Compact collection of calls to extract device/contact H and S 
@@ -420,11 +511,11 @@ contains
       endif
     endif
 
-    call contour_int_def(negf)
+    if (.not.associated(negf%rho)) allocate(negf%rho)
+    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
+    negf%intDM = .true. 
 
     call contour_int(negf)
-
-    call real_axis_int_def(negf)
 
     call real_axis_int(negf)
 
@@ -451,6 +542,10 @@ contains
     call extract_cont(negf)
 
     call set_ref_cont(negf)
+
+    if (.not.associated(negf%rho)) allocate(negf%rho)
+    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
+    negf%intDM = .true. 
 
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
        call contour_int_n_def(negf)
@@ -901,9 +996,10 @@ contains
              else
                 write(*,*) "(LibNEGF) Partitioning:"
                 write(*,*) "Number of blocks: ",nbl
-                write(*,*) PL_end(1:nbl)
-                write(*,*) "Contact interaction:",cblk(j1)      
-                write(*,*) "ERROR: contact",j1,"interacting with more than one block",min,max
+                write(*,*) "PL_end: ",PL_end(1:nbl)
+                write(*,*) "Contact interaction: ",cblk(j1)      
+                write(*,'(a,i3,a)') " ERROR: contact",j1," interacting with more than one block"
+                write(*,*) "min ",min,"max ",max
                 stop
              end if
 

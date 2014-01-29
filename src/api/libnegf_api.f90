@@ -128,14 +128,13 @@ end subroutine negf_init
 
 !!* Passing Hamiltonian from memory 
 !!* @param  handler  Contains the handler for the new instance on return
-subroutine negf_set_H(handler, nrow, fmt, A, JA, IA)
+subroutine negf_set_h(handler, nrow, A, JA, IA)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
   integer :: nrow     ! if:var:out
-  character(1) :: fmt    ! if:var:out
   complex(dp) :: A(*) ! if:var:out 
   integer :: JA(*)    ! if:var:out
   integer :: IA(*)    ! if:var:out
@@ -146,18 +145,17 @@ subroutine negf_set_H(handler, nrow, fmt, A, JA, IA)
  
   call set_H(LIB%pNEGF,nrow, A, JA, IA)
   
-end subroutine negf_set_H 
+end subroutine negf_set_h 
 
 !!* Passing Overlap from memory                        
 !!* @param  handler  Contains the handler for the new instance on return
-subroutine negf_set_S(handler, nrow, fmt, A, JA, IA)
+subroutine negf_set_s(handler, nrow, A, JA, IA)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
   integer :: nrow     ! if:var:out
-  character(1) :: fmt    ! if:var:out
   complex(dp) :: A(*) ! if:var:out 
   integer :: JA(*)    ! if:var:out
   integer :: IA(*)    ! if:var:out
@@ -168,7 +166,48 @@ subroutine negf_set_S(handler, nrow, fmt, A, JA, IA)
  
   call set_S(LIB%pNEGF,nrow, A, JA, IA)
   
-end subroutine negf_set_S 
+end subroutine negf_set_s 
+
+!!* Passing Overlap from memory                        
+!!* @param  handler  Contains the handler for the new instance on return
+subroutine negf_set_s_id(handler, nrow)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  use ln_precision      ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:inout
+  integer :: nrow     ! if:var:out
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+ 
+  call set_S_id(LIB%pNEGF,nrow)
+  
+end subroutine negf_set_s_id
+
+subroutine negf_print_mat(handler)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:inout
+
+  !type(TNEGF), pointer :: pNEGF
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+
+  !print*,"(libNEGF) write "//trim(LIB%pNEGF%scratch_path)//"H.dat"
+  open(666, file=trim(LIB%pNEGF%scratch_path)//'H.dat') 
+  call printcsr(666,LIB%pNEGF%H)
+  close(666)
+
+  !print*,"(libNEGF) write "//trim(LIB%pNEGF%scratch_path)//"S.dat"
+  open(666, file=trim(LIB%pNEGF%scratch_path)//'S.dat') 
+  call printcsr(666,LIB%pNEGF%S)
+  close(666)
+
+end subroutine negf_print_mat
 
 !!* Fill parameters from input file negf.in
 !!* @param  handler  Contains the handler for the new instance on return
@@ -182,10 +221,28 @@ subroutine negf_read_input(handler)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
- 
+  !print*,'(libNEGF) reading negf.in ...' 
   call read_negf_in(LIB%pNEGF)
   
 end subroutine negf_read_input
+
+!!* Fill parameters from input file negf.in
+!!* @param  handler  Contains the handler for the new instance on return
+subroutine negf_read_hs(handler)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:inout
+
+  !type(TNEGF), pointer :: pNEGF
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+ 
+  call read_HS(LIB%pNEGF)
+  
+end subroutine negf_read_hs
+
 
 !!* Destroys a certain LIBNEGF instance
 !!* @param  handler  Handler for the instance to destroy
@@ -293,7 +350,10 @@ subroutine negf_density_dft(handler,ndofs,density)
   
   LIB = transfer(handler, LIB) 
 
-  call compute_density_dft(LIB%pNEGF, density)
+  call compute_density_dft(LIB%pNEGF)
+
+  ! TO DO: OUTPUT 
+  !density = LIB%pNEGF%
 
 end subroutine negf_density_dft
 
