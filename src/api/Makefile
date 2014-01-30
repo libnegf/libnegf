@@ -13,8 +13,8 @@ TARGET = libnegf_$(ARCH1).a
 SKITOBJECTS = sparsekit/*.o
 
 MODULES = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
-contselfenergy.o population.o metis_interface.o \
-mat_def.o clock.o fermi.o iterative.o complexbands.o lowdin.o \
+contselfenergy.o population.o elph.o \
+mat_def.o clock.o fermi.o iterative.o integrations.o complexbands.o  \
 sparsekit_drv.o ln_structure.o inversions.o outmatrix.o \
 input_output.o lib_param.o libnegf.o globals.o \
 rcm_module.o iterative_dns.o ln_extract.o
@@ -45,6 +45,7 @@ libs:
 	(cd ..; $(MAKE); cp  *.mod *.o $(API))
 
 $(SKITOBJECTS):
+	if [ ! -e sparsekit ]; then mkdir sparsekit; fi 
 	(cd ../../ext_sparskit/; $(MAKE); cp zlibskit.$(ARCH1)-linux-ifort.a ../src/api/sparsekit; \
 	 cd ../src/api/sparsekit; ar -x zlibskit.$(ARCH1)-linux-ifort.a) 
 

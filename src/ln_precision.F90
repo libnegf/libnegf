@@ -20,23 +20,39 @@
 
 
 module ln_precision
+  implicit none
+  private
 
+  public :: sp, dp
+  public :: EPS, EPS10, EPS12, EPS15
+  public :: get_machine_prec
+  public :: set_drop
+  
   integer, parameter :: sp = selected_real_kind(6,30)
   integer, parameter :: dp = selected_real_kind(14,100)
 
-  real(dp), parameter :: EPS=1.d-10
+  real(dp) :: EPS
+  real(dp), parameter :: EPS10=1.d-10
+  real(dp), parameter :: EPS12=1.d-12
+  real(dp), parameter :: EPS15=1.d-15
 
-  interface
-    real(8) function DLAMCH(C)
-      character C
-    end function DLAMCH
-  end interface
   
 contains 
 
   function get_machine_prec() result(racc)
+    interface
+      real(dp) function DLAMCH(C)
+        import :: dp
+        character C
+      end function DLAMCH
+    end interface
     real(dp) :: racc
     racc=DLAMCH('Precision')
   end function get_machine_prec
+
+  subroutine set_drop(drop)
+     real(dp) :: drop
+     EPS = drop
+  end subroutine set_drop
 
 end module ln_precision

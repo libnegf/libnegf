@@ -66,31 +66,33 @@ contains
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------  
-  subroutine surface_green(E,HC,SC,pnegf,pnt,avncyc,GS)
+  subroutine surface_green(E,HC,SC,pnegf,avncyc,GS)
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
     type(Tnegf) :: pnegf
     real(dp), intent(inout) :: avncyc  ! Average num. cycles
-    integer, intent(in)     :: pnt     ! Step of the energy integration
     type(z_DNS), intent(out) :: GS
 
 
     complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co
     type(z_DNS) :: gt
 
-    integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp
-    integer :: ncyc,nfc,verbose,contdim,surfdim
+    integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp,nsp
+    integer :: pnt,ncyc,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
     real(kind=dp) :: dens
     character(2) :: ofcont
+    character(1) :: ofspin
     character(10) :: ofkpnt
     character(10) :: ofpnt
     character(64) :: filename
     logical :: lex
-
+  
+    pnt = pnegf%iE    ! Step of the energy integration
     i = pnegf%activecont
+    nsp = pnegf%spin
     nkp = pnegf%kpoint
     flag = pnegf%ReadOldSGF
     verbose = pnegf%verbose
@@ -113,9 +115,10 @@ contains
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt  
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt  
     if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
-
+    if (nsp.eq.1) ofspin='u'
+    if (nsp.eq.2) ofspin='d'
     
-    filename = 'GS'//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
+    filename = 'GS'//ofspin//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
     inquire(file=trim(pnegf%scratch_path)//filename,EXIST=lex)
 
     if (.not.lex .and. flag.eq.0) then
@@ -329,17 +332,19 @@ contains
 
 !-------------------------------------------------------------------------------
 
-  subroutine compute_contacts_csr(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
-    complex(dp) :: Ec
-    Type(Tnegf) :: pnegf
-    integer, intent(in) :: pnt
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+  subroutine compute_contacts_csr(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    complex(dp), intent(in) :: Ec
+    Type(Tnegf), intent(inout) :: pnegf
+    real(dp), intent(out) :: ncyc
+    Type(z_CSR), Dimension(MAXNCONT), intent(in) :: Tlc, Tcl
+    Type(z_CSR), Dimension(MAXNCONT), intent(out) :: SelfEneR, GS
+
 
     Type(z_DNS) :: GS_d
     Type(z_CSR) :: TpMt
 
     Integer :: nbl, ncont, i, l
-    Real(dp) :: ncyc, avncyc
+    Real(dp) :: avncyc
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
@@ -355,7 +360,7 @@ contains
     do i= 1,ncont
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS_d)
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS_d)
 
        l = nzdrop(GS_d,EPS)
        
@@ -383,16 +388,18 @@ contains
   end subroutine compute_contacts_csr
 !-------------------------------------------------------------------------------
 
-  subroutine compute_contacts_dns(Ec,pnegf,pnt,ncyc,Tlc,Tcl,SelfEneR,GS)
-    complex(dp) :: Ec
-    Type(Tnegf) :: pnegf
-    integer, intent(in) :: pnt
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+  subroutine compute_contacts_dns(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    complex(dp), intent(in) :: Ec
+    Type(Tnegf), intent(inout) :: pnegf
+    real(dp), intent(out) :: ncyc
+    Type(z_DNS), Dimension(MAXNCONT), intent(in) :: Tlc, Tcl
+    Type(z_DNS), Dimension(MAXNCONT), intent(out) :: SelfEneR, GS
+
 
     Type(z_DNS) :: TpMt
 
     Integer :: nbl, ncont, i
-    Real(dp) :: ncyc, avncyc
+    Real(dp) :: avncyc
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
@@ -409,7 +416,7 @@ contains
 
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS(i))
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS(i))
        
        avncyc = avncyc + ncyc
 

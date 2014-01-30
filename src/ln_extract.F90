@@ -44,9 +44,8 @@ contains
     Integer :: nmdim
 
     nmdim = negf%str%central_dim
-
-    call extract(negf%H,1,nmdim,1,nmdim,negf%HM)
-    call extract(negf%S,1,nmdim,1,nmdim,negf%SM)
+    !call extract(negf%H,1,nmdim,1,nmdim,negf%HM)
+    !call extract(negf%S,1,nmdim,1,nmdim,negf%SM)
 
   end subroutine extract_device
 

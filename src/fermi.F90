@@ -74,7 +74,7 @@ contains
     kTc=kT*ONE
 
     if (kT.eq.0.d0) then
-      if(dreal(Ec).gt.Ef) then
+      if(real(Ec).gt.Ef) then
         fermi_fc = (0.D0,0.D0)
       else
         fermi_fc = (1.D0,0.D0)
@@ -83,7 +83,7 @@ contains
     endif
 
     if (abs( (real(Ec)-Ef)/kT ).gt.30) then
-      if(dreal(Ec).gt.Ef) then
+      if(real(Ec).gt.Ef) then
         fermi_fc = (0.D0,0.D0)
       else
         fermi_fc = (1.D0,0.D0)

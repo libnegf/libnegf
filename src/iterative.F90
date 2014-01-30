@@ -79,7 +79,7 @@ MODULE iterative
 
   LOGICAL, PARAMETER :: debug=.false. 
   !Dropout value
-  REAL(dp), PARAMETER :: drop=1e-20
+  REAL(dp), PARAMETER :: drop=EPS12
 
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsmr
   TYPE(z_CSR), DIMENSION(:), ALLOCATABLE :: gsml

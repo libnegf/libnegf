@@ -226,27 +226,17 @@ subroutine read_H(idR,idI, zmat,fmt)
      case('F')
      end select
   enddo
-  !write(*,*) mat%index_j, mat%index_i, mati%nzval
-
-  !write(*,*) 'Hcomplex is'
   
   count = k
-  !do i = 1, k  
-  !   if(  abs(matr%nzval(i)).gt.EPS .or. abs(mati%nzval(i)).gt.EPS  ) then
-  !      count = count + 1
-  !   endif
-  !enddo
    
   call create(mat2,matr%nrow,matr%nrow,count)
 
   count = 0
   do i = 1, k  
-  !   if(  abs(matr%nzval(i)).gt.EPS .or. abs(mati%nzval(i)).gt.EPS  ) then
        count = count + 1
        mat2%index_i(count) = matr%index_i(i)
        mat2%index_j(count) = matr%index_j(i)
        mat2%nzval(count)= cmplx(matr%nzval(i), mati%nzval(i), dp)        
-  !   endif
   enddo
   
 

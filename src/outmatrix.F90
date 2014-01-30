@@ -167,7 +167,7 @@ module outmatrix
       character(12), OPTIONAL :: format
       !  number of eigenstates, filled levels and half occupied states
 
-      real(8) mat(ndim,ndim)
+      real(dp) mat(ndim,ndim)
 
       !format='U'
 
