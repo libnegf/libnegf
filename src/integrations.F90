@@ -46,10 +46,9 @@ module integrations
  public :: contour_int     ! generalized contour integrator 
  public :: real_axis_int   ! real-axis integrator
 
- public :: real_axis_int_def ! real axis integration for DFT(B)
  public :: contour_int_def   ! contour integration for DFT(B)
- !public :: real_axis_int_n_def ! real axis integration for CB
  public :: contour_int_n_def ! contour integration for CB
+ public :: real_axis_int_def ! real axis integration 
 
  public :: tunneling_int_def
  public :: tunneling_and_current
@@ -834,7 +833,7 @@ contains
        en_grid(i)%path = 1
        en_grid(i)%pt = i
        en_grid(i)%pt_path = i
-       en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0_dp) 
+       en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0, dp) 
        en_grid(i)%wght = negf%wght * negf%g_spin 
     enddo
 
@@ -876,7 +875,8 @@ contains
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        !call log_allocatep(negf%tunn_mat,0,0)
        !if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
-       call log_allocatep(negf%currents,1)       
+       call destroy_en_grid()
+       call log_allocatep(negf%currents,1) 
        negf%currents = 0.0_dp 
        return
     endif
@@ -887,7 +887,6 @@ contains
     indblk => negf%str%mat_PL_start
     Nstep = size(en_grid)
     
-   
     !Extract Contacts in main
     !Tunneling set-up
     do i=1,size(negf%ni)

@@ -66,12 +66,11 @@ contains
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------  
-  subroutine surface_green(E,HC,SC,pnegf,pnt,avncyc,GS)
+  subroutine surface_green(E,HC,SC,pnegf,avncyc,GS)
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
     type(Tnegf) :: pnegf
     real(dp), intent(inout) :: avncyc  ! Average num. cycles
-    integer, intent(in)     :: pnt     ! Step of the energy integration
     type(z_DNS), intent(out) :: GS
 
 
@@ -79,7 +78,7 @@ contains
     type(z_DNS) :: gt
 
     integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp,nsp
-    integer :: ncyc,nfc,verbose,contdim,surfdim
+    integer :: pnt,ncyc,nfc,verbose,contdim,surfdim
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute 
                                ! flag=2 Compute and save
@@ -90,7 +89,8 @@ contains
     character(10) :: ofpnt
     character(64) :: filename
     logical :: lex
-
+  
+    pnt = pnegf%iE    ! Step of the energy integration
     i = pnegf%activecont
     nsp = pnegf%spin
     nkp = pnegf%kpoint
@@ -333,19 +333,21 @@ contains
 !-------------------------------------------------------------------------------
 
   subroutine compute_contacts_csr(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
-    complex(dp) :: Ec
-    Type(Tnegf) :: pnegf
-    Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    complex(dp), intent(in) :: Ec
+    Type(Tnegf), intent(inout) :: pnegf
+    real(dp), intent(out) :: ncyc
+    Type(z_CSR), Dimension(MAXNCONT), intent(in) :: Tlc, Tcl
+    Type(z_CSR), Dimension(MAXNCONT), intent(out) :: SelfEneR, GS
+
 
     Type(z_DNS) :: GS_d
     Type(z_CSR) :: TpMt
 
-    Integer :: pnt,nbl, ncont, i, l
-    Real(dp) :: ncyc, avncyc
+    Integer :: nbl, ncont, i, l
+    Real(dp) :: avncyc
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
-    pnt = pnegf%iE
     avncyc = 0
 
     ! -----------------------------------------------------------------------
@@ -358,7 +360,7 @@ contains
     do i= 1,ncont
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS_d)
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS_d)
 
        l = nzdrop(GS_d,EPS)
        
@@ -396,10 +398,9 @@ contains
 
     Type(z_DNS) :: TpMt
 
-    Integer :: pnt, nbl, ncont, i
-    real(dp) :: avncyc
+    Integer :: nbl, ncont, i
+    Real(dp) :: avncyc
 
-    pnt = pnegf%iE
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
     avncyc = 0
@@ -415,7 +416,7 @@ contains
 
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,pnt,ncyc,GS(i))
+       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS(i))
        
        avncyc = avncyc + ncyc
 

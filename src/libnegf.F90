@@ -284,13 +284,12 @@ contains
     read(101,*) tmp, nbl
 
     if (nbl .gt. 0) then
-
        call log_allocate(PL_end,nbl)
-
-       read(101,*) tmp,  PL_end(1:nbl)
-
+   print*,'read blocks ',nbl 
+       read(101,*) PL_end(1:nbl)
     end if
 
+   print*,'cont_end surf_end',ncont 
     read(101,*) tmp,  cont_end(1:ncont)
     read(101,*) tmp,  surf_end(1:ncont)
 
@@ -298,7 +297,7 @@ contains
        call log_allocate(PL_end, MAXNUMPLs)  
        call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
     endif
-    
+   print*,'find cblocks' 
     call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
 
     !if (negf%verbose .gt. 50) then
@@ -306,6 +305,7 @@ contains
     !   write(*,*) "(init NEGF) blocks interactions:",cblk(1:ncont)     
     !endif
 
+   print*,'init structure' 
     call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
        
     call log_deallocate(PL_end)
@@ -398,6 +398,16 @@ contains
 
   end subroutine destroy_negf
 !--------------------------------------------------------------------
+  subroutine create_DM(negf)
+    type(Tnegf) :: negf   
+  
+    if (negf%intDM) then
+       if (.not.associated(negf%rho)) allocate(negf%rho)
+       if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
+    endif  
+
+  end subroutine create_DM
+
 
   subroutine destroy_matrices(negf)
     type(Tnegf) :: negf   
@@ -511,13 +521,15 @@ contains
       endif
     endif
 
-    if (.not.associated(negf%rho)) allocate(negf%rho)
-    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
-    negf%intDM = .true. 
-
+    call contour_int_def(negf)
+      
     call contour_int(negf)
 
+    call real_axis_int_def(negf)
+
     call real_axis_int(negf)
+
+    call destroy_matrices(negf)
 
   end subroutine compute_density_dft
 
@@ -543,9 +555,7 @@ contains
 
     call set_ref_cont(negf)
 
-    if (.not.associated(negf%rho)) allocate(negf%rho)
-    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
-    negf%intDM = .true. 
+    call create_DM(negf)
 
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
        call contour_int_n_def(negf)
@@ -556,14 +566,9 @@ contains
     endif
 
     if (negf%Np_real(1).gt.0) then
-       !call real_axis_int_n_def(negf)
+       call real_axis_int_def(negf)
        call real_axis_int(negf)
     endif
-
-    !print*, '(negf) rho:'
-    !call print_mat(6,negf%rho,.true.,0)
-
-    !print*, '(negf) extract ndofs =', size(q), negf%S%nrow
 
     ! We need not to include S !!!!
     if (negf%rho%nrow.gt.0) then
