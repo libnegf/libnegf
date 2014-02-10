@@ -289,7 +289,6 @@ contains
        read(101,*) PL_end(1:nbl)
     end if
 
-   print*,'cont_end surf_end',ncont 
     read(101,*) tmp,  cont_end(1:ncont)
     read(101,*) tmp,  surf_end(1:ncont)
 
@@ -297,7 +296,7 @@ contains
        call log_allocate(PL_end, MAXNUMPLs)  
        call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
     endif
-   print*,'find cblocks' 
+    
     call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
 
     !if (negf%verbose .gt. 50) then
@@ -305,7 +304,6 @@ contains
     !   write(*,*) "(init NEGF) blocks interactions:",cblk(1:ncont)     
     !endif
 
-   print*,'init structure' 
     call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
        
     call log_deallocate(PL_end)
