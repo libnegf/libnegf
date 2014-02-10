@@ -77,17 +77,17 @@ module lib_param
      real(dp) :: dos               ! Holding variable
      real(dp) :: eneconv           ! Energy conversion factor
 
-     type(z_CSR), pointer :: H     ! Points to externally allocated H
-     type(z_CSR), pointer :: S
-     !type(z_CSR) :: HM             ! Not used anymore
-     !type(z_CSR) :: SM             ! Not used anymore
+     type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+     type(z_CSR), pointer :: S => null()
      type(z_DNS) :: HC(MAXNCONT)
      type(z_DNS) :: SC(MAXNCONT)
      type(z_DNS) :: HMC(MAXNCONT)
      type(z_DNS) :: SMC(MAXNCONT)
-     type(z_CSR), pointer :: rho  => null()    ! Holding output Matrix
-     type(z_CSR), pointer :: rho_eps => null() ! Holding output Matrix
+     type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
+     type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
      logical    :: isSid          
+     logical    :: intHS           ! tells HS are internally allocated
+     logical    :: intDM           ! tells DM is internally allocated
 
      type(TStruct_Info) :: str     ! system structure
 
@@ -260,6 +260,8 @@ contains
        call create_id(negf%S,negf%H%nrow) 
     endif
 
+    negf%intHS = .false.
+
   end subroutine pass_HS
 
   ! -----------------------------------------------------
@@ -283,6 +285,8 @@ contains
           call destroy(negf%rho_eps)
        endif 
     end if
+    
+    negf%intDM = .false.
 
   end subroutine pass_DM
  
@@ -311,6 +315,8 @@ contains
        negf%isSid=.true.
        call create_id(negf%S,negf%H%nrow) 
     endif
+    
+    negf%intHS = .true.
 
   end subroutine copy_HS
   
@@ -337,8 +343,6 @@ contains
      negf%efermi= 0.d0         ! Energia di Fermi dei contatti
      negf%contact_DOS = 0.d0   ! Ficticious contact DOS
 
-    ! negf%nLdos = 0.d0                ! Number of LDOS intervals
-    ! negf%LDOS(:,:) = 0.d0    ! LDOS intervals
      negf%wght = 1.d0
      negf%kpoint = 1
 
@@ -354,6 +358,8 @@ contains
      negf%eneconv = 1.d0      ! Energy conversion factor
 
      negf%isSid = .false.         
+     negf%intHS = .true.
+     negf%intDM = .true.
      negf%writeLDOS = .false. 
 
      negf%delta = 1.d-4      ! delta for G.F. 
