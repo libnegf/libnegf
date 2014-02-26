@@ -173,7 +173,6 @@ contains
     
     Omega = negf%n_kt * kbT
     Lambda = 2.d0* negf%n_poles * KbT * pi
-
     Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
     allocate(en_grid(Ntot))
 
@@ -261,8 +260,8 @@ contains
     !---------------------------------------------------------------------
     ioffs = negf%Np_n(1)+negf%Np_n(2)
     
-    do i = 1, negf%Np_n(2)
-      Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)
+    do i = 1, negf%n_poles
+      Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
       en_grid(ioffs+i)%path = 3 
@@ -448,8 +447,7 @@ contains
     
      ncont = negf%str%num_conts
      outer = negf%outer 
-     Ntot = size(en_grid)
-    
+     Ntot = size(en_grid)  
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
     
@@ -617,8 +615,8 @@ contains
        negf%iE = en_grid(i)%pt
 
        if (negf%verbose.gt.VBT) then
-          write(6,'(a17,i3,a1,i3,a6,i3,f8.4)') 'INTEGRAL neq: pnt #',i,'/',Npoints,'  CPU=&
-               &', id, Er 
+          write(6,'(a17,i5,a1,i5,a6,i3,f8.4)') 'INTEGRAL neq: pnt #',i,'/',Npoints,'  CPU=&
+               &', id  
        endif
 
        do j1 = 1,ncont
