@@ -2,3 +2,7 @@
 *.f90
 #Compiled objects
 *.o
+#Compiled modules
+*.mod
+#Compiled library
+*.a
