@@ -3,7 +3,8 @@ SHELL = /bin/sh
 .SUFFIXES:
 .SUFFIXES: .c .C .f90 .o
 
-include ../../Makefile.user
+ROOT = ../../
+include $(ROOT)/Makefile.user
 
 FC = $(FC90)
 API = $(shell pwd)
@@ -94,7 +95,7 @@ update: $(TARGET) cpp_wrapped_binding
 clean:
 	rm -f *.o; rm -f *.mod *.a
 	(cd ..; $(MAKE) clean)
-	(cd $(LFEAST); $(MAKE) clean)
+	#(cd $(LFEAST); $(MAKE) clean)
 
 tar_source:
 	tar cvf libnegf.tar ${SOURCES} Makefile

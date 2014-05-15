@@ -7,22 +7,16 @@
 # Fortran 90 compiler
 FC90 = ifort
 
-# Options for the Fortran 90 compiler 
-FC90OPT = -O2 -i8 -openmp
-
-# OpenMP options for the Fortran 90 compiler 
-FCOMP = -openmp
-
-# C compiler
-CC = icc
+# CPP compiler
+CC = g++
 
 # Options for the C compiler
 CCOPT = -O2 -ip
 
 CCOMP = -openmp
 
-# Function names in C for calling from Fortran (-DAdd_, -DNoChange, -DUpperCase)
-C2F_FUNCNAMES = -DAdd_
+# Options for the Fortran 90 compiler 
+FC90OPT = -O3 -unroll -openmp -ip -fexceptions -gcc-name=${CC} -gxx-name=${CC} -nofor-main
 
 # Preprocessor (leave empty, if the compiler has a built in preprocessor)
 CPP = cpp -traditional
@@ -31,7 +25,7 @@ CPP = cpp -traditional
 CPPOPT = -DDEBUG=$(DEBUG)
 
 # Fortran preprocessor (invokes CPP as defined above and process the results)
-FPP = $(ROOT)/utils/fpp/fpp.sh nocntln
+FPP = fpp
 
 # Linker
 LN = $(FC90)  
@@ -57,7 +51,10 @@ endif
 MKL_LIBDIR = $(MKLROOT)/lib/intel64
 LIBOPT = -L$(MKL_LIBDIR)
 
-FC90OPT += -I$(MKLROOT)/include 
+LNOPT += -I$(MKLROOT)/include
+
+FC90OPT += -fPIC 
+CCOPT += -fPIC 
 
 # How to link specific libraries
 LIB_LAPACK = 

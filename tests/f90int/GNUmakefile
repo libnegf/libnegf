@@ -2,14 +2,20 @@ ROOT = ../../
 include ../../Makefile.user
 
 SOURCES := hello.F90
-LIB = ../../src/api/libnegf_x86_64.a
-INCLUDES := -I$(MKLROOT)/include  -I$(ROOT)/src/api
+LIB = $(ROOT)/src/api/libnegf_$(ARCH1).a
+INCLUDES := -I$(MKLROOT)/include  -I$(ROOT)/src/api/
 LIBS = $(LIB) -L$(MKLROOT)/lib/intel64 $(LIB_BLAS)
 
 all: hello
 
-hello: 
-	$(FC90) $(FC90OPT) $(SOURCES) -o hello $(INCLUDES) $(LIBS)
+hello: $(LIB) 
+	$(FC90) $(FC90OPT) $(LNOPT) $(SOURCES) -o hello $(INCLUDES) $(LIBS)
 
 clean:
 	rm -rf ./hello
+
+distclean: clean
+	(cd $(ROOT)/src/api; make clean)
+
+$(LIB):
+	(cd $(ROOT)/src/api; make)
