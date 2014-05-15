@@ -1,0 +1,43 @@
+# -*- makefile -*-
+############################################################################
+# Defaults for all system dependent Makefiles
+############################################################################
+
+# Fortran 90 compiler
+FC90 = f90
+
+# Options for the Fortran 90 compiler 
+FC90OPT = -O
+
+# Preprocessor (leave empty, if the compiler has a built in preprocessor)
+CPP = cpp
+
+# Options for preprocessing
+CPPOPT = -DDEBUG=$(DEBUG)
+
+# Postprocessing of the preprocessor output (add-on pipe)
+CPPPOST = $(ROOT)/utils/fpp/fpp.sh general
+
+# Linker
+LN = $(FC90)
+
+# Linker options
+LNOPT =
+
+# Override options for different DEBUG modes
+ifeq ($(DEBUG),1)
+    FC90OPT = -g
+endif
+ifeq ($(DEBUG),2)
+    FC90OPT = -g
+endif
+ifeq ($(DEBUG),3)
+    FC90OPT = -g
+endif
+
+# Library options in general
+LIBOPT =
+
+# How to link specific libraries
+LIB_BLAS   = -lblas
+LIB_LAPACK = -llapack

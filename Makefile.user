@@ -12,85 +12,14 @@
 # Set your architecture. Make sure, that 'sysmakes/make.$(ARCH)' exists for
 # you architecture. If not, create your own using 'sysmakes/make.generic'
 # as template.
-#ARCH = x86_64-linux-ifort
 ARCH1= $(shell uname -m)
-ARCH = $(ARCH1)-linux-ifort
+ARCH = $(ARCH1)-linux-composerxe2011
 
 DEBUG=0
 # Include system specific settings
-#include $(ROOT)/sysmakes/make.$(ARCH)
+include $(ROOT)/sysmakes/make.$(ARCH)
 
 ############################################################################
 # Overriding standard options:
 ############################################################################
-
-## Set alternative path for the autotest directory
-#PRGDFTB_TESTDIR = $(ROOT)/../autotest
-
-## Set alternative file containing the name of the tests to run
-#PRGDFTB_TESTFILE = $(PRGDFTB_TESTDIR)/tests
-
-## Change directory, where the _obj* directory for the object files is created
-#OBJDIR_PARENT =
-
-## Change suffix after '_obj' for the object directory name
-#OBJDIR_SUFFIX = _$(ARCH)
-
-## Set directory, where binary should be copied when issuing 'make install'
-#INSTALLDIR = .
-FC90 = ifort 
-CC = g++-4.3.2
-FPP = fpp
-
-# Options for the Fortran 90 compiler
-#LNOPT = $(LNOPT)
-ifeq ($(DEBUG),0)
-     #FC90OPT = -O2 -ip
-     #FC90OPT = -O2 -xW -openmp -ip
-     FC90OPT = -O3 -unroll -openmp -ip -fexceptions -gcc-name=${CC} -gxx-name=${CC} -nofor-main
-     CCOPT = -O2 -x c  
-     ifeq ($(FC90),g95) 
-         FC90OPT = -O2 -fno-second-underscore -fstatic
-     endif
-endif
-ifeq ($(DEBUG),1)
-     FC90OPT = -g -CB -check all -fpe0 -fexceptions -gcc-name=${CC} -gxx-name=${CC} -nofor-main 
-     ifeq ($(FC90),g95) 
-         FC90OPT = -g -fbounds-check -fno-second-underscore 
-     endif
-endif
-
-FNAME_SUFFIX = "_"
-
-## Uncomment to keep intermediate files in OBJDIR (for debug only!)
-#.PRECIOUS: %.f90 %.F %.f %.c
-
-LIBTHREAD= /usr/lib
-
-ifeq ($(ARCH1),x86_64)
-   FC90OPT += -fPIC 
-   CCOPT += -fPIC
-   MPI_DIR = /usr/pack/mpich2-1.0.8-gp/amd64-debian-linux4.0/bin
-   MKL_LIBDIR = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
-   MKL_INCLUDE = /usr/pack/intel_mkl-10.3-ma/mkl/lib/intel64
-   LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lguide 
-   LIB_LAPACK = 
-
-   STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/libmkl_intel_lp64.a $(MKL_LIBDIR)/libmkl_intel_thread.a $(MKL_LIBDIR)/libmkl_core.a -Wl,--end-group -liomp5 -lguide
-
-endif
-ifeq ($(ARCH1),i686)
-   #FC90=g95
-   MPI_DIR = /usr/pack/mpich2-1.0.8-gp/i686-debian-linux4.0/bin
-   # OLD MKL (Better for AMD ?) 
-   MKL_LIBDIR = /opt/intel/Compiler/11.1/064/mkl/lib/32
-   #STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/libmkl_lapack.a $(MKL_LIBDIR)/libmkl_ia32.a -Wl,--end-group -lguide 
-   #MKL_LIBDIR = /usr/pack/intel_mkl-10.2-gp/lib/32
-   LIB_BLAS = -Wl,-rpath,$(MKL_LIBDIR) -lmkl_intel -lmkl_intel_thread -lmkl_core -liomp5 -lguide -lpthread
-   #STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/libmkl_intel.a $(MKL_LIBDIR)/libmkl_intel_thread.a $(MKL_LIBDIR)/libmkl_core.a -Wl,--end-group -liomp5 -lguide
-   #MKL_LIBDIR = /home/pecchia/projects/LAPACK/lapack-3.2.1
-   #STATIC_BLAS = -Wl,--start-group $(MKL_LIBDIR)/lapack_LINUX.a $(MKL_LIBDIR)/blas_LINUX.a -Wl,--end-group 
-   LIB_LAPACK = 
-endif
-
 

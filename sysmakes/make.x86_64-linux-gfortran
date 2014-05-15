@@ -1,0 +1,73 @@
+# -*- makefile -*-
+############################################################################
+# System dependent Makefile options for
+# Linux, Intel Fortran Compiler (version 8.x)
+############################################################################
+
+# Fortran 90 compiler
+FC90 = gfortran
+
+# Options for the Fortran 90 compiler 
+FC90OPT = -O2 -funroll-all-loops -fexceptions
+
+# OpenMP options for the Fortran 90 compiler 
+FCOMP = -fopenmp
+
+# C compiler
+CC = gcc
+
+# Options for the C compiler
+CCOPT = -O2 -funroll-all-loops
+
+CCOMP = -fopenmp
+
+# Function names in C for calling from Fortran (-DAdd_, -DNoChange, -DUpperCase)
+C2F_FUNCNAMES = -DAdd_
+
+# Preprocessor (leave empty, if the compiler has a built in preprocessor)
+CPP = cpp -traditional
+
+# Options for preprocessing
+CPPOPT = -DDEBUG=$(DEBUG)
+
+# Fortran preprocessor (invokes CPP as defined above and process the results)
+FPP = $(ROOT)/utils/fpp/fpp.sh nocntln
+
+# Linker
+LN = $(FC90)  
+#LN = $(CC)
+
+# Linker options
+LNOPT = #-static
+
+# Override options for different DEBUG modes
+ifeq ($(DEBUG),1)
+    FC90OPT = -g -Wall -pedantic -fbounds-check
+    CCOPT = -g
+endif
+ifeq ($(DEBUG),2)
+    FC90OPT = -g -Wall -pedantic
+    CCOPT = -g
+endif
+ifeq ($(DEBUG),3)
+    FC90OPT = -g  -Wall -pedantic -fbounds-check
+    CCOPT = -g
+endif
+
+# Library options in general
+MKL_LIBDIR = /usr/local/lib/
+LIBOPT = -L$(MKL_LIBDIR)
+
+# How to link specific libraries
+ATLASDIR = /usr/lib
+LIB_BLAS   =  -lf77blas -lcblas -latlas -lgomp -lpthread
+LIB_LAPACK = -L$(ATLASDIR) -llapack
+# Threaded version may work as well (BE CAREFUL!)
+#LIB_BLAS = -lptf77blas -lptcblas -latlas -lgomp -lpthread
+
+LIB_SUPERLU =  $(ROOT)/../extlib/superlu20/c_bridge_zgssv20.$(ARCH).o $(ROOT)/../extlib/superlu20/SuperLU_2.0/superlu.$(ARCH).a
+LIB_NEGF = $(ROOT)/ext_libnegf/libnegf.$(ARCH).a
+LIB_SPARSEKIT = $(ROOT)/../extlib/sparskit/zlibskit.$(ARCH).a
+LIB_MUDPACK = $(ROOT)/../extlib/mudpack/mudpack.$(ARCH).a
+LIB_METIS = $(ROOT)/ext_libnegf/libmetis.$(ARCH).a
+

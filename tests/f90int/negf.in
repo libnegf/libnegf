@@ -1,0 +1,26 @@
+'H_real.dat'               !filename for real_H
+'H_imm.dat'             !filename for imag_H'
+' '               ! if S == Id  set ' ' 
+' '              !        
+0 2                               ! number of contacts
+0 1                               ! The PLs will be found authomatically
+60                                !PL end
+0 80 100              ! Matrix end for each contact
+0 60 80              ! Surface end for each contact
+0  0 0                           !  mu_n   mu_p   electron/holes potentials  (not used)
+0 -0.556361 0.25         !  Ec       Ev        conduction/valence edges
+0 0 0                            !  DEc     DEv      offset from edges
+0 -0.1 0.3 0.01             !  Emin  Emax   Estep for tunneling
+0 0.025852                  !  kbT in units used 
+0 1                               !  weght for k-point 
+0 20 20                        !  Np on complex contour for electrons
+0 0 0                            !  Np on complex contour for holes
+0 10                             !  Np on real axis integration
+0 10                             !  number of kT for cutoff fermi functions 
+0 3                               !  number of poles included in contour
+0 2                               !   number of spin-degenerate states
+0 1e-05                        !   delta used in G.F.   
+0 0                               !   number of LDOS intervals
+0                                  !   empty if previous is 0
+0 0 0                            !  Fermi level of each contact
+0 0.000292984 0.299707   ! electrochemical potential of each contact
