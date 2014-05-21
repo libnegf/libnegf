@@ -59,9 +59,9 @@ CCOPT += -fPIC
 # How to link specific libraries
 LIB_LAPACK = 
 
-STATIC_BLAS = $(MKLROOT)/lib/intel64/libmkl_blas95_ilp64.a $(MKLROOT)/lib/intel64/libmkl_lapack95_ilp64.a -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_ilp64.a $(MKLROOT)/lib/intel64/libmkl_core.a $(MKLROOT)/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -lpthread -lm
+STATIC_BLAS = $(MKLROOT)/lib/intel64/libmkl_blas95_lp64.a $(MKLROOT)/lib/intel64/libmkl_lapack95_lp64.a -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_lp64.a $(MKLROOT)/lib/intel64/libmkl_core.a $(MKLROOT)/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -lpthread -lm
  
-LIB_BLAS =  -L$(MKLROOT)/lib/intel64 -lmkl_intel_ilp64 -lmkl_core -lmkl_intel_thread -lpthread -lm 
+LIB_BLAS =  -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -lpthread -lm 
 
 LIB_SUPERLU =  $(ROOT)/../extlib/superlu20/c_bridge_zgssv20.$(ARCH).o $(ROOT)/../extlib/superlu20/SuperLU_2.0/superlu.$(ARCH).a
 LIB_SPARSEKIT = $(ROOT)/../extlib/sparskit/zlibskit.$(ARCH).a
