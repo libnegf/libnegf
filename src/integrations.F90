@@ -70,7 +70,17 @@ module integrations
 
  integer, PARAMETER :: VBT=70
 
- type TEnGrid
+ !! Structure used to define energy points for the integration
+ !! For every point we define
+ !!     path (1,2 or 3): the energy point belongs to a real axis 
+ !!     integration (1), a complex plane integration (2) or a 
+ !!     pole summation (3)
+ !!     pt_path: relative point number within a single path
+ !!     pt: absolute point number along the whole integration path
+ !!     cpu: cpu assigned to the calculation of the given energy point
+ !!     Ec: energy value
+ !!     wght: a weight used in final summation to evaluate integrals
+ type TEnGrid   
      integer :: path
      integer :: pt_path
      integer :: pt
@@ -89,54 +99,76 @@ contains
 
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
-  subroutine compute_dos(negf) 
+  !-----------------------------------------------------------------------
+  ! Projected DOS on atoms or obitals
+  !-----------------------------------------------------------------------
+  subroutine ldos_int(negf) 
     type(Tnegf) :: negf
 
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Type(z_CSR) ::  Gr
+    complex(dp), Dimension(:), ALLOCATABLE :: diag
 
-    integer :: N, i, i1, it
-    integer :: outer, nbl, ncont
+    integer :: Nstep, i, i1, l, kb, ke
+    integer :: outer, ncont
 
     real(dp) :: ncyc
     complex(dp) :: Ec
+    character(6) :: ofKP
+    character(1) :: ofSp
 
     outer = 1
-
-    it = negf%iteration
-    nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
 
-    N = nint((negf%Emax-negf%Emin)/negf%Estep)
-
-    if (id0) open(101,file='dos.dat')
-
-    do i=1,N
+    Nstep = size(en_grid)
+    
+    call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
+    negf%ldos_mat(:,:)=0.d0
+    
+    do i = 1, Nstep
   
-       Ec=(negf%Emin+i*negf%Estep)+negf%delta*(0.d0,1.d0)
-       negf%iE = i
+       if (en_grid(i)%cpu /= id) cycle
+      
+       Ec = en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
+       negf%iE = en_grid(i)%pt
+
+       if (negf%verbose.gt.VBT) then
+         write(6,'(a19,i3,a1,i3,a6,i3)') 'LDOS POINT: point #',en_grid(i)%pt,'&
+             &/',size(en_grid),'  CPU=', id
+       endif
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-   
+    
+       do i1=1,ncont
+          call destroy(Tlc(i1),Tcl(i1))
+       enddo
+
        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
-          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+          call destroy(SelfEneR(i1),GS(i1))
        enddo
 
-       negf%dos = -aimag( trace(Gr) )/pi
+       call log_allocate(diag, Gr%nrow)
+       call getdiag(Gr,diag)
 
-       if (id0) write(101,*) real(Ec), negf%dos
 
+       do i1 = 1, size(negf%LDOS)
+           
+           negf%ldos_mat(i, i1) = - aimag( sum(diag(negf%LDOS(i1)%idx)) )/pi
+           
+       enddo
+        
        call destroy(Gr)
+       call log_deallocate(diag)
 
     enddo
+      
+    call destroy_en_grid()
 
-    if (id0) call writememinfo(6)
-
-    if (id0) close(101)   
-
-  end subroutine compute_dos
+  end subroutine ldos_int
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix 

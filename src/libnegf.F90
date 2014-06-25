@@ -37,7 +37,7 @@ module libnegf
  implicit none
  private
 
- public :: init_negf, destroy_negf
+ public :: init_negf, destroy_negf, init_ldos
  public :: set_H, set_S, set_S_id, read_HS
  public :: read_negf_in
  public :: negf_version 
@@ -57,6 +57,8 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
+
+ public :: compute_ldos                                   
  ! MOVED TO integrations.F90 
  !public :: contour_int     ! standard contour integrations for DFT(B) 
  !public :: real_axis_int   ! real-axis integration for DFT
@@ -325,8 +327,8 @@ contains
     read(101,*) tmp,  negf%g_spin
     read(101,*) tmp,  negf%delta
     read(101,*) tmp,  negf%nLDOS
-    call log_allocatep(negf%LDOS,2,negf%nLDOS)
-    read(101,*) tmp,  negf%LDOS
+    !call log_allocatep(negf%LDOS,2,negf%nLDOS)
+    !read(101,*) tmp,  negf%LDOS
     read(101,*) tmp,  negf%Efermi(1:ncont)  ! Will be 0 from TC
     read(101,*) tmp,  negf%mu(1:ncont)      ! Will be the Electrochemical potential
 
@@ -387,7 +389,7 @@ contains
 
     call kill_Tstruct(negf%str) 
 
-    if (associated(negf%LDOS)) call log_deallocatep(negf%LDOS)
+    if (associated(negf%LDOS)) call destroy_ldos(negf%LDOS)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
@@ -395,7 +397,38 @@ contains
     !call destroy_emesh(negf)
 
   end subroutine destroy_negf
-!--------------------------------------------------------------------
+  
+  !--------------------------------------------------------------------
+  subroutine init_ldos(negf,nregs,sizes)
+    type(Tnegf) :: negf
+    integer :: nregs
+    integer, dimension(:) :: sizes
+
+    integer :: err, i
+    
+    allocate(negf%ldos(nregs),stat=err)
+    if (err/=0) stop 'allocation error of ldos'
+
+    do i=1, nregs
+      call log_allocate(negf%ldos(i)%idx,sizes(i))
+    end do
+    
+  end subroutine init_ldos
+  !--------------------------------------------------------------------
+  subroutine destroy_ldos(ldos)
+    type(Varrays), dimension(:), pointer :: ldos 
+      
+    integer :: err, i
+
+    do i=1, size(ldos)
+      call log_deallocate(ldos(i)%idx)
+    end do
+
+    deallocate(ldos)
+    
+  end subroutine destroy_ldos
+  
+  !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
     type(Tnegf) :: negf   
   
@@ -587,6 +620,18 @@ contains
 
   end subroutine compute_density_efa
 
+  !-------------------------------------------------------------------------------
+  subroutine compute_ldos(negf)
+    type(Tnegf) :: negf
+    
+    call extract_device(negf)
+    call extract_cont(negf)
+    call tunneling_int_def(negf)
+    call ldos_int(negf)
+    call destroy_matrices(negf)
+
+  end subroutine compute_ldos  
+  
   !-------------------------------------------------------------------------------
   subroutine compute_current(negf)
 

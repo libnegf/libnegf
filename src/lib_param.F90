@@ -33,10 +33,16 @@ module lib_param
   private
 
   public :: Tnegf
+  public :: intarray
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   integer, public, parameter :: MAXNCONT=10
+
+
+  type intarray
+    integer, dimension(:), allocatable :: idx
+  end type intarray 
 
   type Tnegf
      
@@ -63,7 +69,9 @@ module lib_param
      real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
 
      integer  :: nLdos                 ! Number of LDOS intervals
-     integer,Dimension(:,:), pointer :: LDOS => null()    ! LDOS intervals
+     ! Array of LDOS descriptor (contain only index of atoms for LDOS
+     ! projection)
+     type(intarray), dimension(:), allocatable :: LDOS => null()    
 
      real(dp) :: mu_n
      real(dp) :: mu_p
@@ -92,6 +100,7 @@ module lib_param
      type(TStruct_Info) :: str     ! system structure
 
      real(dp) :: delta       ! delta for G.F. 
+     real(dp) :: dos_delta   ! delta for T(E) and DOS 
      real(dp) :: Emin        ! Tunneling or dos interval
      real(dp) :: Emax        ! 
      real(dp) :: Estep       ! Tunneling or dos E step
@@ -363,6 +372,7 @@ contains
      negf%writeLDOS = .false. 
 
      negf%delta = 1.d-4      ! delta for G.F. 
+     negf%dos_delta = 1.d-4      ! delta for DOS 
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
