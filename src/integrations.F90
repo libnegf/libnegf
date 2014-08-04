@@ -45,6 +45,7 @@ module integrations
 
  public :: contour_int     ! generalized contour integrator 
  public :: real_axis_int   ! real-axis integrator
+ public :: ldos_int   ! ldos only integrator
 
  public :: contour_int_def   ! contour integration for DFT(B)
  public :: contour_int_n_def ! contour integration for CB
@@ -53,7 +54,7 @@ module integrations
  public :: tunneling_int_def
  public :: tunneling_and_current
  public :: integrate       ! integration of tunneling
- public :: compute_dos     ! compute local dos only
+ !!public :: compute_dos     ! compute local dos only
 
  !public :: menage_scratch
  ! ////////////////////////////////////////////////////////////
@@ -155,7 +156,7 @@ contains
 
        do i1 = 1, size(negf%LDOS)
            
-           negf%ldos_mat(i, i1) = - aimag( sum(diag(negf%LDOS(i1)%idx)) )/pi
+           negf%ldos_mat(i, i1) = - aimag( sum(diag(negf%LDOS(i1)%indexes)) )/pi
            
        enddo
         

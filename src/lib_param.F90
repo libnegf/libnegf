@@ -32,8 +32,7 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf
-  public :: intarray
+  public :: Tnegf, intarray 
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
@@ -41,7 +40,7 @@ module lib_param
 
 
   type intarray
-    integer, dimension(:), allocatable :: idx
+    integer, dimension(:), allocatable :: indexes
   end type intarray 
 
   type Tnegf
@@ -71,7 +70,7 @@ module lib_param
      integer  :: nLdos                 ! Number of LDOS intervals
      ! Array of LDOS descriptor (contain only index of atoms for LDOS
      ! projection)
-     type(intarray), dimension(:), allocatable :: LDOS => null()    
+     type(intarray), dimension(:), allocatable :: LDOS     
 
      real(dp) :: mu_n
      real(dp) :: mu_p

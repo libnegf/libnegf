@@ -44,7 +44,7 @@ MODULE iterative_dns
   USE sparsekit_drv
   USE inversions
   USE ln_structure, only : TStruct_Info
-  USE lib_param, only : MAXNCONT, Tnegf
+  USE lib_param, only : MAXNCONT, Tnegf, intarray
   USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
   USE clock
   !USE transform
@@ -951,10 +951,14 @@ Ec=cmplx(E,0.d0,dp)
     !***********************************************************************
     !Input:
     !ESH: dense matrices array ESH(nbl,nbl)
+    !sbl, ebl : block indexes
+    ! If only sbl is specified, it calculates Gr(sbl, sbl)
+    ! If sbl > ebl, it calculates Gr(ebl:sbl, ebl:sbl), Gr(ebl:sbl + 1, ebl:sbl),
+    !    Gr(ebl:sbl, ebl:sbl + 1) (need gsml)          
+    ! If sbl < ebl, it calculates Gr(sbl:ebl, sbl:ebl), Gr(sbl:ebl - 1, sbl:ebl),
+    !    Gr(sbl:ebl, sbl:ebl - 1) (need gsmr)          
     !
-    !global variables needed: nbl (number of layers), indblk(nbl+1),
-    !gsmr(:) 
-    !
+    ! 
     !Output:
     !sparse matrices array global variable Gr(nbl,nbl) is available in 
     !memory - single blocks are allocated internally, array Gr(nbl,nbl) 
@@ -1016,7 +1020,7 @@ Ec=cmplx(E,0.d0,dp)
     !***
     !Diagonal, Subdiagonal and Superdiagonal blocks
     !***
-    IF (ebl.ge.sbl) THEN
+    IF ((ebl.ge.sbl).and.(ebl.gt.1).and.(sbl.gt.1)) THEN
        DO i=sbl,ebl,1
           CALL prealloc_mult(gsmr(i),ESH(i,i-1),work1)
           CALL prealloc_mult(work1,Gr(i-1,i-1),(-1.d0,0.d0),Gr(i,i-1))
@@ -3615,7 +3619,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
     Type(z_DNS), Dimension(MAXNCONT), intent(in) :: SelfEneR, Gs
     Type(TStruct_Info), intent(in) :: str
     integer, intent(in)  :: nLdos, size_ni
-    integer, Dimension(:,:), pointer :: LDOS      
+    type(intarray), dimension(:), allocatable :: LDOS      
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
     Real(dp), Dimension(:), intent(inout) :: LEDOS
 
@@ -3703,16 +3707,17 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
     !Compute LDOS on the specified intervals
     if (nLDOS.gt.0) then
-       call log_allocate(diag, Grm%nrow)
-       call getdiag(Grm,diag)
-       do iLDOS=1,nLDOS
-          if( LDOS(2,iLDOS).le.str%central_dim ) then
-             do i2 = LDOS(1,iLDOS), LDOS(2,iLDOS)
-                LEDOS(iLDOS)=LEDOS(iLDOS) + diag(i2)
-             enddo
-          endif
-       enddo
-       call log_deallocate(diag)
+      call log_allocate(diag, Grm%nrow)
+      call getdiag(Grm,diag)
+      do iLDOS=1,nLDOS
+        do i = 1, size(LDOS(iLDOS)%indexes)
+          i2 = LDOS(iLDOS)%indexes(i)
+          if (i2 .le. str%central_dim) then
+          LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)  
+          end if
+        end do
+      enddo
+      call log_deallocate(diag)
     endif        
 
     call destroy(Grm)

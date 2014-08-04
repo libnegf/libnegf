@@ -389,7 +389,7 @@ contains
 
     call kill_Tstruct(negf%str) 
 
-    if (associated(negf%LDOS)) call destroy_ldos(negf%LDOS)
+    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
@@ -410,18 +410,18 @@ contains
     if (err/=0) stop 'allocation error of ldos'
 
     do i=1, nregs
-      call log_allocate(negf%ldos(i)%idx,sizes(i))
+      call log_allocate(negf%ldos(i)%indexes,sizes(i))
     end do
     
   end subroutine init_ldos
   !--------------------------------------------------------------------
   subroutine destroy_ldos(ldos)
-    type(Varrays), dimension(:), pointer :: ldos 
+    type(intarray), dimension(:), allocatable :: ldos 
       
     integer :: err, i
 
     do i=1, size(ldos)
-      call log_deallocate(ldos(i)%idx)
+      call log_deallocate(ldos(i)%indexes)
     end do
 
     deallocate(ldos)
