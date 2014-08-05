@@ -140,11 +140,11 @@ contains
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     
+       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+       
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1))
        enddo
-
-       call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
           call destroy(SelfEneR(i1),GS(i1))
@@ -985,12 +985,6 @@ contains
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
        
-       do icont=1,ncont
-          call destroy(Tlc(icont))
-          call destroy(Tcl(icont))
-       enddo
-
-       
        if (.not.do_LEDOS) then
           
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
@@ -1016,6 +1010,10 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
        
        do icont=1,ncont
+          !TODO: Maybe TCL, TLC can be destoryed earlier (moved here to fix a
+          !bug)
+          call destroy(Tlc(icont))
+          call destroy(Tcl(icont))
           call destroy(SelfEneR(icont))
           call destroy(GS(icont))
        enddo
