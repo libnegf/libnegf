@@ -552,13 +552,15 @@ contains
       endif
     endif
 
-    call contour_int_def(negf)
-      
-    call contour_int(negf)
+    if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
+      call contour_int_def(negf)
+      call contour_int(negf)
+    endif
 
-    call real_axis_int_def(negf)
-
-    call real_axis_int(negf)
+    if (negf%Np_real(1).gt.0) then
+      call real_axis_int_def(negf)
+      call real_axis_int(negf)
+    endif
 
     call destroy_matrices(negf)
 
