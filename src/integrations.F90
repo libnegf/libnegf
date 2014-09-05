@@ -492,7 +492,7 @@ contains
    
         if (en_grid(i)%cpu .ne. id) cycle
 
-        if (negf%verbose.gt.VBT) then
+        if (negf%verbose.gt.VBT-10) then
            write(6,'(a,i0,a,i0,a,i3)') 'INTEGRAL: point #',en_grid(i)%pt,'/',Ntot, &
                '  CPU#', id
         endif
@@ -974,7 +974,7 @@ contains
        Ec = en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
 
-       if (negf%verbose.gt.VBT) then
+       if (negf%verbose.gt.VBT-10) then
          write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',en_grid(i)%pt,'&
              &/',size(en_grid),'  CPU=', id
        endif
