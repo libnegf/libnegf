@@ -201,7 +201,7 @@ contains
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
 
-    kbT = negf%kbT
+    kbT = negf%kbT(negf%refcont)
     muref = negf%muref
     
     Omega = negf%n_kt * kbT
@@ -343,8 +343,8 @@ contains
      complex(dp) :: z1,z2,z_diff, zt
      complex(dp) :: Ec, ff, Pc
      
-     kbT = negf%kbT
-     muref = negf%mu_n
+     kbT = negf%kbT(negf%refcont)
+     muref = negf%muref
      nkT = negf%n_kt * kbT
      Lambda = 2.d0* negf%n_poles * KbT * pi
      mumin = muref - nkT
@@ -364,7 +364,7 @@ contains
      Elow = negf%Ec
      Centre = (Lambda**2-Elow**2+(mumin)**2)/(2.d0*(mumin-Elow))
      Rad = Centre - Elow
-     if (negf%kbT.ne.0.d0) then        
+     if (kbT.ne.0.d0) then        
         alpha = atan(Lambda/(mumin-Centre)) 
      else
         alpha = 0.1d0*pi             
@@ -408,7 +408,7 @@ contains
      allocate(wght(negf%Np_n(2)))
      allocate(pnts(negf%Np_n(2)))
     
-     if (negf%kbT.eq.0.d0) then                        ! Circle integration T=0
+     if (kbT.eq.0.d0) then                        ! Circle integration T=0
        call  gauleg(alpha,0.d0,pnts,wght,negf%Np_n(2))
      else                                          ! Segment integration T>0
        z1 = muref + nkT + j*Lambda
@@ -420,7 +420,7 @@ contains
      ioffs = negf%Np_n(1)
      
      do i = 1, negf%Np_n(2)
-        if (negf%kbT.eq.0.d0) then                  ! Circle integration T=0            
+        if (kbT.eq.0.d0) then                  ! Circle integration T=0            
            Pc = Rad*exp(j*pnts(i))
            Ec = Centre+Pc
            dt = negf%g_spin*wght(i)/(2.d0*pi)
@@ -561,11 +561,11 @@ contains
     
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
-    Omega = negf%n_kt * negf%kbT 
+    Omega = negf%n_kt * maxval(negf%kbT) 
     
     if (ncont.gt.0) then 
-       mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       mumin=minval(negf%mu(1:ncont))
+       mumax=maxval(negf%mu(1:ncont))
     else
        mumin=negf%Efermi(1)
        mumax=negf%Efermi(1)
@@ -615,14 +615,13 @@ contains
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    kbT = negf%kbT
     ref = negf%refcont
     outer = negf%outer
     Npoints = size(en_grid)
 
     if (ncont.gt.0) then 
-       mumin=minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       mumax=maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
+       mumin=minval(negf%mu(1:ncont))
+       mumax=maxval(negf%mu(1:ncont))
     else
        mumin=negf%Efermi(1)
        mumax=negf%Efermi(1)
@@ -653,7 +652,7 @@ contains
        endif
 
        do j1 = 1,ncont
-          frm_f(j1)=fermi_f(Er,negf%Efermi(j1)-negf%mu(j1),KbT)
+          frm_f(j1)=fermi_f(Er,negf%mu(j1),negf%kbT(j1))
        enddo
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
@@ -883,11 +882,8 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     
     Real(dp), Dimension(:), allocatable :: TUN_MAT
-    !Real(kind=dp), Dimension(:,:,:), allocatable :: TUN_PMAT, TUN_TOT_PMAT      
-    
-    Real(dp), Dimension(:), allocatable :: mumin_array, mumax_array
     Real(dp), Dimension(:), allocatable :: LEDOS
-    Real(dp) :: ncyc, Ec_min, mumin, mumax
+    Real(dp) :: ncyc, Ec_min, mu1, mu2
     
     Complex(dp) :: Ec
 
@@ -940,23 +936,11 @@ contains
        size_nf=min(size_ni,size_nf)
     endif
     
-    call log_allocate(mumin_array,size_ni)
-    call log_allocate(mumax_array,size_ni)
-    
-    ! find bias window for each contact pair
-    do icpl=1,size_ni
-       mumin_array(icpl)=min(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-       mumax_array(icpl)=max(negf%Efermi(negf%ni(icpl))-negf%mu(negf%ni(icpl)),&
-            negf%Efermi(negf%nf(icpl))-negf%mu(negf%nf(icpl)))
-    enddo
     
     ncyc=0
     
     call log_allocate(TUN_MAT,size_ni)
     call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
-    !call log_allocate(TUN_PMAT,npid,size_ni,num_channels) 
-    !call log_allocate(TUN_TOT_PMAT,Nstep,size_ni,num_channels) 
     negf%tunn_mat = 0.0_dp 
 
     if (do_LEDOS) then
@@ -990,7 +974,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
           call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
-               negf%str,TUN_MAT)
+                             & negf%str,TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           
@@ -1000,7 +984,7 @@ contains
           LEDOS(:) = 0.d0
           
           call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
-               negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
+                           & negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
@@ -1010,8 +994,6 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
        
        do icont=1,ncont
-          !TODO: Maybe TCL, TLC can be destoryed earlier (moved here to fix a
-          !bug)
           call destroy(Tlc(icont))
           call destroy(Tcl(icont))
           call destroy(SelfEneR(icont))
@@ -1025,28 +1007,18 @@ contains
     !---------------------------------------------------------------------------
     !   COMPUTATION OF CURRENTS 
     !---------------------------------------------------------------------------
+    
     call log_allocatep(negf%currents,size_ni)
     negf%currents=0.d0
-    
+
     do icpl=1,size_ni
        
-       mumin=mumin_array(icpl)
-       mumax=mumax_array(icpl)
-
-       !checks if the energy interval is appropriate
-       !if (id0.and.mumin.lt.mumax) then
-               
-        !if (negf%Emin.gt.mumin-10*negf%kbT .or. negf%Emax.lt.mumin-10*negf%kbT) then
-        !  write(*,*) 'WARNING: the interval Emin..Emax is smaller than the bias window'
-        !  write(*,*) 'Emin=',negf%emin*negf%eneconv, 'Emax=',negf%emax*negf%eneconv
-        !  write(*,*) 'kT=',negf%kbT*negf%eneconv    
-        !  write(*,*) 'Suggested interval:', &
-        !        (mumin-10*negf%kbT)*negf%eneconv,(mumax+10*negf%kbT)*negf%eneconv
-        ! endif
-       !endif
+       mu1=negf%mu(negf%ni(icpl))
+       mu2=negf%mu(negf%nf(icpl))
        
-       negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl),mumin,mumax,negf%kbT, &
-            negf%Emin,negf%Emax,negf%Estep,negf%g_spin)
+       negf%currents(icpl)= integrate(negf%tunn_mat(:,icpl), mu1, mu2, &
+                            & negf%kbT(negf%ni(icpl)), negf%kbT(negf%nf(icpl)), &
+                            & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
        
     enddo
    
@@ -1058,11 +1030,6 @@ contains
     endif
 
     call log_deallocate(TUN_MAT)
-    !call log_deallocate(TUN_PMAT)
-    !call log_deallocate(TUN_TOT_PMAT)  
-    
-    call log_deallocate(mumin_array)
-    call log_deallocate(mumax_array)
     
     if(do_LEDOS) then
        call log_deallocate(LEDOS)
@@ -1079,17 +1046,17 @@ contains
 !
 !************************************************************************
 
-function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep,spin_g)
+function integrate(TUN_TOT,mu1,mu2,kT1,kT2,emin,emax,estep,spin_g)
 
   implicit none
 
   real(dp) :: integrate
-  real(dp), intent(in) :: mumin,mumax,emin,emax,estep
+  real(dp), intent(in) :: mu1,mu2,emin,emax,estep
   real(dp), dimension(:), intent(in) :: TUN_TOT
-  real(dp), intent(in) :: kT 
+  real(dp), intent(in) :: kT1, kT2 
   real(dp), intent(in) :: spin_g 
 
-  REAL(dp) :: destep,kbT,TT1,TT2,E3,E4,TT3,TT4
+  REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
   REAL(dp) :: E1,E2,c1,c2,curr
   INTEGER :: i,i1,N,Nstep,imin,imax
 
@@ -1098,11 +1065,21 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep,spin_g)
   destep=1.0d10 
   Nstep=NINT((emax-emin)/estep);
 
-  if (kT.lt.0.01_dp*Kb) then
-    kbT = Kb*0.01_dp
+  if (kT1.lt.0.01_dp*Kb) then
+    kbT1 = Kb*0.01_dp
   else
-    kbT = kT     
+    kbT1 = kT1     
   endif
+  if (kT2.lt.0.01_dp*Kb) then
+    kbT2 = Kb*0.01_dp
+  else
+    kbT2 = kT2     
+  endif
+
+  if (mu2<mu1) then
+    call swap(mu1,mu2)
+    call swap(kbT1,kbT2)
+  end if
 
   imin=0
   imax=Nstep 
@@ -1117,7 +1094,7 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep,spin_g)
      
      ! Each step is devided into substeps in order to
      ! smooth out the Fermi function
-     do while (destep.ge.kbT/10.0_dp) 
+     do while (destep.ge.(kbT1+kbT2)/20.0_dp) 
         N=N+1
         destep=(E2-E1)/N
      enddo
@@ -1131,8 +1108,8 @@ function integrate(TUN_TOT,mumin,mumax,kT,emin,emax,estep,spin_g)
         TT3=( TT2-TT1 )*i1/N + TT1
         TT4=TT3 + (TT2-TT1)/N
         
-        c1=eovh*(fermi_f(E3,mumax,KbT)-fermi_f(E3,mumin,KbT))*TT3
-        c2=eovh*(fermi_f(E4,mumax,KbT)-fermi_f(E4,mumin,KbT))*TT4
+        c1=eovh*(fermi_f(E3,mu2,KbT2)-fermi_f(E3,mu1,KbT1))*TT3
+        c2=eovh*(fermi_f(E4,mu2,KbT2)-fermi_f(E4,mu1,KbT1))*TT4
         
         curr=curr+spin_g*(c1+c2)*(E4-E3)/2.d0
         
@@ -1180,5 +1157,16 @@ end function integrate
     enddo
     
   end subroutine partial_charge 
-         
+  
+  subroutine swap(x1,x2)
+    real(dp) :: x1,x2
+
+    real(dp) :: tmp
+
+    x1=tmp
+    x1=x2
+    x2=tmp
+
+  end subroutine swap
+
 end module integrations 

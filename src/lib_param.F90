@@ -52,33 +52,35 @@ module lib_param
      character(LST) :: file_re_S
      character(LST) :: file_im_S
      character(LST) :: file_struct
-     character(LST) :: scratch_path
-     character(LST) :: out_path
+     character(LST) :: scratch_path    ! Folder for scratch work
+     character(LST) :: out_path        ! Folder for output data
      character(1) :: DorE              ! Density or En.Density
      type(format) :: form              ! Form of file-Hamiltonian
 
-     integer   :: ReadoldSGF           ! 0: Read 1: compute 2: comp & save
-     logical   :: FictCont(MAXNCONT)   ! Ficticious contact 
-     logical   :: dumpHS               ! Used for debug
-     logical   :: writeLDOS            ! Write the LDOS for every k-point 
-     logical   :: writeTunn            ! Write T(E) for every k-point
-
-     real(dp) :: mu(MAXNCONT)          ! Potenziale elettrico
-     real(dp) :: Efermi(MAXNCONT)      ! Energia di Fermi dei contatti
+     integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
+     logical  :: dumpHS                ! Used for debug
+     logical  :: writeLDOS             ! Write the LDOS for every k-point 
+     logical  :: writeTunn             ! Write T(E) for every k-point
+      
+     logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
+     real(dp) :: Efermi(MAXNCONT)      ! Contact Fermi Energy (before pot)
+     real(dp) :: pot(MAXNCONT)         ! Electrostatic Potential
+     real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential
      real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
+     real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
 
      integer  :: nLdos                 ! Number of LDOS intervals
      ! Array of LDOS descriptor (contain only index of atoms for LDOS
      ! projection)
      type(intarray), dimension(:), allocatable :: LDOS     
 
-     real(dp) :: mu_n
-     real(dp) :: mu_p
+     real(dp) :: mu_n              ! electrochemical potential (el)
+     real(dp) :: mu_p              ! electrochemical potential (hl)
      real(dp) :: muref             ! reference elec.chem potential
-     real(dp) :: Ec
-     real(dp) :: Ev
-     real(dp) :: DeltaEc
-     real(dp) :: DeltaEv
+     real(dp) :: Ec                ! conduction band edge 
+     real(dp) :: Ev                ! valence band edge
+     real(dp) :: DeltaEc           ! safe guard energy below Ec
+     real(dp) :: DeltaEv           ! safe guard energy above Ev
 
      real(dp) :: E                 ! Holding variable 
      real(dp) :: dos               ! Holding variable
@@ -92,50 +94,49 @@ module lib_param
      type(z_DNS) :: SMC(MAXNCONT)
      type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
      type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
-     logical    :: isSid          
+     logical    :: isSid           ! True if overlap S == Id
      logical    :: intHS           ! tells HS are internally allocated
      logical    :: intDM           ! tells DM is internally allocated
 
      type(TStruct_Info) :: str     ! system structure
 
-     real(dp) :: delta       ! delta for G.F. 
-     real(dp) :: dos_delta   ! delta for T(E) and DOS 
-     real(dp) :: Emin        ! Tunneling or dos interval
-     real(dp) :: Emax        ! 
-     real(dp) :: Estep       ! Tunneling or dos E step
-     real(dp) :: kbT         ! electronic temperature
-     real(dp) :: g_spin      ! spin degeneracy
-     integer  :: spin        ! spin component
-
-     real(dp) :: wght        ! kp weight 
-     integer :: kpoint       ! kp index
-     integer :: iE           ! Energy point (integer point)
-     complex(dp) :: Epnt     ! Energy point (complex)
+     real(dp) :: delta             ! delta for G.F. 
+     real(dp) :: dos_delta         ! delta for T(E) and DOS 
+     real(dp) :: Emin              ! Tunneling or dos interval
+     real(dp) :: Emax              ! 
+     real(dp) :: Estep             ! Tunneling or dos E step
+     real(dp) :: g_spin            ! spin degeneracy
+     integer  :: spin              ! spin component
+                                 
+     real(dp) :: wght              ! k-point weight 
+     integer :: kpoint             ! k-point index
+     integer :: iE                 ! Energy point (integer point)
+     complex(dp) :: Epnt           ! Energy point (complex)
      real(dp), dimension(:,:), pointer :: tunn_mat => null()
      real(dp), dimension(:,:), pointer :: ldos_mat => null()
      real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
-     integer :: Np_n(2)      ! Number of points for n 
-     integer :: Np_p(2)      ! Number of points for p 
-     integer :: Np_real(11)  ! Number of points for integration over real axis
-     integer :: n_kt         ! Numero di kT per l'integrazione
-     integer :: n_poles      ! Numero di poli 
-     integer :: iteration    ! Iterazione (SCC)
-     integer :: activecont   ! contact selfenergy
-     integer :: ni(MAXNCONT) ! ni
-     integer :: nf(MAXNCONT) ! nf
-     integer :: minmax       ! in input: 0 take minimum, 1 take maximum mu  
-     integer :: refcont      ! reference contact (for non equilib)
-     integer :: outer        ! flag switching computation of  
-                             ! the Device/Contact DM
-                             ! 0 none; 1 upper block; 2 all
-     real(dp) :: int_acc     ! integration accuracy
+     integer :: Np_n(2)            ! Number of points for n 
+     integer :: Np_p(2)            ! Number of points for p 
+     integer :: Np_real(11)        ! Number of points for integration over real axis
+     integer :: n_kt               ! Number of kT extending integrations
+     integer :: n_poles            ! Number of poles 
+     integer :: iteration          ! Iterazione (SCC)
+     integer :: activecont         ! contact selfenergy
+     integer :: ni(MAXNCONT)       ! ni: emitter contact list 
+     integer :: nf(MAXNCONT)       ! nf: collector contact list
+     integer :: minmax             ! in input: 0 take minimum, 1 take maximum mu  
+     integer :: refcont            ! reference contact (for non equilib)
+     integer :: outer              ! flag switching computation of  
+                                   ! the Device/Contact DM
+                                   ! 0 none; 1 upper block; 2 all
+     real(dp) :: int_acc           ! integration accuracy
      real(dp), dimension(:), pointer :: E_singular => null()
      real(dp) :: delta_singular
 
-     type(Telph) :: elph     ! electron-phonon data
-
-     type(mesh) :: emesh     ! energy mesh for adaptive Simpson
+     type(Telph) :: elph           ! electron-phonon data
+                                  
+     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
 
   end type Tnegf
 
@@ -347,7 +348,8 @@ contains
      negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
      negf%FictCont = .false.   ! Ficticious contact 
 
-     negf%mu = 0.d0            ! Potenziale elettrico
+     negf%pot = 0.d0           ! Potenziale elettrico
+     negf%mu = 0.d0            ! Potenziale elettrochimico
      negf%efermi= 0.d0         ! Energia di Fermi dei contatti
      negf%contact_DOS = 0.d0   ! Ficticious contact DOS
 
