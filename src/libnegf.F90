@@ -59,16 +59,8 @@ module libnegf
                                     ! run total current calculation
 
  public :: compute_ldos                                   
- ! MOVED TO integrations.F90 
- !public :: contour_int     ! standard contour integrations for DFT(B) 
- !public :: real_axis_int   ! real-axis integration for DFT
- !public :: contour_int_n   ! contour integration for CB
- !public :: real_axis_int_n ! real axis integration for CB
- !public :: contour_int_p   ! contour integration for VB 
- !public :: compute_current, integrate ! tunneling/current stuff
- !public :: compute_dos                ! compute local dos only
-
- public :: write_current, write_tunneling_and_dos
+ 
+ 
  public :: reorder, sort, swap            ! not used 
  public :: printcsr   ! debugging routines
  public :: printcsrij   ! debugging routines
@@ -535,6 +527,7 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
+
     call extract_device(negf)
 
     call extract_cont(negf)
@@ -770,22 +763,23 @@ contains
 
     type(TNegf) :: negf
 
-    integer :: nc_vec(1), ncont, minmax
+    integer :: nc_vec(1), ncont
 
     ncont = negf%str%num_conts
-    minmax = negf%minmax
 
-    if (minmax.eq.0) then
-       negf%muref = minval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       nc_vec = minloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))  
+    if (ncont > 0) then
+      if (negf%minmax .eq. 0) then
+         negf%muref = minval(negf%mu(1:ncont))
+         nc_vec = minloc(negf%mu(1:ncont))  
+      else
+         negf%muref = maxval(negf%mu(1:ncont))
+         nc_vec = maxloc(negf%mu(1:ncont))
+      endif
+      negf%refcont = nc_vec(1)
     else
-       negf%muref = maxval(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-       nc_vec = maxloc(negf%Efermi(1:ncont)-negf%mu(1:ncont))
-    endif
-
-    negf%refcont = nc_vec(1)
-    
-    !! print*, 'ref  muref', negf%refcont, negf%muref
+      negf%muref = negf%mu(1)
+      negf%refcont = 1  
+    endif  
      
   end subroutine set_ref_cont
 
