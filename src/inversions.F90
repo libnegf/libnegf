@@ -45,13 +45,65 @@ public :: zINV_LU
 public :: zINV_PARDISO
 #endif
 
+public :: compGreen ! wrapper to different type of computations
 public :: inverse, block2Green, block3Green
+
+interface compGreen
+  module procedure compGreen_dns
+  module procedure compGreen_arr
+end interface
 
 interface inverse
    module procedure zinv, rinv
 end interface
 
+
 contains
+
+  !--------------------------------------------------------------------------
+  subroutine compGreen_dns(G,A,n)
+    Type(z_DNS) :: A, G
+    Integer :: n
+
+    Integer :: sel, iter
+
+    sel = 1 
+    !if(A%nrow.gt.100) sel = 2 
+    !if(A%nrow.gt.1200) sel = 3     
+
+    select case(sel)
+    case(1)
+       call inverse(G%val,A%val,n)
+    case(2)
+       iter = 1     
+       call block2Green(G%val,A%val,n,iter)
+    case(3)
+       call block3Green(G%val,A%val,n)
+    end select
+
+  end subroutine compGreen_dns
+  !--------------------------------------------------------------------------
+  subroutine compGreen_arr(G,A,n)
+    complex(dp), dimension(:,:) :: A, G
+    Integer :: n
+
+    Integer :: sel, iter
+
+    sel = 1 
+
+    select case(sel)
+    case(1)
+       call inverse(G,A,n)
+    case(2)
+       iter = 1     
+       call block2Green(G,A,n,iter)
+    case(3)
+       call block3Green(G,A,n)
+    end select
+
+  end subroutine compGreen_arr
+
+!DEBUGGED AND COMPLETE***************************************************
 
 !DEBUGGED AND COMPLETE***************************************************
 
@@ -802,7 +854,7 @@ end subroutine rinv
     Type(z_dns) :: h11,gr22
     Type(z_DNS) :: work1,work2,work4
     Integer :: bl1, b22, n2
-    Integer, parameter :: maxiter=2
+    Integer, parameter :: maxiter=1
 
     if (n.le.10) then
        call inverse(G,A,n)

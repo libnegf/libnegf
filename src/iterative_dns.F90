@@ -55,8 +55,6 @@ MODULE iterative_dns
   public :: tunneling_dns
   public :: tun_and_dos
 
-  public :: compGreen
- 
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
   public :: calls_neq_ph
@@ -3772,29 +3770,6 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
   !---------------------------------------------------
 
-  !--------------------------------------------------------------------------
-  subroutine compGreen(G,A,n)
-    Type(z_DNS) :: A, G
-    Integer :: n
-
-    Integer :: sel, iter
-
-    sel = 2
-    !if(A%nrow.gt.100) sel = 2 
-    !if(A%nrow.gt.1200) sel = 3     
-
-    select case(sel)
-    case(1)
-       call inverse(G%val,A%val,n)
-    case(2)
-       iter = 1     
-       call block2Green(G%val,A%val,n,iter)
-    case(3)
-       call block3Green(G%val,A%val,n)
-    end select
-
-
-  end subroutine compGreen
 
 
 

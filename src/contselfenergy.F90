@@ -32,7 +32,7 @@ module ContSelfEnergy
  use mat_def
  use sparsekit_drv
  use outmatrix, only : outmat_c, inmat_c
- use inversions, only : block2Green, inverse 
+ use inversions, only : compGreen, inverse 
  use clock
  use mpi_globals
  use complexbands
@@ -272,7 +272,7 @@ contains
     type(z_DNS) :: GS
     complex(dp), DIMENSION(n,n) :: Ao,Bo,Co 
 
-    integer :: i1,err, iter
+    integer :: i1,err
     complex(dp) :: E
 
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s,A1,B1,C1,A1_s
@@ -291,8 +291,7 @@ contains
     do i1=1,300
       !write(*,*) 'decimation:',i1
       !call zinv(inAo,Ao,n)
-       iter = 1
-       call block2Green(inAo,Ao,n,iter)
+      call compGreen(inAo,Ao,n)
 
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Bo, n,  beta, inAoXBo, n)
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Co, n,  beta, inAoXCo, n) 
@@ -318,8 +317,7 @@ contains
     end do
     !write(*,*) 'decimation: final inv'
     !call zinv(Gamma,A1_s,n)
-    iter = 1
-    call block2green(Gamma,A1_s,n,iter)
+    call compGreen(Gamma,A1_s,n)
 
     GS%val(n1:n2,n1:n2) = Gamma(1:n,1:n)
 
