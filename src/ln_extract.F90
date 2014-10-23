@@ -69,19 +69,21 @@ contains
 
 
     do i=1,ncont
-       !write(*,*) '(ext_cont)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
+       write(*,*) '(ext_HC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
        call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%HC(i))       
+       write(*,*) '(ext_SC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
        call extract(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%SC(i))
     enddo
 
     do i=1,ncont
-       !print*, '(int) extract central-contact',i
+       print*, '(int) extract central-contact',i
        i1 = negf%str%mat_PL_start( negf%str%cblk(i) )
        i2 = negf%str%mat_PL_end( negf%str%cblk(i) ) 
        j1 = cstart(i); 
        j2 = j1+(ncdim(i)+surfdim(i))/2-1 !Note this is Surf+1PL
-       !print*, 'Interaction block:',i1,i2,j1,j2
+       print*, 'block HMC:',i1,i2,j1,j2
        call extract(negf%H,i1,i2,j1,j2,negf%HMC(i))         
+       print*, 'block SMC:',i1,i2,j1,j2
        call extract(negf%S,i1,i2,j1,j2,negf%SMC(i)) 
 
 !print*,'(extract)',negf%HMC(i)%nzval

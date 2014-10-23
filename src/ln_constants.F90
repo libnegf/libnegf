@@ -23,12 +23,17 @@ module ln_constants
   
   use ln_precision
   
-  real(dp), parameter    :: eovh = (1.05420882d-3)   ! A/H
   real(dp), parameter    :: pi =  3.14159265358979323844_dp ! Greek p real
+  real(dp), parameter    :: eovh = (1.05420882d-3)      ! A/H
   real(dp), parameter    :: HAR = 27.2113845_dp         ! H/eV
   real(dp), parameter    :: ATU = 0.529177249_dp        ! a.u./Ang
-  real(dp), PARAMETER    :: Kb = (3.166830814d-6)    ! H/K
+  real(dp), parameter    :: Kb = (3.166830814d-6)       ! H/K
+  real(dp), parameter    :: oneovh = 0.180237804832302  ! W/H^2
+  real(dp), parameter    :: hh =  1.054571726d-34       ! J s
+  real(dp), parameter    :: HovJ =  4.3597441775d-18    ! H/J 
   
+
+   
   COMPLEX(dp), PARAMETER ::    j = (0.d0,1.d0)  ! CMPX unity
   
   

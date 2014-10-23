@@ -36,6 +36,7 @@ module lib_param
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
+  public :: print_all_vars
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -261,11 +262,12 @@ contains
     type(z_CSR), optional, target :: S
 
     negf%H => H
-
+    
     if (present(S)) then
        negf%S => S      
     else
        negf%isSid=.true.
+       allocate(negf%S)
        call create_id(negf%S,negf%H%nrow) 
     endif
 
@@ -399,6 +401,72 @@ contains
      call init_elph(negf%elph)
 
    end subroutine set_defaults
+
+   subroutine print_all_vars(negf,io)
+     type(Tnegf) :: negf    
+     integer :: io
+
+     write(io,*) 'verbose=',negf%verbose
+
+     write(io,*) 'reH-file= "'//trim(negf%file_re_H)//'"'
+     write(io,*) 'imH-file= "'//trim(negf%file_im_H)//'"'  
+     write(io,*) 'reS-file= "'//trim(negf%file_re_S)//'"'
+     write(io,*) 'imS-file= "'//trim(negf%file_im_S)//'"'
+     write(io,*) 'str-file= "'//trim(negf%file_struct)//'"'
+     write(io,*) 'scratch= "'//trim(negf%scratch_path)//'"'
+     write(io,*) 'output= "'//trim(negf%out_path)//'"'
+
+     write(io,*) 'isSid= ',negf%isSid
+
+     write(io,*) 'Contact Parameters:'
+     write(io,*) 'Efermi= ', negf%efermi
+     write(io,*) 'pot= ', negf%pot
+     write(io,*) 'mu= ', negf%mu
+     write(io,*) 'WideBand= ', negf%FictCont
+     write(io,*) 'DOS= ', negf%contact_DOS
+
+     write(io,*) 'Contour Parameters:'
+     write(io,*) 'mu_n= ', negf%mu_n
+     write(io,*) 'mu_p= ', negf%mu_p
+     write(io,*) 'Ec= ', negf%Ec 
+     write(io,*) 'Ev= ', negf%Ev
+     write(io,*) 'DEc= ', negf%DeltaEc 
+     write(io,*) 'DEv= ', negf%DeltaEv
+     write(io,*) 'ReadoldSGF= ',negf%ReadoldSGF
+     write(io,*) 'Np_n= ',negf%Np_n
+     write(io,*) 'Np_p= ', negf%Np_p
+     write(io,*) 'nkT= ', negf%n_kt
+     write(io,*) 'nPoles= ', negf%n_poles
+     write(io,*) 'minmax= ', negf%minmax
+     write(io,*) 'refcont= ', negf%refcont
+
+     write(io,*) 'Transmission Parameters:'
+     write(io,*) 'Emin= ',negf%Emin
+     write(io,*) 'Emax= ',negf%Emax
+     write(io,*) 'Estep= ',negf%Estep
+     write(io,*) 'T= ',negf%kbT
+     write(io,*) 'g_spin= ',negf%g_spin 
+     write(io,*) 'delta= ',negf%delta
+     write(io,*) 'dos_delta= ',negf%dos_delta
+     write(io,*) 'ni= ', negf%ni
+     write(io,*) 'nf= ', negf%nf
+     write(io,*) 'DorE= ',negf%DorE
+     write(io,*) 'writeLDOS= ',negf%writeLDOS
+
+     write(io,*) 'Internal variables:'
+     write(io,*) 'intHS= ',negf%intHS
+     write(io,*) 'intDM= ',negf%intDM
+     write(io,*) 'kp= ', negf%kpoint
+     write(io,*) 'wght= ', negf%wght
+     write(io,*) 'E= ',negf%E
+     write(io,*) 'outer= ', negf%outer
+     write(io,*) 'DOS= ',negf%dos
+     write(io,*) 'Eneconv= ',negf%eneconv
+     write(io,*) 'iter= ', negf%iteration
+     write(io,*) 'activecont= ', negf%activecont 
+
+
+  end subroutine print_all_vars
 
 end module lib_param
  

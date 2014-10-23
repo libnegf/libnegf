@@ -303,7 +303,7 @@ subroutine zcreate_id_CSR(mat,nrow)
 
   call zcreate_CSR(mat,nrow,nrow,nrow)
   do i=1,nrow
-     mat%nzval(i)=1.d0
+     mat%nzval(i)=(1.d0, 0.d0)
      mat%rowpnt(i)=i
      mat%colind(i)=i
   enddo

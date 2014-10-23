@@ -2776,7 +2776,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        !STOP
     endif   
 
-    open(9091,file=trim(path)//trim(filename), form='BINARY')
+    open(9091,file=trim(path)//trim(filename), access='STREAM')
     
     call inmat_c(9091,.false.,Matrix%val,Matrix%nrow,Matrix%ncol)
 
@@ -2848,7 +2848,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
     filename = trim(name)//trim(ofblki)//'_'//trim(ofblkj)//'_'//trim(ofpnt)//'.dat'
 
-    open(9001,file=trim(path)//trim(filename), form='BINARY', status='REPLACE')
+    open(9001,file=trim(path)//trim(filename), access='STREAM', status='REPLACE')
 
     call outmat_c(9001,.false.,Matrix%val,Matrix%nrow,Matrix%ncol) !,1.0d-36)
     
