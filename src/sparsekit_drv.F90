@@ -1038,9 +1038,9 @@ CONTAINS
     do j=1,A%ncol
        do i=1,A%nrow-1
              if (flag.eq.'r') then
-                write(iofile,'(f10.5)', advance='NO') dreal( A%val(i,j) )
+                write(iofile,'(f10.5)', advance='NO') real( A%val(i,j) )
              elseif (flag.eq.'i') then
-                write(iofile,'(f10.5)', advance='NO') dimag( A%val(i,j) )
+                write(iofile,'(f10.5)', advance='NO') aimag( A%val(i,j) )
              elseif (flag.eq.'c') then
                 write(iofile,'(2E23.15)', advance='NO')      ( A%val(i,j) )
              endif
@@ -1048,7 +1048,7 @@ CONTAINS
              if (flag.eq.'r') then
                 write(iofile,'(f10.5)', advance='YES') real( A%val(i,A%ncol) ) 
              elseif (flag.eq.'i') then
-                write(iofile,'(f10.5)', advance='YES') dimag( A%val(i,j) )
+                write(iofile,'(f10.5)', advance='YES') aimag( A%val(i,j) )
              elseif (flag.eq.'c') then
                 write(iofile,'(2E23.15)', advance='YES')      ( A%val(i,j) )
              endif      
@@ -1119,7 +1119,7 @@ CONTAINS
     do k = 1, A%nnz 
      
        if (flag.eq.'r') then
-          write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), dreal(A%nzval(k))
+          write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), real(A%nzval(k))
        elseif (flag.eq.'i') then
           write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), aimag(A%nzval(k))
        elseif (flag.eq.'c') then

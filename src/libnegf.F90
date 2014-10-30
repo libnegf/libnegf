@@ -283,7 +283,6 @@ contains
 
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
-   print*,'read blocks ',nbl 
        read(101,*) PL_end(1:nbl)
     end if
 
@@ -764,10 +763,9 @@ contains
     type(Tnegf) :: negf
     
     integer :: flagbkup
-print*,'extract_device'
+    
     call extract_device(negf)
     
-print*,'extract_cont'
     call extract_cont(negf)
     
     flagbkup = negf%readOldSGF
@@ -775,14 +773,11 @@ print*,'extract_cont'
        negf%readOldSGF = 1
     end if
 
-print*,'tunn int def'
     call tunneling_int_def(negf)
 
-print*,'tunn '
-    !call phonon_tunneling(negf)
-    call tunneling_and_dos(negf)
+    call phonon_tunneling(negf)
+    !call tunneling_and_dos(negf)
   
-print*,'curr '
     call phonon_current(negf) 
 
     !!GP Locally writing energy dependent data is not meaningful in the MPI

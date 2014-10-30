@@ -104,8 +104,17 @@ contains
     if (allocated(en_grid)) deallocate(en_grid)
   end subroutine    
 
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
+  subroutine write_point(gridpn,Npoints)
+    type(TEnGrid) :: gridpn
+    integer :: Npoints
+
+    write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
+          &'/',Npoints,'  CPU= ', id, '  E=',real(gridpn%Ec)
+
+  end subroutine write_point
+               
   !-----------------------------------------------------------------------
   ! Projected DOS on atoms or obitals
   !-----------------------------------------------------------------------
@@ -140,8 +149,7 @@ contains
        negf%iE = en_grid(i)%pt
 
        if (negf%verbose.gt.VBT) then
-         write(6,'(a19,i3,a1,i3,a6,i3)') 'LDOS POINT: point #',en_grid(i)%pt,'&
-             &/',size(en_grid),'  CPU=', id
+         call write_point(en_grid(i), size(en_grid))
        endif
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -499,8 +507,7 @@ contains
         if (en_grid(i)%cpu .ne. id) cycle
 
         if (negf%verbose.gt.VBT-10) then
-           write(6,'(a,i0,a,i0,a,i3)') 'INTEGRAL: point #',en_grid(i)%pt,'/',Ntot, &
-               '  CPU#', id
+           call write_point(en_grid(i), Ntot) 
         endif
     
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
@@ -653,8 +660,7 @@ contains
        negf%iE = en_grid(i)%pt
 
        if (negf%verbose.gt.VBT) then
-          write(6,'(a17,i5,a1,i5,a6,i3,f8.4)') 'INTEGRAL neq: pnt #',i,'/',Npoints,'  CPU=&
-               &', id  
+          call write_point(en_grid(i),Npoints)
        endif
 
        do j1 = 1,ncont
@@ -966,8 +972,7 @@ contains
        negf%iE = en_grid(i)%pt
 
        if (negf%verbose.gt.VBT-10) then
-         write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',en_grid(i)%pt,'&
-             &/',size(en_grid),'  CPU=', id
+         call write_point(en_grid(i), size(en_grid))
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
@@ -1035,17 +1040,6 @@ contains
                             & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
-    ! converts from internal atomic units into A
-    negf%currents = negf%currents * eovh 
-   
-    if (id0 .and. negf%verbose.gt.VBT) then 
-      do ii=1,size_ni
-        write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') &
-             & 'contacts:',negf%ni(ii),negf%nf(ii), &
-             & '; k-point:',negf%kpoint,'; current:', negf%currents(ii),' A'
-      enddo
-    endif
-    
   end subroutine electron_current
 
   !-----------------------------------------------------------------------
@@ -1132,11 +1126,10 @@ contains
       
        Ec = en_grid(i)%Ec * en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
-       delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/negf%Emax) * Ec 
+       delta = negf%delta * negf%delta !(1.0_dp - real(en_grid(i)%Ec)/negf%Emax) * Ec 
 
        if (negf%verbose.gt.VBT-10) then
-         write(6,'(a17,i3,a1,i3,a6,i3)') 'INTEGRAL:   point #',en_grid(i)%pt,'&
-             &/',size(en_grid),'  CPU=', id, Ec
+         call write_point(en_grid(i), size(en_grid))
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
@@ -1197,16 +1190,6 @@ contains
                             & negf%Emin, negf%Emax, negf%Estep)
     enddo
         
-    ! converts from internal atomic units into W
-    negf%currents = negf%currents * 1/hh*HovJ**2
-   
-    if (id0 .and. negf%verbose.gt.VBT) then 
-      do ii= 1, size_ni
-        write(*,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') &
-             & 'contacts:',negf%ni(ii),negf%nf(ii), &
-             & '; k-point:',negf%kpoint,'; current:', negf%currents(ii),' W'
-      enddo
-    endif
     
   end subroutine phonon_current
  

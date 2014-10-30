@@ -53,13 +53,13 @@ contains
 
     if (abs((E-Ef)/kT).gt.30) then
       if(E.gt.Ef) then
-        fermi_f = 0.D0
+        fermi_f = exp(-(E-Ef)/kT) 
       else
         fermi_f = 1.D0
       end if
       return
     else        
-      fermi_f = 1.d0/(dexp((E-Ef)/kT)+1.d0);
+      fermi_f = 1.d0/(exp((E-Ef)/kT)+1.d0);
       return
     endif
 
@@ -89,7 +89,7 @@ contains
 
     if (abs( (real(Ec)-Ef)/kT ).gt.30) then
       if(real(Ec).gt.Ef) then
-        fermi_fc = (0.D0,0.D0)
+        fermi_fc = exp( -(Ec-Efc)/kTc )
       else
         fermi_fc = (1.D0,0.D0)
       end if
