@@ -1337,7 +1337,7 @@ Ec=cmplx(E,0.d0,dp)
 
           frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
           ! Computation of Gl(1,1) = Gr(1,cb) Gam(cb) Ga(cb,1)
-          if (Gr(1,cb)%nrow.gt.0) then
+          if (allocated(Gr(1,cb)%val)) then
             CALL prealloc_mult(Gr(1,cb),Gam,work1)    
             CALL zdagger(Gr(1,cb),Ga)
             CALL prealloc_mult(work1,Ga,frmdiff,Gn(1,1))
@@ -3393,11 +3393,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
           nt = nt1
        endif
 
-       if (ncont.eq.2) then
-          call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-       else
-          call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-       endif
+       call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
   
        TUN_MAT(icpl) = tun 
     
@@ -3540,11 +3536,10 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        ! Compute column-blocks of Gr(i,bl1) up to i=bl2
        ! Gr(i,bl1) = -gr(i) T(i,i-1) Gr(i-1,bl1)
        do i = bl1+1, bl2
-          
           !Checks whether previous block is non null. 
           !If so next block is also null => TUN = 0       
           max=maxval(abs(Gr(i-1,bl1)%val))
-
+        
           if (max.lt.EPS) then
              TUN = EPS*EPS !for log plots 
              !Destroy also the block adjecent to diagonal since 
@@ -3553,11 +3548,11 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
              return
           endif
 
-          !Checks whether block has been created, if not do it  
-          if (Gr(i,bl1)%nrow.eq.0 .or. Gr(i,bl1)%ncol.eq.0) then 
+          !Checks whether block has been created, if not do it 
+          if (.not.allocated(Gr(i,bl1)%val)) then 
              
              call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
-             
+
              call prealloc_mult(work1,Gr(i-1,bl1),Gr(i,bl1))
              
              call destroy(work1)
@@ -3665,6 +3660,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
        nit=ni(icpl)
        nft=nf(icpl)
+       
        if (ncont.eq.2) then
          call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
        else

@@ -117,9 +117,9 @@ end interface
 ! rowpnt= [  1  4  6  8  10 ]
 
 Type z_CSR
-  integer :: nnz
-  integer :: nrow 
-  integer :: ncol
+  integer :: nnz= 0
+  integer :: nrow= 0  
+  integer :: ncol= 0
   logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
   integer, DIMENSION(:), ALLOCATABLE :: colind
@@ -129,9 +129,9 @@ end Type z_CSR
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
 Type z_CSC
-  integer :: nnz
-  integer :: nrow 
-  integer :: ncol
+  integer :: nnz= 0
+  integer :: nrow= 0  
+  integer :: ncol= 0
   logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: rowind 
@@ -141,27 +141,27 @@ end Type z_CSC
 !MSR Complex Structure definition (Modified Sparse Row Format)
 
 Type z_MSR
-  integer :: nnz
-  integer :: nrow
-  integer :: ncol
+  integer :: nnz= 0
+  integer :: nrow= 0
+  integer :: ncol= 0
   logical :: sorted
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: index 
 end Type z_MSR
 
 Type z_COO
-  integer :: nnz
-  integer :: nrow
-  integer :: ncol
+  integer :: nnz= 0
+  integer :: nrow= 0
+  integer :: ncol= 0
   integer, DIMENSION(:), ALLOCATABLE :: index_i 
   integer, DIMENSION(:), ALLOCATABLE :: index_j 
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
 end Type z_COO
 
 Type z_EXT_COO
-  integer :: nnz
-  integer :: nrow
-  integer :: ncol
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
   integer, DIMENSION(:), ALLOCATABLE :: index_i 
   integer, DIMENSION(:), ALLOCATABLE :: index_j 
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval
@@ -169,19 +169,19 @@ Type z_EXT_COO
 end Type z_EXT_COO 
 
 Type z_DNS
-  integer :: nrow
-  integer :: ncol
+  integer :: nrow = 0
+  integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type z_DNS 
 
 Type z_vec
-   integer :: len
+   integer :: len= 0
    complex(dp), dimension(:), allocatable :: val 
    integer, dimension(:), allocatable :: ind 
 end Type z_vec
 
 Type z_RGM
-   integer :: nrow
+   integer :: nrow= 0
    type(z_vec), dimension(:), allocatable :: row
 end Type z_RGM
 
