@@ -58,8 +58,12 @@ module libnegf
                                     ! Extract HM and SM
                                     ! run total current calculation
 
- public :: compute_ldos                                   
- 
+ public :: compute_ldos             ! wrapping to compute ldos
+
+
+ public :: compute_phonon_current   ! High-level wrapping to
+                                    ! compute phonon transmission
+                                    ! and heat currents 
  
  public :: reorder, sort, swap            ! not used 
  public :: printcsr   ! debugging routines
@@ -279,7 +283,6 @@ contains
 
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
-   print*,'read blocks ',nbl 
        read(101,*) PL_end(1:nbl)
     end if
 
@@ -645,7 +648,9 @@ contains
 
     call tunneling_int_def(negf)
 
-    call tunneling_and_current(negf)
+    call tunneling_and_dos(negf)
+
+    call electron_current(negf)
    
     !!GP Locally writing energy dependent data is not meaningful in the MPI
     !implementation, because the gathering is done externally.
@@ -751,6 +756,41 @@ contains
     endif
     
   end subroutine write_tunneling_and_dos
+  
+  !-------------------------------------------------------------------------------
+  subroutine compute_phonon_current(negf)
+
+    type(Tnegf) :: negf
+    
+    integer :: flagbkup
+    
+    call extract_device(negf)
+    
+    call extract_cont(negf)
+    
+    flagbkup = negf%readOldSGF
+    if (negf%readOldSGF.ne.1) then
+       negf%readOldSGF = 1
+    end if
+
+    call tunneling_int_def(negf)
+
+    call phonon_tunneling(negf)
+    !call tunneling_and_dos(negf)
+  
+    call phonon_current(negf) 
+
+    !!GP Locally writing energy dependent data is not meaningful in the MPI
+    !implementation, because the gathering is done externally.
+    ! An implementation node by node is still active, for debugging purposes 
+    !call write_tunneling_and_dos(negf)
+    
+    call destroy_matrices(negf)
+ 
+    negf%readOldSGF = flagbkup
+  
+  end subroutine compute_phonon_current
+
   !---------------------------------------------------------------------------
   ! Sets the Reference contact for non-eq calculations
   ! 

@@ -297,21 +297,30 @@ end subroutine negf_set_verbosity
 
 !!* Compute current for a given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_current(handler, current)
+subroutine negf_current(handler, current, unitOfH, unitOfJ)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use libnegf   ! if:mod:use 
-  use ln_precision ! if:mod:use
+  use ln_constants ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   real(dp) :: current       !if:var:inout
+  character(SST) :: unitOfH(1) !if:var:in
+  character(SST) :: unitOfJ(1) !if:var:in
 
   type(NEGFpointers) :: LIB
+  type(unit) :: unitH, unitJ
   
+  unitH%name=trim(unitOfH)
+  unitJ%name=trim(unitOfJ)
+
   LIB = transfer(handler, LIB) 
 
   call compute_current(LIB%pNEGF)
 
   current = LIB%pNEGF%currents(1) ! just take first value (2 contacts)
+
+  ! units conversion.
+  current = current * convertCurrent(unitH, unitJ)
 
   call write_tunneling_and_dos(LIB%pNEGF)
 

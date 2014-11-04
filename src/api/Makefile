@@ -92,10 +92,14 @@ update: $(TARGET) cpp_wrapped_binding
 	rm -f $(TIBERCADROOT)/lib/libnegf.so 
 
 .PHONY: clean
-clean:
-	rm -f *.o; rm -f *.mod *.a
+
+clean: cleansparsekit
+	rm -f *.o; rm -f *.mod *.a 
 	(cd ..; $(MAKE) clean)
-	#(cd $(LFEAST); $(MAKE) clean)
+
+cleansparsekit:
+	rm sparsekit/*.o
+	(cd ../../ext_sparsekit; $(MAKE) distclean)
 
 tar_source:
 	tar cvf libnegf.tar ${SOURCES} Makefile

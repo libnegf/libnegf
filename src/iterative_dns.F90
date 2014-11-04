@@ -55,8 +55,6 @@ MODULE iterative_dns
   public :: tunneling_dns
   public :: tun_and_dos
 
-  public :: compGreen
- 
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
   public :: calls_neq_ph
@@ -112,31 +110,33 @@ CONTAINS
     !****************************************************************************
     !
     !Input
-    !H: sparse matrix contaning Device Hamiltonian
-    !S: sparse matrix containing Device Overlap
-    !SelfEneR: sparse matrices array containing contacts Self Energy
-    !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
-    !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
-    !gsurfR: sparse matrices array containing contacts surface green
-    !ref: reference contact 
-    !lower_outer: optional parameter. If defined (and true), Aout contains also 
-    !the lower outer parts (needed for K-points calculations)
+    !pnegf:    negf data container
+    !E:        Energy point
+    !SelfEneR: matrices array containing contacts Self Energy
+    !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
+    !Tcl:      matrices array containing device-contacts interaction blocks (ES-H)
+    !gsurfR:   matrices array containing contacts surface green
+    !outer:    optional parameter (0,1,2).  
     !
     !Output:
     !A: Spectral function (Device + Contacts overlap regions -> effective conductor)
+    !   outer = 0  no outer parts are computed
+    !   outer = 1  only D/C part is computed
+    !   outer = 2  D/C and C/D parts are computed
+    !              (needed for K-points calculations)
     !
     !*****************************************************************************
 
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf) :: pnegf
-    COMPLEX(dp) :: E
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
-    TYPE(z_DNS), DIMENSION(:) :: Tlc, Tcl, gsurfR
-    TYPE(z_CSR) :: A
-    TYPE(Tstruct_info) :: struct
-    INTEGER :: outer
+    TYPE(Tnegf), intent(in) :: pnegf
+    COMPLEX(dp), intent(in) :: E
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: Tlc, Tcl, gsurfR
+    TYPE(z_CSR), intent(out) :: A
+    TYPE(Tstruct_info), intent(in) :: struct
+    INTEGER, intent(in) :: outer
 
     !Work
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
@@ -149,6 +149,7 @@ CONTAINS
     cblk => struct%cblk
     indblk => struct%mat_PL_start
 
+    ! Take CSR H,S and build ES-H in dense blocks
     CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
@@ -218,36 +219,37 @@ CONTAINS
   !****************************************************************************
 
   SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,Glout,out)
-
+    
     !****************************************************************************
     !
     !Input
-    !H: sparse matrix contaning Device Hamiltonian
-    !S: sparse matrix containing Device Overlap
-    !SelfEneR: sparse matrices array containing contacts Self Energy
-    !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
-    !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
-    !gsurfR: sparse matrices array containing contacts surface green
-    !frm: array containing Fermi distribution values for all contacts
-    !ref: reference contact excluded from summation
+    !pnegf:    negf data container
+    !E:        Energy point
+    !SelfEneR: matrices array containing contacts Self Energy
+    !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
+    !Tcl:      matrices array containing device-contacts interaction blocks (ES-H)
+    !gsurfR:   matrices array containing contacts surface green
+    !out:      optional parameter (0,1,2).  
     !
     !Output:
-    !Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
+    !Gn: NE GF (Device + Contacts overlap regions -> effective conductor)
+    !   out = 0  no outer parts are computed
+    !   out = 1  only D/C part is computed
+    !   out = 2  D/C and C/D parts are computed
+    !              (needed for K-points calculations)
     !
     !*****************************************************************************
-
 
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf) :: pnegf
-    TYPE(z_CSR) :: Glout
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
-    !TYPE(z_DNS) :: SelfEner_d 
-    REAL(dp) :: E
-    TYPE(Tstruct_info) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: out
+    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(z_CSR), intent(inout)  :: Glout
+    TYPE(z_DNS), DIMENSION(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
+    REAL(dp), intent(in)  :: E
+    TYPE(Tstruct_info), intent(in)  :: struct
+    REAL(dp), DIMENSION(:), intent(in)  :: frm
+    INTEGER, intent(in)  :: out
 
     !Work
     INTEGER :: ref
@@ -267,7 +269,7 @@ CONTAINS
 
     Ec=cmplx(E,0.d0,dp)
 
-    !Costruiamo la matrice sparsa ESH
+    ! Take CSR H,S and build ES-H in dense blocks
     CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
@@ -308,9 +310,6 @@ CONTAINS
           CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
        ENDIF
     ENDDO
-    !DO i=1,nbl
-    !  CALL Make_Grcol_mem_dns(ESH,i,indblk)
-    !ENDDO  
 
     !Distruzione delle gsmall................................
     call destroy_gsm(gsmr)
@@ -695,10 +694,9 @@ Ec=cmplx(E,0.d0,dp)
   !
   !***********************************************************************
   SUBROUTINE add_sigma_ph_r(pnegf, ESH, iter)
-
-     TYPE(Tnegf) :: pnegf
-     TYPE(z_DNS), DIMENSION(:,:) :: ESH
-     INTEGER :: iter
+     TYPE(Tnegf), intent(in) :: pnegf
+     TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: ESH
+     INTEGER, intent(in) :: iter
 
      TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_r
      INTEGER :: n, nbl, nrow, ierr
@@ -810,8 +808,8 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    integer :: sbl,ebl                            ! start block, end block
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    integer, intent(in) :: sbl,ebl                 ! start block, end block
 
     !Work
     !TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: INV
@@ -883,8 +881,8 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    integer :: sbl,ebl                       ! start block, end block
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    integer, intent(in) :: sbl,ebl                       ! start block, end block
 
     !Work
     TYPE(z_DNS) :: work1, work2
@@ -1080,9 +1078,9 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    INTEGER :: n
-    INTEGER, DIMENSION(:), POINTER :: indblk 
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    INTEGER, intent(in) :: n
+    INTEGER, DIMENSION(:), intent(in) :: indblk 
 
     !Work
     INTEGER :: i,nrow,ncol,nbl
@@ -1306,11 +1304,12 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref 
+    REAL(dp), DIMENSION(:), intent(in) :: frm
+    INTEGER, intent(in) :: ref 
 
     !Work
     Type(z_DNS) :: Gam
@@ -1339,7 +1338,7 @@ Ec=cmplx(E,0.d0,dp)
 
           frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
           ! Computation of Gl(1,1) = Gr(1,cb) Gam(cb) Ga(cb,1)
-          if (Gr(1,cb)%nrow.gt.0) then
+          if (allocated(Gr(1,cb)%val)) then
             CALL prealloc_mult(Gr(1,cb),Gam,work1)    
             CALL zdagger(Gr(1,cb),Ga)
             CALL prealloc_mult(work1,Ga,frmdiff,Gn(1,1))
@@ -1411,11 +1410,12 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref 
+    REAL(dp), DIMENSION(:), intent(in) :: frm
+    INTEGER, intent(in) :: ref 
 
     !Work
     Type(z_DNS) :: Gam
@@ -1510,9 +1510,10 @@ Ec=cmplx(E,0.d0,dp)
   !****************************************************************************
   SUBROUTINE Make_Gn_ph(pnegf,ESH,iter,Gn)
 
-    TYPE(Tnegf) :: pnegf
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    INTEGER :: iter
+    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    INTEGER, intent(in) :: iter
 
     Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n
     Type(z_DNS) :: Ga, work1, work2
@@ -2727,11 +2728,10 @@ END SUBROUTINE destroy_scratch
 
 ! READ Matrices
 SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
-
-    TYPE(z_DNS) :: Matrix
-    CHARACTER(*) :: path
-    CHARACTER(*) :: name
-    INTEGER :: i, j, iE
+    TYPE(z_DNS), intent(inout) :: Matrix
+    CHARACTER(*), intent(in) :: path
+    CHARACTER(*), intent(in) :: name
+    INTEGER, intent(in) :: i, j, iE
 
     CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
@@ -2778,7 +2778,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        !STOP
     endif   
 
-    open(9091,file=trim(path)//trim(filename), form='BINARY')
+    open(9091,file=trim(path)//trim(filename), access='STREAM')
     
     call inmat_c(9091,.false.,Matrix%val,Matrix%nrow,Matrix%ncol)
 
@@ -2791,11 +2791,10 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
   ! WRITE Matrices
   SUBROUTINE write_blkmat(Matrix, path, name, i, j, iE)
-
-    TYPE(z_DNS) :: Matrix
-    CHARACTER(*) :: path
-    CHARACTER(*) :: name
-    INTEGER :: i, j, iE
+    TYPE(z_DNS), intent(in) :: Matrix
+    CHARACTER(*), intent(in) :: path
+    CHARACTER(*), intent(in) :: name
+    INTEGER, intent(in) :: i, j, iE
 
     CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
@@ -2850,7 +2849,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
     filename = trim(name)//trim(ofblki)//'_'//trim(ofblkj)//'_'//trim(ofpnt)//'.dat'
 
-    open(9001,file=trim(path)//trim(filename), form='BINARY', status='REPLACE')
+    open(9001,file=trim(path)//trim(filename), access='STREAM', status='REPLACE')
 
     call outmat_c(9001,.false.,Matrix%val,Matrix%nrow,Matrix%ncol) !,1.0d-36)
     
@@ -3395,11 +3394,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
           nt = nt1
        endif
 
-       if (ncont.eq.2) then
-          call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-       else
-          call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-       endif
+       call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
   
        TUN_MAT(icpl) = tun 
     
@@ -3542,11 +3537,10 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        ! Compute column-blocks of Gr(i,bl1) up to i=bl2
        ! Gr(i,bl1) = -gr(i) T(i,i-1) Gr(i-1,bl1)
        do i = bl1+1, bl2
-          
           !Checks whether previous block is non null. 
           !If so next block is also null => TUN = 0       
           max=maxval(abs(Gr(i-1,bl1)%val))
-
+        
           if (max.lt.EPS) then
              TUN = EPS*EPS !for log plots 
              !Destroy also the block adjecent to diagonal since 
@@ -3555,11 +3549,11 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
              return
           endif
 
-          !Checks whether block has been created, if not do it  
-          if (Gr(i,bl1)%nrow.eq.0 .or. Gr(i,bl1)%ncol.eq.0) then 
+          !Checks whether block has been created, if not do it 
+          if (.not.allocated(Gr(i,bl1)%val)) then 
              
              call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
-             
+
              call prealloc_mult(work1,Gr(i-1,bl1),Gr(i,bl1))
              
              call destroy(work1)
@@ -3617,9 +3611,11 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
     Type(z_CSR), intent(in) :: S           
     Complex(dp), intent(in) :: Ec
     Type(z_DNS), Dimension(MAXNCONT), intent(in) :: SelfEneR, Gs
+    Integer, intent(in) :: ni(MAXNCONT)
+    Integer, intent(in) :: nf(MAXNCONT)
     Type(TStruct_Info), intent(in) :: str
     integer, intent(in)  :: nLdos, size_ni
-    type(intarray), dimension(:), allocatable :: LDOS      
+    type(intarray), dimension(:), intent(in) :: LDOS      
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
     Real(dp), Dimension(:), intent(inout) :: LEDOS
 
@@ -3630,8 +3626,6 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
     real(dp), dimension(:), allocatable :: diag
     Real(dp) :: tun
     Complex(dp) :: zc
-    Integer :: ni(MAXNCONT)
-    Integer :: nf(MAXNCONT)
     Integer :: nbl,ncont, ierr
     Integer :: nit, nft, icpl
     Integer :: iLDOS, i2, i
@@ -3667,6 +3661,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
        nit=ni(icpl)
        nft=nf(icpl)
+       
        if (ncont.eq.2) then
          call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
        else
@@ -3696,7 +3691,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
        call dns2csr(Gr(i,i),GrCSR)
        !Concatena direttamente la parte immaginaria per il calcolo della DOS
-       zc=(-1.d0,0.d0)/3.14159265358979323844_dp
+       zc=(-1.d0,0.d0)/pi
 
        call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
        call destroy(Gr(i,i))
@@ -3772,29 +3767,6 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
   !---------------------------------------------------
 
-  !--------------------------------------------------------------------------
-  subroutine compGreen(G,A,n)
-    Type(z_DNS) :: A, G
-    Integer :: n
-
-    Integer :: sel, iter
-
-    sel = 2
-    !if(A%nrow.gt.100) sel = 2 
-    !if(A%nrow.gt.1200) sel = 3     
-
-    select case(sel)
-    case(1)
-       call inverse(G%val,A%val,n)
-    case(2)
-       iter = 1     
-       call block2Green(G%val,A%val,n,iter)
-    case(3)
-       call block3Green(G%val,A%val,n)
-    end select
-
-
-  end subroutine compGreen
 
 
 
