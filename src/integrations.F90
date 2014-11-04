@@ -106,9 +106,17 @@ contains
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
+  subroutine write_info(message,Npoints)
+    character(*), intent(in) :: message
+    integer, intent(in) :: Npoints
+
+       write(6,'(a,a,i0,a,i0)') message,', CPU ',id,' points ',Npoints
+
+  end subroutine write_info
+  !-----------------------------------------------------------------------
   subroutine write_point(gridpn,Npoints)
-    type(TEnGrid) :: gridpn
-    integer :: Npoints
+    type(TEnGrid), intent(in) :: gridpn
+    integer, intent(in) :: Npoints
 
     write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
           &'/',Npoints,'  CPU= ', id, '  E=',real(gridpn%Ec)
@@ -499,7 +507,7 @@ contains
      call initialize(TmpMt)
     
      if (id0 .and. negf%verbose.gt.30) then
-       write(*,'(a,i0,a)') 'CONTOUR INTEGRATION:*** ',Ntot,' points'
+       call write_info('CONTOUR INTEGRAL',Ntot)
      end if
      
      do i = 1, Ntot
@@ -646,8 +654,7 @@ contains
     call initialize(TmpMt)
     
     if (negf%verbose.gt.30) then
-       write(*,'(a26,i3,a1,i5,a6)') 'REAL AXIS INTEGRATION: CPU',id,',',&
-                                Npoints,' points'    
+       call write_info('REAL AXIS INTEGRAL',Npoints)
     end if
 
     do i = 1, Npoints

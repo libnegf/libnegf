@@ -117,10 +117,10 @@ end interface
 ! rowpnt= [  1  4  6  8  10 ]
 
 Type z_CSR
-  integer :: nnz= 0
-  integer :: nrow= 0  
-  integer :: ncol= 0
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: nrow = 0  
+  integer :: ncol = 0
+  logical :: sorted = .false.
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
   integer, DIMENSION(:), ALLOCATABLE :: colind
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt
@@ -129,10 +129,10 @@ end Type z_CSR
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
 Type z_CSC
-  integer :: nnz= 0
-  integer :: nrow= 0  
-  integer :: ncol= 0
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: nrow = 0  
+  integer :: ncol = 0
+  logical :: sorted = .false.
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: rowind 
   integer, DIMENSION(:), ALLOCATABLE :: colpnt 
@@ -141,18 +141,18 @@ end Type z_CSC
 !MSR Complex Structure definition (Modified Sparse Row Format)
 
 Type z_MSR
-  integer :: nnz= 0
-  integer :: nrow= 0
-  integer :: ncol= 0
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
+  logical :: sorted = .false.
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: index 
 end Type z_MSR
 
 Type z_COO
-  integer :: nnz= 0
-  integer :: nrow= 0
-  integer :: ncol= 0
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
   integer, DIMENSION(:), ALLOCATABLE :: index_i 
   integer, DIMENSION(:), ALLOCATABLE :: index_j 
   complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
@@ -175,13 +175,13 @@ Type z_DNS
 end Type z_DNS 
 
 Type z_vec
-   integer :: len= 0
+   integer :: len = 0
    complex(dp), dimension(:), allocatable :: val 
    integer, dimension(:), allocatable :: ind 
 end Type z_vec
 
 Type z_RGM
-   integer :: nrow= 0
+   integer :: nrow = 0
    type(z_vec), dimension(:), allocatable :: row
 end Type z_RGM
 
@@ -189,10 +189,10 @@ end Type z_RGM
  
 !CSR Complex Structure definition (Compressed Sparse Row Format)
 Type r_CSR
-  integer :: nnz
-  integer :: nrow
-  integer :: ncol
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
+  logical :: sorted = .false.
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
   integer, DIMENSION(:), ALLOCATABLE :: colind 
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
@@ -201,10 +201,10 @@ end Type r_CSR
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
 Type r_CSC
-  integer :: nnz
-  integer :: nrow 
-  integer :: ncol
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: nrow = 0 
+  integer :: ncol = 0
+  logical :: sorted = .false.
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: rowind 
   integer, DIMENSION(:), ALLOCATABLE :: colpnt 
@@ -213,26 +213,26 @@ end Type r_CSC
 !MSR Real Structure definition (Modified Sparse Row Format)
 
 Type r_MSR
-  integer :: nnz
-  integer :: ncol
-  integer :: nrow
-  logical :: sorted
+  integer :: nnz = 0
+  integer :: ncol = 0
+  integer :: nrow = 0
+  logical :: sorted = .false.
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
   integer, DIMENSION(:), ALLOCATABLE :: index 
 end Type r_MSR
 
 Type r_COO
-  integer :: nnz
-  integer :: nrow
-  integer :: ncol
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
   integer, DIMENSION(:), ALLOCATABLE :: index_i 
   integer, DIMENSION(:), ALLOCATABLE :: index_j 
   real(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval  
 end Type r_COO 
 
 Type r_DNS
-  integer :: nrow
-  integer :: ncol
+  integer :: nrow = 0 
+  integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type r_DNS 
 ! *******************************************************************

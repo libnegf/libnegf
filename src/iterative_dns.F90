@@ -110,31 +110,33 @@ CONTAINS
     !****************************************************************************
     !
     !Input
-    !H: sparse matrix contaning Device Hamiltonian
-    !S: sparse matrix containing Device Overlap
-    !SelfEneR: sparse matrices array containing contacts Self Energy
-    !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
-    !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
-    !gsurfR: sparse matrices array containing contacts surface green
-    !ref: reference contact 
-    !lower_outer: optional parameter. If defined (and true), Aout contains also 
-    !the lower outer parts (needed for K-points calculations)
+    !pnegf:    negf data container
+    !E:        Energy point
+    !SelfEneR: matrices array containing contacts Self Energy
+    !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
+    !Tcl:      matrices array containing device-contacts interaction blocks (ES-H)
+    !gsurfR:   matrices array containing contacts surface green
+    !outer:    optional parameter (0,1,2).  
     !
     !Output:
     !A: Spectral function (Device + Contacts overlap regions -> effective conductor)
+    !   outer = 0  no outer parts are computed
+    !   outer = 1  only D/C part is computed
+    !   outer = 2  D/C and C/D parts are computed
+    !              (needed for K-points calculations)
     !
     !*****************************************************************************
 
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf) :: pnegf
-    COMPLEX(dp) :: E
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
-    TYPE(z_DNS), DIMENSION(:) :: Tlc, Tcl, gsurfR
-    TYPE(z_CSR) :: A
-    TYPE(Tstruct_info) :: struct
-    INTEGER :: outer
+    TYPE(Tnegf), intent(in) :: pnegf
+    COMPLEX(dp), intent(in) :: E
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: Tlc, Tcl, gsurfR
+    TYPE(z_CSR), intent(out) :: A
+    TYPE(Tstruct_info), intent(in) :: struct
+    INTEGER, intent(in) :: outer
 
     !Work
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH
@@ -147,6 +149,7 @@ CONTAINS
     cblk => struct%cblk
     indblk => struct%mat_PL_start
 
+    ! Take CSR H,S and build ES-H in dense blocks
     CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
@@ -216,36 +219,37 @@ CONTAINS
   !****************************************************************************
 
   SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,Glout,out)
-
+    
     !****************************************************************************
     !
     !Input
-    !H: sparse matrix contaning Device Hamiltonian
-    !S: sparse matrix containing Device Overlap
-    !SelfEneR: sparse matrices array containing contacts Self Energy
-    !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
-    !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
-    !gsurfR: sparse matrices array containing contacts surface green
-    !frm: array containing Fermi distribution values for all contacts
-    !ref: reference contact excluded from summation
+    !pnegf:    negf data container
+    !E:        Energy point
+    !SelfEneR: matrices array containing contacts Self Energy
+    !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
+    !Tcl:      matrices array containing device-contacts interaction blocks (ES-H)
+    !gsurfR:   matrices array containing contacts surface green
+    !out:      optional parameter (0,1,2).  
     !
     !Output:
-    !Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
+    !Gn: NE GF (Device + Contacts overlap regions -> effective conductor)
+    !   out = 0  no outer parts are computed
+    !   out = 1  only D/C part is computed
+    !   out = 2  D/C and C/D parts are computed
+    !              (needed for K-points calculations)
     !
     !*****************************************************************************
-
 
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf) :: pnegf
-    TYPE(z_CSR) :: Glout
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
-    !TYPE(z_DNS) :: SelfEner_d 
-    REAL(dp) :: E
-    TYPE(Tstruct_info) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: out
+    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(z_CSR), intent(inout)  :: Glout
+    TYPE(z_DNS), DIMENSION(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
+    REAL(dp), intent(in)  :: E
+    TYPE(Tstruct_info), intent(in)  :: struct
+    REAL(dp), DIMENSION(:), intent(in)  :: frm
+    INTEGER, intent(in)  :: out
 
     !Work
     INTEGER :: ref
@@ -265,7 +269,7 @@ CONTAINS
 
     Ec=cmplx(E,0.d0,dp)
 
-    !Costruiamo la matrice sparsa ESH
+    ! Take CSR H,S and build ES-H in dense blocks
     CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
@@ -306,9 +310,6 @@ CONTAINS
           CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
        ENDIF
     ENDDO
-    !DO i=1,nbl
-    !  CALL Make_Grcol_mem_dns(ESH,i,indblk)
-    !ENDDO  
 
     !Distruzione delle gsmall................................
     call destroy_gsm(gsmr)
@@ -693,10 +694,9 @@ Ec=cmplx(E,0.d0,dp)
   !
   !***********************************************************************
   SUBROUTINE add_sigma_ph_r(pnegf, ESH, iter)
-
-     TYPE(Tnegf) :: pnegf
-     TYPE(z_DNS), DIMENSION(:,:) :: ESH
-     INTEGER :: iter
+     TYPE(Tnegf), intent(in) :: pnegf
+     TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: ESH
+     INTEGER, intent(in) :: iter
 
      TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_r
      INTEGER :: n, nbl, nrow, ierr
@@ -808,8 +808,8 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    integer :: sbl,ebl                            ! start block, end block
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    integer, intent(in) :: sbl,ebl                 ! start block, end block
 
     !Work
     !TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: INV
@@ -881,8 +881,8 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    integer :: sbl,ebl                       ! start block, end block
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    integer, intent(in) :: sbl,ebl                       ! start block, end block
 
     !Work
     TYPE(z_DNS) :: work1, work2
@@ -1078,9 +1078,9 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    INTEGER :: n
-    INTEGER, DIMENSION(:), POINTER :: indblk 
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    INTEGER, intent(in) :: n
+    INTEGER, DIMENSION(:), intent(in) :: indblk 
 
     !Work
     INTEGER :: i,nrow,ncol,nbl
@@ -1304,11 +1304,12 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref 
+    REAL(dp), DIMENSION(:), intent(in) :: frm
+    INTEGER, intent(in) :: ref 
 
     !Work
     Type(z_DNS) :: Gam
@@ -1409,11 +1410,12 @@ Ec=cmplx(E,0.d0,dp)
     IMPLICIT NONE
 
     !In/Out
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    TYPE(z_DNS), DIMENSION(:) :: SelfEneR
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(Tstruct_info), intent(in) :: struct
-    REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: ref 
+    REAL(dp), DIMENSION(:), intent(in) :: frm
+    INTEGER, intent(in) :: ref 
 
     !Work
     Type(z_DNS) :: Gam
@@ -1508,9 +1510,10 @@ Ec=cmplx(E,0.d0,dp)
   !****************************************************************************
   SUBROUTINE Make_Gn_ph(pnegf,ESH,iter,Gn)
 
-    TYPE(Tnegf) :: pnegf
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gn
-    INTEGER :: iter
+    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(z_DNS), DIMENSION(:,:), intent(in) :: ESH
+    TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
+    INTEGER, intent(in) :: iter
 
     Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n
     Type(z_DNS) :: Ga, work1, work2
@@ -2725,11 +2728,10 @@ END SUBROUTINE destroy_scratch
 
 ! READ Matrices
 SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
-
-    TYPE(z_DNS) :: Matrix
-    CHARACTER(*) :: path
-    CHARACTER(*) :: name
-    INTEGER :: i, j, iE
+    TYPE(z_DNS), intent(inout) :: Matrix
+    CHARACTER(*), intent(in) :: path
+    CHARACTER(*), intent(in) :: name
+    INTEGER, intent(in) :: i, j, iE
 
     CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
@@ -2789,11 +2791,10 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
 
   ! WRITE Matrices
   SUBROUTINE write_blkmat(Matrix, path, name, i, j, iE)
-
-    TYPE(z_DNS) :: Matrix
-    CHARACTER(*) :: path
-    CHARACTER(*) :: name
-    INTEGER :: i, j, iE
+    TYPE(z_DNS), intent(in) :: Matrix
+    CHARACTER(*), intent(in) :: path
+    CHARACTER(*), intent(in) :: name
+    INTEGER, intent(in) :: i, j, iE
 
     CHARACTER(64) :: filename
     character(4) :: ofblki, ofblkj
@@ -3610,9 +3611,11 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
     Type(z_CSR), intent(in) :: S           
     Complex(dp), intent(in) :: Ec
     Type(z_DNS), Dimension(MAXNCONT), intent(in) :: SelfEneR, Gs
+    Integer, intent(in) :: ni(MAXNCONT)
+    Integer, intent(in) :: nf(MAXNCONT)
     Type(TStruct_Info), intent(in) :: str
     integer, intent(in)  :: nLdos, size_ni
-    type(intarray), dimension(:), allocatable :: LDOS      
+    type(intarray), dimension(:), intent(in) :: LDOS      
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
     Real(dp), Dimension(:), intent(inout) :: LEDOS
 
@@ -3623,8 +3626,6 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
     real(dp), dimension(:), allocatable :: diag
     Real(dp) :: tun
     Complex(dp) :: zc
-    Integer :: ni(MAXNCONT)
-    Integer :: nf(MAXNCONT)
     Integer :: nbl,ncont, ierr
     Integer :: nit, nft, icpl
     Integer :: iLDOS, i2, i
@@ -3690,7 +3691,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
        call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
        call dns2csr(Gr(i,i),GrCSR)
        !Concatena direttamente la parte immaginaria per il calcolo della DOS
-       zc=(-1.d0,0.d0)/3.14159265358979323844_dp
+       zc=(-1.d0,0.d0)/pi
 
        call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
        call destroy(Gr(i,i))
