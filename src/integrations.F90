@@ -28,7 +28,7 @@ module integrations
  use mpi_globals, only : id, numprocs, id0
  use input_output
  use ln_structure
- use fermi_dist
+ use distributions 
  use sparsekit_drv
  use inversions
  use iterative
@@ -43,13 +43,16 @@ module integrations
  implicit none
  private
 
- public :: contour_int     ! generalized contour integrator 
- public :: real_axis_int   ! real-axis integrator
- public :: ldos_int   ! ldos only integrator
+ public :: contour_int       ! generalized contour integrator 
+ public :: real_axis_int     ! real-axis integrator
+ public :: ldos_int          ! ldos only integrator
 
  public :: contour_int_def   ! contour integration for DFT(B)
  public :: contour_int_n_def ! contour integration for CB
+ public :: contour_int_p_def ! contour integration for VB
  public :: real_axis_int_def ! real axis integration 
+ public :: real_axis_int_n_def ! integration of CB on real axis
+ public :: real_axis_int_p_def ! integration of VB on real axis
 
  public :: tunneling_int_def  !
  public :: tunneling_and_dos  ! computes of T(E) & LDOS(E)
@@ -106,20 +109,26 @@ contains
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  subroutine write_info(message,Npoints)
+  subroutine write_info(verbose,message,Npoints)
+    integer, intent(in) :: verbose
     character(*), intent(in) :: message
     integer, intent(in) :: Npoints
 
+     if (id0 .and. verbose.gt.30) then
        write(6,'(a,a,i0,a,i0)') message,', CPU ',id,' points ',Npoints
+     end if
 
   end subroutine write_info
   !-----------------------------------------------------------------------
-  subroutine write_point(gridpn,Npoints)
+  subroutine write_point(verbose,gridpn,Npoints)
+    integer, intent(in) :: verbose
     type(TEnGrid), intent(in) :: gridpn
     integer, intent(in) :: Npoints
 
-    write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
+    if (verbose.gt.VBT) then
+      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
           &'/',Npoints,'  CPU= ', id, '  E=',real(gridpn%Ec)
+    endif
 
   end subroutine write_point
                
@@ -156,9 +165,7 @@ contains
        Ec = en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
        negf%iE = en_grid(i)%pt
 
-       if (negf%verbose.gt.VBT) then
-         call write_point(en_grid(i), size(en_grid))
-       endif
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     
@@ -177,9 +184,7 @@ contains
 
 
        do i1 = 1, size(negf%LDOS)
-           
            negf%ldos_mat(i, i1) = - aimag( sum(diag(negf%LDOS(i1)%indexes)) )/pi
-           
        enddo
         
        call destroy(Gr)
@@ -215,10 +220,10 @@ contains
   subroutine contour_int_n_def(negf)
     type(Tnegf) :: negf  
     
-    integer :: i, Ntot, ioffs
+    integer :: i, Ntot, Npoles, ioffs
     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, Lambda
-    real(dp) :: muref, kbT
+    real(dp) :: muref, kbT, Emin
 
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
@@ -227,8 +232,26 @@ contains
     muref = negf%muref
     
     Omega = negf%n_kt * kbT
-    Lambda = 2.d0* negf%n_poles * KbT * pi
-    Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
+
+    if (negf%n_poles.eq.0) then
+      Lambda = 0.5d0* kbT * pi
+    else
+      Lambda = 2.d0* negf%n_poles * KbT * pi
+    endif
+
+    Emin = negf%Ec + negf%DeltaEc
+
+    if ((Emin < (muref + 1.d-3)) .and. &
+        (Emin > (muref - 1.d-3))) then
+       Emin = muref - kbT
+    endif
+
+    Npoles = negf%n_poles
+    if (Emin > muref) then
+      Npoles = 0
+    endif
+
+    Ntot = negf%Np_n(1) + negf%Np_n(2) + Npoles
     allocate(en_grid(Ntot))
 
     ! *******************************************************************************
@@ -241,8 +264,8 @@ contains
     !  2pi [ /                ]     2*pi [ /                       ]
     !----------------------------------------------------
 
-    z1 = negf%Ec + negf%DeltaEc
-    z2 = negf%Ec + negf%DeltaEc + j*Lambda
+    z1 = Emin
+    z2 = Emin + j*Lambda
 
     z_diff = z2 - z1
 
@@ -250,6 +273,7 @@ contains
     allocate(pnts(negf%Np_n(1)))
 
     call gauleg(0.d0,1.d0,pnts,wght,negf%Np_n(1))
+    !call trapez(0.d0,1.d0,pnts,wght,negf%Np_n(1))
 
     do i = 1, negf%Np_n(1)
       Ec = z1 + pnts(i) * z_diff
@@ -280,8 +304,9 @@ contains
     allocate(pnts(negf%Np_n(2)))
 
     call gauleg(0.d0,1.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
+    !call trapez(0.d0,1.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
 
-    z1 = negf%Ec + negf%DeltaEc  + j*Lambda
+    z1 = z2
     z2 = muref + Omega + j*Lambda
 
     z_diff = z2 - z1
@@ -315,11 +340,11 @@ contains
     !---------------------------------------------------------------------
     ioffs = negf%Np_n(1)+negf%Np_n(2)
     
-    do i = 1, negf%n_poles
+    do i = 1, Npoles
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
-      en_grid(ioffs+i)%path = 3 
+      en_grid(ioffs+i)%path = 3
       en_grid(ioffs+i)%pt = ioffs + i
       en_grid(ioffs+i)%pt_path = i
       en_grid(ioffs+i)%Ec = Ec
@@ -336,6 +361,169 @@ contains
     enddo
 
   end subroutine contour_int_n_def
+
+
+
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix, holes
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !!
+  !-----------------------------------------------------------------------
+  ! Performs the complex contur integration
+  !
+  !      T>=0
+  !                +
+  !                +
+  !       * * * * * * * * * * *
+  !       *        +
+  !  --- -*---========================
+  !      Elow Ec  muref
+  !
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !!
+  !-----------------------------------------------------------------------
+
+  subroutine contour_int_p_def(negf)
+    type(Tnegf) :: negf
+
+    integer :: i, Ntot, Npoles, ioffs
+    real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
+    real(dp) :: Omega, Lambda
+    real(dp) :: muref, kbT, Emax
+
+    complex(dp) :: z1,z2,z_diff, zt
+    complex(dp) :: Ec, ff
+
+    kbT = negf%kbT(negf%refcont)
+    muref = negf%muref
+    Omega = negf%n_kt * kbT
+
+    if (negf%n_poles.eq.0) then
+      Lambda = 0.5d0* kbT * pi
+    else
+      Lambda = 2.d0* negf%n_poles * KbT * pi
+    endif
+
+    Emax = negf%Ev - negf%DeltaEv
+
+    if ((Emax < (muref + 1.d-3)) .and. &
+        (Emax > (muref - 1.d-3))) then
+       Emax = muref + kbT
+    endif
+
+    Npoles = negf%n_poles
+    if (Emax < muref) then
+      Npoles = 0
+    endif
+
+    Ntot=negf%Np_p(1)+negf%Np_p(2)+Npoles
+    allocate(en_grid(Ntot))
+
+    ! *******************************************************************************
+    ! 1. INTEGRATION OVER THE SEGMENT [Ec - dEc , Ec - dEc + j*Lambda]
+    ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
+    !----------------------------------------------------
+    !   g  [ /                ]      g   [ /                       ]
+    !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]
+    !  2pi [ /                ]     2*pi [ /                       ]
+    !----------------------------------------------------
+
+    z1 = Emax
+    z2 = Emax + j*Lambda
+
+    z_diff = z2 - z1
+
+    allocate(wght(negf%Np_p(1)))
+    allocate(pnts(negf%Np_p(1)))
+
+    call gauleg(0.d0,1.d0,pnts,wght,negf%Np_p(1))
+
+    do i = 1, negf%Np_p(1)
+      Ec = z1 + pnts(i) * z_diff
+      ff = fermi(-Ec,-muref,KbT)
+      zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
+
+      en_grid(i)%path = 1
+      en_grid(i)%pt = i
+      en_grid(i)%pt_path = i
+      en_grid(i)%Ec = Ec
+      en_grid(i)%wght = zt
+    enddo
+    deallocate(wght)
+    deallocate(pnts)
+
+
+    ! *******************************************************************************
+    ! 2. INTEGRATION OVER THE SEGMENT [Ec + j*Lambda, mu(r) + Omega+j*Lambda]
+    ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>0):
+    !----------------------------------------------------
+    !   g  [ /                ]      g   [ /                       ]
+    !  --- [ |  Gr(z)*f(z) dz ] =   ---  [ | Gr(z)*(z2-z1)*f(z)*dt ]
+    !  2pi [ /                ]     2*pi [ /                       ]
+    !----------------------------------------------------
+
+    allocate(wght(negf%Np_p(2)))
+    allocate(pnts(negf%Np_p(2)))
+
+    call gauleg(0.d0,1.d0,pnts,wght,negf%Np_p(2))    !Setting weights for integration
+
+    z1 = z2 
+    z2 = muref - Omega + j*Lambda
+
+    z_diff = z2 - z1
+
+    ioffs = negf%Np_p(1)
+
+    do i = 1, negf%Np_p(2)
+      Ec = z1 + pnts(i) * z_diff
+      ff = fermi(-Ec,-muref,KbT)
+      zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
+
+      en_grid(ioffs+i)%path = 2
+      en_grid(ioffs+i)%pt = ioffs + i
+      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%Ec = Ec
+      en_grid(ioffs+i)%wght = zt
+    enddo
+
+    deallocate(wght)
+    deallocate(pnts)
+
+    ! *******************************************************************************
+    ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
+    ! *******************************************************************************
+    ! NEW INTEGRATION FOR COMPLEX DENSITY (T>=0):
+    !---------------------------------------------------------------------
+    !                  [ 1                  ]
+    ! 2 pi * g * j* Res[ -- *Gr(z_k)f(z_k)  ] =  j*(-kb T)* Gr(z_k)
+    !                  [ 2pi                ]
+    !                                              (-kb*T) <- Residue
+    !---------------------------------------------------------------------
+    ioffs = negf%Np_p(1)+negf%Np_p(2)
+
+    do i = 1, Npoles
+      Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
+      zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
+
+      en_grid(ioffs+i)%path = 3
+      en_grid(ioffs+i)%pt = ioffs + i
+      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%Ec = Ec
+      en_grid(ioffs+i)%wght = zt
+    enddo
+
+    ! *******************************************************************************
+    ! Distribution of Energy grid
+    ! pts 1 2 3 4 5 6 7 8 9 ...
+    ! cpu 0 1 2 3 0 1 2 3 0 ...
+    ! *******************************************************************************
+    do i = 0, Ntot-1
+       en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
+
+  end subroutine contour_int_p_def
 
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix 
@@ -506,17 +694,13 @@ contains
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
     
-     if (id0 .and. negf%verbose.gt.30) then
-       call write_info('CONTOUR INTEGRAL',Ntot)
-     end if
+     call write_info(negf%verbose,'CONTOUR INTEGRAL',Ntot)
      
      do i = 1, Ntot
    
         if (en_grid(i)%cpu .ne. id) cycle
 
-        if (negf%verbose.gt.VBT-10) then
-           call write_point(en_grid(i), Ntot) 
-        endif
+        call write_point(negf%verbose,en_grid(i), Ntot) 
     
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
     
@@ -582,14 +766,15 @@ contains
     
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    ! Omega considers maximum kT so interval is always large enough
     Omega = negf%n_kt * maxval(negf%kbT) 
     
     if (ncont.gt.0) then 
        mumin=minval(negf%mu(1:ncont))
        mumax=maxval(negf%mu(1:ncont))
     else
-       mumin=negf%Efermi(1)
-       mumax=negf%Efermi(1)
+       mumin=negf%mu(1)
+       mumax=negf%mu(1)
     endif  
 
     Ntot = negf%Np_real(1)
@@ -605,7 +790,7 @@ contains
        en_grid(i)%pt = ioffset + i
        en_grid(i)%pt_path = i
        en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       en_grid(i)%wght = negf%wght * negf%g_spin * wght(i)/(2*pi)
+       en_grid(i)%wght = negf%wght * negf%g_spin * wght(i)/(2.d0 *pi)
     enddo
 
     deallocate(wght)
@@ -618,6 +803,12 @@ contains
 
   end subroutine real_axis_int_def
   !-----------------------------------------------------------------------
+  !    g    --  [ /                                         ]
+  ! ------  >   [ | j [f(i) - f(ref)] Gr(E) Gam_i Ga(E) dE  ]  
+  ! 2*pi*j  --i [ /                                         ]
+  !-----------------------------------------------------------------------
+  ! note: refcont is passed to calls_neq via TNegf
+  !-----------------------------------------------------------------------
 
   subroutine real_axis_int(negf)
     type(Tnegf) :: negf
@@ -629,33 +820,21 @@ contains
     integer :: i, i1, j1, outer, ncont
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    real(dp) :: mumin, mumax
-    real(dp) :: ncyc, kbT, Er
+    real(dp) :: ncyc, Er
 
     complex(dp) :: zt
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    ref = negf%refcont
     outer = negf%outer
     Npoints = size(en_grid)
 
-    if (ncont.gt.0) then 
-       mumin=minval(negf%mu(1:ncont))
-       mumax=maxval(negf%mu(1:ncont))
-    else
-       mumin=negf%Efermi(1)
-       mumax=negf%Efermi(1)
-    endif  
-       
     call log_allocate(frm_f,ncont)
     
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
     
-    if (negf%verbose.gt.30) then
-       call write_info('REAL AXIS INTEGRAL',Npoints)
-    end if
+    call write_info(negf%verbose,'REAL AXIS INTEGRAL',Npoints)
 
     do i = 1, Npoints
 
@@ -666,9 +845,7 @@ contains
        zt = en_grid(i)%wght
        negf%iE = en_grid(i)%pt
 
-       if (negf%verbose.gt.VBT) then
-          call write_point(en_grid(i),Npoints)
-       endif
+       call write_point(negf%verbose,en_grid(i),Npoints)
 
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
@@ -720,6 +897,131 @@ contains
 
   end subroutine real_axis_int
   
+  !--------------------------------------------!
+  !--------------------------------------------!
+  ! Equilibrium integration over real axis     !
+  !--------------------------------------------!
+  !-----------------------------------------------------------------------
+  !    g    --  [ /                                         ]
+  ! ------  >   [ | j [f(E) Gr(E) dE ]                      ]  
+  ! 2*pi*j  --i [ /                                         ]
+  !-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix 
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+  !-----------------------------------------------------------------------
+  subroutine real_axis_int_n_def(negf)
+    type(Tnegf) :: negf
+
+    integer :: i, ioffset, ncont, Ntot
+    real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
+    real(dp) :: Omega, mumin, mumax, muref, ff, kbT
+    
+    ncont = negf%str%num_conts
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    kbT = maxval(negf%kbT)
+    Omega = negf%n_kt * kbT 
+    muref = negf%muref
+    
+    if (ncont.gt.0) then 
+       mumin=minval(negf%mu_n(1:ncont))
+       mumax=maxval(negf%mu_n(1:ncont))
+    else
+       mumin=negf%mu_n(1)
+       mumax=negf%mu_n(1)
+    endif  
+
+    Ntot = negf%Np_real(1)
+    allocate(en_grid(Ntot))
+
+    allocate(pnts(Ntot))
+    allocate(wght(Ntot))
+    
+    call gauleg(mumin+negf%Ec+negf%DeltaEc, mumax+Omega,pnts,wght,Ntot)
+    
+    do i = 1, Ntot
+       en_grid(i)%path = 1
+       en_grid(i)%pt = ioffset + i
+       en_grid(i)%pt_path = i
+       en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
+       ff = fermi(pnts(i),muref,KbT)
+       en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+    enddo
+
+    deallocate(wght)
+    deallocate(pnts)
+
+    ! distribute energy grid
+    do i = 0, Ntot-1
+       en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
+
+  end subroutine real_axis_int_n_def
+
+  !--------------------------------------------!
+  !--------------------------------------------!
+  ! Equilibrium integration over real axis     !
+  !--------------------------------------------!
+  !-----------------------------------------------------------------------
+  !    g    --  [ /                                         ]
+  ! ------  >   [ | j [1-f(E) Gr(E) dE ]                    ]  
+  ! 2*pi*j  --i [ /                                         ]
+  !-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
+  ! Contour integration for density matrix 
+  ! DOES INCLUDE FACTOR 2 FOR SPIN !! 
+  !-----------------------------------------------------------------------
+  subroutine real_axis_int_p_def(negf)
+    type(Tnegf) :: negf
+
+    integer :: i, ioffset, ncont, Ntot
+    real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
+    real(dp) :: Omega, mumin, mumax, muref, ff, kbT
+    
+    ncont = negf%str%num_conts
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    kbT = maxval(negf%kbT) 
+    Omega = negf%n_kt * kbT
+    muref = negf%muref
+    
+    if (ncont.gt.0) then 
+       mumin=minval(negf%mu_p(1:ncont))
+       mumax=maxval(negf%mu_p(1:ncont))
+    else
+       mumin=negf%mu_p(1)
+       mumax=negf%mu_p(1)
+    endif  
+
+    Ntot = negf%Np_real(1)
+    allocate(en_grid(Ntot))
+
+    allocate(pnts(Ntot))
+    allocate(wght(Ntot))
+    
+    mumax = negf%Ev+negf%DeltaEv
+    
+    call gauleg(mumin-Omega, mumax, pnts, wght, Ntot)
+    
+    do i = 1, Ntot
+       en_grid(i)%path = 1
+       en_grid(i)%pt = ioffset + i
+       en_grid(i)%pt_path = i
+       en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
+       ff = fermi(-pnts(i),-muref,KbT)
+       en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+    enddo
+
+    deallocate(wght)
+    deallocate(pnts)
+
+    ! distribute energy grid
+    do i = 0, Ntot-1
+       en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
+
+  end subroutine real_axis_int_p_def
+
+  !-----------------------------------------------------------------------
   !----------------------------------------------------------------------------
   ! Gauss - Legendre quadrature weights and points
   !----------------------------------------------------------------------------
@@ -978,9 +1280,7 @@ contains
        Ec = en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
 
-       if (negf%verbose.gt.VBT-10) then
-         call write_point(en_grid(i), size(en_grid))
-       endif
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1135,9 +1435,7 @@ contains
        negf%iE = en_grid(i)%pt
        delta = negf%delta * negf%delta !(1.0_dp - real(en_grid(i)%Ec)/negf%Emax) * Ec 
 
-       if (negf%verbose.gt.VBT-10) then
-         call write_point(en_grid(i), size(en_grid))
-       endif
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1356,24 +1654,6 @@ contains
   
   end function integrate_ph
 
-  !////////////////////////////////////////////////////////////////////////
-  real(dp) function bose(E,kT) 
-
-    real(dp), intent(in) :: E, kT
-
-    ! the check over 0 is important otherwise the next fails
-    if (kT.eq.0.d0) then
-      bose = 0.D0
-      return
-    endif
-
-    if (abs(E/kT).gt.30) then
-      bose = 0.D0
-    else        
-      bose = 1.d0/(dexp(E/kT) - 1.d0);
-    endif
-     
-  end function bose     
 
   !////////////////////////////////////////////////////////////////////////
   subroutine partial_charge(negf,DensMat,qmulli,qtot)

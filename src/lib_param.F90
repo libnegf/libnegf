@@ -75,8 +75,8 @@ module lib_param
      ! projection)
      type(intarray), dimension(:), allocatable :: LDOS     
 
-     real(dp) :: mu_n              ! electrochemical potential (el)
-     real(dp) :: mu_p              ! electrochemical potential (hl)
+     real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
+     real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
      real(dp) :: muref             ! reference elec.chem potential
      real(dp) :: Ec                ! conduction band edge 
      real(dp) :: Ev                ! valence band edge

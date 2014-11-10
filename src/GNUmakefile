@@ -7,7 +7,7 @@ SOURCES = clock.F90  ln_extract.F90 \
 	  complexbands.F90  input_output.F90 \
           lib_param.F90 elph.F90 ln_precision.F90 mpi_globals.F90  \
           contselfenergy.F90 inversions.F90 libnegf.F90 ln_structure.F90 \
-          outmatrix.F90 rcm_module.F90 fermi.F90  transform.F90 \
+          outmatrix.F90 rcm_module.F90 distributions.F90  transform.F90 \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
           globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
 	  population.F90 mkl_dfti.F90 energy_mesh.F90

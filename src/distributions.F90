@@ -19,19 +19,26 @@
 !!--------------------------------------------------------------------------!
 
 
-module fermi_dist
+module distributions
 
   use ln_precision
   
   implicit none
   private
 
+  public :: bose
   public :: fermi
+  
+  interface bose
+    module procedure bose_r
+    module procedure bose_c
+  end interface
   
   interface fermi
     module procedure fermi_f
     module procedure fermi_fc
   end interface
+
 
 contains
   
@@ -102,4 +109,44 @@ contains
 
   end function fermi_fc
   
-end module fermi_dist
+  !////////////////////////////////////////////////////////////////////////
+  real(dp) function bose_r(E,kT) 
+    real(dp), intent(in) :: E, kT
+
+    ! the check over 0 is important otherwise the next fails
+    if (kT.eq.0.d0) then
+      bose_r = 0.D0
+      return
+    endif
+
+    if (abs(E/kT).gt.30.d0) then
+      bose_r = exp(-E/kT);
+    else        
+      bose_r = 1.d0/(exp(E/kT) - 1.d0);
+    endif
+     
+  end function bose_r   
+  
+  complex(kind=dp) function bose_c(Ec,Ef,kT)
+    complex(kind=dp), intent(in) :: Ec
+    real(kind=dp), intent(in) :: Ef, kT
+
+    complex(kind=dp) :: Efc,kTc,ONE=(1.d0,0.d0)
+
+    Efc=Ef*ONE
+    kTc=kT*ONE
+
+    if (kT.eq.0.d0) then
+      bose_c = (0.D0,0.D0)
+      return
+    endif
+
+    if (abs( real(Ec)/kT ).gt.30.d0) then
+      bose_c = exp( -Ec/kTc )
+    else        
+      bose_c = ONE/(exp( Ec/kTc ) - ONE);
+    endif
+
+  end function bose_c
+  
+end module distributions

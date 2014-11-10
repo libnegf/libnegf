@@ -59,11 +59,11 @@ module libnegf
                                     ! run total current calculation
 
  public :: compute_ldos             ! wrapping to compute ldos
-
+ public :: return_dos_mat           ! return pointer to LDOS matrix
 
  public :: compute_phonon_current   ! High-level wrapping to
                                     ! compute phonon transmission
-                                    ! and heat currents 
+                                     ! and heat currents 
  
  public :: reorder, sort, swap            ! not used 
  public :: printcsr   ! debugging routines
@@ -257,11 +257,11 @@ contains
   !--------------------------------------------------------------------
   subroutine read_negf_in(negf)
     type(Tnegf) :: negf
-    Integer :: ncont, nbl
+    Integer :: ncont, nbl, ii, jj, ist, iend
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(32) :: tmp
 
-    open(101, file=trim(negf%file_struct), form='formatted')  
+    open(101, file=trim(negf%scratch_path)//'/'//trim(negf%file_struct), form='formatted')
   
     read(101,*) negf%file_re_H 
     read(101,*) negf%file_im_H
@@ -308,7 +308,6 @@ contains
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
 
-    read(101,*) tmp,  negf%mu_n, negf%mu_p
     read(101,*) tmp,  negf%Ec, negf%Ev
     read(101,*) tmp,  negf%DeltaEc, negf%DeltaEv
     read(101,*) tmp,  negf%Emin, negf%Emax, negf%Estep
@@ -322,10 +321,16 @@ contains
     read(101,*) tmp,  negf%g_spin
     read(101,*) tmp,  negf%delta
     read(101,*) tmp,  negf%nLDOS
-    !call log_allocatep(negf%LDOS,2,negf%nLDOS)
-    !read(101,*) tmp,  negf%LDOS
-    read(101,*) tmp,  negf%Efermi(1:ncont)  ! Will be 0 from TC
-    read(101,*) tmp,  negf%mu(1:ncont)      ! Will be the Electrochemical potential
+    allocate(negf%LDOS(negf%nLDOS))
+    do ii = 1, negf%nLDOS
+      read(101,*) tmp,  ist, iend
+      call log_allocate(negf%LDOS(ii)%indexes, iend-ist+1)
+      do jj = 1, iend-ist+1
+        negf%LDOS(ii)%indexes(jj) = ist + jj - 1
+      end do  
+    end do
+    read(101,*) tmp,  negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
+    read(101,*) tmp,  negf%mu_p(1:ncont)    ! hole potentials
 
     close(101)
 
@@ -568,38 +573,66 @@ contains
   ! and compute density matrix
   !
   ! It has been used to interface libnegf to TiberCAD
-  ! Computes density for CB semiconductor 
+  ! Computes density for CB or VB semiconductor 
   !-------------------------------------------------------------------------------
-  subroutine compute_density_efa(negf, q)
+  subroutine compute_density_efa(negf, q, particle)
 
     type(Tnegf) :: negf
     real(dp), dimension(:) :: q
+    integer :: particle  ! +1 for electrons, -1 for holes
     complex(dp), dimension(:), allocatable :: q_tmp
 
     integer :: k
+
+    if (particle /= +1 .and. particle /= -1) then
+       write(*,*) "libNEGF error. In compute_density_efa, unknown particle"
+       stop  
+    endif
 
     call extract_device(negf)
 
     call extract_cont(negf)
 
-    call set_ref_cont(negf)
-
     call create_DM(negf)
 
-    if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
-       call contour_int_n_def(negf)
-       call contour_int(negf)
-    else 
-       ! HACKING: THIS WAY COMPUTES DM FOR ALL CONTACTS
-       negf%refcont = negf%str%num_conts+1  
+    negf%refcont = 1
+
+    if (particle == 1) then
+      negf%muref = negf%mu_n(negf%refcont)
+
+      if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
+         call contour_int_n_def(negf)
+         call contour_int(negf)
+      else
+         ! HACKING: THIS WAY COMPUTES DM FOR ALL CONTACTS
+         negf%refcont = negf%str%num_conts+1
+      endif
+    else ! particle == -1
+      negf%muref = negf%mu_p(negf%refcont)
+
+      if (negf%Np_p(1)+negf%Np_p(2)+negf%n_poles.gt.0) then
+         call contour_int_p_def(negf)
+         call contour_int(negf)
+      else
+         ! HACKING: THIS WAY COMPUTES DM FOR ALL CONTACTS
+         negf%refcont = negf%str%num_conts+1
+      endif
     endif
 
     if (negf%Np_real(1).gt.0) then
-       call real_axis_int_def(negf)
-       call real_axis_int(negf)
+       if (particle == 1) then
+          call real_axis_int_n_def(negf)
+       else  
+          call real_axis_int_p_def(negf)
+       endif   
+       ! why use contour int here and not real_axis_int ??
+       call contour_int(negf)
     endif
 
-    ! We need not to include S !!!!
+    ! We need not to include S:
+    ! rho(r) = sum_ij ui(r) Pij uj(r)
+    ! On the mesh nodes:
+    ! rho(rk) = sum_ii Pii ui(rk)^2
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
 
@@ -696,6 +729,27 @@ contains
   end subroutine write_current  
   !-------------------------------------------------------------------------------
   
+  !---- RETURN THE DOS MATRIX ---------------------------------------------------------
+  subroutine return_dos_mat(negf, esteps, npoints, ldos)
+  
+    type(Tnegf) :: negf
+    
+    integer :: esteps, npoints
+    real(dp), dimension(:,:) :: ldos
+    integer :: i, j
+    
+    if (associated(negf%ldos_mat) .and. (esteps .eq. size(negf%ldos_mat,1)) .and. (npoints .eq. size(negf%ldos_mat,2))) then
+
+      do j=1,npoints       
+        do i=1,esteps
+          ldos(i,j) = negf%ldos_mat(i,j)
+        end do
+      end do
+    end if
+    
+  end subroutine return_dos_mat
+  
+  
   !---- SAVE TUNNELING AND DOS ON FILES -----------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate
   ! file for every ID, which is not possible on all architectures 
@@ -745,10 +799,12 @@ contains
         do i = 1,Nstep
           
           E=(negf%Emin+negf%Estep*(i-1))
-          
-          WRITE(1021,'(E17.8,10(E17.8))') E*negf%eneconv, & 
-              ((negf%ldos_mat(i,iLDOS)/negf%eneconv), iLDOS=1,negf%nLDOS)        
-          
+          WRITE(1021,'((E17.8))',advance='NO') E*negf%eneconv
+          do iLDOS = 1, negf%nLDOS
+            WRITE(1021,'((E17.8))',advance='NO') negf%ldos_mat(i,iLDOS)/negf%eneconv
+          end do
+          write(1021,*)
+
         end do
         
         close(1021)
