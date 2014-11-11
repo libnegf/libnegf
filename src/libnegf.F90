@@ -63,7 +63,8 @@ module libnegf
 
  public :: compute_phonon_current   ! High-level wrapping to
                                     ! compute phonon transmission
-                                     ! and heat currents 
+                                    ! and heat currents 
+ public :: thermal_conductance
  
  public :: reorder, sort, swap            ! not used 
  public :: printcsr   ! debugging routines

@@ -108,7 +108,7 @@ module lib_param
      real(dp) :: Estep             ! Tunneling or dos E step
      real(dp) :: g_spin            ! spin degeneracy
      integer  :: spin              ! spin component
-                                 
+ 
      real(dp) :: wght              ! k-point weight 
      integer :: kpoint             ! k-point index
      integer :: iE                 ! Energy point (integer point)
@@ -224,6 +224,10 @@ contains
     real(dp) :: Emax
     real(dp) :: Estep
     real(dp) :: kbT
+
+    real(dp) :: Tmin
+    real(dp) :: Tmax
+    real(dp) :: Tstep
 
     integer :: Np_n(2)
     integer :: Np_p(2)   
