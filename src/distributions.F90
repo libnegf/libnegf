@@ -28,7 +28,8 @@ module distributions
 
   public :: bose
   public :: fermi
-  
+  public :: diff_bose
+
   interface bose
     module procedure bose_r
     module procedure bose_c
@@ -148,5 +149,28 @@ contains
     endif
 
   end function bose_c
+  
+  !////////////////////////////////////////////////////////////////////////
+  real(dp) function diff_bose(E,kT) 
+    real(dp), intent(in) :: E, kT
+
+    ! the check over 0 is important otherwise the next fails
+    if (kT.eq.0.d0) then
+      diff_bose = 0.D0
+      return
+    endif
+
+    if (E.eq.0.d0) then
+      diff_bose = 1.d0
+      return
+    endif
+
+    if (abs(E/kT).gt.30.d0) then
+      diff_bose = exp(-E/kT)*(E/kT)**2
+    else        
+      diff_bose = exp(E/kT)/((exp(E/kT)-1.d0)**2.d0)*(E/kT)**2
+    endif
+     
+  end function diff_bose
   
 end module distributions

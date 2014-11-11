@@ -1645,7 +1645,7 @@ contains
           c1=(bose(E3,KbT2)-bose(E3,KbT1))*TT3
           c2=(bose(E4,KbT2)-bose(E4,KbT1))*TT4
           
-          curr=curr+(c1+c2)*(E4-E3)*(E4-E3)
+          curr=curr+(c1+c2)*(E4-E3)*(E4-E3)/2.d0
           
        enddo
        
@@ -1656,20 +1656,30 @@ contains
   end function integrate_ph
 
   !/////////////////////////////////////////////////////////////////////////
-  function thermal_conductance(TUN_TOT,TT1,emin,emax,estep)
+  function thermal_conductance(TUN_TOT,kbT,emin,emax,estep)
     implicit none
 
     real(dp) :: thermal_conductance
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
-    real(dp), intent(in) :: TT1
+    real(dp), intent(in) :: kbT  ! temperature
 
-    REAL(dp) :: destep,kbT1,kbT2,TT2,E3,E4,TT3,TT4
+    REAL(dp) :: destep,TT1,TT2
     REAL(dp) :: E1,E2,c1,c2,curr
     INTEGER :: i,i1,N,Nstep,imin,imax
 
     curr=0.d0
     Nstep=NINT((emax-emin)/estep);
+
+    TT1=TUN_TOT(1)
+    do i = 0, 9
+      E1=emin*i/10
+      E2=emin*(i+1)/10           
+      c1=diff_bose(E1,kbT)*TT1
+      c2=diff_bose(E2,kbT)*TT1
+      curr=curr+(c1+c2)*estep/2.d0 
+    end do
+
     ! performs the integration with simple trapezium rule. 
 !    do i=1,100
 
@@ -1677,18 +1687,17 @@ contains
 
        ! Within each substep the tunneling is linearly interpolated
        ! Possibly perform a cubic-spline interpolation in future 
-       do i=1,Nstep
+       do i=0,Nstep-1
 
-        E1=emin+estep*i
-        E2=emin+estep*(i+1)           
+         E1=emin+estep*i
+         TT1=TUN_TOT(i+1)
+         E2=emin+estep*(i+1)           
+         TT2=TUN_TOT(i+2)
 
-          E3=E1/(TT1*kb*2.d0*pi)
-          E4=1.d0/(2.d0*pi*kb)
+         c1=diff_bose(E1,kbT)*TT1
+         c2=diff_bose(E2,kbT)*TT2
 
-          c1=(E1/(TT1*2.d0*pi))**2.d0
-          c2=dexp(E3)/((dexp(E3)-1.d0)**2.d0)
-
-          curr=curr+(E4*TUN_TOT(i)*c1*c2*estep)*oneovh
+         curr=curr+(c1+c2)*estep/2.d0 
        enddo
 !    enddo
 
