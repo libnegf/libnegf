@@ -1434,7 +1434,8 @@ contains
       
        Ec = en_grid(i)%Ec * en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
-       delta = negf%delta * negf%delta !(1.0_dp - real(en_grid(i)%Ec)/negf%Emax) * Ec 
+       !delta = negf%delta * negf%delta 
+       delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+1d-12)) * Ec 
 
        call write_point(negf%verbose,en_grid(i), size(en_grid))
 
@@ -1677,7 +1678,7 @@ contains
       E2=emin*(i+1)/10           
       c1=diff_bose(E1,kbT)*TT1
       c2=diff_bose(E2,kbT)*TT1
-      curr=curr+(c1+c2)*estep/2.d0 
+      curr=curr+(c1+c2)*emin/20.d0 
     end do
 
     ! performs the integration with simple trapezium rule. 
