@@ -833,7 +833,6 @@ contains
     call tunneling_int_def(negf)
 
     call phonon_tunneling(negf)
-    !call tunneling_and_dos(negf)
   
     call phonon_current(negf) 
 

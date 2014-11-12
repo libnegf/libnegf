@@ -291,8 +291,16 @@ CONTAINS
     rbl = minval(cblk(1:ncont),mask(1:ncont)) + 1  
     lbl = maxval(cblk(1:ncont),mask(1:ncont)) - 1
 
-    CALL Make_gsmr_mem_dns(ESH,nbl,rbl)
-    CALL Make_gsml_mem_dns(ESH,1,lbl)    
+    ! Fix to a bug when there are 2PLs
+    ! later Make_Gr tries to compute Gr(1,1) but needs gsmr(2,2)
+    ! 
+    IF (nbl.eq.2) then
+      CALL Make_gsmr_mem_dns(ESH,nbl,rbl-1)
+      CALL Make_gsml_mem_dns(ESH,1,lbl+1)    
+    ELSE
+      CALL Make_gsmr_mem_dns(ESH,nbl,rbl)
+      CALL Make_gsml_mem_dns(ESH,1,lbl)    
+    ENDIF
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -3708,7 +3716,7 @@ SUBROUTINE read_blkmat(Matrix, path, name, i, j, iE)
         do i = 1, size(LDOS(iLDOS)%indexes)
           i2 = LDOS(iLDOS)%indexes(i)
           if (i2 .le. str%central_dim) then
-          LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)  
+             LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)  
           end if
         end do
       enddo
