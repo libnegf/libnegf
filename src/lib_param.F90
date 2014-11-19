@@ -75,8 +75,8 @@ module lib_param
      ! projection)
      type(intarray), dimension(:), allocatable :: LDOS     
 
-     real(dp) :: mu_n              ! electrochemical potential (el)
-     real(dp) :: mu_p              ! electrochemical potential (hl)
+     real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
+     real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
      real(dp) :: muref             ! reference elec.chem potential
      real(dp) :: Ec                ! conduction band edge 
      real(dp) :: Ev                ! valence band edge
@@ -108,7 +108,7 @@ module lib_param
      real(dp) :: Estep             ! Tunneling or dos E step
      real(dp) :: g_spin            ! spin degeneracy
      integer  :: spin              ! spin component
-                                 
+ 
      real(dp) :: wght              ! k-point weight 
      integer :: kpoint             ! k-point index
      integer :: iE                 ! Energy point (integer point)
@@ -224,6 +224,10 @@ contains
     real(dp) :: Emax
     real(dp) :: Estep
     real(dp) :: kbT
+
+    real(dp) :: Tmin
+    real(dp) :: Tmax
+    real(dp) :: Tstep
 
     integer :: Np_n(2)
     integer :: Np_p(2)   

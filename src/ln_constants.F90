@@ -106,21 +106,32 @@ module ln_constants
       &unit("cm^-1   ", 1.239841930e-4_dp/HAR), &
       &unit("J       ", J_eV/HAR) &
       &/)
-   
+  
+   ! Internally current is computed in e/h * Energy 
    integer, parameter :: nCurrentUnits = 4
    type(unit), parameter :: currentUnits(4) = (/ &
-      &unit("e/h*[H] ", 1.0_dp), &
+      &unit("unknown ", 1.0_dp), &
       &unit("A       ", 1.0_dp), &
       &unit("mA      ", 1.0e-3_dp), &
       &unit("nA      ", 1.0e-9_dp) &
       &/)
-      
+     
+   ! Heat current is computed in 1/h * Energy^2
    integer, parameter :: nHeatCurrentUnits = 4
    type(unit), parameter :: heatCurrentUnits(4) = (/ &
-      &unit("[H]^2/h ", 1.0_dp), &
+      &unit("unknown ", 1.0_dp), &
       &unit("W       ", 1.0_dp), &
       &unit("mW      ", 1.0e-3_dp), &
       &unit("nW      ", 1.0e-9_dp) &
+      &/)
+
+   ! Thermal conductance is computed in kb/h * Energy
+   integer, parameter :: nHeatCondUnits = 4
+   type(unit), parameter :: heatCondUnits(4) = (/ &
+      &unit("unknown ", 1.0_dp), &
+      &unit("W/K     ", 1.0_dp), &
+      &unit("mW/K    ", 1.0e-3_dp), &
+      &unit("nW/K    ", 1.0e-9_dp) &
       &/)
 
 contains 
@@ -214,6 +225,33 @@ contains
     end do
 
   end function convertHeatCurrent
+
+  function convertHeatConductance(unitsOfH,condUnits) result(cond)
+    type(unit), intent(in) :: unitsOfH
+    type(unit), intent(in) :: condUnits
+    real(dp) :: cond
+
+    integer :: ii
+  
+    if (unitsOfH%name .eq. "unknown ") then
+      cond = 1.0_dp
+      return
+    end if
+
+    do ii = 1, nEnergyUnits
+      if (unitsOfH%name .eq. energyUnits(ii)%name) then
+         ! Thermal Conductance is transformed into W/K
+         cond = kb*oneovh * energyUnits(ii)%value   
+      end if
+    end do
+
+    do ii = 1, nHeatCondUnits
+      if (condUnits%name .eq. heatCondUnits(ii)%name) then
+        cond = cond * heatCondUnits(ii)%value
+      end if
+    end do
+
+  end function convertHeatConductance
 
 end module ln_constants
 
