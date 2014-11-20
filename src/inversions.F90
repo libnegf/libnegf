@@ -684,7 +684,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
      ! counts all non-zero elements in this column 
      cnt = 0
      do i2=1,ndim
-        if(ABS(X(i2,1)).gt.EPS10) then
+        if(ABS(X(i2,1)).gt.EPS) then
             cnt = cnt + 1
             wind(cnt)=i2
          end if

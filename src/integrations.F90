@@ -1435,7 +1435,7 @@ contains
        Ec = en_grid(i)%Ec * en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
        !delta = negf%delta * negf%delta 
-       delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+1d-12)) * Ec 
+       delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
 
        call write_point(negf%verbose,en_grid(i), size(en_grid))
 
