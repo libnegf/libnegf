@@ -1749,7 +1749,7 @@ contains
 
     real(dp) :: tmp
 
-    x1=tmp
+    tmp=x1
     x1=x2
     x2=tmp
 
