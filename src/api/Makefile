@@ -93,12 +93,14 @@ update: $(TARGET) cpp_wrapped_binding
 
 .PHONY: clean
 
-clean: cleansparsekit
+clean: 
 	rm -f *.o; rm -f *.mod *.a 
 	(cd ..; $(MAKE) clean)
 
+distclean: cleansparsekit clean
+
 cleansparsekit:
-	rm sparsekit/*.o
+	rm f sparsekit/*.o; sparsekit/*.a
 	(cd ../../ext_sparsekit; $(MAKE) distclean)
 
 tar_source:

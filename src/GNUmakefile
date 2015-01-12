@@ -1,7 +1,7 @@
 ROOT = ..
 include $(ROOT)/Makefile.user
 
-TARGET = libnegf.$(ARCH).a
+TARGET = libnegf_f90.$(ARCH).a
 
 SOURCES = clock.F90  ln_extract.F90 \
 	  complexbands.F90  input_output.F90 \
@@ -14,15 +14,13 @@ SOURCES = clock.F90  ln_extract.F90 \
 
 OBJS = $(SOURCES:.F90=.o)
 
-FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
-FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
-
-
-
 NEEDED_MODS = lib_param.mod libnegf.mod ln_allocation.mod \
 	     ln_extract.mod ln_precision.mod ln_structure.mod \
 	     mat_def.mod mpi_globals.mod elph.mod energy_mesh.mod  
 
+FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
+FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
+FPP = $(CPP)
 
 .SUFFIXES :
 .SUFFIXES : .F90 .o
@@ -40,7 +38,7 @@ copy:
 	cp $(NEEDED_MODS) $(OBJDIR)
 
 clean:
-	rm -f *.mod *.o *.f90
+	rm -f *.mod *.o *.f90 *.a
 
 distclean:
 	rm -f *.f90 *.o *.mod *.a
@@ -70,7 +68,7 @@ sparsekit_drv.o:  mat_def.o ln_allocation.o
 libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_structure.o
 libnegf.o:    rcm_module.o integrations.o ln_extract.o
 integrations.o: sparsekit_drv.o inversions.o iterative.o iterative_dns.o
-integrations.o: energy_mesh.o fermi.o contselfenergy.o	
+integrations.o: energy_mesh.o distributions.o contselfenergy.o	
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o

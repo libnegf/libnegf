@@ -6,3 +6,5 @@
 *.mod
 #Compiled library
 *.a
+
+Makefile.user

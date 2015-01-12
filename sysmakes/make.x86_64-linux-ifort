@@ -30,9 +30,6 @@ CPP = cpp -traditional
 # Options for preprocessing
 CPPOPT = -DDEBUG=$(DEBUG)
 
-# Fortran preprocessor (invokes CPP as defined above and process the results)
-FPP = $(ROOT)/utils/fpp/fpp.sh nocntln
-
 # Linker
 LN = $(FC90)  
 
