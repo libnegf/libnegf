@@ -126,9 +126,9 @@ contains
     type(TEnGrid), intent(in) :: gridpn
     integer, intent(in) :: Npoints
 
-    if (verbose.gt.VBT) then
-      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
-          &'/',Npoints,'  CPU= ', id, '  E=',real(gridpn%Ec)
+    if (id0 .and. verbose.gt.VBT) then
+      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt_path, &
+          &'/',Npoints,'  CPU= ', gridpn%cpu, '  E=',real(gridpn%Ec)
     endif
 
   end subroutine write_point
@@ -161,12 +161,12 @@ contains
     
     do i = 1, Nstep
   
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
+
        if (en_grid(i)%cpu /= id) cycle
       
        Ec = en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
        negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     
@@ -321,7 +321,7 @@ contains
 
       en_grid(ioffs+i)%path = 2
       en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%pt_path = ioffs + i
       en_grid(ioffs+i)%Ec = Ec
       en_grid(ioffs+i)%wght = zt
     enddo
@@ -347,7 +347,7 @@ contains
 
       en_grid(ioffs+i)%path = 3
       en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%pt_path = ioffs + i
       en_grid(ioffs+i)%Ec = Ec
       en_grid(ioffs+i)%wght = zt
     enddo
@@ -372,12 +372,12 @@ contains
   ! Performs the complex contur integration
   !
   !      T>=0
-  !                +
-  !                +
-  !       * * * * * * * * * * *
-  !       *        +
-  !  --- -*---========================
-  !      Elow Ec  muref
+  !                          +
+  !                          +
+  !        * * * * * * * * * * * *
+  !                          +   *
+  !  ========================+---*---
+  !                        Ev mu Emax
   !
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix
@@ -405,7 +405,7 @@ contains
       Lambda = 2.d0* negf%n_poles * KbT * pi
     endif
 
-    Emax = negf%Ev - negf%DeltaEv
+    Emax = negf%Ev + negf%DeltaEv
 
     if ((Emax < (muref + 1.d-3)) .and. &
         (Emax > (muref - 1.d-3))) then
@@ -442,7 +442,7 @@ contains
 
     do i = 1, negf%Np_p(1)
       Ec = z1 + pnts(i) * z_diff
-      ff = fermi(-Ec,-muref,KbT)
+      ff = fermi(-Ec,-muref,KbT)   ! 1-f(E-muref)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
       en_grid(i)%path = 1
@@ -484,7 +484,7 @@ contains
 
       en_grid(ioffs+i)%path = 2
       en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%pt_path = ioffs + i
       en_grid(ioffs+i)%Ec = Ec
       en_grid(ioffs+i)%wght = zt
     enddo
@@ -510,7 +510,7 @@ contains
 
       en_grid(ioffs+i)%path = 3
       en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
+      en_grid(ioffs+i)%pt_path = ioffs + i
       en_grid(ioffs+i)%Ec = Ec
       en_grid(ioffs+i)%wght = zt
     enddo
@@ -642,7 +642,7 @@ contains
            zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
         endif
         en_grid(ioffs+i)%path=2
-        en_grid(ioffs+i)%pt_path=i
+        en_grid(ioffs+i)%pt_path=ioffs+i
         en_grid(ioffs+i)%pt=ioffs+i
         en_grid(ioffs+i)%Ec=Ec
         en_grid(ioffs+i)%wght=zt
@@ -662,7 +662,7 @@ contains
         Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
         zt= -j*negf%g_spin*KbT
         en_grid(ioffs+i)%path=3
-        en_grid(ioffs+i)%pt_path=i
+        en_grid(ioffs+i)%pt_path=ioffs+i
         en_grid(ioffs+i)%pt=ioffs+i
         en_grid(ioffs+i)%Ec=Ec
         en_grid(ioffs+i)%wght=zt
@@ -699,10 +699,10 @@ contains
      
      do i = 1, Ntot
    
-        if (en_grid(i)%cpu .ne. id) cycle
-
         call write_point(negf%verbose,en_grid(i), Ntot) 
     
+        if (en_grid(i)%cpu .ne. id) cycle
+
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
     
         Ec = en_grid(i)%Ec 
@@ -839,14 +839,14 @@ contains
 
     do i = 1, Npoints
 
+       call write_point(negf%verbose,en_grid(i),Npoints)
+
        if (en_grid(i)%cpu .ne. id) cycle
 
        Ec = en_grid(i)%Ec
        Er = real(Ec)
        zt = en_grid(i)%wght
        negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i),Npoints)
 
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
@@ -1276,12 +1276,12 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
+
        if (en_grid(i)%cpu /= id) cycle
       
        Ec = en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1430,14 +1430,14 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
+       call write_point(negf%verbose,en_grid(i), size(en_grid))
+
        if (en_grid(i)%cpu /= id) cycle
       
        Ec = en_grid(i)%Ec * en_grid(i)%Ec
        negf%iE = en_grid(i)%pt
        !delta = negf%delta * negf%delta 
        delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+1d-12)) * Ec 
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)

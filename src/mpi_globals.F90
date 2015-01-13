@@ -41,9 +41,9 @@ module mpi_globals
       id0 = .false.
       if (id.eq.0) id0 = .true.  
 
-      print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
-      print*, 'CPU',id,'READY'
-      print*, 'PRINTING CPU:',id0
+      !print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
+      !print*, 'CPU',id,'READY'
+      !print*, 'PRINTING CPU:',id0
       
     end subroutine negf_mpi_init
 
