@@ -301,11 +301,12 @@ subroutine negf_current(handler, current, unitOfH, unitOfJ)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use libnegf   ! if:mod:use 
   use ln_constants ! if:mod:use
+  use globals  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   real(dp) :: current       !if:var:inout
-  character(SST) :: unitOfH(1) !if:var:in
-  character(SST) :: unitOfJ(1) !if:var:in
+  character(SST) :: unitOfH !if:var:in
+  character(SST) :: unitOfJ !if:var:in
 
   type(NEGFpointers) :: LIB
   type(unit) :: unitH, unitJ
@@ -328,20 +329,23 @@ end subroutine negf_current
 
 !!* Compute charge Density given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_density_efa(handler,ndofs,density)
+subroutine negf_density_efa(handler,ndofs,density,particle)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: ndofs                     ! if:var:in 
-  real(dp) :: density(ndofs)           ! if:var:in
+  real(dp) :: density(ndofs)           ! if:var:out
+  !! particle: +1 for electrons, -1 for holes
+  integer :: particle                  ! if:var:in
+
 
   type(NEGFpointers) :: LIB
   
   LIB = transfer(handler, LIB) 
 
-  call compute_density_efa(LIB%pNEGF, density)
+  call compute_density_efa(LIB%pNEGF, density, particle)
 
 end subroutine negf_density_efa
 
