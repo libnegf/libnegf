@@ -260,9 +260,8 @@ contains
     type(Tnegf) :: negf
     Integer :: ncont, nbl, ii, jj, ist, iend
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
-    character(32) :: tmp
 
-    open(101, file=trim(negf%scratch_path)//'/'//trim(negf%file_struct), form='formatted')
+    open(101, file=trim(negf%file_struct), form='formatted')
   
     read(101,*) negf%file_re_H 
     read(101,*) negf%file_im_H
@@ -274,21 +273,21 @@ contains
          negf%isSid = .true.     
     endif
 
-    read(101,*) tmp, ncont
+    read(101,*) ncont
 
     call log_allocate(cblk,ncont)
     call log_allocate(cont_end,ncont)
     call log_allocate(surf_end,ncont)
 
-    read(101,*) tmp, nbl
+    read(101,*) nbl
 
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
        read(101,*) PL_end(1:nbl)
     end if
 
-    read(101,*) tmp,  cont_end(1:ncont)
-    read(101,*) tmp,  surf_end(1:ncont)
+    read(101,*) cont_end(1:ncont)
+    read(101,*) surf_end(1:ncont)
 
     if (nbl .eq. 0) then
        call log_allocate(PL_end, MAXNUMPLs)  
@@ -309,29 +308,29 @@ contains
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
 
-    read(101,*) tmp,  negf%Ec, negf%Ev
-    read(101,*) tmp,  negf%DeltaEc, negf%DeltaEv
-    read(101,*) tmp,  negf%Emin, negf%Emax, negf%Estep
-    read(101,*) tmp,  negf%kbT
-    read(101,*) tmp,  negf%wght
-    read(101,*) tmp,  negf%Np_n(1:2)
-    read(101,*) tmp,  negf%Np_p(1:2)
-    read(101,*) tmp,  negf%Np_real(1)
-    read(101,*) tmp,  negf%n_kt
-    read(101,*) tmp,  negf%n_poles
-    read(101,*) tmp,  negf%g_spin
-    read(101,*) tmp,  negf%delta
-    read(101,*) tmp,  negf%nLDOS
+    read(101,*)  negf%Ec, negf%Ev
+    read(101,*)  negf%DeltaEc, negf%DeltaEv
+    read(101,*)  negf%Emin, negf%Emax, negf%Estep
+    read(101,*)  negf%kbT
+    read(101,*)  negf%wght
+    read(101,*)  negf%Np_n(1:2)
+    read(101,*)  negf%Np_p(1:2)
+    read(101,*)  negf%Np_real(1)
+    read(101,*)  negf%n_kt
+    read(101,*)  negf%n_poles
+    read(101,*)  negf%g_spin
+    read(101,*)  negf%delta
+    read(101,*)  negf%nLDOS
     allocate(negf%LDOS(negf%nLDOS))
     do ii = 1, negf%nLDOS
-      read(101,*) tmp,  ist, iend
+      read(101,*) ist, iend
       call log_allocate(negf%LDOS(ii)%indexes, iend-ist+1)
       do jj = 1, iend-ist+1
         negf%LDOS(ii)%indexes(jj) = ist + jj - 1
       end do  
     end do
-    read(101,*) tmp,  negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
-    read(101,*) tmp,  negf%mu_p(1:ncont)    ! hole potentials
+    read(101,*) negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
+    read(101,*) negf%mu_p(1:ncont)    ! hole potentials
 
     close(101)
 

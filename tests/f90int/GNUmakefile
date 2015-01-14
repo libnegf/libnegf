@@ -1,5 +1,5 @@
 ROOT = ../../
-include ../../Makefile.user
+include $(ROOT)/Makefile.user
 
 SOURCES := hello.F90
 LIBNEGFOBJS = $(ROOT)/src/libnegf_f90.$(ARCH).a
@@ -8,14 +8,17 @@ SKIT += $(ROOT)/ext_sparskit/zlibskit.$(ARCH).a
 
 all: hello
 
-hello: $(LIBNEGFOBJS) 
+hello: $(LIBNEGFOBJS) $(SKIT)
 	$(FC90) $(FC90OPT) $(LNOPT) $(SOURCES) $(INCLUDES) $(LIBNEGFOBJS) $(SKIT) $(LIBS) -o hello
 
 clean:
 	rm -rf ./hello
 
+$(SKIT):
+	(cd $(ROOT)/ext_sparskit; make; cd $(CURDIR))
+
 distclean: clean
-	(cd $(ROOT)/src/api; make clean)
+	(cd $(ROOT)/src; make clean; cd $(ROOT)/ext_sparskit; make clean)
 
 $(LIBNEGFOBJS):
 	(cd $(ROOT)/src/; make)

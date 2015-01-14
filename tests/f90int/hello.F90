@@ -18,8 +18,7 @@
 !!  <http://www.gnu.org/licenses/>.                                         !  
 !!--------------------------------------------------------------------------!
 
-
-program Testdos
+program hello
 
   use libnegf
   use lib_param
@@ -32,34 +31,20 @@ program Testdos
 
   pnegf => negf
 
-  print*,'libnegf hello world'
-
-  print*,'(main) init'
-
+  write(*,*) 'Libnegf hello world'
+  write(*,*) 'Init...'
   call init_negf(pnegf)
-
-
-  print*,'Ready to do stuff'
-
+  write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf)
+  write(*,*) 'Import input file'
   call read_negf_in(pnegf)
-
   call negf_partition_info(pnegf)
+  write(*,*) 'Compute density'
+  call compute_density_dft(pnegf)
+  write(*,*) 'Compute landauer tunneling and current'
+  call compute_current(pnegf)
+  write(*,*) 'Destroy negf'
+  call destroy_negf(pnegf)
+  write(*,*) 'Done'
 
-  !print*,'Try a basic call'
-
-  !call compute_density_dft(pnegf)
-
-  print*,'(main) destroy negf'
-
- call destroy_negf(pnegf)
-
-  print*,'done'
-
-
-
-end program Testdos
-
-
-! negf:0 XXXXXXXXXXXX  negf:END
-! pointer 
+end program hello
