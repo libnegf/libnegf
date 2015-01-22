@@ -229,18 +229,19 @@ end subroutine negf_read_input
 
 !!* Fill parameters from input file negf.in
 !!* @param  handler  Contains the handler for the new instance on return
-subroutine negf_read_hs(handler)
+subroutine negf_read_hs(handler, real_path, imag_path, target_matrix)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
+  character(LST), intent(in) :: real_file, imag_file, target_matrix ! if:var:in
 
   !type(TNEGF), pointer :: pNEGF
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
  
-  call read_HS(LIB%pNEGF)
+  call read_HS(LIB%pNEGF, real_path, imag_path, target_matrix, formatted)
   
 end subroutine negf_read_hs
 
@@ -339,7 +340,6 @@ subroutine negf_density_efa(handler,ndofs,density,particle)
   real(dp) :: density(ndofs)           ! if:var:out
   !! particle: +1 for electrons, -1 for holes
   integer :: particle                  ! if:var:in
-
 
   type(NEGFpointers) :: LIB
   
