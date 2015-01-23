@@ -35,13 +35,11 @@ program hello
   write(*,*) 'Init...'
   call init_negf(pnegf)
   write(*,*) 'Import Hamiltonian'
-  call read_HS(pnegf, "H_real.dat", "H_imm.dat", "H")
+  call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
   write(*,*) 'Import input file'
   call read_negf_in(pnegf)
   call negf_partition_info(pnegf)
-  !!write(*,*) 'Compute density'
-  !!call compute_density_dft(pnegf)
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
   call write_tunneling_and_dos(pnegf)

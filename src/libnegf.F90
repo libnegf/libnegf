@@ -111,15 +111,16 @@ contains
    !!      real_path (string): filename for real part of target matrix in PETSC format
    !!      imag_path (string): filename for imaginary part of target matrix in PETSC format. 
    !!        By default a zero matrix is built
-   !!      target_matrix (string): 'H' or 'S', specifies if we are parsing the Hamiltonian
-   !!        or the Overlap matrix
+   !!      target_matrix (integer): controlo flag which specify if the Hamiltonian
+   !!        or the Overlap is parsed. 0 for the Hamiltonian, 1 for the Overlap
    !!      formatted (logical, optional): true (default) if file is formatted.
    !!
    !!   Note: up to now both the real and imaginary part files must have the same 
    !!     indexes and number of non zero elements, even if zero values appear
    subroutine read_HS(negf, real_path, imag_path, target_matrix, formatted)
      type(Tnegf), intent(inout) :: negf
-     character(len=*), intent(in) :: real_path, imag_path, target_matrix
+     character(len=*), intent(in) :: real_path, imag_path
+     integer, intent(in) :: target_matrix
      logical, intent(in), optional :: formatted
 
      logical :: formatted_opt
@@ -154,13 +155,13 @@ contains
      open(401, file=real_path, form=trim(fmtstring))
      open(402, file=imag_path, form=trim(fmtstring))
 
-     if (trim(target_matrix).eq.'H') then
+     if (target_matrix.eq.0) then
        allocate(negf%H)
        call read_H(401,402,negf%H,fmt)
-     else if  (trim(target_matrix).eq.'S') then
+     else if (target_matrix.eq.1) then
        call read_H(401,402,negf%S,fmt)
      else 
-       write(*,*) "libNEGF error. Wrong target matrix: must be H or S"
+       write(*,*) "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)"
        stop
      endif
      close(401)

@@ -232,16 +232,19 @@ end subroutine negf_read_input
 subroutine negf_read_hs(handler, real_path, imag_path, target_matrix)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
+  use globals           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
-  character(LST), intent(in) :: real_file, imag_file, target_matrix ! if:var:in
+  character(LST) :: real_path ! if:var:in
+  character(LST) :: imag_path ! if:var:in
+  integer :: target_matrix !if:var:in
 
   !type(TNEGF), pointer :: pNEGF
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
  
-  call read_HS(LIB%pNEGF, real_path, imag_path, target_matrix, formatted)
+  call read_HS(LIB%pNEGF, real_path, imag_path, target_matrix)
   
 end subroutine negf_read_hs
 

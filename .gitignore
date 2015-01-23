@@ -6,5 +6,7 @@
 *.mod
 #Compiled library
 *.a
-
+# User defined configuration
 Makefile.user
+# Test output files
+tunneling*
