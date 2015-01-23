@@ -18,48 +18,24 @@
 !!  <http://www.gnu.org/licenses/>.                                         !  
 !!--------------------------------------------------------------------------!
 
-
-program Testdos
-
-  use libnegf
-  use lib_param
-  use integrations
+include 'libnegf.h'
+program hello
 
   implicit none
+  integer :: handler_size
+  integer, allocatable, dimension(:) :: handler1, handler2
 
-  Type(Tnegf), target :: negf
-  Type(Tnegf), pointer :: pnegf
+  write(*,*) 'Libnegf API hello world'
 
-  pnegf => negf
+  call negf_gethandlersize(handler_size)
 
-  print*,'libnegf hello world'
+  write(*,*) 'Handler size', handler_size
+  allocate(handler1(handler_size))
+  allocate(handler2(handler_size))
+  write(*,*) 'I will create two libnegf instances'
+  call negf_init_session(handler1)
+  call negf_init_session(handler2)
 
-  print*,'(main) init'
+  write(*,*) 'Done'
 
-  call init_negf(pnegf)
-
-
-  print*,'Ready to do stuff'
-
-  call read_HS(pnegf)
-  call read_negf_in(pnegf)
-
-  call negf_partition_info(pnegf)
-
-  !print*,'Try a basic call'
-
-  !call compute_density_dft(pnegf)
-
-  print*,'(main) destroy negf'
-
- call destroy_negf(pnegf)
-
-  print*,'done'
-
-
-
-end program Testdos
-
-
-! negf:0 XXXXXXXXXXXX  negf:END
-! pointer 
+end program hello

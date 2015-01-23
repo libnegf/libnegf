@@ -1,13 +1,14 @@
 ROOT = ../../
 include ../../Makefile.user
 
-SOURCES := hello.F90
+SOURCES := hello.F90 
 LIBNEGF = $(ROOT)/src/api/libnegf_$(ARCH1).a
 INCLUDES += -I$(ROOT)/src/api
 
 all: hello
 
 hello: $(LIBNEGF) 
+	cp $(ROOT)/src/api/libnegf.h .	
 	$(FC90) $(FC90OPT) $(LNOPT) $(SOURCES) $(INCLUDES) $(LIBNEGF) $(SKIT) $(LIBS) -o hello
 
 clean:
