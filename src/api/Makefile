@@ -11,6 +11,7 @@ API = $(shell pwd)
 ## TIBERCADROOT = $(HOME)/projects/tibercad/trunk
 ## TIBERCADNEGF = $(TIBERCADROOT)/src/core/modules/negf/libnegf
 TARGET = libnegf_$(ARCH1).a
+SHARED = libnegf_$(ARCH1).so
 SKITOBJECTS = sparsekit/*.o
 
 MODULES = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
@@ -27,6 +28,8 @@ OBJECTS = $(CSOURCES:.C=.o) $(MODULES) $(SOURCES:.f90=.o)
 
 all: $(TARGET)
 
+shared: $(SHARED)
+
 tests: test_negf_api_c test_negf_api_f
 
 test_api_c: cpp_wrapped_binding test_upt_api_c.o $(TARGET) 	
@@ -38,9 +41,9 @@ test_api_f: test_api_f.o $(TARGET)
 .f90.o:
 	$(FC90) -c $(FC90OPT) -o $@ $< 
 .c.o:
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(CC) -c $(CCOPT) -o $@ $<
 .C.o:
-	$(CC) -c $(CFLAGS) -o $@ $<
+	$(CC) -c $(CCOPT) -o $@ $<
 
 libs:
 	(cd ..; $(MAKE); cp  *.mod *.o $(API))
@@ -50,10 +53,11 @@ $(SKITOBJECTS):
 	(cd ../../ext_sparskit/; $(MAKE); cp zlibskit.$(ARCH).a ../src/api/sparsekit; \
 	 cd ../src/api/sparsekit; ar -x zlibskit.$(ARCH).a) 
 
-
 $(TARGET): libnegf_api.o $(OBJECTS) $(SKITOBJECTS)   
 	ar -r $@ $^ 
 
+$(SHARED): libnegf_api.o $(OBJECTS) $(SKITOBJECTS) 
+	$(LN) --shared -o $@ $^ $(LIBS) -lstdc++ -Wl,--no-undefined
 
 libnegf_api.o: libnegfAPICommon.o
 libnegfAPICommon.o: lib_param.mod

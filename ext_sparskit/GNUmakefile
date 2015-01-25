@@ -61,18 +61,21 @@ OBJ =	BLASSM/zblassm.o	\
 	INOUT/inout.o		\
 	ITSOL/ilut.o		\
 	ITSOL/zilut.o		\
-	ITSOL/iters.o		\
 	ORDERINGS/ccn.o		\
-	ORDERINGS/color.o	\
 	ORDERINGS/dsepart.o
-
 ## GP all the routines in ORDERINGS contain
 ## double definitions which give tons of
 ## 'already defined' errors when compiling
-## shared library
+## shared library. Unused (by us) objects are also
+## here if they ask for external definition which 
+## we don't provide (to avoid undefined refs)
+#	ITSOL/iters.o		\
+	ORDERINGS/color.o	\
 	#ORDERINGS/zccn.o	\
 	#ORDERINGS/zcolor.o	\
 	#ORDERINGS/zdsepart.o    \
+
+#############################################
 
 #	MATGEN/FDIF/genmat.o	\
 #	MATGEN/FEM/elmtlib2.o	\

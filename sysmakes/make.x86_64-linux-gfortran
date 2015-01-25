@@ -17,7 +17,7 @@ FCOMP = -fopenmp
 CC = gcc
 
 # Options for the C compiler
-CCOPT = -O2 -funroll-all-loops
+CCOPT = -O2 -funroll-all-loops -fPIC
 
 CCOMP = -fopenmp
 
