@@ -52,9 +52,6 @@ OBJ =	BLASSM/zblassm.o	\
 	FORMATS/zunary.o	\
 	INFO/zinfofun.o		\
 	INOUT/zinout.o		\
-	ORDERINGS/zccn.o	\
-	ORDERINGS/zcolor.o	\
-	ORDERINGS/zdsepart.o    \
 	BLASSM/blassm.o		\
 	BLASSM/matvec.o		\
 	FORMATS/formats.o	\
@@ -68,6 +65,14 @@ OBJ =	BLASSM/zblassm.o	\
 	ORDERINGS/ccn.o		\
 	ORDERINGS/color.o	\
 	ORDERINGS/dsepart.o
+
+## GP all the routines in ORDERINGS contain
+## double definitions which give tons of
+## 'already defined' errors when compiling
+## shared library
+	#ORDERINGS/zccn.o	\
+	#ORDERINGS/zcolor.o	\
+	#ORDERINGS/zdsepart.o    \
 
 #	MATGEN/FDIF/genmat.o	\
 #	MATGEN/FEM/elmtlib2.o	\
