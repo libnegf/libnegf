@@ -8,7 +8,7 @@
 FC90 = ifort
 
 # Options for the Fortran 90 compiler 
-FC90OPT = -O2 -ip
+FC90OPT = -O2 -ip -fPIC
 
 # OpenMP options for the Fortran 90 compiler 
 FCOMP = -openmp

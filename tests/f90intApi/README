@@ -1,0 +1,2 @@
+Same as f90, but it uses the f95 API instead of using directly the F90 subroutines
+Two instances running the same calculation are created at the same time 
