@@ -83,13 +83,14 @@ WARN_LOGFILE           =
 #---------------------------------------------------------------------------
 # configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT                  = ../src ../include ../ext_sparskit
+INPUT                  = ../src 
 FILE_PATTERNS          = *.c \
                          *.cpp \
                          *.h \
                          *.C \
                          *.H \
                          *.F90 \
+                         *.f90 \
                          *.f
 RECURSIVE              = YES
 EXCLUDE                =
