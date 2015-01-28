@@ -32,7 +32,7 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, intarray 
+  public :: Tnegf, intarray, TEnGrid
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
@@ -43,6 +43,26 @@ module lib_param
   type intarray
     integer, dimension(:), allocatable :: indexes
   end type intarray 
+
+ !! Structure used to define energy points for the integration
+ !! For every point we define
+ !!     path (1,2 or 3): the energy point belongs to a real axis 
+ !!     integration (1), a complex plane integration (2) or a 
+ !!     pole summation (3)
+ !!     pt_path: relative point number within a single path
+ !!     pt: absolute point number along the whole integration path
+ !!     cpu: cpu assigned to the calculation of the given energy point
+ !!     Ec: energy value
+ !!     wght: a weight used in final summation to evaluate integrals
+ type TEnGrid   
+     integer :: path
+     integer :: pt_path
+     integer :: pt
+     integer :: cpu
+     complex(dp) :: Ec
+     complex(dp) :: wght
+ end type TEnGrid
+
 
   type Tnegf
      
@@ -113,6 +133,8 @@ module lib_param
      integer :: kpoint             ! k-point index
      integer :: iE                 ! Energy point (integer point)
      complex(dp) :: Epnt           ! Energy point (complex)
+     real(dp), dimension(:), allocatable :: real_energy_points
+     type(TEnGrid), dimension(:), allocatable :: en_grid
      real(dp), dimension(:,:), pointer :: tunn_mat => null()
      real(dp), dimension(:,:), pointer :: ldos_mat => null()
      real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
