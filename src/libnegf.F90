@@ -48,6 +48,7 @@ module libnegf
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont
+ public :: get_transmission  !Returns transmission coefficients and energy range
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -430,6 +431,28 @@ contains
     
   end subroutine destroy_ldos
   
+  !> 
+  !! Return the transmission and energy points between a given 
+  !! pair of leads. Energies are returned as real.
+  !! Input arrays will be filled with the values (no direct pointer access)
+  !! Note: inout arrays maybe allocated or not, in F2003 if they are not
+  !! they will be automatically allocated
+  !! @param [in] negf: negf container
+  !! @param [in] lead_pair: specifies which leads are considered 
+  !!             for retrieving current (as ordered in ni, nf)
+  !! @param [inout] energies: array filled with energies
+  !! @param [inout] transmission: array filled with transmission
+  subroutine get_transmission(negf, lead_pair, energies, transmission)
+    type(TNegf), intent(in)  :: negf
+    integer, intent(in) :: lead_pair
+    real(dp), dimension(:), allocatable, intent(inout) :: energies, transmission
+
+    energies(:) = real(negf%en_grid(:)%Ec)
+    transmission(:) = negf%tunn_mat(:,lead_pair)
+
+  end subroutine get_transmission
+
+
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
     type(Tnegf) :: negf   
