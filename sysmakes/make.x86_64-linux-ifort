@@ -13,11 +13,13 @@ FC90OPT = -O2 -ip -fPIC
 # OpenMP options for the Fortran 90 compiler 
 FCOMP = -openmp
 
-# C compiler
-CC = icc
+# C compiler NOTE: not using icc because of a known incompatibility
+# between icc and g++-4.8
+# https://software.intel.com/en-us/forums/topic/278801
+CC = gcc
 
 # Options for the C compiler
-CCOPT = -O2 -ip
+CCOPT = -O2 -funroll-all-loops  -fPIC 
 
 CCOMP = -openmp
 
@@ -51,21 +53,28 @@ ifeq ($(DEBUG),3)
 endif
 
 # Library options in general
-MKL_LIBDIR = /usr/local/lib/
-LIBOPT = -L$(MKL_LIBDIR)
+# MKLROOT is usually already defined
+## MKLROOT = /usr/local/lib/
+LIBOPT = -L$(MKLROOT)
 
 # How to link specific libraries
 LIB_LAPACK = 
 LIB_BLAS = -Wl,--start-group \
-    $(MKL_LIBDIR)/libmkl_intel_lp64.a \
-    $(MKL_LIBDIR)/libmkl_intel_thread.a \
-    $(MKL_LIBDIR)/libmkl_core.a \
+    $(MKLROOT)/libmkl_intel_lp64.a \
+    $(MKLROOT)/libmkl_intel_thread.a \
+    $(MKLROOT)/libmkl_core.a \
   -Wl,--end-group \
   -liomp5 -lpthread 
 
-LIB_SUPERLU =  $(ROOT)/../extlib/superlu20/c_bridge_zgssv20.$(ARCH).o $(ROOT)/../extlib/superlu20/SuperLU_2.0/superlu.$(ARCH).a
-LIB_NEGF = $(ROOT)/ext_libnegf/libnegf.$(ARCH).a
-LIB_SPARSEKIT = $(ROOT)/../extlib/sparskit/zlibskit.$(ARCH).a
-LIB_MUDPACK = $(ROOT)/../extlib/mudpack/mudpack.$(ARCH).a
-LIB_METIS = $(ROOT)/ext_libnegf/libmetis.$(ARCH).a
+LIBS = $(LIB_LAPACK) $(LIB_BLAS)
+
+# These are needed to avoid undefined references in shared lib
+# for cpython interface
+EXTRALIBS = -lstdc++
+
+#LIB_SUPERLU =  $(ROOT)/../extlib/superlu20/c_bridge_zgssv20.$(ARCH).o $(ROOT)/../extlib/superlu20/SuperLU_2.0/superlu.$(ARCH).a
+#LIB_NEGF = $(ROOT)/ext_libnegf/libnegf.$(ARCH).a
+#LIB_SPARSEKIT = $(ROOT)/../extlib/sparskit/zlibskit.$(ARCH).a
+#LIB_MUDPACK = $(ROOT)/../extlib/mudpack/mudpack.$(ARCH).a
+#LIB_METIS = $(ROOT)/ext_libnegf/libmetis.$(ARCH).a
 

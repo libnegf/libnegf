@@ -57,7 +57,7 @@ $(TARGET): libnegf_api.o $(OBJECTS) $(SKITOBJECTS)
 	ar -r $@ $^ 
 
 $(SHARED): libnegf_api.o $(OBJECTS) $(SKITOBJECTS) 
-	$(LN) --shared -o $@ $^ $(LIBS) -lstdc++ -Wl,--no-undefined
+	$(LN) --shared -o $@ $^ $(LIBS) $(EXTRALIBS) -Wl,--no-undefined
 
 libnegf_api.o: libnegfAPICommon.o
 libnegfAPICommon.o: lib_param.mod
@@ -98,7 +98,7 @@ update: $(TARGET) cpp_wrapped_binding
 .PHONY: clean
 
 clean: 
-	rm -f *.o; rm -f *.mod *.a 
+	rm -f *.o; rm -f *.mod *.a *.so 
 	(cd ..; $(MAKE) clean)
 
 distclean: cleansparsekit clean

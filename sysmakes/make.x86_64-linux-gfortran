@@ -1,7 +1,7 @@
 # -*- makefile -*-
 ############################################################################
 # System dependent Makefile options for
-# Linux, Intel Fortran Compiler (version 8.x)
+# Linux, gfortran (version 4.8)
 ############################################################################
 
 # Fortran 90 compiler
@@ -58,6 +58,10 @@ LIB_BLAS   =  -lf77blas -lcblas -latlas -lgomp -lpthread
 LIB_LAPACK =  -llapack
 
 LIBS = $(LIB_LAPACK) $(LIB_BLAS)
+
+# These are needed to avoid undefined references in shared lib
+# for cpython interface
+EXTRALIBS = -lstdc++
 
 # Threaded version may work as well (BE CAREFUL!)
 #LIB_BLAS = -lptf77blas -lptcblas -latlas -lgomp -lpthread
