@@ -13,6 +13,8 @@ hello: $(LIBNEGFOBJS) $(SKIT)
 
 clean:
 	rm -rf ./hello
+	rm -rf tunneling*
+	rm -rf blocks.dat
 
 $(SKIT):
 	(cd $(ROOT)/ext_sparskit; make; cd $(CURDIR))
