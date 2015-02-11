@@ -127,7 +127,8 @@ $(TARGET): $(OBJ)
 
 .PHONY: clean distclean
 
-clean: 
+clean:
+	rm -f $(TARGET)	
 	@for dir in $(DIRS) ;\
           do \
           echo cleaning $$dir ;\

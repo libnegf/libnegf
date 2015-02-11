@@ -97,7 +97,6 @@ contains
 
     !print*, '(init_negf) Initializing libnegf...'
 
-    negf%file_struct = "negf.in"
     negf%form%formatted = .true.
     negf%isSid = .false.
     negf%form%type = "PETSc" 
@@ -252,16 +251,17 @@ contains
     Integer :: ncont, nbl, ii, jj, ist, iend
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(32) :: tmp
+    character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
 
-    open(101, file=trim(negf%file_struct), form='formatted')
+    open(101, file="negf.in", form='formatted')
   
-    read(101,*) negf%file_re_H 
-    read(101,*) negf%file_im_H
+    read(101,*) file_re_H 
+    read(101,*) file_im_H
 
-    read(101,*) negf%file_re_S
-    read(101,*) negf%file_im_S
+    read(101,*) file_re_S
+    read(101,*) file_im_S
 
-    if (trim(negf%file_re_S).eq.'identity') then
+    if (trim(file_re_S).eq.'identity') then
          negf%isSid = .true.     
     endif
 
