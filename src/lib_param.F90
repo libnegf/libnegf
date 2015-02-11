@@ -140,7 +140,6 @@ module lib_param
    integer :: kpoint             ! k-point index
    integer :: iE                 ! Energy point (integer point)
    complex(dp) :: Epnt           ! Energy point (complex)
-   real(dp), dimension(:), allocatable :: real_energy_points
    type(TEnGrid), dimension(:), allocatable :: en_grid
    real(dp), dimension(:,:), pointer :: tunn_mat => null()
    real(dp), dimension(:,:), pointer :: ldos_mat => null()

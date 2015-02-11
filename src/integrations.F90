@@ -1188,7 +1188,6 @@ contains
     !! Destroy en_grid from previous calculation, if any
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Nsteps))
-    call log_allocate(negf%real_energy_points, Nsteps)
 
     do i = 1, Nsteps
        negf%en_grid(i)%path = 1

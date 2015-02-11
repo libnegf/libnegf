@@ -20,4 +20,4 @@ distclean: clean
 	(cd $(ROOT)/src/api; make clean)
 
 $(LIBNEGF):
-	(cd $(ROOT)/src/api; make; make f95_binding)
+	(cd $(ROOT)/src/api; make)

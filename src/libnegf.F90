@@ -391,7 +391,6 @@ contains
     call kill_Tstruct(negf%str) 
 
     if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
-    call log_deallocate(negf%real_energy_points)
     if (allocated(negf%en_grid)) deallocate(negf%en_grid)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
