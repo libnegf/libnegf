@@ -323,19 +323,11 @@ contains
       ff = fermi(Ec,muref,KbT)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-<<<<<<< HEAD
-      en_grid(ioffs+i)%path = 2
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = ioffs + i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
-=======
       negf%en_grid(ioffs+i)%path = 2
       negf%en_grid(ioffs+i)%pt = ioffs + i
-      negf%en_grid(ioffs+i)%pt_path = i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
       negf%en_grid(ioffs+i)%Ec = Ec
       negf%en_grid(ioffs+i)%wght = zt
->>>>>>> tests
     enddo
 
     deallocate(wght)
@@ -357,19 +349,11 @@ contains
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
-<<<<<<< HEAD
-      en_grid(ioffs+i)%path = 3
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = ioffs + i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
-=======
       negf%en_grid(ioffs+i)%path = 3
       negf%en_grid(ioffs+i)%pt = ioffs + i
-      negf%en_grid(ioffs+i)%pt_path = i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
       negf%en_grid(ioffs+i)%Ec = Ec
       negf%en_grid(ioffs+i)%wght = zt
->>>>>>> tests
     enddo
 
     ! *******************************************************************************          
@@ -502,19 +486,11 @@ contains
       ff = fermi(-Ec,-muref,KbT)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-<<<<<<< HEAD
-      en_grid(ioffs+i)%path = 2
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = ioffs + i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
-=======
       negf%en_grid(ioffs+i)%path = 2
       negf%en_grid(ioffs+i)%pt = ioffs + i
-      negf%en_grid(ioffs+i)%pt_path = i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
       negf%en_grid(ioffs+i)%Ec = Ec
       negf%en_grid(ioffs+i)%wght = zt
->>>>>>> tests
     enddo
 
     deallocate(wght)
@@ -536,19 +512,11 @@ contains
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
-<<<<<<< HEAD
-      en_grid(ioffs+i)%path = 3
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = ioffs + i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
-=======
       negf%en_grid(ioffs+i)%path = 3
       negf%en_grid(ioffs+i)%pt = ioffs + i
-      negf%en_grid(ioffs+i)%pt_path = i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
       negf%en_grid(ioffs+i)%Ec = Ec
       negf%en_grid(ioffs+i)%wght = zt
->>>>>>> tests
     enddo
 
     ! *******************************************************************************
@@ -679,19 +647,11 @@ contains
            ff = fermi(Ec,muref,KbT)
            zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
         endif
-<<<<<<< HEAD
-        en_grid(ioffs+i)%path=2
-        en_grid(ioffs+i)%pt_path=ioffs+i
-        en_grid(ioffs+i)%pt=ioffs+i
-        en_grid(ioffs+i)%Ec=Ec
-        en_grid(ioffs+i)%wght=zt
-=======
         negf%en_grid(ioffs+i)%path=2
-        negf%en_grid(ioffs+i)%pt_path=i
+        negf%en_grid(ioffs+i)%pt_path=ioffs+i
         negf%en_grid(ioffs+i)%pt=ioffs+i
         negf%en_grid(ioffs+i)%Ec=Ec
         negf%en_grid(ioffs+i)%wght=zt
->>>>>>> tests
      end do
      ! *******************************************************************************
      ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
@@ -707,19 +667,11 @@ contains
      do i = 1, negf%n_poles
         Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
         zt= -j*negf%g_spin*KbT
-<<<<<<< HEAD
-        en_grid(ioffs+i)%path=3
-        en_grid(ioffs+i)%pt_path=ioffs+i
-        en_grid(ioffs+i)%pt=ioffs+i
-        en_grid(ioffs+i)%Ec=Ec
-        en_grid(ioffs+i)%wght=zt
-=======
         negf%en_grid(ioffs+i)%path=3
-        negf%en_grid(ioffs+i)%pt_path=i
+        negf%en_grid(ioffs+i)%pt_path=ioffs+i
         negf%en_grid(ioffs+i)%pt=ioffs+i
         negf%en_grid(ioffs+i)%Ec=Ec
         negf%en_grid(ioffs+i)%wght=zt
->>>>>>> tests
      enddo
 
      ! *******************************************************************************          
@@ -753,15 +705,8 @@ contains
      
      do i = 1, Ntot
    
-<<<<<<< HEAD
-        call write_point(negf%verbose,en_grid(i), Ntot) 
-=======
-        if (negf%en_grid(i)%cpu .ne. id) cycle
-
         call write_point(negf%verbose,negf%en_grid(i), Ntot) 
->>>>>>> tests
-    
-        if (en_grid(i)%cpu .ne. id) cycle
+        if (negf%en_grid(i)%cpu .ne. id) cycle
 
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
     
@@ -901,24 +846,14 @@ contains
 
     do i = 1, Npoints
 
-<<<<<<< HEAD
-       call write_point(negf%verbose,en_grid(i),Npoints)
-
-       if (en_grid(i)%cpu .ne. id) cycle
-=======
+       call write_point(negf%verbose,negf%en_grid(i),Npoints)
        if (negf%en_grid(i)%cpu .ne. id) cycle
->>>>>>> tests
 
        Ec = negf%en_grid(i)%Ec
        Er = real(Ec)
        zt = negf%en_grid(i)%wght
        negf%iE = negf%en_grid(i)%pt
 
-<<<<<<< HEAD
-=======
-       call write_point(negf%verbose,negf%en_grid(i),Npoints)
-
->>>>>>> tests
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
        enddo
@@ -1349,22 +1284,12 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
-<<<<<<< HEAD
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
-
-       if (en_grid(i)%cpu /= id) cycle
-=======
+       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
        if (negf%en_grid(i)%cpu /= id) cycle
->>>>>>> tests
       
        Ec = negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
 
-<<<<<<< HEAD
-=======
-       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
-
->>>>>>> tests
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1511,24 +1436,14 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
-<<<<<<< HEAD
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
-
-       if (en_grid(i)%cpu /= id) cycle
-=======
+       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
        if (negf%en_grid(i)%cpu /= id) cycle
->>>>>>> tests
       
        Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
        !delta = negf%delta * negf%delta 
        delta = negf%delta * (1.0_dp - real(negf%en_grid(i)%Ec)/(negf%Emax+1d-12)) * Ec 
 
-<<<<<<< HEAD
-=======
-       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
-
->>>>>>> tests
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
        if (id0.and.negf%verbose.gt.VBT) call write_clock
