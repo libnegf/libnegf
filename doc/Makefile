@@ -11,7 +11,8 @@ doc:
 
 .PHONY: clean
 clean:
-	@rm -rf html
+	rm -f *.tmp
+	rm -rf html
 
 .PHONY: distclean
 distclean: clean

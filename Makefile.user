@@ -13,7 +13,7 @@
 # you architecture. If not, create your own using 'sysmakes/make.generic'
 # as template.
 ARCH1= $(shell uname -m)
-ARCH = $(ARCH1)-linux-composerxe2011
+ARCH = $(ARCH1)-linux-gfortran
 
 DEBUG=0
 # Include system specific settings

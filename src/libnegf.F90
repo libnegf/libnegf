@@ -25,6 +25,7 @@ module libnegf
  use ln_constants
  use ln_allocation
  use lib_param
+ use globals, only : LST
  use mpi_globals, only : id, numprocs, id0
  use input_output
  use ln_structure
@@ -47,6 +48,7 @@ module libnegf
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont
+ public :: get_transmission  !Returns transmission coefficients and energy range
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -58,6 +60,9 @@ module libnegf
                                     ! Extract HM and SM
                                     ! run total current calculation
 
+ public ::  write_tunneling_and_dos ! Print tunneling and dot to file
+                                    ! Note: for debug purpose. I/O should be managed 
+                                    ! by calling program
  public :: compute_ldos             ! wrapping to compute ldos
  public :: return_dos_mat           ! return pointer to LDOS matrix
 
@@ -92,94 +97,79 @@ contains
 
     !print*, '(init_negf) Initializing libnegf...'
 
-    negf%file_struct = "negf.in"
     negf%form%formatted = .true.
     negf%isSid = .false.
     negf%form%type = "PETSc" 
     negf%form%fmt = "F" 
 
    end subroutine init_negf
+   
+   !--------------------------------------------------------------------
+   !!  Read H and S from file
+   !!    Args:
+   !!      negf: libnegf container instance
+   !!      real_path (string): filename for real part of target matrix in PETSC format
+   !!      imag_path (string): filename for imaginary part of target matrix in PETSC format. 
+   !!        By default a zero matrix is built
+   !!      target_matrix (integer): controlo flag which specify if the Hamiltonian
+   !!        or the Overlap is parsed. 0 for the Hamiltonian, 1 for the Overlap
+   !!      formatted (logical, optional): true (default) if file is formatted.
+   !!
+   !!   Note: up to now both the real and imaginary part files must have the same 
+   !!     indexes and number of non zero elements, even if zero values appear
+   subroutine read_HS(negf, real_path, imag_path, target_matrix, formatted)
+     type(Tnegf), intent(inout) :: negf
+     character(len=*), intent(in) :: real_path, imag_path
+     integer, intent(in) :: target_matrix
+     logical, intent(in), optional :: formatted
 
-  !--------------------------------------------------------------------
-  subroutine read_HS(negf)
-    type(Tnegf) :: negf
-    character(11) :: fmtstring
-    logical :: doesexist  
-    
-    open(101, file=negf%file_struct, form='formatted')  
+     logical :: formatted_opt
+     logical :: doesexist  
+     character(11) :: fmtstring
+     type(format) :: fmt
 
-    read(101,*) negf%file_re_H 
-    read(101,*) negf%file_im_H
+     if (present(formatted)) then
+       formatted_opt = formatted 
+     else 
+       formatted_opt = .true.
+     endif
 
-    read(101,*) negf%file_re_S
-    read(101,*) negf%file_im_S
-
-    if (trim(negf%file_re_S).eq.'identity') then
-         negf%isSid = .true.     
-    endif
-    
-    !print*, '(init_negf) files: ', trim(negf%file_re_H)
-    !print*, '(init_negf) files: ', trim(negf%file_im_H)
-    !print*, '(init_negf) files: ', trim(negf%file_re_S) 
-    !print*, '(init_negf) files: ', trim(negf%file_im_S) 
- 
-    close(101)
-
-    if(negf%form%formatted) then
+     if(formatted_opt) then
        fmtstring = 'formatted'
-    else
+       fmt%formatted = .true.
+     else
        fmtstring = 'unformatted'
-    endif
-  
-    inquire(file=trim(negf%file_re_H), exist= doesexist)  
-    inquire(file=trim(negf%file_im_H), exist= doesexist)  
-    if (.not.doesexist) then
-       write(*,*) "libNEGF error. Hamiltonian files not found"
+       fmt%formatted = .false.
+     endif
+
+     fmt%type = 'PETSc'  !! only PETSc now supported here. Maybe need to add support for UPT?
+     fmt%fmt = 'F'       !! only Full matrix supported. We could also support upper or lower
+
+     inquire(file=trim(real_path), exist= doesexist)  
+     inquire(file=trim(imag_path), exist= doesexist)  
+     if (.not.doesexist) then
+       write(*,*) "libNEGF error. Matrix files not found"
        stop  
-    endif
+     endif
 
-    open(401, file=negf%file_re_H, form=trim(fmtstring))
-    open(402, file=negf%file_im_H, form=trim(fmtstring))   !open imaginary part of H
+     open(401, file=real_path, form=trim(fmtstring))
+     open(402, file=imag_path, form=trim(fmtstring))
 
-    !print*, '(init_negf) Reading H...'
-    allocate(negf%H)
-    call read_H(401,402,negf%H,negf%form)
-    close(401)
-    close(402)
+     if (target_matrix.eq.0) then
+       allocate(negf%H)
+       call read_H(401,402,negf%H,fmt)
+     else if (target_matrix.eq.1) then
+       call read_H(401,402,negf%S,fmt)
+     else 
+       write(*,*) "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)"
+       stop
+     endif
+     close(401)
+     close(402)
 
-    if (trim(negf%file_re_S).eq.'') negf%isSid = .true.
-         
-    if(.not.negf%isSid) then
-       inquire(file=trim(negf%file_re_H), exist= doesexist)  
-       inquire(file=trim(negf%file_im_H), exist= doesexist)  
-       if (.not.doesexist) then
-          write(*,*) "libNEGF error. overlap files not found"
-          stop  
-       endif
+     negf%intHS=.true.
 
-       open(401, file=negf%file_re_S, form=trim(fmtstring))
-       open(402, file=negf%file_im_S, form=trim(fmtstring))   !open imaginary part of S
-
-       !print*, '(init_negf) Reading S...'
-       allocate(negf%S)
-       call read_H(401,402, negf%S,negf%form)
-       
-       close(401)
-       close(402)
-
-    else
-       ! create an Id matrix for S
-       !print*, '(init_negf) set identity S...'
-       !call create_id( negf%S,negf%H%nrow) 
-       allocate(negf%S)
-       call create_id( negf%S, negf%H) 
-
-    endif
-    
-    negf%intHS=.true.
-
-  end subroutine read_HS
-
+   end subroutine read_HS
   !--------------------------------------------------------------------
   subroutine set_H(negf, nrow, nzval, colind, rowpnt)
     type(Tnegf) :: negf
@@ -261,19 +251,22 @@ contains
     Integer :: ncont, nbl, ii, jj, ist, iend
     Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
     character(32) :: tmp
+    character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
 
-    open(101, file=trim(negf%scratch_path)//'/'//trim(negf%file_struct), form='formatted')
+    open(101, file="negf.in", form='formatted')
   
-    read(101,*) negf%file_re_H 
-    read(101,*) negf%file_im_H
+    read(101,*) file_re_H 
+    read(101,*) file_im_H
 
-    read(101,*) negf%file_re_S
-    read(101,*) negf%file_im_S
+    read(101,*) file_re_S
+    read(101,*) file_im_S
 
-    if (trim(negf%file_re_S).eq.'identity') then
+    if (trim(file_re_S).eq.'identity') then
          negf%isSid = .true.     
     endif
 
+    !! A dummy descriptor must be present at the beginning of each line
+    !! Used for debug 
     read(101,*) tmp, ncont
 
     call log_allocate(cblk,ncont)
@@ -284,11 +277,11 @@ contains
 
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
-       read(101,*) PL_end(1:nbl)
+       read(101,*) tmp, PL_end(1:nbl)
     end if
 
-    read(101,*) tmp,  cont_end(1:ncont)
-    read(101,*) tmp,  surf_end(1:ncont)
+    read(101,*) tmp, cont_end(1:ncont)
+    read(101,*) tmp, surf_end(1:ncont)
 
     if (nbl .eq. 0) then
        call log_allocate(PL_end, MAXNUMPLs)  
@@ -309,29 +302,36 @@ contains
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
 
-    read(101,*) tmp,  negf%Ec, negf%Ev
-    read(101,*) tmp,  negf%DeltaEc, negf%DeltaEv
-    read(101,*) tmp,  negf%Emin, negf%Emax, negf%Estep
-    read(101,*) tmp,  negf%kbT
-    read(101,*) tmp,  negf%wght
-    read(101,*) tmp,  negf%Np_n(1:2)
-    read(101,*) tmp,  negf%Np_p(1:2)
-    read(101,*) tmp,  negf%Np_real(1)
-    read(101,*) tmp,  negf%n_kt
-    read(101,*) tmp,  negf%n_poles
-    read(101,*) tmp,  negf%g_spin
-    read(101,*) tmp,  negf%delta
-    read(101,*) tmp,  negf%nLDOS
+    read(101,*)  tmp, negf%Ec, negf%Ev
+    read(101,*)  tmp, negf%DeltaEc, negf%DeltaEv
+    read(101,*)  tmp, negf%Emin, negf%Emax, negf%Estep
+    if (ncont.gt.0) then
+      read(101,*) tmp, negf%kbT(1:ncont)
+    else
+      read(101,*) tmp, negf%kbT(1)
+    endif
+    read(101,*)  tmp, negf%wght
+    read(101,*)  tmp, negf%Np_n(1:2)
+    read(101,*)  tmp, negf%Np_p(1:2)
+    read(101,*)  tmp, negf%Np_real(1)
+    read(101,*)  tmp, negf%n_kt
+    read(101,*)  tmp, negf%n_poles
+    read(101,*)  tmp, negf%g_spin
+    read(101,*)  tmp, negf%delta
+    read(101,*)  tmp, negf%nLDOS
     allocate(negf%LDOS(negf%nLDOS))
     do ii = 1, negf%nLDOS
-      read(101,*) tmp,  ist, iend
+      read(101,*) tmp, ist, iend
       call log_allocate(negf%LDOS(ii)%indexes, iend-ist+1)
       do jj = 1, iend-ist+1
         negf%LDOS(ii)%indexes(jj) = ist + jj - 1
       end do  
     end do
-    read(101,*) tmp,  negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
-    read(101,*) tmp,  negf%mu_p(1:ncont)    ! hole potentials
+    read(101,*) tmp, negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
+    read(101,*) tmp, negf%mu_p(1:ncont)    ! hole potentials
+    !! Internally a different mu is used for dft-like integrations
+    !! we define it as equal to mu_n in negf.in
+    negf%mu(1:ncont) = negf%mu_n(1:ncont)
 
     close(101)
 
@@ -391,6 +391,8 @@ contains
     call kill_Tstruct(negf%str) 
 
     if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
+    call log_deallocate(negf%real_energy_points)
+    if (allocated(negf%en_grid)) deallocate(negf%en_grid)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
@@ -429,6 +431,28 @@ contains
     
   end subroutine destroy_ldos
   
+  !> 
+  !! Return the transmission and energy points between a given 
+  !! pair of leads. Energies are returned as real.
+  !! Input arrays will be filled with the values (no direct pointer access)
+  !! Note: inout arrays maybe allocated or not, in F2003 if they are not
+  !! they will be automatically allocated
+  !! @param [in] negf: negf container
+  !! @param [in] lead_pair: specifies which leads are considered 
+  !!             for retrieving current (as ordered in ni, nf)
+  !! @param [inout] energies: array filled with energies
+  !! @param [inout] transmission: array filled with transmission
+  subroutine get_transmission(negf, lead_pair, energies, transmission)
+    type(TNegf), intent(in)  :: negf
+    integer, intent(in) :: lead_pair
+    real(dp), dimension(:), allocatable, intent(inout) :: energies, transmission
+
+    energies(:) = real(negf%en_grid(:)%Ec)
+    transmission(:) = negf%tunn_mat(:,lead_pair)
+
+  end subroutine get_transmission
+
+
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
     type(Tnegf) :: negf   
@@ -762,7 +786,7 @@ contains
     character(6) :: ofKP, idstr
     real(dp) :: E
 
-    if (associated(negf%tunn_mat) .and. negf%writeTunn) then
+    if (associated(negf%tunn_mat)) then
         
         Nstep = size(negf%tunn_mat,1) 
         size_ni = size(negf%tunn_mat,2)
@@ -788,7 +812,7 @@ contains
         
     endif
 
-    if (associated(negf%ldos_mat) .and. negf%writeLDOS .and. negf%nLDOS.gt.0) then
+    if (associated(negf%ldos_mat) .and. negf%nLDOS.gt.0) then
         
         Nstep = size(negf%ldos_mat,1)
         

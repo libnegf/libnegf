@@ -6,3 +6,8 @@
 *.mod
 #Compiled library
 *.a
+*.so
+# User defined configuration
+Makefile.user
+# Test output files
+tunneling*

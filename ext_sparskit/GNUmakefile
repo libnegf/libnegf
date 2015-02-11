@@ -42,10 +42,7 @@ LIBNEGFSRC = $(ROOT)/src
 include $(ROOT)/Makefile.user
 F77 = $(FC90)
 AR = ar -rcv 
-#OPT = -g -c -check all
-OPT = -O3 -axSSE4.2 -fPIC -c
-#OPT = $(FC90OPT) -c 
-
+OPT= $(FC90OPT) -c
 #
 # library objects
 #
@@ -55,9 +52,6 @@ OBJ =	BLASSM/zblassm.o	\
 	FORMATS/zunary.o	\
 	INFO/zinfofun.o		\
 	INOUT/zinout.o		\
-	ORDERINGS/zccn.o	\
-	ORDERINGS/zcolor.o	\
-	ORDERINGS/zdsepart.o    \
 	BLASSM/blassm.o		\
 	BLASSM/matvec.o		\
 	FORMATS/formats.o	\
@@ -67,10 +61,21 @@ OBJ =	BLASSM/zblassm.o	\
 	INOUT/inout.o		\
 	ITSOL/ilut.o		\
 	ITSOL/zilut.o		\
-	ITSOL/iters.o		\
 	ORDERINGS/ccn.o		\
-	ORDERINGS/color.o	\
 	ORDERINGS/dsepart.o
+## GP all the routines in ORDERINGS contain
+## double definitions which give tons of
+## 'already defined' errors when compiling
+## shared library. Unused (by us) objects are also
+## here if they ask for external definition which 
+## we don't provide (to avoid undefined refs)
+#	ITSOL/iters.o		\
+	ORDERINGS/color.o	\
+	#ORDERINGS/zccn.o	\
+	#ORDERINGS/zcolor.o	\
+	#ORDERINGS/zdsepart.o    \
+
+#############################################
 
 #	MATGEN/FDIF/genmat.o	\
 #	MATGEN/FEM/elmtlib2.o	\
@@ -122,7 +127,8 @@ $(TARGET): $(OBJ)
 
 .PHONY: clean distclean
 
-clean: 
+clean:
+	rm -f $(TARGET)	
 	@for dir in $(DIRS) ;\
           do \
           echo cleaning $$dir ;\
