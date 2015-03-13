@@ -26,7 +26,7 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info
   use input_output
-  use elph
+  use elph, only : init_elph_1, Telph
   use energy_mesh, only : mesh
 
   implicit none
@@ -36,7 +36,7 @@ module lib_param
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
-  public :: print_all_vars
+  public :: print_all_vars, set_elph_dephasing
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -352,7 +352,21 @@ contains
 
   end subroutine copy_HS
   
-  
+  !> Set values for the electron phonon dephasing model
+  !! (elastic scattering only)
+  subroutine set_elph_dephasing(negf, coupling, niter)
+    type(Tnegf) :: negf
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    integer :: niter
+    
+    !! Verify that the size of the coupling fits with the Hamiltonian
+    if (size(coupling).ne.negf%H%nrow) then
+      write(*,*) 'Elph dephasing model coupling size does not match '
+    endif
+    call init_elph_1(negf%elph, coupling, niter)
+  end subroutine set_elph_dephasing
+
+
   
   subroutine set_defaults(negf)
     type(Tnegf) :: negf    
@@ -412,7 +426,7 @@ contains
     
      negf%int_acc = 1.d-3    ! Integration accuracy 
                              ! Only in adaptive refinement 
-     call init_elph(negf%elph)
+     !! call init_elph(negf%elph)
 
    end subroutine set_defaults
 

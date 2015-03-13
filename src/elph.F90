@@ -29,10 +29,37 @@ module elph
   private
 
   public :: Telph
-  public :: init_elph
+  public :: init_elph_1
 
+
+  !> This type contains information describing different electron phonon 
+  !! models: input parameters, temporary data and output quantities
   type Telph
+    !> Describe the model implemented. Currently supported:
+    !! 0 : dummy model, no electron-phonon interactions
+    !! 1 : electron phonon dephasing limit
+    !!     Assumes elastic scattering and local coupling
+    integer :: model = 0
+    !> Diagonal coupling. Used in local coupling models (1)
+    !! Note: it is assumed to be squared (units energy^2)
+    real(dp), allocatable, dimension(:) :: coupling_array
+    !> Diagonal elelents of retarded self energy. Used only in model (1)
+    complex(dp), allocatable, dimension(:) :: diag_sigma_r
+
+
+    !> Specify if the model is diagonal only. Depending on the model
+    !! this will imply different approximations
+    logical :: diagonal
+    !> Number of active modes
     integer :: nummodes
+     
+    !> SCBA option: number of iterations
+    !! 0 corresponds to no iterations (self energy is not calculated)
+    integer :: scba_niter = 0
+    
+    !> Keep track of SCBA iteration 
+    integer :: scba_iter = 0
+
     integer :: numselmodes
     logical, dimension(:), pointer :: selmodes => null()
     real(dp), dimension(:), pointer :: Wq => null()
@@ -44,9 +71,6 @@ module elph
     real(dp) :: Erange(2)     !Integration interval
 
     integer :: scba_iterations
-    integer :: scba_iter
-    logical :: diagonal
- 
     logical :: Selfene_Gr
     logical :: Selfene_Gless
     logical :: Selfene_Hilb
@@ -55,6 +79,18 @@ module elph
   end type Telph
 
 contains
+
+  subroutine init_elph_1(elph, coupling, niter)
+    Type(Telph) :: elph
+    real(dp), dimension(:), allocatable, intent(in) :: coupling
+    integer :: niter
+
+    elph%model = 1
+    elph%coupling_array = coupling
+    elph%diagonal = .true.
+    elph%scba_niter = niter
+
+  end subroutine init_elph_1
 
   subroutine init_elph(elph,nummodes)
     Type(Telph) :: elph

@@ -451,7 +451,6 @@ contains
 
   end subroutine get_transmission
 
-
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
     type(Tnegf) :: negf   

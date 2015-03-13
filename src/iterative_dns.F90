@@ -162,9 +162,14 @@ CONTAINS
        ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     ENDDO
 
-    if (pnegf%elph%numselmodes.gt.0) then
-       call add_sigma_ph_r(pnegf, ESH, pnegf%elph%scba_iter)
+    !! Add el-ph self energy if any
+    if (negf%elph%model .ne. 0) then
+      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
+
+!    if (pnegf%elph%numselmodes.gt.0) then
+!       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+!    endif
     
     call allocate_gsm_dns(gsmr,nbl)
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
@@ -179,6 +184,7 @@ CONTAINS
 
     call destroy_gsm(gsmr)
     call deallocate_gsm_dns(gsmr)
+
 
     ! SAVE ON FILES/MEMORY (for elph).........................
     if (pnegf%elph%numselmodes.gt.0) then
@@ -696,37 +702,53 @@ Ec=cmplx(E,0.d0,dp)
 
   END SUBROUTINE sub_ESH_dns
 
+
   !***********************************************************************
   !
   !  Reloads the retarded elph self-energy and add it to ES-H
   !
   !***********************************************************************
-  SUBROUTINE add_sigma_ph_r(pnegf, ESH, iter)
+  SUBROUTINE add_elph_sigma_r(pnegf, ESH, elph)
      TYPE(Tnegf), intent(in) :: pnegf
+     TYPE(Telph), intent(in) :: elph
      TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: ESH
-     INTEGER, intent(in) :: iter
 
      TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_r
-     INTEGER :: n, nbl, nrow, ierr
+     INTEGER :: n, nbl, nrow, ierr, offset, ii
 
-     nbl = pnegf%str%num_PLs
-    
-     ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
-     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
+     ! At first loop there's no self energy
+     if (elph%scba_iter .eq. 0 .or. elph%model .eq. 0) then
+       return
+     endif
 
-     if (pnegf%elph%diagonal) THEN
+     if (elph%model .eq. 1) then
+       nbl = pnegf%str%num_PLs
+       do n=1,nbl
+         forall(ii = mat_PL_start(n), mat_PL_end(n)) 
+             ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii) - elph%diag_sigma_r(ii)
+         end forall
+       enddo
 
-        DO n = 1, nbl
+     else if (elph%model .eq. 3) then
+       
+       nbl = pnegf%str%num_PLs
+
+       ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
+       IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
+
+       if (pnegf%elph%diagonal) THEN
+
+         DO n = 1, nbl
 
            nrow = ESH(n,n)%nrow
 
            call create(Sigma_ph_r(n,n), nrow, nrow)
 
            Sigma_ph_r(n,n)%val = (0.0_dp, 0.0_dp)
-           if (iter .gt. 0) then
-              call read_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+           if (elph%scba_iter .gt. 0) then
+             call read_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
            else
-              call write_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+             call write_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
            endif
 
            ESH(n,n)%val = ESH(n,n)%val - Sigma_ph_r(n,n)%val
@@ -735,13 +757,14 @@ Ec=cmplx(E,0.d0,dp)
 
          END DO
 
-     ELSE
+       ELSE
 
-     ENDIF
+       ENDIF
 
-     DEALLOCATE(Sigma_ph_r)
+       DEALLOCATE(Sigma_ph_r)
+   endif
 
-  END SUBROUTINE add_sigma_ph_r 
+  END SUBROUTINE add_elph_sigma_r
 
   !***********************************************************************
   !
@@ -1964,7 +1987,7 @@ Ec=cmplx(E,0.d0,dp)
 
 END SUBROUTINE Sigma_ph_p
 
-!----------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 SUBROUTINE Sigma_ph_r(pnegf,Epnt)
 
   TYPE(Tnegf) :: pnegf
