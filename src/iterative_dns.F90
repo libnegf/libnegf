@@ -43,6 +43,7 @@ MODULE iterative_dns
   USE mat_def
   USE sparsekit_drv
   USE inversions
+  USE elph
   USE ln_structure, only : TStruct_Info
   USE lib_param, only : MAXNCONT, Tnegf, intarray
   USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
@@ -78,6 +79,7 @@ MODULE iterative_dns
   !public :: Outer_A_mem_dns
 
   public :: complete_sigma_ph_r
+  public :: elph_sigma_r_mod1
 
   public :: create_scratch
   public :: destroy_scratch
@@ -163,7 +165,7 @@ CONTAINS
     ENDDO
 
     !! Add el-ph self energy if any
-    if (negf%elph%model .ne. 0) then
+    if (pnegf%elph%model .ne. 0) then
       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
 
@@ -440,7 +442,7 @@ Ec=cmplx(E,0.d0,dp)
  ENDDO
 
  ! Reload and add Sigma_ph_r to ESH
- call add_sigma_ph_r(pnegf, ESH, iter)
+ ! call add_sigma_ph_r(pnegf, ESH, iter)
 
  !Allocazione delle gsmr
  call allocate_gsm_dns(gsmr,nbl)
@@ -703,6 +705,22 @@ Ec=cmplx(E,0.d0,dp)
   END SUBROUTINE sub_ESH_dns
 
 
+!***********************************************************************
+!> Update the value of el-ph Retarded Self Energy for the dephasing model
+!
+!***********************************************************************
+subroutine elph_sigma_r_mod1(elph, Gr)
+      TYPE(Telph), intent(inout) :: elph
+      type(z_CSR), intent(in) :: Gr
+      complex(dp), allocatable, dimension(:) :: diag
+
+      call log_allocate(diag, Gr%nrow)
+
+      call getdiag(Gr, diag)
+      elph%diag_sigma_r = elph%coupling_array * diag
+
+end subroutine elph_sigma_r_mod1
+
   !***********************************************************************
   !
   !  Reloads the retarded elph self-energy and add it to ES-H
@@ -724,7 +742,7 @@ Ec=cmplx(E,0.d0,dp)
      if (elph%model .eq. 1) then
        nbl = pnegf%str%num_PLs
        do n=1,nbl
-         forall(ii = mat_PL_start(n), mat_PL_end(n)) 
+         forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
              ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii) - elph%diag_sigma_r(ii)
          end forall
        enddo

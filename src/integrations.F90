@@ -691,7 +691,7 @@ contains
 
      Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
      type(z_CSR) :: GreenR, TmpMt 
-     integer :: i, i1, ncont, Ntot, outer
+     integer :: i, i1, ncont, Ntot, outer, scba_iter
      real(dp) :: ncyc
      complex(dp) :: Ec, zt
     
@@ -717,7 +717,21 @@ contains
         call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
   
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-  
+
+        !! If elph model, then get inside a SCBA cycle 
+        if (negf%elph%model .ne. 0 .and. negf%elph%scba_iterations.ne.0) then
+        do scba_iter = 1, negf%elph%scba_niter
+          if (negf%elph%model .eq. 1) then
+            call elph_sigma_r_mod1(negf%elph, GreenR)
+          else
+            write(*,*) 'Not yet implemented'
+            stop 0
+          endif
+         negf%elph%scba_iter = scba_iter
+         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
+       enddo
+      endif
+
         if(negf%DorE.eq.'D') then
            call concat(TmpMt,zt,GreenR,1,1)
         endif
