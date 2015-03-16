@@ -147,7 +147,7 @@ contains
     Type(z_CSR) ::  Gr
     complex(dp), Dimension(:), ALLOCATABLE :: diag
 
-    integer :: Nstep, i, i1, l, kb, ke
+    integer :: Nstep, i, i1, l, kb, ke, scba_iter
     integer :: outer, ncont
 
     real(dp) :: ncyc
@@ -175,7 +175,21 @@ contains
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     
        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
-       
+
+       !! If elph model, then get inside a SCBA cycle 
+       if (negf%elph%model .ne. 0 .and. negf%elph%scba_iterations.ne.0) then
+         do scba_iter = 1, negf%elph%scba_niter
+           if (negf%elph%model .eq. 1) then
+             call elph_sigma_r_mod1(negf%elph, Gr)
+           else
+             write(*,*) 'Not yet implemented'
+             stop 0
+           endif
+           negf%elph%scba_iter = scba_iter
+           call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+         enddo
+       endif
+
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1))
        enddo
