@@ -19,6 +19,7 @@ foo 10                   !  number of kT for cutoff fermi functions
 foo 3                    !  number of poles included in contour
 foo 2                    !  number of spin-degenerate states
 foo 1e-05                !  delta used in G.F.   
-foo 0                    !  number of LDOS intervals. Next containes LDOS indexes only if LDOS != 0
+foo 1                    !  number of LDOS intervals. Next containes LDOS indexes only if LDOS != 0
+foo 1 60
 foo 0.0 0.0              !  electrochemical potential of each contact
 foo 0.0 0.0              ! 	electrochemical potential (holes)

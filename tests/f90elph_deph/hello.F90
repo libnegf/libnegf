@@ -43,9 +43,9 @@ program hello
   call negf_partition_info(pnegf)
   write(*,*) 'Compute landauer tunneling and current'
   allocate(coupling(100))
-  coupling = 1e-5
-  call set_elph_dephasing(pnegf, coupling, 1)
-  call compute_current(pnegf)
+  coupling = 1e-2
+  call set_elph_dephasing(pnegf, coupling, 15)
+  call compute_ldos(pnegf)
   call write_tunneling_and_dos(pnegf)
   deallocate(coupling)
   write(*,*) 'Destroy negf'
