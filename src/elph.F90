@@ -45,6 +45,8 @@ module elph
     real(dp), allocatable, dimension(:) :: coupling_array
     !> Diagonal elelents of retarded self energy. Used only in model (1)
     complex(dp), allocatable, dimension(:) :: diag_sigma_r
+    !> Diagonal elelents of lesser (n) self energy. Used only in model (1)
+    complex(dp), allocatable, dimension(:) :: diag_sigma_n
 
 
     !> Specify if the model is diagonal only. Depending on the model
@@ -89,6 +91,10 @@ contains
     elph%coupling_array = coupling
     elph%diagonal = .true.
     elph%scba_niter = niter
+    call log_allocate(elph%diag_sigma_r, size(coupling))
+    call log_allocate(elph%diag_sigma_n, size(coupling))
+    elph%diag_sigma_r = 0.d0
+    elph%diag_sigma_n = 0.d0
 
   end subroutine init_elph_1
 

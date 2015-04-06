@@ -77,9 +77,9 @@ MODULE iterative_dns
   public :: Outer_Gr_mem_dns
   public :: Outer_Gn_mem_dns
   !public :: Outer_A_mem_dns
+  public :: iterative_meir_wingreen
 
   public :: complete_sigma_ph_r
-  public :: elph_sigma_r_mod1
 
   public :: create_scratch
   public :: destroy_scratch
@@ -132,7 +132,7 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(Tnegf), intent(inout) :: pnegf
     COMPLEX(dp), intent(in) :: E
     TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(z_DNS), DIMENSION(:), intent(in) :: Tlc, Tcl, gsurfR
@@ -197,6 +197,10 @@ CONTAINS
       ENDDO
     endif   
     !..........................................................
+    !! Update el-ph self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call update_elph_r(pnegf, Gr)
+    endif
 
     call blk2csr(Gr,struct,pnegf%S,A)
     
@@ -251,7 +255,7 @@ CONTAINS
     IMPLICIT NONE
 
     !In/Out
-    TYPE(Tnegf), intent(in) :: pnegf
+    TYPE(Tnegf), intent(inout) :: pnegf
     TYPE(z_CSR), intent(inout)  :: Glout
     TYPE(z_DNS), DIMENSION(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     REAL(dp), intent(in)  :: E
@@ -268,6 +272,11 @@ CONTAINS
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Gn
     TYPE(z_CSR) :: ESH_tot, Gl
     LOGICAL :: mask(MAXNCONT)
+
+    if (pnegf%elph%model .ne. 0) then
+      !TODO: output logfile
+      write(*,*) "Warning: calls_neq_mem is not compatible with el-ph models"
+    endif
 
     nbl = struct%num_PLs
     ncont = struct%num_conts
@@ -373,218 +382,356 @@ CONTAINS
 ! NOTE: The subroutine assumes that
 !
 !****************************************************************************
+  
+  SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 
-SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
+    !****************************************************************************
+    !
+    !Input
+    !H: sparse matrix contaning Device Hamiltonian
+    !S: sparse matrix containing Device Overlap
+    !SelfEneR: sparse matrices array containing contacts Self Energy
+    !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
+    !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
+    !gsurfR: sparse matrices array containing contacts surface green
+    !frm: array containing Fermi distribution values for all contacts
+    !ref: reference contact excluded from summation
+    !
+    !Output:
+    !Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
+    !
+    !*****************************************************************************
+    IMPLICIT NONE
 
-!****************************************************************************
-!
-!Input
-!H: sparse matrix contaning Device Hamiltonian
-!S: sparse matrix containing Device Overlap
-!SelfEneR: sparse matrices array containing contacts Self Energy
-!Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
-!Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
-!gsurfR: sparse matrices array containing contacts surface green
-!frm: array containing Fermi distribution values for all contacts
-!ref: reference contact excluded from summation
-!
-!Output:
-!Aout: G_n contributions (Device + Contacts overlap regions -> effective conductor)
-!
-!*****************************************************************************
-IMPLICIT NONE
+    !In/Out
+    TYPE(Tnegf), intent(inout) :: pnegf
+    TYPE(z_CSR) :: Glout
+    TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
+    REAL(dp) :: E
+    REAL(dp), DIMENSION(:) :: frm
+    INTEGER :: out
 
-!In/Out
-TYPE(Tnegf) :: pnegf
-TYPE(z_CSR) :: Glout
-TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
-REAL(dp) :: E
-REAL(dp), DIMENSION(:) :: frm
-INTEGER :: out
+    !Work
+    COMPLEX(dp) :: Ec
+    INTEGER :: i,ierr,ncont,nbl, lbl
+    INTEGER :: ref, iter
+    INTEGER, DIMENSION(:), POINTER :: cblk, indblk
+    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
+    TYPE(z_CSR) :: ESH_tot, Gl
+    LOGICAL :: mask(MAXNCONT)
+    TYPE(Tstruct_info) :: struct
+    REAL(dp), DIMENSION(:), allocatable :: cfrm
 
-!Work
-COMPLEX(dp) :: Ec
-INTEGER :: i,ierr,ncont,nbl, lbl
-INTEGER :: ref, iter
-INTEGER, DIMENSION(:), POINTER :: cblk, indblk
-TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
-TYPE(z_CSR) :: ESH_tot, Gl
-LOGICAL :: mask(MAXNCONT)
-TYPE(Tstruct_info) :: struct
-REAL(dp), DIMENSION(:), allocatable :: cfrm
+    struct = pnegf%str
+    nbl = struct%num_PLs
+    ncont = struct%num_conts
+    indblk => struct%mat_PL_start
+    cblk => struct%cblk
+    ref = pnegf%refcont
+    iter = pnegf%elph%scba_iter
 
-struct = pnegf%str
-nbl = struct%num_PLs
-ncont = struct%num_conts
-indblk => struct%mat_PL_start
-cblk => struct%cblk
-ref = pnegf%refcont
-iter = pnegf%elph%scba_iter
+    Ec=cmplx(E,0.d0,dp)
 
-Ec=cmplx(E,0.d0,dp)
+    !Costruiamo la matrice sparsa ESH
+    CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
-!if (debug) write(*,*) '----------------------------------------------------'
-!if (debug) call writeMemInfo(6)
-!if (debug) call writePeakInfo(6)
-!if (debug) write(*,*) '----------------------------------------------------'
+    call allocate_blk_dns(ESH,nbl)
 
- !Costruiamo la matrice sparsa ESH
- CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
 
- call allocate_blk_dns(ESH,nbl)
+    call destroy(ESH_tot)
 
- CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+    DO i=1,ncont
+      ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+    ENDDO
 
- call destroy(ESH_tot)
+    !! Add el-ph self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+    endif
 
- DO i=1,ncont
-       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
- ENDDO
+    !Allocazione delle gsmr
+    call allocate_gsm_dns(gsmr,nbl)
+    call allocate_gsm_dns(gsml,nbl)
 
- ! Reload and add Sigma_ph_r to ESH
- ! call add_sigma_ph_r(pnegf, ESH, iter)
+    !Chiamata di Make_gsmr_mem
+    CALL Make_gsmr_mem_dns(ESH,nbl,2)
 
- !Allocazione delle gsmr
- call allocate_gsm_dns(gsmr,nbl)
- call allocate_gsm_dns(gsml,nbl)
+    !Chiamata di Make_gsml_mem solo per i blocchi 1..lbl dove  
+    ! lbl = maxval(cblk,mask) - 2 
+    lbl = nbl - 2    ! ALL BLOCKS are needed!!
 
- !Chiamata di Make_gsmr_mem
- CALL Make_gsmr_mem_dns(ESH,nbl,2)
+    if( ncont.gt.1 ) then
+      CALL Make_gsml_mem_dns(ESH,1,lbl)    
+    endif
+    !if (debug) write(*,*) '----------------------------------------------------'
+    !if (debug) call writeMemInfo(6)
+    !if (debug) call writePeakInfo(6)
+    !if (debug) write(*,*) '----------------------------------------------------'
 
- !Chiamata di Make_gsml_mem solo per i blocchi 1..lbl dove  
- ! lbl = maxval(cblk,mask) - 2 
- lbl = nbl - 2    ! ALL BLOCKS are needed!!
+    call allocate_blk_dns(Gr,nbl)
 
- if( ncont.gt.1 ) then
-  CALL Make_gsml_mem_dns(ESH,1,lbl)    
- endif
- !if (debug) write(*,*) '----------------------------------------------------'
- !if (debug) call writeMemInfo(6)
- !if (debug) call writePeakInfo(6)
- !if (debug) write(*,*) '----------------------------------------------------'
+    CALL Make_Gr_mem_dns(ESH,1)
+    CALL Make_Gr_mem_dns(ESH,2,nbl)
 
- call allocate_blk_dns(Gr,nbl)
+    !! Update el-ph retarded self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call update_elph_r(pnegf, Gr)
+    endif
 
- CALL Make_Gr_mem_dns(ESH,1)
- CALL Make_Gr_mem_dns(ESH,2,nbl)
+    !With el-ph we need all columns
+    DO i=1,nbl
+      CALL Make_Grcol_mem_dns(ESH,i,indblk)
+    ENDDO
 
-!if (debug) write(*,*) '----------------------------------------------------'
-!if (debug) call writeMemInfo(6)
-!if (debug) call writePeakInfo(6)
-!if (debug) write(*,*) '----------------------------------------------------'
+    !Distruzione delle gsmall
+    call destroy_gsm(gsmr)
+    call deallocate_gsm_dns(gsmr)
+    call destroy_gsm(gsml)
+    call deallocate_gsm_dns(gsml)
 
- !Chiamata di Make_Grcol_mem per i contatti necessari 
- !DO i=1,ncont 
- !  IF (i.NE.ref) THEN
- !    CALL Make_Grcol_mem_dns(ESH,cblk(i),indblk)
- !  ENDIF
- !ENDDO
+    !Calcolo degli outer blocks 
+    !if (debug) write(*,*) 'Compute Outer_G_n' 
+    SELECT CASE (out)
+    CASE(0)
+    CASE(1)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
+    CASE(2)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
+    END SELECT
 
- !With el-ph we need all columns
- DO i=1,nbl
-   CALL Make_Grcol_mem_dns(ESH,i,indblk)
- ENDDO  
+    !Calcolo della G_n nel device
+    !if (debug) write(*,*) 'Compute G_n' 
+    !Allocazione degli array di sparse
+    ALLOCATE(Gn(nbl,nbl),stat=ierr)
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
 
- !Distruzione delle gsmall
- call destroy_gsm(gsmr)
- call deallocate_gsm_dns(gsmr)
- call destroy_gsm(gsml)
- call deallocate_gsm_dns(gsml)
+    call init_blkmat(Gn,ESH)
 
- !Calcolo degli outer blocks 
- !if (debug) write(*,*) 'Compute Outer_G_n' 
- SELECT CASE (out)
- CASE(0)
- CASE(1)
-   CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
- CASE(2)
-   CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
- END SELECT
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
- !Calcolo della G_n nel device
- !if (debug) write(*,*) 'Compute G_n' 
- !Allocazione degli array di sparse
- ALLOCATE(Gn(nbl,nbl),stat=ierr)
- IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+    call Make_Gn_ph(pnegf,ESH,iter,Gn)
 
- call init_blkmat(Gn,ESH)
+    !! Update el-ph self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call update_elph_n(pnegf, Gn)
+    endif
 
- CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+    !! Skip this, old implementation
+    !print*
+    ! save diagonal blocks of G_n
+   ! DO i = 1, nbl
+   !   !print*,'(G_n) G_n',minval(abs(Gn(i,i)%val)), maxval(abs(Gn(i,i)%val))
+   !   call write_blkmat(Gn(i,i),pnegf%scratch_path,'G_n_',i,i,pnegf%iE)
+   !   !print*,'(G_r) G_r',minval(abs(Gn(i,i)%val)),maxval(abs(Gr(i,i)%val))
+   !   call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
+   ! ENDDO
 
- call Make_Gn_ph(pnegf,ESH,iter,Gn)
+    ! the following destroys Gn
+    call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
 
- !print*
- ! save diagonal blocks of G_n
- DO i = 1, nbl
-   !print*,'(G_n) G_n',minval(abs(Gn(i,i)%val)), maxval(abs(Gn(i,i)%val))
-   call write_blkmat(Gn(i,i),pnegf%scratch_path,'G_n_',i,i,pnegf%iE)
-   !print*,'(G_r) G_r',minval(abs(Gn(i,i)%val)),maxval(abs(Gr(i,i)%val))
-   call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
- ENDDO
+    DEALLOCATE(Gn)
 
+    !! Computation of G_p for Sigma_p
+!!$ if (pnegf%elph%check) then
+!!$    allocate(cfrm(10))
+!!$    cfrm = 1.0_dp - frm
+!!$    cfrm(ref) = 0.0_dp
+!!$ 
+!!$    ALLOCATE(Gp(nbl,nbl),stat=ierr)
+!!$ 
+!!$    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gp(nbl,nbl)'
+!!$    call init_blkmat(Gp,ESH)
+!!$    
+!!$    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,struct,Gp)
+!!$    deallocate(cfrm)
+!!$    
+!!$    call Make_Gp_ph(pnegf,ESH,iter,Gp)
+!!$    
+!!$   !  save diagonal blocks of G_p
+!!$   DO i = 1, nbl
+!!$     !print*
+!!$     !print*,'(G_p) G_p',minval(abs(Gn(i,i)%val)),maxval(abs(Gn(i,i)%val))
+!!$     call write_blkmat(Gp(i,i),pnegf%scratch_path,'G_p_',i,i,pnegf%iE)
+!!$   ENDDO
+!!$    
+!!$   call destroy_blk(Gp)
+!!$   DEALLOCATE(Gp)
+!!$ endif
+    !! ------------------------------------------------------------------------
 
- !open(5001,file=trim(pnegf%out_path)//'Lcurr.dat',position='APPEND')
- !write(5001,'(ES15.5)',advance='NO') real(Ec)
- !do i = 1, nbl
- !  do i1 = 1, ESH(i,i)%nrow-1
- !     Iloc = 2*aimag(Glsub(i,i)%val(i1,i1+1))*ESH(i,i)%val(i1+1,i1)
- !     write(5001,'(ES15.5)',advance='NO') Iloc
- !  enddo
- !enddo    
- !write(5001,*)
- !close(5001)
+    !Distruzione dell'array Gr
+    CALL destroy_blk(Gr)
+    DEALLOCATE(Gr)
 
- ! the following destroys Gn
- call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
+    CALL destroy_ESH(ESH)
+    DEALLOCATE(ESH)
 
- DEALLOCATE(Gn)
- 
- !! Computation of G_p for Sigma_p
- if (pnegf%elph%check) then
-    allocate(cfrm(10))
-    cfrm = 1.0_dp - frm
-    cfrm(ref) = 0.0_dp
- 
-    ALLOCATE(Gp(nbl,nbl),stat=ierr)
- 
-    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gp(nbl,nbl)'
-    call init_blkmat(Gp,ESH)
-    
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,struct,Gp)
-    deallocate(cfrm)
-    
-    call Make_Gp_ph(pnegf,ESH,iter,Gp)
-    
-   !  save diagonal blocks of G_p
-   DO i = 1, nbl
-     !print*
-     !print*,'(G_p) G_p',minval(abs(Gn(i,i)%val)),maxval(abs(Gn(i,i)%val))
-     call write_blkmat(Gp(i,i),pnegf%scratch_path,'G_p_',i,i,pnegf%iE)
-   ENDDO
-    
-   call destroy_blk(Gp)
-   DEALLOCATE(Gp)
- endif
- !! ------------------------------------------------------------------------
+    !Concatenazione di Gl in Glout
+    SELECT CASE(out)
+    CASE(0)
+      call clone(Gl,Glout)
+    CASE(1:2)
+      call concat(Glout,Gl,1,1)
+    END SELECT
 
- !Distruzione dell'array Gr
- CALL destroy_blk(Gr)
- DEALLOCATE(Gr)
-
- CALL destroy_ESH(ESH)
- DEALLOCATE(ESH)
-
- !Concatenazione di Gl in Glout
- SELECT CASE(out)
- CASE(0)
-    call clone(Gl,Glout)
- CASE(1:2)
-    call concat(Glout,Gl,1,1)
- END SELECT
-
- call destroy(Gl)
+    call destroy(Gl)
 
   END SUBROUTINE calls_neq_ph
+
+  !---------------------------------------------------------------------
+  !>
+  !  Iterative algorithm implementing Meir Wingreen formula for a given
+  !  electrode
+  !  Note: self consistent born approximation is not accounted for here
+  !  It is assumed that the el-ph container already includes the 
+  !  desired values. SCBA loop should be run outside
+  !  Many operations from calls_neq_ph are repeated here, as it is
+  !  assumed that A and Gn are not available at the time of the call
+  !---------------------------------------------------------------------
+  subroutine iterative_meir_wingreen(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm, ni,tun_mat)
+    IMPLICIT NONE
+
+    !In/Out
+    TYPE(Tnegf), intent(inout) :: pnegf
+    integer, dimension(:) :: ni
+    TYPE(z_DNS), DIMENSION(:) :: SelfEneR, gsurfR, Tlc, Tcl
+    Real(dp), Dimension(:), allocatable :: tun_mat
+    REAL(dp) :: E
+    REAL(dp), DIMENSION(:) :: frm
+    INTEGER :: out, size_ni, lead
+    complex(dp) :: tmp
+
+    !Work
+    COMPLEX(dp) :: Ec
+    INTEGER :: i,ierr,ncont,nbl,lbl
+    INTEGER :: ref, iter
+    INTEGER, DIMENSION(:), POINTER :: cblk, indblk
+    TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
+    type(z_DNS) :: work1, work2, work3, Gamma, A
+    TYPE(z_CSR) :: ESH_tot, Gl
+    LOGICAL :: mask(MAXNCONT)
+    TYPE(Tstruct_info) :: struct
+    REAL(dp), DIMENSION(:), allocatable :: cfrm
+
+    struct = pnegf%str
+    nbl = struct%num_PLs
+    ncont = struct%num_conts
+    indblk => struct%mat_PL_start
+    cblk => struct%cblk
+    ref = pnegf%refcont
+    iter = pnegf%elph%scba_iter
+
+    Ec=cmplx(E,0.d0,dp)
+    !Costruiamo la matrice sparsa ESH
+    CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+
+    call allocate_blk_dns(ESH,nbl)
+
+    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+
+    call destroy(ESH_tot)
+
+    DO i=1,ncont
+      ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+    ENDDO
+
+    !! Add el-ph self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+    endif
+
+    !Allocazione delle gsmr
+    call allocate_gsm_dns(gsmr,nbl)
+    call allocate_gsm_dns(gsml,nbl)
+
+    !Chiamata di Make_gsmr_mem
+    CALL Make_gsmr_mem_dns(ESH,nbl,2)
+
+    !Chiamata di Make_gsml_mem solo per i blocchi 1..lbl dove  
+    ! lbl = maxval(cblk,mask) - 2 
+    lbl = nbl - 2    ! ALL BLOCKS are needed!!
+
+    if( ncont.gt.1 ) then
+      CALL Make_gsml_mem_dns(ESH,1,lbl)    
+    endif
+    !if (debug) write(*,*) '----------------------------------------------------'
+    !if (debug) call writeMemInfo(6)
+    !if (debug) call writePeakInfo(6)
+    !if (debug) write(*,*) '----------------------------------------------------'
+
+    call allocate_blk_dns(Gr,nbl)
+
+    CALL Make_Gr_mem_dns(ESH,1)
+    CALL Make_Gr_mem_dns(ESH,2,nbl)
+
+    !! Update el-ph retarded self energy if any
+    if (pnegf%elph%model .ne. 0) then
+      call update_elph_r(pnegf, Gr)
+    endif
+
+    !With el-ph we need all columns
+    DO i=1,nbl
+      CALL Make_Grcol_mem_dns(ESH,i,indblk)
+    ENDDO
+
+    !Distruzione delle gsmall
+    call destroy_gsm(gsmr)
+    call deallocate_gsm_dns(gsmr)
+    call destroy_gsm(gsml)
+    call deallocate_gsm_dns(gsml)
+
+    !! Never calculate outer blocks
+
+    !Calcolo della G_n nel device
+    !if (debug) write(*,*) 'Compute G_n' 
+    !Allocazione degli array di sparse
+    ALLOCATE(Gn(nbl,nbl),stat=ierr)
+    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+
+    call init_blkmat(Gn,ESH)
+
+    !! TEMPORARY AND INEFFICIENT: CALCULATE THE FULL GN WHEN A BLOCK 
+    !! (THE CONTACT ONE) IS ENOUGH
+    !! IS IT ok THAT WE HAVE Gn WITHOUT REFERENCE CONTACT?? (usual neq contributions)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+
+    call Make_Gn_ph(pnegf,ESH,iter,Gn)
+
+    do i=1,size(ni)
+      if (ni(i) .eq. 0) then
+        cycle
+      endif
+      lead = ni(i)
+      ref = pnegf%str%cblk(lead)
+      call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gamma)
+      call prealloc_mult(Gamma, Gn(ref, ref), work1)
+      call zspectral(Gr(ref, ref), Gr(ref, ref), 0, A)
+      Gamma%val = Gamma%val * frm(i)
+      call prealloc_mult(Gamma, A, work2)
+      tmp = 1.d0
+      call prealloc_sum(work1, work2, tmp, work3)
+      call destroy(work1)
+      call destroy(work2)
+      call destroy(Gamma)
+      call destroy(A)
+      tun_mat(i) = abs(real(trace(work3)))
+
+    enddo
+
+    ! the following destroys Gn
+    call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
+
+    DEALLOCATE(Gn)
+
+    !Distruzione dell'array Gr
+    CALL destroy_blk(Gr)
+    DEALLOCATE(Gr)
+
+    CALL destroy_ESH(ESH)
+    DEALLOCATE(ESH)
+
+  end subroutine iterative_meir_wingreen
 
   !**********************************************************************
   SUBROUTINE init_blkmat(Matrix,S)
@@ -706,20 +853,54 @@ Ec=cmplx(E,0.d0,dp)
 
 
 !***********************************************************************
-!> Update the value of el-ph Retarded Self Energy for the dephasing model
+!> Update the value of el-ph Retarded  from block matrix
+!  Self Energy for the dephasing model
 !
 !***********************************************************************
-subroutine elph_sigma_r_mod1(elph, Gr)
-      TYPE(Telph), intent(inout) :: elph
-      type(z_CSR), intent(in) :: Gr
-      complex(dp), allocatable, dimension(:) :: diag
+subroutine update_elph_r(negf, Gr)
+  type(Tnegf), intent(inout) :: negf
+      TYPE(z_DNS), DIMENSION(:,:), intent(in) :: Gr
 
-      call log_allocate(diag, Gr%nrow)
+      integer :: nbl, n, ii
+      
+    if (negf%elph%model .eq. 1) then
+       nbl = negf%str%num_PLs
+       do n=1,nbl
+         forall(ii = negf%str%mat_PL_start(n):negf%str%mat_PL_end(n)) 
+           negf%elph%diag_sigma_r(ii) = Gr(n,n)%val(ii,ii) * negf%elph%coupling_array(ii)
+         end forall
+       enddo
+     else
+       write(*,*) 'Not yet implemented'
+          stop 0
+      endif
 
-      call getdiag(Gr, diag)
-      elph%diag_sigma_r = elph%coupling_array * diag
+end subroutine update_elph_r
 
-end subroutine elph_sigma_r_mod1
+!***********************************************************************
+!> Update the value of el-ph inscattering from block matrix
+!  Self Energy for the dephasing model
+!
+!***********************************************************************
+subroutine update_elph_n(negf, Gn)
+  type(Tnegf), intent(inout) :: negf
+      TYPE(z_DNS), DIMENSION(:,:), intent(in) :: Gn
+
+      integer :: nbl, n, ii
+      
+    if (negf%elph%model .eq. 1) then
+       nbl = negf%str%num_PLs
+       do n=1,nbl
+         forall(ii = negf%str%mat_PL_start(n):negf%str%mat_PL_end(n)) 
+           negf%elph%diag_sigma_n(ii) = Gn(n,n)%val(ii,ii) * negf%elph%coupling_array(ii)
+         end forall
+       enddo
+     else
+       write(*,*) 'Not yet implemented'
+          stop 0
+      endif
+
+end subroutine update_elph_n
 
   !***********************************************************************
   !
@@ -1565,27 +1746,45 @@ end subroutine elph_sigma_r_mod1
     INTEGER, intent(in) :: iter
 
     Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n
-    Type(z_DNS) :: Ga, work1, work2
-    INTEGER :: n, k, nbl, nrow, ierr
+    Type(z_DNS) :: Ga, work1, work2, sigma_tmp
+    INTEGER :: n, k, nbl, nrow, ierr, ii
+
+    !! If this is the first scba cycle, there's nothing to do
+    if (pnegf%elph%scba_iter .eq. 0) then
+      return
+    endif
 
     nbl = pnegf%str%num_PLs
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
+
+    !! Make the sigma_ph_n available.
+    !! The exact way depends on the el-ph model
+    !! I should use a pointer to avoid reallocations on some model
+    !! I could do it on the fly to save some memory
     DO n = 1, nbl
       nrow = ESH(n,n)%nrow
       call create(Sigma_ph_n(n,n), nrow, nrow)
-    
       Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
-    
+      if (pnegf%elph%model.eq.1) then
+         forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
+        Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(ii)
+        end forall
+      else
+     write(*,*) 'Not yet implemented'
+      stop 0
+      
+      !! old alex implementation, not active
       if (iter .gt. 0) then
          call read_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
       else 
          call write_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
       endif
+      endif
+      !! old alex implementation, not active
     END DO
     
-
     DO n = 1, nbl-1
       DO k = 1, nbl
 
@@ -1634,59 +1833,59 @@ end subroutine elph_sigma_r_mod1
   ! Writing on memory
   !
   !****************************************************************************
-  SUBROUTINE Make_Gp_ph(pnegf,ESH,iter,Gp)
-
-    TYPE(Tnegf) :: pnegf
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gp
-    INTEGER :: iter
-
-    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_p
-    Type(z_DNS) :: Ga, work1, work2 
-    INTEGER :: n, k, nbl, nrow, ierr
-
-    nbl = pnegf%str%num_PLs
-    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
-    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
-
-
-    DO n = 1, nbl
-
-      nrow = ESH(n,n)%nrow
-
-      call create(Sigma_ph_p(n,n), nrow, nrow)
-
-      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
-      if (iter .gt. 0) then
-         call read_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
-      else 
-         call write_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
-      endif
-    
-    END DO
-
-    DO n = 1, nbl
-
-      DO k = 1, nbl
-
-         if (Gr(n,k)%nrow.gt.0) then
-            CALL zdagger(Gr(n,k),Ga)
-            CALL prealloc_mult(Gr(n,k), Sigma_ph_p(k,k), work1)
-            CALL prealloc_mult(work1, Ga, work2)
-            Gp(n,n)%val = Gp(n,n)%val + work2%val
-            call destroy(work1, work2, Ga)
-         endif
-
-      END DO    
-    
-    END DO
-    
-    DO n = 1, nbl
-      CALL destroy(Sigma_ph_p(n,n))
-    END DO
-
-    DEALLOCATE(Sigma_ph_p)
-
-  END SUBROUTINE Make_Gp_ph
+!!$  SUBROUTINE Make_Gp_ph(pnegf,ESH,iter,Gp)
+!!$
+!!$    TYPE(Tnegf) :: pnegf
+!!$    TYPE(z_DNS), DIMENSION(:,:) :: ESH, Gp
+!!$    INTEGER :: iter
+!!$
+!!$    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_p
+!!$    Type(z_DNS) :: Ga, work1, work2 
+!!$    INTEGER :: n, k, nbl, nrow, ierr
+!!$
+!!$    nbl = pnegf%str%num_PLs
+!!$    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
+!!$    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
+!!$
+!!$
+!!$    DO n = 1, nbl
+!!$
+!!$      nrow = ESH(n,n)%nrow
+!!$
+!!$      call create(Sigma_ph_p(n,n), nrow, nrow)
+!!$
+!!$      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
+!!$      if (iter .gt. 0) then
+!!$         call read_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+!!$      else 
+!!$         call write_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+!!$      endif
+!!$    
+!!$    END DO
+!!$
+!!$    DO n = 1, nbl
+!!$
+!!$      DO k = 1, nbl
+!!$
+!!$         if (Gr(n,k)%nrow.gt.0) then
+!!$            CALL zdagger(Gr(n,k),Ga)
+!!$            CALL prealloc_mult(Gr(n,k), Sigma_ph_p(k,k), work1)
+!!$            CALL prealloc_mult(work1, Ga, work2)
+!!$            Gp(n,n)%val = Gp(n,n)%val + work2%val
+!!$            call destroy(work1, work2, Ga)
+!!$         endif
+!!$
+!!$      END DO    
+!!$    
+!!$    END DO
+!!$    
+!!$    DO n = 1, nbl
+!!$      CALL destroy(Sigma_ph_p(n,n))
+!!$    END DO
+!!$
+!!$    DEALLOCATE(Sigma_ph_p)
+!!$
+!!$  END SUBROUTINE Make_Gp_ph
 
   !Concatenation for every contact in G_n. Performs a sum on elements, not a replacement
   !Similar to Make_GreenR_mem2, except for sum of elements

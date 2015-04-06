@@ -41,11 +41,14 @@ program hello
   write(*,*) 'Import input file'
   call read_negf_in(pnegf)
   call negf_partition_info(pnegf)
-  write(*,*) 'Compute landauer tunneling and current'
-  allocate(coupling(100))
-  coupling = 1e-2
-  call set_elph_dephasing(pnegf, coupling, 15)
-  call compute_ldos(pnegf)
+  write(*,*) 'Setting model'
+  allocate(coupling(60))
+  coupling = 1e-4
+  call set_elph_dephasing(pnegf, coupling, 3)
+  write(*,*) 'Compute dos'
+  !call compute_ldos(pnegf)
+  write(*,*) 'Compute current'
+  call compute_current(pnegf)
   call write_tunneling_and_dos(pnegf)
   deallocate(coupling)
   write(*,*) 'Destroy negf'

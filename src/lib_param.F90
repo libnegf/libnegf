@@ -141,20 +141,18 @@ module lib_param
    integer :: iE                 ! Energy point (integer point)
    complex(dp) :: Epnt           ! Energy point (complex)
    type(TEnGrid), dimension(:), allocatable :: en_grid
-   real(dp), dimension(:,:), pointer :: tunn_mat => null()
-   real(dp), dimension(:,:), pointer :: ldos_mat => null()
-   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
-
-
-
-
    real(dp) :: int_acc           ! integration accuracy
    real(dp), dimension(:), pointer :: E_singular => null()
    real(dp) :: delta_singular
-
    type(Telph) :: elph           ! electron-phonon data
-
    type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+
+   !! Output variables: these are filled by internal subroutines to stor
+   !! library output
+   real(dp), dimension(:,:), pointer :: tunn_mat => null()
+   real(dp), dimension(:,:), pointer :: ldos_mat => null()
+   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
+   
 
  end type Tnegf
 
@@ -360,9 +358,10 @@ contains
     integer :: niter
     
     !! Verify that the size of the coupling fits with the Hamiltonian
-    if (size(coupling).ne.negf%H%nrow) then
-      write(*,*) 'Elph dephasing model coupling size does not match '
-    endif
+    !! of the device region
+    !if (size(coupling).ne.negf%H%nrow) then
+    !  write(*,*) 'Elph dephasing model coupling size does not match '
+    !endif
     call init_elph_1(negf%elph, coupling, niter)
   end subroutine set_elph_dephasing
 

@@ -704,7 +704,12 @@ contains
 
     call tunneling_int_def(negf)
 
+    if (negf%elph%model .eq. 0) then
     call tunneling_and_dos(negf)
+  else
+    write(*,*) 'Running Meir Wingreen'
+    call meir_wingreen(negf)
+  endif
 
     call electron_current(negf)
    

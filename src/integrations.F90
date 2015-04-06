@@ -56,6 +56,7 @@ module integrations
 
  public :: tunneling_int_def  !
  public :: tunneling_and_dos  ! computes of T(E) & LDOS(E)
+ public :: meir_wingreen      ! computes effective T(E) with el-ph
  public :: electron_current   ! computes terminal currents
 
  public :: phonon_tunneling   ! computes T(E) for phonons
@@ -892,13 +893,7 @@ contains
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-       call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-
-       call calls_neq_mem_dns(negf,Er,SelfEneR,Tlc,Tcl,GS,negf%str,frm_f,GreenR,outer)
-
-       do i1=1,ncont
-          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-       enddo
+       call compute_Gn(negf, outer, ncont, Ec, frm_f, GreenR)
 
        if(negf%DorE.eq.'D') then
           call concat(TmpMt,zt,GreenR,1,1)
@@ -1363,9 +1358,96 @@ contains
 
   !---------------------------------------------------------------------------
   !>
+  !  Calculate the "effective transmission" Tr[Iop] (trace of current operator)
+  !  according to the Meir-Wingreen on the energy points specified by 
+  !  tunneling_int_def. 
+  !
+  !    Teff = Tr[Sigma^n_i*A-Gamma_i*G^n]
+  !
+  !  The solution is calculated on an arbitrary number of 
+  !  leads and stored on negf%tunn_mat. The leads are specified in negf%ni
+  !  We don't use the collector negf%nf because we need to specify only the 
+  !  lead for integration
+  !---------------------------------------------------------------------------
+  subroutine meir_wingreen(negf)
+    type(Tnegf) :: negf
+
+    integer :: scba_iter, i1
+    real(dp) :: ncyc
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    Real(dp), Dimension(:), allocatable :: TUN_MAT
+    real(dp), DIMENSION(:), allocatable :: frm
+    integer :: size_ni, ii, Nstep, outer, ncont, j1, icont
+    complex(dp) :: Ec
+    Type(z_CSR) :: Gn
+
+    ! Only take non-zero contacts
+        do ii=1,size(negf%ni)
+       if (negf%ni(ii).eq.0) then
+          size_ni=ii-1
+          exit
+       endif
+    enddo
+    ! Don't need outer blocks
+    outer = 0
+
+   call log_allocate(frm,ncont)
+
+    Nstep = size(negf%en_grid)
+    call log_allocate(TUN_MAT,size_ni)
+    call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
+    negf%tunn_mat = 0.0_dp 
+     ncont = negf%str%num_conts
+
+    !! Loop on energy points
+       do ii = 1, Nstep
+       if (negf%en_grid(ii)%cpu /= id) cycle
+       Ec = negf%en_grid(ii)%Ec
+       do j1 = 1,ncont
+          frm(j1)=fermi(real(Ec),negf%mu(j1),negf%kbT(j1))
+       enddo
+       ! Calculate the SCBA green before the meir wingreen
+          call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    !if (negf%elph%model .eq. 0) then
+    !  call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
+    !else
+    !  write(*,*) 'Call neq scba loop '
+    !  call calls_neq_ph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+    !  call destroy(Gn)
+      !! If elph model, then get inside a SCBA cycle 
+    if (negf%elph%model .ne. 0) then
+        do scba_iter = 1, negf%elph%scba_niter
+          negf%elph%scba_iter = scba_iter
+          call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
+      call destroy(Gn)
+        enddo
+    endif
+      write(*,*) 'Call iterative '
+       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,negf%ni, tun_mat)
+
+      !negf%iE = negf%en_grid(ii)%pt
+      negf%tunn_mat(ii,:) = TUN_MAT(:) * negf%wght
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       
+       do icont=1,ncont
+          call destroy(Tlc(icont))
+          call destroy(Tcl(icont))
+          call destroy(SelfEneR(icont))
+          call destroy(GS(icont))
+       enddo
+
+       enddo
+    
+       call log_deallocate(TUN_MAT)
+
+
+  end subroutine meir_wingreen
+
+  !---------------------------------------------------------------------------
+  !>
   !  Calculate the equilibrium Retarded Green's function (extended diagonal) 
   !  on a single energy point
-  !  It group calculation of leads, scba loop if any and deallocations of
+  !  It groups calculation of leads, scba loop if any and deallocations of
   !  working arrays. This routine is used in contour integration and DOS and 
   !  
   !---------------------------------------------------------------------------
@@ -1384,14 +1466,11 @@ contains
     !! If elph model, then get inside a SCBA cycle 
     if (negf%elph%model .ne. 0 .and. negf%elph%scba_iterations.ne.0) then
       do scba_iter = 1, negf%elph%scba_niter
-        if (negf%elph%model .eq. 1) then
-          call elph_sigma_r_mod1(negf%elph, Gr)
-        else
-          write(*,*) 'Not yet implemented'
-          stop 0
-        endif
-        negf%elph%scba_iter = scba_iter
+        ! Self energies are updated directly in calls_eq_mem
+        ! Need to destroy previous Gr
+        call destroy(Gr)
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+        negf%elph%scba_iter = scba_iter
       enddo
     endif
     do i1=1,ncont
@@ -1404,6 +1483,50 @@ contains
 
   end subroutine compute_Gr
 
+  !---------------------------------------------------------------------------
+  !>
+  !  Calculate the non equilibrium Retarded Green's function (extended diagonal) 
+  !  on a single energy point on real axis.
+  !  It groups calculation of leads, scba loop if any and deallocations of
+  !  working arrays. If the calculation does not contain el-ph interactions,
+  !  only the contribution of non-reference contacts are included. If the 
+  !  includes el-ph, all the leads need to be taken into account (needed because
+  !  the real axis integral could extend beyond the region where the reference
+  !  contact Fermi function is zero
+  !  
+  !---------------------------------------------------------------------------
+  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn)
+    type(Tnegf), intent(inout) :: negf
+    Type(z_CSR), intent(out) :: Gn
+    complex(dp), intent(in) :: Ec 
+    real(dp), dimension(:), intent(in) :: frm
+
+    integer, intent(in) :: outer, ncont
+    integer :: scba_iter, i1
+    real(dp) :: ncyc
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+
+    call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    if (negf%elph%model .eq. 0) then
+      call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
+    else
+      call calls_neq_ph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      !! If elph model, then get inside a SCBA cycle 
+        do scba_iter = 1, negf%elph%scba_niter
+          negf%elph%scba_iter = scba_iter
+          ! Destroy previous Gn
+          call destroy(Gn)
+          call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
+        enddo
+    endif
+    do i1=1,ncont
+      call destroy(Tlc(i1),Tcl(i1))
+    enddo
+    do i1=1,ncont
+      call destroy(SelfEneR(i1),GS(i1))
+    enddo
+
+  end subroutine compute_Gn
 
   !---------------------------------------------------------------------------
   !   COMPUTATION OF CURRENTS 
