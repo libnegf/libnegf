@@ -43,8 +43,8 @@ program hello
   call negf_partition_info(pnegf)
   write(*,*) 'Setting model'
   allocate(coupling(60))
-  coupling = 1e-4
-  call set_elph_dephasing(pnegf, coupling, 3)
+  coupling = 1e-3
+  call set_elph_dephasing(pnegf, coupling, 5)
   write(*,*) 'Compute dos'
   !call compute_ldos(pnegf)
   write(*,*) 'Compute current'

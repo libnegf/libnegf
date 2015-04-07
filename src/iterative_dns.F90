@@ -863,17 +863,20 @@ subroutine update_elph_r(negf, Gr)
 
       integer :: nbl, n, ii
       
-    if (negf%elph%model .eq. 1) then
-       nbl = negf%str%num_PLs
-       do n=1,nbl
-         forall(ii = negf%str%mat_PL_start(n):negf%str%mat_PL_end(n)) 
-           negf%elph%diag_sigma_r(ii) = Gr(n,n)%val(ii,ii) * negf%elph%coupling_array(ii)
-         end forall
-       enddo
-     else
-       write(*,*) 'Not yet implemented'
-          stop 0
-      endif
+      if (negf%elph%model .eq. 1) then
+        nbl = negf%str%num_PLs
+        do n=1,nbl
+          associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
+          forall(ii = 1:pl_end - pl_start + 1) 
+            negf%elph%diag_sigma_r(pl_start + ii - 1) = Gr(n,n)%val(ii,ii) * &  
+                negf%elph%coupling_array(pl_start + ii - 1)
+          end forall
+        end associate
+      enddo
+    else
+      write(*,*) 'Not yet implemented'
+      stop 0
+    endif
 
 end subroutine update_elph_r
 
@@ -888,17 +891,20 @@ subroutine update_elph_n(negf, Gn)
 
       integer :: nbl, n, ii
       
-    if (negf%elph%model .eq. 1) then
-       nbl = negf%str%num_PLs
-       do n=1,nbl
-         forall(ii = negf%str%mat_PL_start(n):negf%str%mat_PL_end(n)) 
-           negf%elph%diag_sigma_n(ii) = Gn(n,n)%val(ii,ii) * negf%elph%coupling_array(ii)
-         end forall
-       enddo
-     else
-       write(*,*) 'Not yet implemented'
-          stop 0
-      endif
+      if (negf%elph%model .eq. 1) then
+        nbl = negf%str%num_PLs
+        do n=1,nbl
+          associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
+          forall(ii = 1:pl_end - pl_start + 1) 
+            negf%elph%diag_sigma_n(pl_start + ii - 1) = Gn(n,n)%val(ii,ii) * &  
+                negf%elph%coupling_array(pl_start + ii - 1)
+          end forall
+        end associate
+      enddo
+    else
+      write(*,*) 'Not yet implemented'
+      stop 0
+    endif
 
 end subroutine update_elph_n
 
@@ -923,9 +929,11 @@ end subroutine update_elph_n
      if (elph%model .eq. 1) then
        nbl = pnegf%str%num_PLs
        do n=1,nbl
-         forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
-             ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii) - elph%diag_sigma_r(ii)
+         associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
+         forall(ii = 1:pl_end - pl_start + 1) 
+             ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii) - elph%diag_sigma_r(pl_start + ii - 1)
          end forall
+         end associate
        enddo
 
      else if (elph%model .eq. 3) then
@@ -1758,7 +1766,6 @@ end subroutine update_elph_n
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
-
     !! Make the sigma_ph_n available.
     !! The exact way depends on the el-ph model
     !! I should use a pointer to avoid reallocations on some model
@@ -1768,9 +1775,20 @@ end subroutine update_elph_n
       call create(Sigma_ph_n(n,n), nrow, nrow)
       Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
       if (pnegf%elph%model.eq.1) then
-         forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
-        Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(ii)
-        end forall
+        !write(*,*) 'what''s wrong?',n, nrow
+        !write(*,*) 'Sigma', Sigma_ph_n(n,n)%val
+        !write(*,*) 'sigma',pnegf%elph%diag_sigma_n
+        !write(*,*) 'done',n
+       associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
+         forall(ii = 1:pl_end - pl_start + 1) 
+             Sigma_ph_n(n,n)%val(ii,ii) = Sigma_ph_n(n,n)%val(ii,ii) - &
+                 pnegf%elph%diag_sigma_r(pl_start + ii - 1)
+         end forall
+         end associate
+
+         !forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
+        !Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(ii)
+        !end forall
       else
      write(*,*) 'Not yet implemented'
       stop 0
@@ -1797,12 +1815,13 @@ end subroutine update_elph_n
             call destroy(work2,Ga)
          endif
          ! Computing blocks of Gn(n,n+1)
-         if (Gr(n+1,k)%nrow.gt.0) then
+         ! Only if S is not identity: Gn is initialized on ESH therefore
+         ! we need to check the number of rows (or column)
+         if (Gr(n+1,k)%nrow.gt.0 .and. Gn(n,n+1)%nrow .gt. 0) then
             CALL zdagger(Gr(n+1,k),Ga)
             CALL prealloc_mult(work1, Ga, work2)
             Gn(n,n+1)%val = Gn(n,n+1)%val + work2%val
-            call destroy(work1,work2,Ga)
-          
+            call destroy(work1,work2,Ga)         
             Gn(n+1,n)%val = conjg(transpose(Gn(n,n+1)%val))
          endif
 

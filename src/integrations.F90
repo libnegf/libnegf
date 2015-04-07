@@ -1391,13 +1391,13 @@ contains
     ! Don't need outer blocks
     outer = 0
 
-   call log_allocate(frm,ncont)
-
+  
+    ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     call log_allocate(TUN_MAT,size_ni)
     call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
     negf%tunn_mat = 0.0_dp 
-     ncont = negf%str%num_conts
+    call log_allocate(frm,ncont)  
 
     !! Loop on energy points
        do ii = 1, Nstep
@@ -1422,7 +1422,6 @@ contains
       call destroy(Gn)
         enddo
     endif
-      write(*,*) 'Call iterative '
        call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,negf%ni, tun_mat)
 
       !negf%iE = negf%en_grid(ii)%pt
