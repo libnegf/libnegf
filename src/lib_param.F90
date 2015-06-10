@@ -26,7 +26,7 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info
   use input_output
-  use elph, only : init_elph_1, Telph
+  use elph, only : init_elph_1, Telph, destroy_elph
   use energy_mesh, only : mesh
 
   implicit none
@@ -36,7 +36,7 @@ module lib_param
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
-  public :: print_all_vars, set_elph_dephasing
+  public :: print_all_vars, set_elph_dephasing, destroy_elph_model
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -365,6 +365,14 @@ contains
     call init_elph_1(negf%elph, coupling, niter)
   end subroutine set_elph_dephasing
 
+  !> Destroy elph model. This routine is accessible from interface as 
+  !! it can be meaningful to "switch off" elph when doing different
+  !! task (density or current)
+  subroutine destroy_elph_model(negf)
+    type(Tnegf) :: negf
+
+    call destroy_elph(negf%elph)
+  end subroutine destroy_elph_model
 
   
   subroutine set_defaults(negf)

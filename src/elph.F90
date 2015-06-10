@@ -29,11 +29,16 @@ module elph
   private
 
   public :: Telph
-  public :: init_elph_1
+  public :: init_elph_1, destroy_elph
 
 
   !> This type contains information describing different electron phonon 
   !! models: input parameters, temporary data and output quantities
+  !! 
+  !! Note: I don't use explicitely interfaces and different data types
+  !! for different models because then we'll need all the different
+  !! containers in negf container (cannot use virtualization)
+  !! It may be managed in a more elegant way
   type Telph
     !> Describe the model implemented. Currently supported:
     !! 0 : dummy model, no electron-phonon interactions
@@ -41,7 +46,8 @@ module elph
     !!     Assumes elastic scattering and local coupling
     integer :: model = 0
     !> Diagonal coupling. Used in local coupling models (1)
-    !! Note: it is assumed to be squared (units energy^2)
+    !! Note: it is stored directly as squared value as we always use it  
+    !! that way (units energy^2)
     real(dp), allocatable, dimension(:) :: coupling_array
     !> Diagonal elelents of retarded self energy. Used only in model (1)
     complex(dp), allocatable, dimension(:) :: diag_sigma_r
@@ -82,13 +88,18 @@ module elph
 
 contains
 
+  !>
+  ! Initialize the el-ph structure when model = 1 (elastic model)
+  ! @param elph: electron-phonon container
+  ! @param coupling: coupling (energy units) 
+  ! @param niter: foxed number of scba iterations
   subroutine init_elph_1(elph, coupling, niter)
-    Type(Telph) :: elph
+    Type(Telph), intent(inout) :: elph
     real(dp), dimension(:), allocatable, intent(in) :: coupling
     integer :: niter
 
     elph%model = 1
-    elph%coupling_array = coupling
+    elph%coupling_array = coupling * coupling
     elph%diagonal = .true.
     elph%scba_niter = niter
     call log_allocate(elph%diag_sigma_r, size(coupling))
@@ -97,6 +108,36 @@ contains
     elph%diag_sigma_n = 0.d0
 
   end subroutine init_elph_1
+
+  !>
+  ! Destroy elph structure when model = 1 (elastic model)
+  subroutine destroy_elph_1(elph)
+    Type(Telph) :: elph
+
+    elph%model = 0
+    call log_deallocate(elph%coupling_array)
+    call log_deallocate(elph%diag_sigma_r)
+    call log_deallocate(elph%diag_sigma_n)
+
+  end subroutine destroy_elph_1
+
+
+  !>
+  ! el-ph destruction interface
+  subroutine destroy_elph(elph)
+     Type(Telph) :: elph
+
+     if (elph%model .eq. 0) then
+       return
+     else if (elph%model .eq. 1) then
+       call destroy_elph_1(elph)
+     else
+       write(*,*) 'Warning, not implemented'
+     endif
+
+  end subroutine destroy_elph
+
+
 
   subroutine init_elph(elph,nummodes)
     Type(Telph) :: elph

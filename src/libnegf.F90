@@ -395,7 +395,7 @@ contains
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
-
+    
     !call destroy_emesh(negf)
 
   end subroutine destroy_negf

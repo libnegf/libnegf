@@ -1739,9 +1739,8 @@ end subroutine update_elph_n
 
   END SUBROUTINE Make_Gn_mem_dns2
 
-
   !****************************************************************************
-  !
+  !>
   ! Calculate G_n contributions due to el-ph
   ! Writing on memory
   !
@@ -1774,78 +1773,78 @@ end subroutine update_elph_n
       nrow = ESH(n,n)%nrow
       call create(Sigma_ph_n(n,n), nrow, nrow)
       Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
-      if (pnegf%elph%model.eq.1) then
-        !write(*,*) 'what''s wrong?',n, nrow
-        !write(*,*) 'Sigma', Sigma_ph_n(n,n)%val
-        !write(*,*) 'sigma',pnegf%elph%diag_sigma_n
-        !write(*,*) 'done',n
-       associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
-         forall(ii = 1:pl_end - pl_start + 1) 
-             Sigma_ph_n(n,n)%val(ii,ii) = Sigma_ph_n(n,n)%val(ii,ii) - &
-                 pnegf%elph%diag_sigma_r(pl_start + ii - 1)
-         end forall
-         end associate
 
-         !forall(ii = pnegf%str%mat_PL_start(n):pnegf%str%mat_PL_end(n)) 
-        !Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(ii)
-        !end forall
-      else
-     write(*,*) 'Not yet implemented'
+      if (pnegf%elph%model.eq.1) then
+        associate(pl_start=>pnegf%str%mat_PL_start(n),&
+            pl_end=>pnegf%str%mat_PL_end(n))
+        forall(ii = 1:pl_end - pl_start + 1) 
+          Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(pl_start+ii-1)
+        end forall
+      end associate
+
+    else
+      write(*,*) 'Not yet implemented'
       stop 0
-      
+
       !! old alex implementation, not active
       if (iter .gt. 0) then
-         call read_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
+        call read_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
       else 
-         call write_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
+        call write_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
       endif
-      endif
-      !! old alex implementation, not active
-    END DO
-    
-    DO n = 1, nbl-1
-      DO k = 1, nbl
+    endif
+    !! old alex implementation, not active
 
-         if (Gr(n,k)%nrow.gt.0) then
-            CALL zdagger(Gr(n,k),Ga)
-            CALL prealloc_mult(Gr(n,k), Sigma_ph_n(k,k), work1)
-            CALL prealloc_mult(work1, Ga, work2)
-            ! Computing diagonal blocks of Gn(n,n)
-            Gn(n,n)%val = Gn(n,n)%val + work2%val
-            call destroy(work2,Ga)
-         endif
-         ! Computing blocks of Gn(n,n+1)
-         ! Only if S is not identity: Gn is initialized on ESH therefore
-         ! we need to check the number of rows (or column)
-         if (Gr(n+1,k)%nrow.gt.0 .and. Gn(n,n+1)%nrow .gt. 0) then
-            CALL zdagger(Gr(n+1,k),Ga)
-            CALL prealloc_mult(work1, Ga, work2)
-            Gn(n,n+1)%val = Gn(n,n+1)%val + work2%val
-            call destroy(work1,work2,Ga)         
-            Gn(n+1,n)%val = conjg(transpose(Gn(n,n+1)%val))
-         endif
+  END DO
 
-      END DO    
-    END DO
-    
+  !! Calculate the diagonal and off diagonal (if needed) blocks of Gn
+  !! in the assumption of diagonal self energy
+  !! G(k,k) = Gr(k,i)Sigma_n(i,i)Ga(i,k)
+  !! G(k,k+1) = Gr(k,i)Sigma_n(i,i)Ga(i,k+1)
+  !! G(k,k-1) = Gr(k,i)Sigma_n(i,i)Ga(i,k-1)
+  !! All the rows of Gr need to be available
+  DO n = 1, nbl-1
     DO k = 1, nbl
-      if (Gr(nbl,k)%nrow.gt.0) then
-         CALL zdagger(Gr(nbl,k),Ga)
-         CALL prealloc_mult(Gr(nbl,k), Sigma_ph_n(k,k), work1)
-         CALL prealloc_mult(work1, Ga, work2)
-         Gn(nbl,nbl)%val = Gn(nbl,nbl)%val + work2%val
-         call destroy(work1,work2,Ga)
+      if (Gr(n,k)%nrow.gt.0) then
+        CALL zdagger(Gr(n,k),Ga)
+        CALL prealloc_mult(Gr(n,k), Sigma_ph_n(k,k), work1)
+        CALL prealloc_mult(work1, Ga, work2)
+        ! Computing diagonal blocks of Gn(n,n)
+        Gn(n,n)%val = Gn(n,n)%val + work2%val
+        call destroy(work2,Ga)
       endif
-    END DO  
-
-    DO n = 1, nbl
-      CALL destroy(Sigma_ph_n(n,n))
+      ! Computing blocks of Gn(n,n+1)
+      ! Only if S is not identity: Gn is initialized on ESH therefore
+      ! we need to check the number of rows (or column)
+      if (Gr(n+1,k)%nrow.gt.0 .and. Gn(n,n+1)%nrow .gt. 0) then
+        CALL zdagger(Gr(n+1,k),Ga)
+        CALL prealloc_mult(work1, Ga, work2)
+        Gn(n,n+1)%val = Gn(n,n+1)%val + work2%val
+        call destroy(work1,work2,Ga)         
+        Gn(n+1,n)%val = conjg(transpose(Gn(n,n+1)%val))
+      endif
     END DO
+  END DO
+  DO k = 1, nbl
+    if (Gr(nbl,k)%nrow.gt.0) then
+      CALL zdagger(Gr(nbl,k),Ga)
+      CALL prealloc_mult(Gr(nbl,k), Sigma_ph_n(k,k), work1)
+      CALL prealloc_mult(work1, Ga, work2)
+      Gn(nbl,nbl)%val = Gn(nbl,nbl)%val + work2%val
+      call destroy(work1,work2,Ga)
+    endif
+  END DO
+  !! End Gn calculation
 
-    DEALLOCATE(Sigma_ph_n)
 
-  END SUBROUTINE Make_Gn_ph
-  
+  DO n = 1, nbl
+    CALL destroy(Sigma_ph_n(n,n))
+  END DO
+
+  DEALLOCATE(Sigma_ph_n)
+
+END SUBROUTINE Make_Gn_ph
+
   !****************************************************************************
   !
   ! Calculate G_p=iG> contributions due to el-ph
