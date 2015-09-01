@@ -58,7 +58,7 @@ MODULE iterative_dns
 
   public :: calls_eq_mem_dns
   public :: calls_neq_mem_dns
-  public :: calls_neq_ph
+  public :: calls_neq_elph
 
   public :: sigma_ph_n
   public :: sigma_ph_p
@@ -383,7 +383,7 @@ CONTAINS
 !
 !****************************************************************************
   
-  SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
+  SUBROUTINE calls_neq_elph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 
     !****************************************************************************
     !
@@ -449,7 +449,6 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
@@ -511,12 +510,10 @@ CONTAINS
     CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
-
     !! Update el-ph self energy if any
     if (pnegf%elph%model .ne. 0) then
       call update_elph_n(pnegf, Gn)
     endif
-
     !! Skip this, old implementation
     !print*
     ! save diagonal blocks of G_n
@@ -577,7 +574,7 @@ CONTAINS
 
     call destroy(Gl)
 
-  END SUBROUTINE calls_neq_ph
+  END SUBROUTINE calls_neq_elph
 
   !---------------------------------------------------------------------
   !>
@@ -588,6 +585,14 @@ CONTAINS
   !  desired values. SCBA loop should be run outside
   !  Many operations from calls_neq_ph are repeated here, as it is
   !  assumed that A and Gn are not available at the time of the call
+  !
+  !  It implements the form without the reference electrode
+  !  Iop = \Sigma_{i}^{n}A - \Gamma_{i}G^{n} =
+  !      = \Gamma_{i}[f_{i}A - f_{ref}A - G^{n,l\neq ref} +
+  !         - G^{n,l\neq ref}_{\phi}]
+  !  where G^{n,l\neq ref} is the component including no el-ph
+  !  If i=ref it reduces to
+  !  Iop = \Gamma_{i}[-G^{n,l\neq ref}  - G^{n,l\neq ref}_{\phi}]
   !---------------------------------------------------------------------
   subroutine iterative_meir_wingreen(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm, ni,tun_mat)
     IMPLICIT NONE
@@ -599,13 +604,13 @@ CONTAINS
     Real(dp), Dimension(:), allocatable :: tun_mat
     REAL(dp) :: E
     REAL(dp), DIMENSION(:) :: frm
-    INTEGER :: out, size_ni, lead
+    INTEGER :: out, size_ni
     complex(dp) :: tmp
 
     !Work
     COMPLEX(dp) :: Ec
     INTEGER :: i,ierr,ncont,nbl,lbl
-    INTEGER :: ref, iter
+    INTEGER :: ref, iter, lead, lead_blk, ref_blk
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
     type(z_DNS) :: work1, work2, work3, Gamma, A
@@ -620,6 +625,7 @@ CONTAINS
     indblk => struct%mat_PL_start
     cblk => struct%cblk
     ref = pnegf%refcont
+    ref_blk = pnegf%str%cblk(ref)
     iter = pnegf%elph%scba_iter
 
     Ec=cmplx(E,0.d0,dp)
@@ -693,7 +699,7 @@ CONTAINS
 
     !! TEMPORARY AND INEFFICIENT: CALCULATE THE FULL GN WHEN A BLOCK 
     !! (THE CONTACT ONE) IS ENOUGH
-    !! IS IT ok THAT WE HAVE Gn WITHOUT REFERENCE CONTACT?? (usual neq contributions)
+    !! WE HAVE Gn WITHOUT REFERENCE CONTACT?? (usual neq contributions)
     CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
@@ -703,25 +709,26 @@ CONTAINS
         cycle
       endif
       lead = ni(i)
-      ref = pnegf%str%cblk(lead)
+      lead_blk = pnegf%str%cblk(lead)
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gamma)
-      call prealloc_mult(Gamma, Gn(ref, ref), work1)
-      call zspectral(Gr(ref, ref), Gr(ref, ref), 0, A)
-      Gamma%val = Gamma%val * frm(i)
-      call prealloc_mult(Gamma, A, work2)
-      tmp = 1.d0
-      call prealloc_sum(work1, work2, tmp, work3)
-      call destroy(work1)
-      call destroy(work2)
+      if (lead.eq.ref) then
+        call prealloc_mult(Gamma, Gn(lead_blk, lead_blk), (-1.d0, 0.d0), work1)
+        tun_mat(i) = real(trace(work1))
+        call destroy(work1)
+      else
+        call zspectral(Gr(ref, ref), Gr(ref, ref), 0, A)
+        tmp = frm(lead)-frm(ref)
+        call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.d0, 0.d0), work1)
+        call prealloc_mult(Gamma, work1, work2)
+        call destroy(work1)
+        tun_mat(i) = real(trace(work2))
+        call destroy(work2)
+      endif
       call destroy(Gamma)
-      call destroy(A)
-      tun_mat(i) = abs(real(trace(work3)))
-
     enddo
 
-    ! the following destroys Gn
+    !Convert to output CSR format.
     call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
-
     DEALLOCATE(Gn)
 
     !Distruzione dell'array Gr
@@ -943,8 +950,6 @@ end subroutine update_elph_n
        ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
        IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
 
-       if (pnegf%elph%diagonal) THEN
-
          DO n = 1, nbl
 
            nrow = ESH(n,n)%nrow
@@ -963,10 +968,6 @@ end subroutine update_elph_n
            call destroy(Sigma_ph_r(n,n))
 
          END DO
-
-       ELSE
-
-       ENDIF
 
        DEALLOCATE(Sigma_ph_r)
    endif
@@ -1774,7 +1775,7 @@ end subroutine update_elph_n
       call create(Sigma_ph_n(n,n), nrow, nrow)
       Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
 
-      if (pnegf%elph%model.eq.1) then
+     if (pnegf%elph%model.eq.1) then
         associate(pl_start=>pnegf%str%mat_PL_start(n),&
             pl_end=>pnegf%str%mat_PL_end(n))
         forall(ii = 1:pl_end - pl_start + 1) 
@@ -4186,7 +4187,7 @@ END MODULE iterative_dns
 !!$    CALL concat(A,Gr(1,1),1,1)
 !!$
 !!$    !***
-!!$    !Diagonal, Subdiagonal and Superdiagonal blocks
+!!$    !Diagonal, Subdiagonal and Super953diagonal blocks
 !!$    !***
 !!$    DO i=2,nbl
 !!$

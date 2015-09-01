@@ -1382,7 +1382,7 @@ contains
     Type(z_CSR) :: Gn
 
     ! Only take non-zero contacts
-        do ii=1,size(negf%ni)
+    do ii=1,size(negf%ni)
        if (negf%ni(ii).eq.0) then
           size_ni=ii-1
           exit
@@ -1391,7 +1391,6 @@ contains
     ! Don't need outer blocks
     outer = 0
 
-  
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     call log_allocate(TUN_MAT,size_ni)
@@ -1400,34 +1399,30 @@ contains
     call log_allocate(frm,ncont)  
 
     !! Loop on energy points
-       do ii = 1, Nstep
-       if (negf%en_grid(ii)%cpu /= id) cycle
-       Ec = negf%en_grid(ii)%Ec
-       do j1 = 1,ncont
-          frm(j1)=fermi(real(Ec),negf%mu(j1),negf%kbT(j1))
-       enddo
-       ! Calculate the SCBA green before the meir wingreen
-          call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-    !if (negf%elph%model .eq. 0) then
-    !  call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
-    !else
-    !  write(*,*) 'Call neq scba loop '
-    !  call calls_neq_ph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
-    !  call destroy(Gn)
-      !! If elph model, then get inside a SCBA cycle 
-    if (negf%elph%model .ne. 0) then
+    do ii = 1, Nstep
+      if (negf%en_grid(ii)%cpu /= id) cycle
+      Ec = negf%en_grid(ii)%Ec
+      do j1 = 1,ncont
+        frm(j1)=fermi(real(Ec),negf%mu(j1),negf%kbT(j1))
+      enddo
+      ! Calculate the SCBA green before the meir wingreen
+      call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+      write(*,*) 'Energy ', Ec
+      !! If elph model, then get inside a SCBA cycle. Otherwise Gn is calculated
+      !! directly inside meir_wingreen
+      if (negf%elph%model .ne. 0) then
         do scba_iter = 1, negf%elph%scba_niter
           negf%elph%scba_iter = scba_iter
-          call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
-      call destroy(Gn)
+          !Note: Gr,Sigma_r are also calculated and updated here inside 
+          call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
+          call destroy(Gn)
         enddo
-    endif
-       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,negf%ni, tun_mat)
-
+      endif
+      call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,&
+                                   & negf%ni, tun_mat)
       !negf%iE = negf%en_grid(ii)%pt
       negf%tunn_mat(ii,:) = TUN_MAT(:) * negf%wght
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
-       
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
        do icont=1,ncont
           call destroy(Tlc(icont))
           call destroy(Tcl(icont))
@@ -1436,9 +1431,7 @@ contains
        enddo
 
        enddo
-    
        call log_deallocate(TUN_MAT)
-
 
   end subroutine meir_wingreen
 
@@ -1460,6 +1453,7 @@ contains
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
+    write(*,*) 'Doing Gr'
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
     !! If elph model, then get inside a SCBA cycle 
@@ -1467,9 +1461,11 @@ contains
       do scba_iter = 1, negf%elph%scba_niter
         ! Self energies are updated directly in calls_eq_mem
         ! Need to destroy previous Gr
+        write(*,*) 'Gr scba iter n',scba_iter, 'started'
         call destroy(Gr)
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
         negf%elph%scba_iter = scba_iter
+        write(*,*) 'Gr scba iter n',scba_iter, 'finished'
       enddo
     endif
     do i1=1,ncont
@@ -1505,17 +1501,20 @@ contains
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
+    write(*,*) 'Doing Gn'
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     if (negf%elph%model .eq. 0) then
       call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
     else
-      call calls_neq_ph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      call calls_neq_elph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       !! If elph model, then get inside a SCBA cycle 
         do scba_iter = 1, negf%elph%scba_niter
           negf%elph%scba_iter = scba_iter
+          write(*,*) 'Gn scba iter n',scba_iter, 'started'
           ! Destroy previous Gn
           call destroy(Gn)
-          call calls_neq_ph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
+          call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
+          write(*,*) 'Gn scba iter n',scba_iter, 'finished'
         enddo
     endif
     do i1=1,ncont

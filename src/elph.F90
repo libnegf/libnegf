@@ -43,7 +43,7 @@ module elph
     !> Describe the model implemented. Currently supported:
     !! 0 : dummy model, no electron-phonon interactions
     !! 1 : electron phonon dephasing limit
-    !!     Assumes elastic scattering and local coupling
+    !!     Assumes elastic scattering and fully local (diagonal) coupling
     integer :: model = 0
     !> Diagonal coupling. Used in local coupling models (1)
     !! Note: it is stored directly as squared value as we always use it  
@@ -55,9 +55,6 @@ module elph
     complex(dp), allocatable, dimension(:) :: diag_sigma_n
 
 
-    !> Specify if the model is diagonal only. Depending on the model
-    !! this will imply different approximations
-    logical :: diagonal
     !> Number of active modes
     integer :: nummodes
      
@@ -100,12 +97,12 @@ contains
 
     elph%model = 1
     elph%coupling_array = coupling * coupling
-    elph%diagonal = .true.
     elph%scba_niter = niter
     call log_allocate(elph%diag_sigma_r, size(coupling))
     call log_allocate(elph%diag_sigma_n, size(coupling))
     elph%diag_sigma_r = 0.d0
     elph%diag_sigma_n = 0.d0
+    elph%nummodes = 1  !Single 0eV mode
 
   end subroutine init_elph_1
 
@@ -155,7 +152,6 @@ contains
 
     if (elph%nummodes .eq. 0) then
       
-      elph%diagonal = .false.
       elph%Selfene_Gr = .false.
       elph%Selfene_Gless =.false.
       elph%Selfene_Hilb = .false.
@@ -172,7 +168,6 @@ contains
       elph%Mq = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
       elph%selmodes = .true.
  
-      elph%diagonal = .true.
       elph%Selfene_Gr = .true.
       elph%Selfene_Gless = .true.
       elph%Selfene_Hilb = .true.
