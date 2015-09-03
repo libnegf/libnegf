@@ -24,12 +24,13 @@ module elph
   use ln_precision, only : dp
   use globals
   use ln_allocation
+  use mat_def, only : create, destroy, z_DNS
 
   implicit none
   private
 
   public :: Telph
-  public :: init_elph_1, destroy_elph
+  public :: init_elph_1, destroy_elph, init_elph_2
 
 
   !> This type contains information describing different electron phonon 
@@ -42,9 +43,33 @@ module elph
   type Telph
     !> Describe the model implemented. Currently supported:
     !! 0 : dummy model, no electron-phonon interactions
-    !! 1 : electron phonon dephasing limit
-    !!     Assumes elastic scattering and fully local (diagonal) coupling
+    !! 1 : electron phonon dephasing limit (as in Datta, Cresti etc.)
+    !!     Assumes elastic scattering and fully local (diagonal) model
+    !!     Coupling is diagonal (Local Deformation Potential) and 
+    !!     Self energies are diagonal as well
+    !! 2 : semi-local electron-phonon dephasing
+    !!     Similar to 1, but the oscillator is considered local on
+    !!     more than a contiguos basis function per oscillator position Ri
+    !!     It is a atom-block generalization of 1 for LCAO
+    !!     Coupling is diagonal (per oscillator site, per orbital)
+    !!     Self energy is an array of atomic block
+    !!     An additional descriptor with the number of orbitals per atom is 
+    !!     needed.
+    !!     Note: the modes do not need to be local on a single atom, but
+    !!     you need the orbitals on a given local phonon site to be contiguous
+    
+    !! Common parameters
     integer :: model = 0
+    !> SCBA option: number of iterations
+    !! 0 corresponds to no iterations (self energy is not calculated)
+    integer :: scba_niter = 0
+    
+    !> Keep track of SCBA iteration 
+    integer :: scba_iter = 0
+    !! Model specific
+    !! -----------------------------------------------------------------------
+    !! Model 1
+    !!
     !> Diagonal coupling. Used in local coupling models (1)
     !! Note: it is stored directly as squared value as we always use it  
     !! that way (units energy^2)
@@ -53,17 +78,30 @@ module elph
     complex(dp), allocatable, dimension(:) :: diag_sigma_r
     !> Diagonal elelents of lesser (n) self energy. Used only in model (1)
     complex(dp), allocatable, dimension(:) :: diag_sigma_n
-
+    !! -----------------------------------------------------------------------
+    !! Model 2
+    !! -----------------------------------------------------------------------
+    !> Block self energies, used in model (2)
+    type(z_DNS), allocatable, dimension(:) :: atmblk_sigma_n
+    type(z_DNS), allocatable, dimension(:) :: atmblk_sigma_r
+    !> for model 2 we put the coupling in an atom block array, to avoid
+    !  conversion all the time
+    type(z_DNS), allocatable, dimension(:) :: atmcoupling
+    !> An array specifying how many orbital per atom (assumed contiguous)
+    !  used in model (2)
+    integer, allocatable, dimension(:) :: orbsperatm
+    !> From orbsperatom, aa work array containing starting orbital index
+    !  for each atom, to speed up some patchworking
+    integer, allocatable, dimension(:) :: atmorbstart
+    !> For each atom, determine in which PL it sits, to accelerate block-sparse
+    !  assignment
+    integer, allocatable, dimension(:) :: atmpl
+    !!-------------------------------------------------------------------------
 
     !> Number of active modes
     integer :: nummodes
      
-    !> SCBA option: number of iterations
-    !! 0 corresponds to no iterations (self energy is not calculated)
-    integer :: scba_niter = 0
-    
-    !> Keep track of SCBA iteration 
-    integer :: scba_iter = 0
+
 
     integer :: numselmodes
     logical, dimension(:), pointer :: selmodes => null()
@@ -89,7 +127,7 @@ contains
   ! Initialize the el-ph structure when model = 1 (elastic model)
   ! @param elph: electron-phonon container
   ! @param coupling: coupling (energy units) 
-  ! @param niter: foxed number of scba iterations
+  ! @param niter: fixed number of scba iterations
   subroutine init_elph_1(elph, coupling, niter)
     Type(Telph), intent(inout) :: elph
     real(dp), dimension(:), allocatable, intent(in) :: coupling
@@ -102,9 +140,83 @@ contains
     call log_allocate(elph%diag_sigma_n, size(coupling))
     elph%diag_sigma_r = 0.d0
     elph%diag_sigma_n = 0.d0
-    elph%nummodes = 1  !Single 0eV mode
+    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
+                       !treat them all contemporary)
 
   end subroutine init_elph_1
+
+  !>
+  ! Initialize the el-ph structure when model = 2 (elastic quasi-local model)
+  ! @param elph: electron-phonon container
+  ! @param coupling: coupling per orbital (energy units) 
+  ! @param orbsperatm: number of orbitals per each atom
+  ! @param niter: fixed number of scba iterations
+  ! @param pl_start: PL partitioning: used to accelerate block-sparse assignment
+  !                  note: needs to contain NPL+1 elements, the last one 
+  !                  is norbs+1, as in dftb
+  subroutine init_elph_2(elph, coupling, orbsperatm, niter, pl_start)
+    Type(Telph), intent(inout) :: elph
+    real(dp), dimension(:), allocatable, intent(in) :: coupling
+    integer, dimension(:), allocatable, intent(in) :: orbsperatm
+    integer, dimension(:), pointer, intent(in) :: pl_start
+    integer :: niter, ii, jj, natm, ierr
+
+    !Check input size
+    if (size(coupling).ne.sum(orbsperatm)) then
+      stop 'Error: coupling and orbsperatom not compatible'
+    end if
+    elph%model = 2
+    elph%scba_niter = niter
+    elph%orbsperatm = orbsperatm
+    natm = size(orbsperatm)
+    call log_allocate(elph%atmorbstart, natm)
+    call log_allocate(elph%atmpl, natm)
+    elph%atmorbstart(1) = 1
+    do ii = 2,natm
+      elph%atmorbstart(ii) = sum(elph%orbsperatm(1:ii-1)) + 1
+    enddo
+    allocate(elph%atmblk_sigma_r(natm),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate atmblk_sigma_r'
+    allocate(elph%atmblk_sigma_n(natm),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate atmblk_sigma_n'
+    allocate(elph%atmcoupling(natm),stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate atmcoupling'
+    do ii = 1,natm
+      call create(elph%atmblk_sigma_r(ii),orbsperatm(ii),orbsperatm(ii))
+      elph%atmblk_sigma_r(ii)%val = 0.d0
+      call create(elph%atmblk_sigma_n(ii),orbsperatm(ii),orbsperatm(ii))
+      elph%atmblk_sigma_n(ii)%val = 0.d0
+      call create(elph%atmcoupling(ii),orbsperatm(ii),orbsperatm(ii))
+      elph%atmcoupling(ii)%val = 0.d0
+    end do
+    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
+                       !treat them all contemporary)
+    ! Assign coupling
+    do ii = 1,natm
+      do jj = 1,elph%orbsperatm(ii)
+      elph%atmcoupling(ii)%val(jj,jj) = coupling(jj + elph%atmorbstart(jj) - 1)
+      end do
+    end do
+    ! Determine atmpl
+    elph%atmpl = 0
+    do ii = 1,natm
+      do jj = 1, size(pl_start) - 1
+        if (elph%atmorbstart(ii).ge.pl_start(jj).and. &
+            elph%atmorbstart(ii).lt.pl_start(jj + 1)) then
+          elph%atmpl(ii) = jj
+        end if
+      end do
+    end do
+    ! Check that they are all assigned
+    do ii = 1,natm
+      if (elph%atmpl(ii).eq.0) then
+        write(*,*) elph%atmpl
+        stop 'atmpl not correctly set'
+      end if
+    end do
+
+  end subroutine init_elph_2
+
 
   !>
   ! Destroy elph structure when model = 1 (elastic model)
@@ -118,6 +230,29 @@ contains
 
   end subroutine destroy_elph_1
 
+  !>
+  ! Destroy elph structure when model = 1 (elastic model)
+  subroutine destroy_elph_2(elph)
+    Type(Telph) :: elph
+
+    integer :: ii, ierr
+
+    elph%model = 0
+    do ii=1,size(elph%orbsperatm)
+      call destroy(elph%atmblk_sigma_r(ii))
+      call destroy(elph%atmblk_sigma_n(ii))
+      call destroy(elph%atmcoupling(ii))
+    end do
+    deallocate(elph%atmcoupling, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmblk_sigma_r'
+    deallocate(elph%atmblk_sigma_n, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmblk_sigma_n'
+    call log_deallocate(elph%orbsperatm)
+    call log_deallocate(elph%atmorbstart)
+    call log_deallocate(elph%atmpl)
+
+  end subroutine destroy_elph_2
+
 
   !>
   ! el-ph destruction interface
@@ -128,9 +263,11 @@ contains
        return
      else if (elph%model .eq. 1) then
        call destroy_elph_1(elph)
+     else if (elph%model .eq. 2) then
+       call destroy_elph_2(elph)
      else
        write(*,*) 'Warning, not implemented'
-     endif
+     end if
 
   end subroutine destroy_elph
 
@@ -146,7 +283,7 @@ contains
     else
        elph%nummodes = 0
        elph%numselmodes = 0
-    endif
+    end if
     elph%scba_iterations = 0 ! starts from 0  
     elph%scba_iter = 0       ! initialize at 0
 
@@ -174,7 +311,7 @@ contains
       
       elph%memory = .true.
       elph%check = .false. 
-    endif
+    end if
 
   end subroutine init_elph
 

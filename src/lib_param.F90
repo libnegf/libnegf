@@ -26,7 +26,7 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info
   use input_output
-  use elph, only : init_elph_1, Telph, destroy_elph
+  use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2
   use energy_mesh, only : mesh
 
   implicit none
@@ -37,6 +37,7 @@ module lib_param
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   public :: print_all_vars, set_elph_dephasing, destroy_elph_model
+  public :: set_elph_block_dephasing
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -350,7 +351,7 @@ contains
 
   end subroutine copy_HS
   
-  !> Set values for the electron phonon dephasing model
+  !> Set values for the local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
     type(Tnegf) :: negf
@@ -364,6 +365,24 @@ contains
     !endif
     call init_elph_1(negf%elph, coupling, niter)
   end subroutine set_elph_dephasing
+
+  !> Set values for the semi-local electron phonon dephasing model
+  !! (elastic scattering only)
+  subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
+    type(Tnegf) :: negf
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    integer :: niter
+    
+    !! Verify that the size of the coupling fits with the Hamiltonian
+    !! of the device region
+    !if (size(coupling).ne.negf%H%nrow) then
+    !  write(*,*) 'Elph dephasing model coupling size does not match '
+    !endif
+    call init_elph_2(negf%elph, coupling, orbsperatom, niter, &
+        negf%str%mat_PL_start)
+  end subroutine set_elph_block_dephasing
+
 
   !> Destroy elph model. This routine is accessible from interface as 
   !! it can be meaningful to "switch off" elph when doing different

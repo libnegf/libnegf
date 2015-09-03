@@ -1510,11 +1510,9 @@ contains
       !! If elph model, then get inside a SCBA cycle 
         do scba_iter = 1, negf%elph%scba_niter
           negf%elph%scba_iter = scba_iter
-          write(*,*) 'Gn scba iter n',scba_iter, 'started'
           ! Destroy previous Gn
           call destroy(Gn)
           call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
-          write(*,*) 'Gn scba iter n',scba_iter, 'finished'
         enddo
     endif
     do i1=1,ncont
