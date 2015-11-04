@@ -824,28 +824,28 @@ c
  13   format (2(F9.2,1x),A)
 c-----------------------------------------------------------------------
       end
-c
-      integer function lenstr(s)
-c-----------------------------------------------------------------------
-c return length of the string S
-c-----------------------------------------------------------------------
-      character*(*) s
-      integer len
-      intrinsic len
-      integer n
-c----------------------------------------------------------------------- 
-      n = len(s)
-10    continue
-        if (s(n:n).eq.' ') then
-          n = n-1
-          if (n.gt.0) go to 10
-        end if
-      lenstr = n
-c
-      return
+c  GP: commented, duplicate from inout.f
+c      integer function lenstr(s)
+cc-----------------------------------------------------------------------
+cc return length of the string S
+cc-----------------------------------------------------------------------
+c      character*(*) s
+c      integer len
+c      intrinsic len
+c      integer n
+cc----------------------------------------------------------------------- 
+c      n = len(s)
+c10    continue
+c        if (s(n:n).eq.' ') then
+c          n = n-1
+c          if (n.gt.0) go to 10
+c        end if
+c      lenstr = n
+cc
+c      return
 c--------end-of-pspltm--------------------------------------------------
 c-----------------------------------------------------------------------
-      end
+c      end
 c----------------------------------------------------------------------- 
       subroutine zpltmt (nrow,ncol,mode,ja,ia,title,key,type,
      1     job, iounit)

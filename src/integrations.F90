@@ -81,30 +81,34 @@ module integrations
 
  integer, PARAMETER :: VBT=70
 
- !! Structure used to define energy points for the integration
- !! For every point we define
- !!     path (1,2 or 3): the energy point belongs to a real axis 
- !!     integration (1), a complex plane integration (2) or a 
- !!     pole summation (3)
- !!     pt_path: relative point number within a single path
- !!     pt: absolute point number along the whole integration path
- !!     cpu: cpu assigned to the calculation of the given energy point
- !!     Ec: energy value
- !!     wght: a weight used in final summation to evaluate integrals
- type TEnGrid   
-     integer :: path
-     integer :: pt_path
-     integer :: pt
-     integer :: cpu
-     complex(dp) :: Ec
-     complex(dp) :: wght
- end type TEnGrid
+!!$ Moved to lib_param: module variables are not thread safe. 
+!!$ As the variable en_grid should not be declared here, also
+!!$ the type definition is moved to lib_param
+!!$ !! Structure used to define energy points for the integration
+!!$ !! For every point we define
+!!$ !!     path (1,2 or 3): the energy point belongs to a real axis 
+!!$ !!     integration (1), a complex plane integration (2) or a 
+!!$ !!     pole summation (3)
+!!$ !!     pt_path: relative point number within a single path
+!!$ !!     pt: absolute point number along the whole integration path
+!!$ !!     cpu: cpu assigned to the calculation of the given energy point
+!!$ !!     Ec: energy value
+!!$ !!     wght: a weight used in final summation to evaluate integrals
+!!$ type TEnGrid   
+!!$     integer :: path
+!!$     integer :: pt_path
+!!$     integer :: pt
+!!$     integer :: cpu
+!!$     complex(dp) :: Ec
+!!$     complex(dp) :: wght
+!!$ end type TEnGrid
      
- type(TEnGrid), dimension(:), allocatable :: en_grid
+!!$ type(TEnGrid), dimension(:), allocatable :: en_grid
 
 contains
   
-  subroutine destroy_en_grid()
+  subroutine destroy_en_grid(en_grid)
+    type(TEnGrid), dimension(:), allocatable :: en_grid
     if (allocated(en_grid)) deallocate(en_grid)
   end subroutine    
 
@@ -126,9 +130,9 @@ contains
     type(TEnGrid), intent(in) :: gridpn
     integer, intent(in) :: Npoints
 
-    if (verbose.gt.VBT) then
-      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
-          &'/',Npoints,'  CPU= ', id, '  E=',real(gridpn%Ec)
+    if (id0 .and. verbose.gt.VBT) then
+      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt_path, &
+          &'/',Npoints,'  CPU= ', gridpn%cpu, '  E=',real(gridpn%Ec)
     endif
 
   end subroutine write_point
@@ -154,19 +158,19 @@ contains
     outer = 1
     ncont = negf%str%num_conts
 
-    Nstep = size(en_grid)
+    Nstep = size(negf%en_grid)
     
     call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
     negf%ldos_mat(:,:)=0.d0
     
     do i = 1, Nstep
   
-       if (en_grid(i)%cpu /= id) cycle
+       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
+       
+       if (negf%en_grid(i)%cpu /= id) cycle
       
-       Ec = en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
-       negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
+       Ec = negf%en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
+       negf%iE = negf%en_grid(i)%pt
 
        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     
@@ -193,7 +197,7 @@ contains
 
     enddo
       
-    call destroy_en_grid()
+    !call destroy_en_grid()
 
   end subroutine ldos_int
 !-----------------------------------------------------------------------
@@ -253,7 +257,7 @@ contains
     endif
 
     Ntot = negf%Np_n(1) + negf%Np_n(2) + Npoles
-    allocate(en_grid(Ntot))
+    allocate(negf%en_grid(Ntot))
 
     ! *******************************************************************************
     ! 1. INTEGRATION OVER THE SEGMENT [Ec - dEc , Ec - dEc + j*Lambda]
@@ -281,11 +285,11 @@ contains
       ff = fermi(Ec,muref,KbT)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-      en_grid(i)%path = 1
-      en_grid(i)%pt = i
-      en_grid(i)%pt_path = i
-      en_grid(i)%Ec = Ec
-      en_grid(i)%wght = zt
+      negf%en_grid(i)%path = 1
+      negf%en_grid(i)%pt = i
+      negf%en_grid(i)%pt_path = i
+      negf%en_grid(i)%Ec = Ec
+      negf%en_grid(i)%wght = zt
     enddo
     deallocate(wght)
     deallocate(pnts)
@@ -319,11 +323,11 @@ contains
       ff = fermi(Ec,muref,KbT)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-      en_grid(ioffs+i)%path = 2
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
+      negf%en_grid(ioffs+i)%path = 2
+      negf%en_grid(ioffs+i)%pt = ioffs + i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
+      negf%en_grid(ioffs+i)%Ec = Ec
+      negf%en_grid(ioffs+i)%wght = zt
     enddo
 
     deallocate(wght)
@@ -345,11 +349,11 @@ contains
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
-      en_grid(ioffs+i)%path = 3
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
+      negf%en_grid(ioffs+i)%path = 3
+      negf%en_grid(ioffs+i)%pt = ioffs + i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
+      negf%en_grid(ioffs+i)%Ec = Ec
+      negf%en_grid(ioffs+i)%wght = zt
     enddo
 
     ! *******************************************************************************          
@@ -358,7 +362,7 @@ contains
     ! cpu 0 1 2 3 0 1 2 3 0 ...  
     ! *******************************************************************************          
     do i = 0, Ntot-1
-       en_grid(i+1)%cpu = mod(i,numprocs) 
+       negf%en_grid(i+1)%cpu = mod(i,numprocs) 
     enddo
 
   end subroutine contour_int_n_def
@@ -372,12 +376,12 @@ contains
   ! Performs the complex contur integration
   !
   !      T>=0
-  !                +
-  !                +
-  !       * * * * * * * * * * *
-  !       *        +
-  !  --- -*---========================
-  !      Elow Ec  muref
+  !                          +
+  !                          +
+  !        * * * * * * * * * * * *
+  !                          +   *
+  !  ========================+---*---
+  !                        Ev mu Emax
   !
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix
@@ -405,7 +409,7 @@ contains
       Lambda = 2.d0* negf%n_poles * KbT * pi
     endif
 
-    Emax = negf%Ev - negf%DeltaEv
+    Emax = negf%Ev + negf%DeltaEv
 
     if ((Emax < (muref + 1.d-3)) .and. &
         (Emax > (muref - 1.d-3))) then
@@ -418,7 +422,7 @@ contains
     endif
 
     Ntot=negf%Np_p(1)+negf%Np_p(2)+Npoles
-    allocate(en_grid(Ntot))
+    allocate(negf%en_grid(Ntot))
 
     ! *******************************************************************************
     ! 1. INTEGRATION OVER THE SEGMENT [Ec - dEc , Ec - dEc + j*Lambda]
@@ -442,14 +446,14 @@ contains
 
     do i = 1, negf%Np_p(1)
       Ec = z1 + pnts(i) * z_diff
-      ff = fermi(-Ec,-muref,KbT)
+      ff = fermi(-Ec,-muref,KbT)   ! 1-f(E-muref)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-      en_grid(i)%path = 1
-      en_grid(i)%pt = i
-      en_grid(i)%pt_path = i
-      en_grid(i)%Ec = Ec
-      en_grid(i)%wght = zt
+      negf%en_grid(i)%path = 1
+      negf%en_grid(i)%pt = i
+      negf%en_grid(i)%pt_path = i
+      negf%en_grid(i)%Ec = Ec
+      negf%en_grid(i)%wght = zt
     enddo
     deallocate(wght)
     deallocate(pnts)
@@ -482,11 +486,11 @@ contains
       ff = fermi(-Ec,-muref,KbT)
       zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
 
-      en_grid(ioffs+i)%path = 2
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
+      negf%en_grid(ioffs+i)%path = 2
+      negf%en_grid(ioffs+i)%pt = ioffs + i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
+      negf%en_grid(ioffs+i)%Ec = Ec
+      negf%en_grid(ioffs+i)%wght = zt
     enddo
 
     deallocate(wght)
@@ -508,11 +512,11 @@ contains
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
       zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
 
-      en_grid(ioffs+i)%path = 3
-      en_grid(ioffs+i)%pt = ioffs + i
-      en_grid(ioffs+i)%pt_path = i
-      en_grid(ioffs+i)%Ec = Ec
-      en_grid(ioffs+i)%wght = zt
+      negf%en_grid(ioffs+i)%path = 3
+      negf%en_grid(ioffs+i)%pt = ioffs + i
+      negf%en_grid(ioffs+i)%pt_path = ioffs + i
+      negf%en_grid(ioffs+i)%Ec = Ec
+      negf%en_grid(ioffs+i)%wght = zt
     enddo
 
     ! *******************************************************************************
@@ -521,7 +525,7 @@ contains
     ! cpu 0 1 2 3 0 1 2 3 0 ...
     ! *******************************************************************************
     do i = 0, Ntot-1
-       en_grid(i+1)%cpu = mod(i,numprocs)
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
   end subroutine contour_int_p_def
@@ -561,7 +565,9 @@ contains
      mumin = muref - nkT
      
      Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
-     allocate(en_grid(Ntot))
+     !! destroy previously defined grids, if any
+     call destroy_en_grid(negf%en_grid)
+     allocate(negf%en_grid(Ntot))
  
      ! ***********************************************************************
      ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
@@ -590,11 +596,11 @@ contains
         Pc = Rad*exp(j*pnts(i))
         Ec = Centre+Pc
         zt = j * Pc * negf%g_spin * wght(i)/(2.d0*pi)
-        en_grid(i)%path=1
-        en_grid(i)%pt_path=i
-        en_grid(i)%pt=i
-        en_grid(i)%Ec=Ec
-        en_grid(i)%wght=zt
+        negf%en_grid(i)%path=1
+        negf%en_grid(i)%pt_path=i
+        negf%en_grid(i)%pt=i
+        negf%en_grid(i)%Ec=Ec
+        negf%en_grid(i)%wght=zt
      enddo
      deallocate(wght)
      deallocate(pnts)
@@ -641,11 +647,11 @@ contains
            ff = fermi(Ec,muref,KbT)
            zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
         endif
-        en_grid(ioffs+i)%path=2
-        en_grid(ioffs+i)%pt_path=i
-        en_grid(ioffs+i)%pt=ioffs+i
-        en_grid(ioffs+i)%Ec=Ec
-        en_grid(ioffs+i)%wght=zt
+        negf%en_grid(ioffs+i)%path=2
+        negf%en_grid(ioffs+i)%pt_path=ioffs+i
+        negf%en_grid(ioffs+i)%pt=ioffs+i
+        negf%en_grid(ioffs+i)%Ec=Ec
+        negf%en_grid(ioffs+i)%wght=zt
      end do
      ! *******************************************************************************
      ! 3. SUMMATION OVER THE POLES ENCLOSED IN THE CONTOUR  (NumPoles)
@@ -661,11 +667,11 @@ contains
      do i = 1, negf%n_poles
         Ec = muref + j * KbT *pi* (2.d0*real(i,dp) - 1.d0)   
         zt= -j*negf%g_spin*KbT
-        en_grid(ioffs+i)%path=3
-        en_grid(ioffs+i)%pt_path=i
-        en_grid(ioffs+i)%pt=ioffs+i
-        en_grid(ioffs+i)%Ec=Ec
-        en_grid(ioffs+i)%wght=zt
+        negf%en_grid(ioffs+i)%path=3
+        negf%en_grid(ioffs+i)%pt_path=ioffs+i
+        negf%en_grid(ioffs+i)%pt=ioffs+i
+        negf%en_grid(ioffs+i)%Ec=Ec
+        negf%en_grid(ioffs+i)%wght=zt
      enddo
 
      ! *******************************************************************************          
@@ -674,7 +680,7 @@ contains
      ! cpu 0 1 2 3 0 1 2 3 0 ...  
      ! *******************************************************************************          
      do i = 0, Ntot-1
-        en_grid(i+1)%cpu = mod(i,numprocs) 
+        negf%en_grid(i+1)%cpu = mod(i,numprocs) 
      enddo
      
   end subroutine contour_int_def
@@ -691,7 +697,7 @@ contains
     
      ncont = negf%str%num_conts
      outer = negf%outer 
-     Ntot = size(en_grid)  
+     Ntot = size(negf%en_grid)  
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
     
@@ -699,15 +705,14 @@ contains
      
      do i = 1, Ntot
    
-        if (en_grid(i)%cpu .ne. id) cycle
+        call write_point(negf%verbose,negf%en_grid(i), Ntot) 
+        if (negf%en_grid(i)%cpu .ne. id) cycle
 
-        call write_point(negf%verbose,en_grid(i), Ntot) 
-    
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
     
-        Ec = en_grid(i)%Ec 
-        zt = en_grid(i)%wght
-        negf%iE = en_grid(i)%pt 
+        Ec = negf%en_grid(i)%Ec 
+        zt = negf%en_grid(i)%wght
+        negf%iE = negf%en_grid(i)%pt 
         
         call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
   
@@ -741,7 +746,7 @@ contains
 
      call destroy(TmpMt)
 
-     call destroy_en_grid()
+     !call destroy_en_grid()
 
   end subroutine contour_int
 
@@ -779,7 +784,9 @@ contains
     endif  
 
     Ntot = negf%Np_real(1)
-    allocate(en_grid(Ntot))
+    !! destroy en_grid from previous calculation, if any
+    call destroy_en_grid(negf%en_grid)
+    allocate(negf%en_grid(Ntot))
 
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
@@ -787,11 +794,11 @@ contains
     call gauleg(mumin-Omega,mumax+Omega,pnts,wght,Ntot)
     
     do i = 1, Ntot
-       en_grid(i)%path = 1
-       en_grid(i)%pt = ioffset + i
-       en_grid(i)%pt_path = i
-       en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       en_grid(i)%wght = negf%wght * negf%g_spin * wght(i)/(2.d0 *pi)
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = ioffset + i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
+       negf%en_grid(i)%wght = negf%wght * negf%g_spin * wght(i)/(2.d0 *pi)
     enddo
 
     deallocate(wght)
@@ -799,7 +806,7 @@ contains
 
     ! distribute energy grid
     do i = 0, Ntot-1
-       en_grid(i+1)%cpu = mod(i,numprocs)
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
   end subroutine real_axis_int_def
@@ -828,7 +835,7 @@ contains
 
     ncont = negf%str%num_conts
     outer = negf%outer
-    Npoints = size(en_grid)
+    Npoints = size(negf%en_grid)
 
     call log_allocate(frm_f,ncont)
     
@@ -839,14 +846,13 @@ contains
 
     do i = 1, Npoints
 
-       if (en_grid(i)%cpu .ne. id) cycle
+       call write_point(negf%verbose,negf%en_grid(i),Npoints)
+       if (negf%en_grid(i)%cpu .ne. id) cycle
 
-       Ec = en_grid(i)%Ec
+       Ec = negf%en_grid(i)%Ec
        Er = real(Ec)
-       zt = en_grid(i)%wght
-       negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i),Npoints)
+       zt = negf%en_grid(i)%wght
+       negf%iE = negf%en_grid(i)%pt
 
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
@@ -894,7 +900,7 @@ contains
     
     call log_deallocate(frm_f)
      
-    call destroy_en_grid()
+    !call destroy_en_grid()
 
   end subroutine real_axis_int
   
@@ -933,7 +939,7 @@ contains
     endif  
 
     Ntot = negf%Np_real(1)
-    allocate(en_grid(Ntot))
+    allocate(negf%en_grid(Ntot))
 
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
@@ -941,12 +947,12 @@ contains
     call gauleg(mumin+negf%Ec+negf%DeltaEc, mumax+Omega,pnts,wght,Ntot)
     
     do i = 1, Ntot
-       en_grid(i)%path = 1
-       en_grid(i)%pt = ioffset + i
-       en_grid(i)%pt_path = i
-       en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = ioffset + i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
        ff = fermi(pnts(i),muref,KbT)
-       en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+       negf%en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)
@@ -954,7 +960,7 @@ contains
 
     ! distribute energy grid
     do i = 0, Ntot-1
-       en_grid(i+1)%cpu = mod(i,numprocs)
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
   end subroutine real_axis_int_n_def
@@ -994,7 +1000,7 @@ contains
     endif  
 
     Ntot = negf%Np_real(1)
-    allocate(en_grid(Ntot))
+    allocate(negf%en_grid(Ntot))
 
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
@@ -1004,12 +1010,12 @@ contains
     call gauleg(mumin-Omega, mumax, pnts, wght, Ntot)
     
     do i = 1, Ntot
-       en_grid(i)%path = 1
-       en_grid(i)%pt = ioffset + i
-       en_grid(i)%pt_path = i
-       en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = ioffset + i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
        ff = fermi(-pnts(i),-muref,KbT)
-       en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+       negf%en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)
@@ -1017,7 +1023,7 @@ contains
 
     ! distribute energy grid
     do i = 0, Ntot-1
-       en_grid(i+1)%cpu = mod(i,numprocs)
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
   end subroutine real_axis_int_p_def
@@ -1179,19 +1185,21 @@ contains
     integer :: i, ncont, Nsteps
     
     Nsteps=NINT((negf%Emax-negf%Emin)/negf%Estep) + 1
-    allocate(en_grid(Nsteps))
+    !! Destroy en_grid from previous calculation, if any
+    call destroy_en_grid(negf%en_grid)
+    allocate(negf%en_grid(Nsteps))
 
     do i = 1, Nsteps
-       en_grid(i)%path = 1
-       en_grid(i)%pt = i
-       en_grid(i)%pt_path = i
-       en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0, dp) 
-       en_grid(i)%wght = negf%wght * negf%g_spin 
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0, dp) 
+       negf%en_grid(i)%wght = negf%wght * negf%g_spin 
     enddo
 
     ! distribute energy grid
     do i = 0, Nsteps-1
-       en_grid(i+1)%cpu = mod(i,numprocs)
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
   end subroutine tunneling_int_def
@@ -1225,7 +1233,6 @@ contains
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        !call log_allocatep(negf%tunn_mat,0,0)
        !if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
-       call destroy_en_grid()
        call log_allocatep(negf%currents,1) 
        negf%currents = 0.0_dp 
        return
@@ -1235,7 +1242,7 @@ contains
     do_LEDOS = .false. 
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     ncont = negf%str%num_conts
-    Nstep = size(en_grid)
+    Nstep = size(negf%en_grid)
     ncyc=0
     
     !Extract emitter-collector contacts -------------------
@@ -1276,12 +1283,11 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
-       if (en_grid(i)%cpu /= id) cycle
+       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
+       if (negf%en_grid(i)%cpu /= id) cycle
       
-       Ec = en_grid(i)%Ec
-       negf%iE = en_grid(i)%pt
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
+       Ec = negf%en_grid(i)%Ec
+       negf%iE = negf%en_grid(i)%pt
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1317,7 +1323,7 @@ contains
        
     enddo !Loop on energy 
 
-    call destroy_en_grid()
+    !call destroy_en_grid()
     call log_deallocate(TUN_MAT)
     if(do_LEDOS) call log_deallocate(LEDOS)
   
@@ -1379,7 +1385,6 @@ contains
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        !call log_allocatep(negf%tunn_mat,0,0)
        !if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
-       call destroy_en_grid()
        call log_allocatep(negf%currents,1) 
        negf%currents = 0.0_dp 
        return
@@ -1389,7 +1394,7 @@ contains
     do_LEDOS = .false. 
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     ncont = negf%str%num_conts
-    Nstep = size(en_grid)
+    Nstep = size(negf%en_grid)
     ncyc=0
     
     !Extract emitter-collector contacts -------------------
@@ -1430,14 +1435,13 @@ contains
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
-       if (en_grid(i)%cpu /= id) cycle
+       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
+       if (negf%en_grid(i)%cpu /= id) cycle
       
-       Ec = en_grid(i)%Ec * en_grid(i)%Ec
-       negf%iE = en_grid(i)%pt
+       Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
+       negf%iE = negf%en_grid(i)%pt
        !delta = negf%delta * negf%delta 
        delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
-
-       call write_point(negf%verbose,en_grid(i), size(en_grid))
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1473,7 +1477,7 @@ contains
        
     enddo !Loop on energy 
 
-    call destroy_en_grid()
+    !call destroy_en_grid()
     call log_deallocate(TUN_MAT)
     if(do_LEDOS) call log_deallocate(LEDOS)
   
@@ -1749,7 +1753,7 @@ contains
 
     real(dp) :: tmp
 
-    x1=tmp
+    tmp=x1
     x1=x2
     x2=tmp
 

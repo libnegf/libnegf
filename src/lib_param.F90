@@ -32,7 +32,7 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, intarray 
+  public :: Tnegf, intarray, TEnGrid
   public :: fill_parameters, pass_HS, pass_DM
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
@@ -44,102 +44,119 @@ module lib_param
     integer, dimension(:), allocatable :: indexes
   end type intarray 
 
-  type Tnegf
-     
-     integer :: verbose
+ !! Structure used to define energy points for the integration
+ !! For every point we define
+ !!     path (1,2 or 3): the energy point belongs to a real axis 
+ !!     integration (1), a complex plane integration (2) or a 
+ !!     pole summation (3)
+ !!     pt_path: relative point number within a single path
+ !!     pt: absolute point number along the whole integration path
+ !!     cpu: cpu assigned to the calculation of the given energy point
+ !!     Ec: energy value
+ !!     wght: a weight used in final summation to evaluate integrals
+ type TEnGrid   
+     integer :: path
+     integer :: pt_path
+     integer :: pt
+     integer :: cpu
+     complex(dp) :: Ec
+     complex(dp) :: wght
+ end type TEnGrid
 
-     character(LST) :: file_re_H
-     character(LST) :: file_im_H
-     character(LST) :: file_re_S
-     character(LST) :: file_im_S
-     character(LST) :: file_struct
-     character(LST) :: scratch_path    ! Folder for scratch work
-     character(LST) :: out_path        ! Folder for output data
-     character(1) :: DorE              ! Density or En.Density
-     type(format) :: form              ! Form of file-Hamiltonian
+ type Tnegf
 
-     integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
-     logical  :: dumpHS                ! Used for debug
-     logical  :: writeLDOS             ! Write the LDOS for every k-point 
-     logical  :: writeTunn             ! Write T(E) for every k-point
-      
-     logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
-     real(dp) :: Efermi(MAXNCONT)      ! Contact Fermi Energy (before pot)
-     real(dp) :: pot(MAXNCONT)         ! Electrostatic Potential
-     real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential
-     real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
-     real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
+   !! Input parameters: set by library user
+   integer :: verbose
+   real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
+   real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
+   character(LST) :: scratch_path    ! Folder for scratch work
+   character(LST) :: out_path        ! Folder for output data
+   real(dp) :: Efermi(MAXNCONT)      ! Contact Fermi Energy (before external 
+                                     ! and built int potential)
+   real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential (dft calculation)
+   integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
+   real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
+   real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
+   integer  :: nLdos                 ! Number of LDOS intervals
+   real(dp) :: Ec                ! conduction band edge 
+   real(dp) :: Ev                ! valence band edge
+   real(dp) :: delta             ! delta for G.F. 
+   real(dp) :: dos_delta         ! delta for T(E) and DOS 
+   real(dp) :: Emin              ! Tunneling or dos interval
+   real(dp) :: Emax              ! 
+   real(dp) :: Estep             ! Tunneling or dos E step
+   real(dp) :: g_spin            ! spin degeneracy
+   logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
+   integer :: Np_n(2)            ! Number of points for n 
+   integer :: Np_p(2)            ! Number of points for p 
+   integer :: Np_real(11)        ! Number of points for integration over real axis
+   integer :: n_kt               ! Number of kT extending integrations
+   integer :: n_poles            ! Number of poles 
+   type(intarray), dimension(:), allocatable :: LDOS !Array of LDOS descriptor 
+                                                     !(contain only index of atoms 
+                                                     !for LDOS projection)  
 
-     integer  :: nLdos                 ! Number of LDOS intervals
-     ! Array of LDOS descriptor (contain only index of atoms for LDOS
-     ! projection)
-     type(intarray), dimension(:), allocatable :: LDOS     
+   !! Runtime variables: used internally by the library
+   character(1) :: DorE              ! Density or En.Density
+   type(format) :: form              ! Form of file-Hamiltonian
+   logical  :: dumpHS                ! Used for debug
+   real(dp) :: muref             ! reference elec.chem potential
+   real(dp) :: DeltaEc           ! safe guard energy below Ec
+   real(dp) :: DeltaEv           ! safe guard energy above Ev
+   real(dp) :: E                 ! Holding variable 
+   real(dp) :: dos               ! Holding variable
+   real(dp) :: eneconv           ! Energy conversion factor
+   integer :: iteration          ! Iterazione (SCC)
+   integer :: activecont         ! contact selfenergy
+   integer :: ni(MAXNCONT)       ! ni: emitter contact list 
+   integer :: nf(MAXNCONT)       ! nf: collector contact list
+   integer :: minmax             ! in input: 0 take minimum, 1 take maximum mu  
+   integer :: refcont            ! reference contact (for non equilib)
+   integer :: outer              ! flag switching computation of     
+                                 ! the Device/Contact DM
+                                 ! 0 none; 1 upper block; 2 all
 
-     real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
-     real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
-     real(dp) :: muref             ! reference elec.chem potential
-     real(dp) :: Ec                ! conduction band edge 
-     real(dp) :: Ev                ! valence band edge
-     real(dp) :: DeltaEc           ! safe guard energy below Ec
-     real(dp) :: DeltaEv           ! safe guard energy above Ev
 
-     real(dp) :: E                 ! Holding variable 
-     real(dp) :: dos               ! Holding variable
-     real(dp) :: eneconv           ! Energy conversion factor
+   !! Note: H,S are partitioned immediately after input, therefore they are 
+   !! built runtime from input variable
+   type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+   type(z_CSR), pointer :: S => null()
+   type(z_DNS) :: HC(MAXNCONT)
+   type(z_DNS) :: SC(MAXNCONT)
+   type(z_DNS) :: HMC(MAXNCONT)
+   type(z_DNS) :: SMC(MAXNCONT)
+   type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
+   type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
+   logical    :: isSid           ! True if overlap S == Id
+   logical    :: intHS           ! tells HS are internally allocated
+   logical    :: intDM           ! tells DM is internally allocated
 
-     type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
-     type(z_CSR), pointer :: S => null()
-     type(z_DNS) :: HC(MAXNCONT)
-     type(z_DNS) :: SC(MAXNCONT)
-     type(z_DNS) :: HMC(MAXNCONT)
-     type(z_DNS) :: SMC(MAXNCONT)
-     type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-     type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
-     logical    :: isSid           ! True if overlap S == Id
-     logical    :: intHS           ! tells HS are internally allocated
-     logical    :: intDM           ! tells DM is internally allocated
+   type(TStruct_Info) :: str     ! system structure
 
-     type(TStruct_Info) :: str     ! system structure
 
-     real(dp) :: delta             ! delta for G.F. 
-     real(dp) :: dos_delta         ! delta for T(E) and DOS 
-     real(dp) :: Emin              ! Tunneling or dos interval
-     real(dp) :: Emax              ! 
-     real(dp) :: Estep             ! Tunneling or dos E step
-     real(dp) :: g_spin            ! spin degeneracy
-     integer  :: spin              ! spin component
- 
-     real(dp) :: wght              ! k-point weight 
-     integer :: kpoint             ! k-point index
-     integer :: iE                 ! Energy point (integer point)
-     complex(dp) :: Epnt           ! Energy point (complex)
-     real(dp), dimension(:,:), pointer :: tunn_mat => null()
-     real(dp), dimension(:,:), pointer :: ldos_mat => null()
-     real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
+   integer  :: spin              ! spin component
 
-     integer :: Np_n(2)            ! Number of points for n 
-     integer :: Np_p(2)            ! Number of points for p 
-     integer :: Np_real(11)        ! Number of points for integration over real axis
-     integer :: n_kt               ! Number of kT extending integrations
-     integer :: n_poles            ! Number of poles 
-     integer :: iteration          ! Iterazione (SCC)
-     integer :: activecont         ! contact selfenergy
-     integer :: ni(MAXNCONT)       ! ni: emitter contact list 
-     integer :: nf(MAXNCONT)       ! nf: collector contact list
-     integer :: minmax             ! in input: 0 take minimum, 1 take maximum mu  
-     integer :: refcont            ! reference contact (for non equilib)
-     integer :: outer              ! flag switching computation of  
-                                   ! the Device/Contact DM
-                                   ! 0 none; 1 upper block; 2 all
-     real(dp) :: int_acc           ! integration accuracy
-     real(dp), dimension(:), pointer :: E_singular => null()
-     real(dp) :: delta_singular
+   real(dp) :: wght              ! k-point weight 
+   integer :: kpoint             ! k-point index
+   integer :: iE                 ! Energy point (integer point)
+   complex(dp) :: Epnt           ! Energy point (complex)
+   type(TEnGrid), dimension(:), allocatable :: en_grid
+   real(dp), dimension(:,:), pointer :: tunn_mat => null()
+   real(dp), dimension(:,:), pointer :: ldos_mat => null()
+   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
-     type(Telph) :: elph           ! electron-phonon data
-                                  
-     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
 
-  end type Tnegf
+
+
+   real(dp) :: int_acc           ! integration accuracy
+   real(dp), dimension(:), pointer :: E_singular => null()
+   real(dp) :: delta_singular
+
+   type(Telph) :: elph           ! electron-phonon data
+
+   type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+
+ end type Tnegf
 
 contains
   
@@ -342,11 +359,6 @@ contains
 
      negf%verbose = 10
 
-     negf%file_re_H = ''
-     negf%file_im_H = ''
-     negf%file_re_S = ''
-     negf%file_im_S = ''
-     negf%file_struct = ''
      negf%scratch_path = './GS/'
      negf%out_path = './'
      negf%DorE = 'D'           ! Density or En.Density
@@ -354,7 +366,6 @@ contains
      negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
      negf%FictCont = .false.   ! Ficticious contact 
 
-     negf%pot = 0.d0           ! Potenziale elettrico
      negf%mu = 0.d0            ! Potenziale elettrochimico
      negf%efermi= 0.d0         ! Energia di Fermi dei contatti
      negf%contact_DOS = 0.d0   ! Ficticious contact DOS
@@ -376,7 +387,6 @@ contains
      negf%isSid = .false.         
      negf%intHS = .true.
      negf%intDM = .true.
-     negf%writeLDOS = .false. 
 
      negf%delta = 1.d-4      ! delta for G.F. 
      negf%dos_delta = 1.d-4      ! delta for DOS 
@@ -412,11 +422,6 @@ contains
 
      write(io,*) 'verbose=',negf%verbose
 
-     write(io,*) 'reH-file= "'//trim(negf%file_re_H)//'"'
-     write(io,*) 'imH-file= "'//trim(negf%file_im_H)//'"'  
-     write(io,*) 'reS-file= "'//trim(negf%file_re_S)//'"'
-     write(io,*) 'imS-file= "'//trim(negf%file_im_S)//'"'
-     write(io,*) 'str-file= "'//trim(negf%file_struct)//'"'
      write(io,*) 'scratch= "'//trim(negf%scratch_path)//'"'
      write(io,*) 'output= "'//trim(negf%out_path)//'"'
 
@@ -424,7 +429,6 @@ contains
 
      write(io,*) 'Contact Parameters:'
      write(io,*) 'Efermi= ', negf%efermi
-     write(io,*) 'pot= ', negf%pot
      write(io,*) 'mu= ', negf%mu
      write(io,*) 'WideBand= ', negf%FictCont
      write(io,*) 'DOS= ', negf%contact_DOS
@@ -455,7 +459,6 @@ contains
      write(io,*) 'ni= ', negf%ni
      write(io,*) 'nf= ', negf%nf
      write(io,*) 'DorE= ',negf%DorE
-     write(io,*) 'writeLDOS= ',negf%writeLDOS
 
      write(io,*) 'Internal variables:'
      write(io,*) 'intHS= ',negf%intHS

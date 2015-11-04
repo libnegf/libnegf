@@ -21,7 +21,7 @@
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
-!! Fortran 77 style subroutines for communication with UPTIGHT LIB
+!! Fortran 77 style subroutines for communication with LIBNEGF
 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!
@@ -55,9 +55,9 @@
 !!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-!!* Returns the size of the handler array
-!!* @param  handlerSize  Contains the size of the handler array on exit.
+!>
+!! Returns the size of the handler array
+!! @param[out]  handlerSize Contains the size of the handler array on exit.
 subroutine negf_gethandlersize(handlerSize)
   use libnegfAPICommon  ! if:mod:use
   implicit none
@@ -67,8 +67,9 @@ subroutine negf_gethandlersize(handlerSize)
 
 end subroutine negf_gethandlersize
 
-!!* Initialises a new LIBNEGF instance
-!!* @param  handler  Contains the handler for the new instance on return
+!>
+!! Initialises a new LIBNEGF instance
+!! @param [out]  handler  Contains the handler for the new instance on return
 subroutine negf_init_session(handler)
   use libnegfAPICommon  ! if:mod:use
   implicit none
@@ -92,8 +93,9 @@ subroutine negf_init_session(handler)
 
 end subroutine negf_init_session
 
-!!* Get library version. Reads svn versions=> broken with git  
-!!* @param  handler  Contains the handler for the new instance on return
+!>
+!! Get library version. Reads svn versions=> broken with git  
+!! @param  handler  Contains the handler for the new instance on return
 subroutine negf_get_version(handler)
   use libnegfAPICommon  ! if:mod:use
   use libnegf  ! if:mod:use
@@ -229,18 +231,22 @@ end subroutine negf_read_input
 
 !!* Fill parameters from input file negf.in
 !!* @param  handler  Contains the handler for the new instance on return
-subroutine negf_read_hs(handler)
+subroutine negf_read_hs(handler, real_path, imag_path, target_matrix)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
+  use globals           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:inout
+  character(LST) :: real_path ! if:var:in
+  character(LST) :: imag_path ! if:var:in
+  integer :: target_matrix !if:var:in
 
   !type(TNEGF), pointer :: pNEGF
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
  
-  call read_HS(LIB%pNEGF)
+  call read_HS(LIB%pNEGF, real_path, imag_path, target_matrix)
   
 end subroutine negf_read_hs
 
@@ -295,53 +301,146 @@ subroutine negf_set_verbosity(handler,verbose_lev)
 
 end subroutine negf_set_verbosity
 
-!!* Compute current for a given LIBNEGF instance.
-!!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_current(handler, current, unitOfH, unitOfJ)
+!>
+!! Solve the Landauer problem: calculate transmission and 
+!! density of states according to previously specified parameters
+!! @param[in]  handler: handler Number for the LIBNEGF instance
+subroutine negf_solve_landauer(handler)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegf   ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call compute_current(LIB%pNEGF)
+end subroutine negf_solve_landauer
+
+!>
+!! Get the transmission and density of states real energy
+!! array size
+!! This information can be used to correctly allocate
+!! return arrays.
+!! Note: in mpi run every node could have a different 
+!! energy interval
+!! @param [in]  handler: handler Number for the LIBNEGF instance
+!! @param [out] arraySize: size of energy range array
+subroutine negf_get_energygrid_size(handler, arraySize)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegf   ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: arraySize !if:var:out
+
+  integer :: work
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  arraySize = size(LIB%pNEGF%en_grid)
+
+end subroutine negf_get_energygrid_size
+
+!>
+!! Get the transmission between a specific lead pair 
+!! @param [in]  handler: handler Number for the LIBNEGF instance
+!! @param [in] lead_pair: specifies which leads are considered 
+!!             for retrieving current (as ordered in ni, nf)
+!! @param [in] nsteps: number of energy points, Energies and transmission
+!!             should be allocated according to it
+!! @param [inout] transmission: array where the transmission is 
+!!             copied (note: must be already allocated)
+!! TODO: do we really need fixed
+subroutine negf_get_transmission(handler, lead_pair, nsteps, energies, transmission)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegf   ! if:mod:use 
+  use ln_constants !if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: lead_pair ! if:var:in
+  integer :: nsteps ! if:var:in
+  real(dp), dimension(nsteps) :: energies  ! if:var:inout
+  real(dp), dimension(nsteps) :: transmission  ! if:var:inout
+
+  type(NEGFpointers) :: LIB
+
+   LIB = transfer(handler, LIB) 
+   energies(:) = real(LIB%pNEGF%en_grid(:)%Ec)
+   transmission(:) = LIB%pNEGF%tunn_mat(:,lead_pair)
+
+end subroutine negf_get_transmission
+
+!>
+!! Get current value for a specific couple of leads
+!!  @param[in] handler: handler Number for the LIBNEGF instance
+!! @param [in] lead_pair: specifies which leads are considered 
+!!             for retrieving current (as ordered in ni, nf)
+!!  @param[in] unitoOfH: units modifer for energy (write"unknown"
+!!                   for default)
+!!  @param[in] unitOfJ: units modifier for current (write"unknown"
+!!                  for default)
+!!  @param[out] current: current value
+subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use libnegf   ! if:mod:use 
   use ln_constants ! if:mod:use
+  use globals  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer :: leadPair      !if:var:in
   real(dp) :: current       !if:var:inout
-  character(SST) :: unitOfH(1) !if:var:in
-  character(SST) :: unitOfJ(1) !if:var:in
+  character(SST) :: unitOfH !if:var:in
+  character(SST) :: unitOfJ !if:var:in
 
   type(NEGFpointers) :: LIB
   type(unit) :: unitH, unitJ
   
   unitH%name=trim(unitOfH)
   unitJ%name=trim(unitOfJ)
-
   LIB = transfer(handler, LIB) 
-
-  call compute_current(LIB%pNEGF)
-
-  current = LIB%pNEGF%currents(1) ! just take first value (2 contacts)
-
+  current = LIB%pNEGF%currents(leadPair) ! just take first value (2 contacts)
   ! units conversion.
   current = current * convertCurrent(unitH, unitJ)
 
-  call write_tunneling_and_dos(LIB%pNEGF)
+end subroutine negf_get_current
 
-end subroutine negf_current
+!>
+!!  Write tunneling and density of states (if any) to file
+!!  @param 
+!!*        handler:  handler Number for the LIBNEGF instance
+!!*        path: string specifying the output file
+!!  NOTE: when running parallel code every node will write a 
+!!  separate bunch of energy points. You should implement I/O 
+!!  OUT of the library and use this routine for testing/debugging
+subroutine negf_write_tunneling_and_dos(handler)
+  use libnegfAPICommon ! if:mod:use
+  use libnegf          ! if:mode:use
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+  call write_tunneling_and_dos(LIB%pNEGF)
+  
+end subroutine negf_write_tunneling_and_dos
 
 !!* Compute charge Density given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_density_efa(handler,ndofs,density)
+subroutine negf_density_efa(handler,ndofs,density,particle)
   use libnegfAPICommon  ! if:mod:use  use negf_param 
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: ndofs                     ! if:var:in 
-  real(dp) :: density(ndofs)           ! if:var:in
+  real(dp) :: density(ndofs)           ! if:var:out
+  !! particle: +1 for electrons, -1 for holes
+  integer :: particle                  ! if:var:in
 
   type(NEGFpointers) :: LIB
   
   LIB = transfer(handler, LIB) 
 
-  call compute_density_efa(LIB%pNEGF, density)
+  call compute_density_efa(LIB%pNEGF, density, particle)
 
 end subroutine negf_density_efa
 
@@ -475,38 +574,38 @@ subroutine negf_set_reference(handler, minmax)
 
 end subroutine negf_set_reference
 
-subroutine negf_set_writetunn(handler, flag)
-  use libnegfAPICommon  ! if:mod:use  use negf_param  
-  use libnegf           ! if:mod:use 
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: flag               ! if:var:in
-
-  type(NEGFpointers) :: LIB
-  
-  LIB = transfer(handler, LIB) 
- 
-  LIB%pNEGF%writeTunn = .true.
-  if(flag.eq.0) LIB%pNEGF%writeTunn = .false.
- 
-end subroutine negf_set_writetunn
-
-
-subroutine negf_set_writeldos(handler, flag)
-  use libnegfAPICommon  ! if:mod:use  use negf_param  
-  use libnegf           ! if:mod:use 
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: flag               ! if:var:in
-
-  type(NEGFpointers) :: LIB
-  
-  LIB = transfer(handler, LIB) 
- 
-  LIB%pNEGF%writeLDOS = .true.
-  if(flag.eq.0) LIB%pNEGF%writeLDOS = .false.
- 
-end subroutine negf_set_writeldos
+!!$subroutine negf_set_writetunn(handler, flag)
+!!$  use libnegfAPICommon  ! if:mod:use  use negf_param  
+!!$  use libnegf           ! if:mod:use 
+!!$  implicit none
+!!$  integer :: handler(DAC_handlerSize)  ! if:var:in
+!!$  integer :: flag               ! if:var:in
+!!$
+!!$  type(NEGFpointers) :: LIB
+!!$  
+!!$  LIB = transfer(handler, LIB) 
+!!$ 
+!!$  LIB%pNEGF%writeTunn = .true.
+!!$  if(flag.eq.0) LIB%pNEGF%writeTunn = .false.
+!!$ 
+!!$end subroutine negf_set_writetunn
+!!$
+!!$
+!!$subroutine negf_set_writeldos(handler, flag)
+!!$  use libnegfAPICommon  ! if:mod:use  use negf_param  
+!!$  use libnegf           ! if:mod:use 
+!!$  implicit none
+!!$  integer :: handler(DAC_handlerSize)  ! if:var:in
+!!$  integer :: flag               ! if:var:in
+!!$
+!!$  type(NEGFpointers) :: LIB
+!!$  
+!!$  LIB = transfer(handler, LIB) 
+!!$ 
+!!$  LIB%pNEGF%writeLDOS = .true.
+!!$  if(flag.eq.0) LIB%pNEGF%writeLDOS = .false.
+!!$ 
+!!$end subroutine negf_set_writeldos
 
 subroutine negf_write_partition(handler)
   use libnegfAPICommon  ! if:mod:use  use negf_param  
@@ -522,3 +621,35 @@ subroutine negf_write_partition(handler)
 
 end subroutine negf_write_partition
 
+!>
+!!* Compute current for a given LIBNEGF instance.
+!!* @param [in] handler Number for the LIBNEGF instance to destroy.
+subroutine negf_current(handler, current, unitOfH, unitOfJ)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegf   ! if:mod:use 
+  use ln_constants ! if:mod:use
+  use globals  ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+  real(dp) :: current       !if:var:inout
+  character(SST) :: unitOfH !if:var:in
+  character(SST) :: unitOfJ !if:var:in
+
+  type(NEGFpointers) :: LIB
+  type(unit) :: unitH, unitJ
+  
+  unitH%name=trim(unitOfH)
+  unitJ%name=trim(unitOfJ)
+
+  LIB = transfer(handler, LIB) 
+
+  call compute_current(LIB%pNEGF)
+
+  current = LIB%pNEGF%currents(1) ! just take first value (2 contacts)
+
+  ! units conversion.
+  current = current * convertCurrent(unitH, unitJ)
+
+  call write_tunneling_and_dos(LIB%pNEGF)
+
+end subroutine negf_current
