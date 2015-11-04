@@ -1440,8 +1440,11 @@ contains
       
        Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
-       !delta = negf%delta * negf%delta 
-       delta = negf%delta * (1.0_dp - real(en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
+       
+       ! delta*delta for reasons of units 
+       delta = negf%delta * negf%delta 
+       ! Mingo: 
+       !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
