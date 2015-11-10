@@ -47,6 +47,8 @@ module ln_allocation
      module procedure allocate_d2, allocate_i2, allocate_z2
      module procedure allocate_d3, allocate_i3, allocate_z3
      module procedure allocate_d4
+     module procedure allocate_c2
+     module procedure allocate_c3
   end interface
 
   interface log_deallocatep
@@ -60,6 +62,8 @@ module ln_allocation
      module procedure deallocate_d2, deallocate_i2, deallocate_z2
      module procedure deallocate_d3, deallocate_i3, deallocate_z3
      module procedure deallocate_d4
+     module procedure deallocate_c2
+     module procedure deallocate_c3
   end interface
 
 
@@ -377,6 +381,58 @@ contains
        endif
     endif
   end subroutine allocate_z2
+  
+  subroutine allocate_c2(array,row,col)
+    complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
+    integer(4) :: row,col,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (allocated(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not. allocated(array)) then
+       allocate(array(row,col),stat=ierr)
+       if (ierr.ne.0) then
+          write(*,*) "ALLOCATION ERROR"; STOP
+       else
+          alloc_mem= alloc_mem + size(array)*2*sp    
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem 
+          endif
+#		  ifdef MEMLOG
+          call writeMemLog  
+#		  endif
+       endif
+    endif
+  end subroutine allocate_c2
+  
+  subroutine allocate_c3(array,row,col,np)
+    complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
+    integer(4) :: row,col,np,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (allocated(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not. allocated(array)) then
+       allocate(array(row,col,np),stat=ierr)
+       if (ierr.ne.0) then
+          write(*,*) "ALLOCATION ERROR"; STOP
+       else
+          alloc_mem= alloc_mem + size(array)*2*sp    
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem 
+          endif
+#		  ifdef MEMLOG
+          call writeMemLog  
+#		  endif
+       endif
+    endif
+  end subroutine allocate_c3
+  !---------------------------------------------------------------
+  !---------------------------------------------------------------
   !---------------------------------------------------------------
 
   subroutine allocate_i3(array,row,col,dep)
@@ -695,6 +751,34 @@ contains
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
   end subroutine deallocate_z2
+  
+  subroutine deallocate_c2(array)
+    complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*2*sp
+       deallocate(array)
+#		ifdef MEMLOG
+       call writeMemLog  
+#		endif
+    else 
+       write(*,*) 'Warning in deallocation: array is not allocated' 
+    endif
+  end subroutine deallocate_c2
+  
+  subroutine deallocate_c3(array)
+    complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*2*sp
+       deallocate(array)
+#		ifdef MEMLOG
+       call writeMemLog  
+#		endif
+    else 
+       write(*,*) 'Warning in deallocation: array is not allocated' 
+    endif
+  end subroutine deallocate_c3
   ! ------------------------------------------------------------
 
   subroutine deallocate_i3(array)

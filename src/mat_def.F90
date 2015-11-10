@@ -27,6 +27,8 @@ Module mat_def
 
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
+public :: c_DNS, s_CSR ! single precision defs
+public :: z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
@@ -44,6 +46,10 @@ interface create
    module procedure zcreate_EXT_COO
    module procedure zcreate_DNS
    module procedure rcreate_DNS
+   module procedure ccreate_DNS
+   !module procedure screate_CSR
+   module procedure zcreate_DNS3
+   module procedure ccreate_DNS3
 end interface
 
 interface createp
@@ -78,6 +84,10 @@ interface destroy
    module procedure zdestroy_EXT_COO
    module procedure zdestroy_DNS
    module procedure rdestroy_DNS
+   module procedure cdestroy_DNS
+   !module procedure sdestroy_CSR
+   module procedure zdestroy_DNS3
+   module procedure cdestroy_DNS3
 end interface
 
 interface destroyp
@@ -174,6 +184,19 @@ Type z_DNS
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type z_DNS 
 
+Type z_DNS3
+  integer :: nrow = 0
+  integer :: ncol = 0
+  complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val  
+end Type z_DNS3
+
+Type c_DNS3
+  integer :: nrow = 0
+  integer :: ncol = 0
+  complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val  
+end Type c_DNS3
+ 
+
 Type z_vec
    integer :: len = 0
    complex(dp), dimension(:), allocatable :: val 
@@ -197,6 +220,16 @@ Type r_CSR
   integer, DIMENSION(:), ALLOCATABLE :: colind 
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
 end Type r_CSR
+
+Type s_CSR
+  integer :: nnz = 0
+  integer :: nrow = 0  
+  integer :: ncol = 0
+  logical :: sorted = .false.
+  real(kind=sp), DIMENSION(:), ALLOCATABLE :: nzval  
+  integer, DIMENSION(:), ALLOCATABLE :: colind
+  integer, DIMENSION(:), ALLOCATABLE :: rowpnt
+end Type s_CSR
 
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
@@ -235,6 +268,13 @@ Type r_DNS
   integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type r_DNS 
+
+
+Type c_DNS
+  integer :: nrow = 0 
+  integer :: ncol = 0
+  complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: val  
+end Type c_DNS 
 ! *******************************************************************
 contains
 
@@ -1025,6 +1065,70 @@ subroutine zcreate_DNS(mat,nrow,ncol)
 end subroutine zcreate_DNS
 ! ------------------------------------------------------------------
 
+subroutine ccreate_DNS(mat,nrow,ncol)
+
+  type(c_DNS) :: mat
+  integer :: nrow, ncol
+
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (ccreate_DNS) nrow or ncol = 0'
+
+  mat%ncol=ncol
+  mat%nrow=nrow
+  call log_allocate(mat%val,nrow,ncol)
+
+end subroutine ccreate_DNS
+! ------------------------------------------------------------------
+
+subroutine zcreate_DNS3(mat,nrow,ncol,npoints)
+  type(z_DNS3) :: mat
+  integer :: nrow, ncol, npoints
+
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
+
+  mat%ncol=ncol
+  mat%nrow=nrow
+  mat%nrow=npoints
+  call log_allocate(mat%val,nrow,ncol,npoints)
+end subroutine zcreate_DNS3
+! ------------------------------------------------------------------
+
+subroutine ccreate_DNS3(mat,nrow,ncol,npoints)
+  type(c_DNS3) :: mat
+  integer :: nrow, ncol, npoints
+
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (ccreate_DNS3) nrow or ncol = 0'
+
+  mat%ncol=ncol
+  mat%nrow=nrow
+  mat%nrow=npoints
+  call log_allocate(mat%val,nrow,ncol,npoints)
+end subroutine ccreate_DNS3
+! ------------------------------------------------------------------
+
+subroutine zdestroy_DNS3(mat1)
+  type(z_DNS3) :: mat1
+
+  mat1%nrow=0
+  mat1%ncol=0
+  if (allocated(mat1%val)) then
+     call log_deallocate(mat1%val)
+  end if
+end subroutine zdestroy_DNS3
+
+subroutine cdestroy_DNS3(mat1)
+  type(c_DNS3) :: mat1
+
+  mat1%nrow=0
+  mat1%ncol=0
+  if (allocated(mat1%val)) then
+     call log_deallocate(mat1%val)
+  end if
+end subroutine cdestroy_DNS3
+
+
+! ------------------------------------------------------------------
+! ------------------------------------------------------------------
+
 subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
   type(z_DNS) :: mat1
@@ -1108,6 +1212,92 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
   end if
 
 end subroutine zdestroy_DNS
+
+
+subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
+
+  type(c_DNS) :: mat1
+  type(c_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
+  
+  mat1%nrow=0
+  mat1%ncol=0
+
+  if (allocated(mat1%val)) then
+     call log_deallocate(mat1%val)
+  end if
+
+  if (present(mat2)) then
+     mat2%nrow=0
+     mat2%ncol=0
+     if (allocated(mat2%val)) then
+       call log_deallocate(mat2%val)
+     end if
+  else
+     return
+  endif
+
+  if (present(mat3)) then
+     mat3%nrow=0
+     mat3%ncol=0
+     if (allocated(mat3%val)) then
+       call log_deallocate(mat3%val)
+     end if
+  else
+     return
+  endif
+
+  if (present(mat4)) then
+     mat4%nrow=0
+     mat4%ncol=0
+     if (allocated(mat4%val)) then
+       call log_deallocate(mat4%val)
+     endif
+  else
+     return
+  endif
+
+  if (present(mat5)) then
+     mat5%nrow=0
+     mat5%ncol=0
+     if (allocated(mat5%val)) then
+       call log_deallocate(mat5%val)
+     end if
+  else
+     return
+  endif
+
+  if (present(mat6)) then
+     mat6%nrow=0
+     mat6%ncol=0
+     if (allocated(mat6%val)) then
+       call log_deallocate(mat6%val)
+     end if
+  else
+     return
+  endif
+
+  if (present(mat7)) then
+     mat7%nrow=0
+     mat7%ncol=0
+     if (allocated(mat7%val)) then
+        call log_deallocate(mat7%val)
+     endif
+  else
+     return
+  end if
+
+  if (present(mat8)) then
+     mat8%nrow=0
+     mat8%ncol=0
+     if (allocated(mat8%val)) then
+       call log_deallocate(mat8%val)
+     endif
+  else
+     return
+  end if
+
+end subroutine cdestroy_DNS
+
 
 
 ! ------------------------------------------------------------------

@@ -153,6 +153,7 @@ module lib_param
    real(dp) :: delta_singular
 
    type(Telph) :: elph           ! electron-phonon data
+   type(Tphph) :: phph           ! phonon-phonon data
 
    type(mesh) :: emesh           ! energy mesh for adaptive Simpson
 
