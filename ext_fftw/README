@@ -1,0 +1,2 @@
+Download fftw3 library (tested 3.3.4) and install here 'include' and 'lib' paths.
+Alternatively provide appropriate paths in Makefile
