@@ -68,7 +68,7 @@ MODULE iterative_ph
 !  public :: check_sigma_ph_r
 !  public :: check_Gl_Gr
 !
-!  public :: sub_ESH_dns
+!  public :: csr2blkdns
 !  public :: rebuild_dns
 !  public :: Make_gsmr_mem_dns
 !  public :: Make_gsml_mem_dns
@@ -2492,7 +2492,7 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
     
-    call sub_ESH_dns(ESH_csr,ESH,str%mat_PL_start)
+    call csr2blkdns(ESH_csr,ESH,str%mat_PL_start)
     call destroy(ESH_csr)
 
     !Inclusion of the contact Self-Energies to the relevant blocks
@@ -2793,7 +2793,7 @@ CONTAINS
     call prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_csr)    
 
     call allocate_blk_dns(ESH,nbl)
-    call sub_ESH_dns(ESH_csr,ESH,str%mat_PL_start)
+    call csr2blkdns(ESH_csr,ESH,str%mat_PL_start)
     call destroy(ESH_csr)
 
     !Inclusion of the contact Self-Energies to the relevant blocks
@@ -2985,7 +2985,7 @@ END MODULE iterative_ph
 ! 
 !  call allocate_blk_dns(ESH,nbl)
 ! 
-!  CALL sub_ESH_dns(ESH_csr,ESH,indblk)
+!  CALL csr2blkdns(ESH_csr,ESH,indblk)
 ! 
 !  call destroy(ESH_csr)
 ! 

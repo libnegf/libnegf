@@ -31,8 +31,8 @@ module integrations
  use distributions 
  use sparsekit_drv
  use inversions
- use iterative
  use iterative_dns
+ use iterative_ph
  use mat_def
  use ln_extract
  use contselfenergy
@@ -1611,7 +1611,7 @@ contains
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
        if (id0.and.negf%verbose.gt.VBT) call write_clock
      
-       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str)
+       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str,.false.)
 
        !call calls_Dn_ph(negf,Ec,...)    
     

@@ -1,7 +1,7 @@
 ROOT = ..
 include $(ROOT)/Makefile.user
 
-TARGET = libnegf_f90.$(ARCH).a
+TARGET = libnegf-$(ARCH).a
 
 SOURCES = clock.F90  ln_extract.F90 \
 	  complexbands.F90  input_output.F90 \
@@ -66,7 +66,7 @@ contselfenergy.o: ln_structure.o
 sparsekit_drv.o:  mat_def.o ln_allocation.o
 libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_structure.o
 libnegf.o:    rcm_module.o integrations.o ln_extract.o
-integrations.o: sparsekit_drv.o inversions.o iterative.o iterative_dns.o
+integrations.o: sparsekit_drv.o inversions.o iterative.o iterative_dns.o iterative_ph.o
 integrations.o: energy_mesh.o distributions.o contselfenergy.o	
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
