@@ -27,7 +27,9 @@ module lib_param
   use ln_structure, only : TStruct_info
   use input_output
   use elph
+  use phph
   use energy_mesh, only : mesh
+  use libmpifx_module, only : mpifx_comm 
 
   implicit none
   private
@@ -67,6 +69,7 @@ module lib_param
 
    !! Input parameters: set by library user
    integer :: verbose
+   type(mpifx_comm) :: mpicomm
    real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
    real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
    character(LST) :: scratch_path    ! Folder for scratch work
@@ -140,6 +143,7 @@ module lib_param
    integer :: kpoint             ! k-point index
    integer :: iE                 ! Energy point (integer point)
    complex(dp) :: Epnt           ! Energy point (complex)
+   integer :: local_en_points    ! Local number of energy points
    type(TEnGrid), dimension(:), allocatable :: en_grid
    real(dp), dimension(:,:), pointer :: tunn_mat => null()
    real(dp), dimension(:,:), pointer :: ldos_mat => null()
@@ -160,7 +164,16 @@ module lib_param
  end type Tnegf
 
 contains
-  
+ 
+  subroutine set_mpi_comm(negf, mpicomm)
+   type(Tnegf) :: negf
+   type(mpifx_comm) :: mpicomm
+
+   negf%mpicomm = mpicomm
+
+  end subroutine
+ ! -------------------------------------------------------------------
+   
   subroutine set_convfactor(negf, eneconv)
     type(Tnegf) :: negf
     real(dp) :: eneconv
@@ -168,8 +181,8 @@ contains
     negf%eneconv=eneconv
 
   end subroutine set_convfactor
- ! -------------------------------------------------------------------
   
+ ! -------------------------------------------------------------------
   subroutine set_fictcont(negf,cont,dos)
     type(Tnegf) :: negf
     integer :: cont

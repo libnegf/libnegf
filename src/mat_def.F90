@@ -187,12 +187,14 @@ end Type z_DNS
 Type z_DNS3
   integer :: nrow = 0
   integer :: ncol = 0
+  integer :: npoints = 0
   complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val  
 end Type z_DNS3
 
 Type c_DNS3
   integer :: nrow = 0
   integer :: ncol = 0
+  integer :: npoints = 0
   complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val  
 end Type c_DNS3
  
@@ -1087,7 +1089,7 @@ subroutine zcreate_DNS3(mat,nrow,ncol,npoints)
 
   mat%ncol=ncol
   mat%nrow=nrow
-  mat%nrow=npoints
+  mat%npoints=npoints
   call log_allocate(mat%val,nrow,ncol,npoints)
 end subroutine zcreate_DNS3
 ! ------------------------------------------------------------------
@@ -1100,7 +1102,7 @@ subroutine ccreate_DNS3(mat,nrow,ncol,npoints)
 
   mat%ncol=ncol
   mat%nrow=nrow
-  mat%nrow=npoints
+  mat%npoints=npoints
   call log_allocate(mat%val,nrow,ncol,npoints)
 end subroutine ccreate_DNS3
 ! ------------------------------------------------------------------

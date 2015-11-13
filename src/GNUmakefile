@@ -5,11 +5,11 @@ TARGET = libnegf_f90.$(ARCH).a
 
 SOURCES = clock.F90  ln_extract.F90 \
 	  complexbands.F90  input_output.F90 \
-          lib_param.F90 elph.F90 ln_precision.F90 mpi_globals.F90  \
+          lib_param.F90 elph.F90 phph.F90 ln_precision.F90 mpi_globals.F90  \
           contselfenergy.F90 inversions.F90 libnegf.F90 ln_structure.F90 \
           outmatrix.F90 rcm_module.F90 distributions.F90  transform.F90 \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
-          globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
+          globals.F90   iterative_dns.F90 iterative_ph.F90 ln_constants.F90   mat_def.F90 \
 	  population.F90 mkl_dfti.F90 energy_mesh.F90
 
 OBJS = $(SOURCES:.F90=.o)
@@ -27,7 +27,7 @@ FPP = $(CPP)
 
 .F90.o:
 	$(FPP) $(FPPFLAGS) $*.F90 > $*.f90
-	$(FC90) $(FC90OPT) -o $@ -c $*.f90
+	$(FC90) $(FC90OPT) $(INCLUDE) -o $@ -c $*.f90
 
 all: $(TARGET) 
 
@@ -47,12 +47,14 @@ clean:
 ln_allocation.o:    ln_precision.o
 ln_constants.o:     ln_precision.o
 lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o elph.o 
-lib_param.o:  energy_mesh.o
+lib_param.o:  energy_mesh.o phph.o
 mat_def.o:       ln_allocation.o
 iterative.o:     ln_allocation.o  mat_def.o sparsekit_drv.o 
 iterative.o:     inversions.o ln_structure.o
 iterative_dns.o: ln_allocation.o  mat_def.o sparsekit_drv.o transform.o
-iterative_dns.o: inversions.o ln_structure.o
+iterative_dns.o: inversions.o ln_structure.o elph.o
+iterative_ph.o: ln_allocation.o  mat_def.o sparsekit_drv.o transform.o
+iterative_ph.o: inversions.o ln_structure.o phph.o
 ln_extract.o: ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o
 ln_extract.o: ln_structure.o lib_param.o ln_constants.o
 input_output.o:  ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o 
@@ -69,6 +71,8 @@ integrations.o: energy_mesh.o distributions.o contselfenergy.o
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
+elph.o:      ln_precision.o
+phph.o:      ln_precision.o
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep

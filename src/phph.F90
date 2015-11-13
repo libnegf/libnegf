@@ -41,6 +41,7 @@ module phph
     integer :: scba_iter
 
     logical :: include_phph
+    logical :: diagonal
     logical :: cubic
     logical :: quartic
     logical :: Selfene_Gr
@@ -84,7 +85,7 @@ contains
        enddo
     end if
 
- 
+    phph%diagonal = .false.
     phph%Selfene_Gr = .true.
     phph%Selfene_Gless = .true.
     phph%Selfene_Hilb = .true.

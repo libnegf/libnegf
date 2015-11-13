@@ -767,7 +767,7 @@ contains
   subroutine real_axis_int_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, ioffset, ncont, Ntot
+    integer :: i, i1, np, ioffset, ncont, Ntot
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, mumin, mumax
     
@@ -805,10 +805,24 @@ contains
     deallocate(wght)
     deallocate(pnts)
 
-    ! distribute energy grid
-    do i = 0, Ntot-1
-       negf%en_grid(i+1)%cpu = mod(i,numprocs)
-    enddo
+    ! distribute energy grid:  0 1 2 3 ... 0 1 2 .... 0 1 2 ....
+    !do i = 0, Ntot-1
+    !   negf%en_grid(i+1)%cpu = mod(i,numprocs)
+    !enddo
+    
+    ! distribute energy grid:  0 0 0 0 ... 1 1 1 .... 2 2 2 ....
+    np=Ntot/numprocs
+    i1 = 0
+    do i = 1, Ntot, np 
+      negf%en_grid(i:i+np-1)%cpu = i1 
+      i1 = i1 + 1 
+    end do
+   
+    if (id .ne. numprocs-1) then
+      negf%local_en_points = np
+    else
+      negf%local_en_points = np + mod(Ntot,numprocs)
+    endif 
 
   end subroutine real_axis_int_def
   !-----------------------------------------------------------------------
@@ -1577,7 +1591,9 @@ contains
        negf%ldos_mat(:,:)=0.d0
     endif
     !-------------------------------------------------------
-    
+  
+    negf%phph%scba_iter = 0
+     
     do i = 1, Nstep
       
        call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
@@ -1595,9 +1611,10 @@ contains
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
        if (id0.and.negf%verbose.gt.VBT) call write_clock
      
-       call calls_eq_mem_ph(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str)
-       
-       call destroy(Gr) 
+       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str)
+
+       !call calls_Dn_ph(negf,Ec,...)    
+    
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
        enddo
