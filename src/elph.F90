@@ -24,13 +24,14 @@ module elph
   use ln_precision, only : dp
   use globals
   use ln_allocation
-  use mat_def, only : create, destroy, z_DNS
+  use mat_def, only : create, destroy, z_DNS, z_CSR, z_COO
+  use sparsekit_drv, only : prealloc_mult, prealloc_sum, coo2csr, extract, csr2dns
 
   implicit none
   private
 
   public :: Telph
-  public :: init_elph_1, destroy_elph, init_elph_2
+  public :: init_elph_1, destroy_elph, init_elph_2, init_elph_3
 
 
   !> This type contains information describing different electron phonon 
@@ -57,6 +58,9 @@ module elph
     !!     needed.
     !!     Note: the modes do not need to be local on a single atom, but
     !!     you need the orbitals on a given local phonon site to be contiguous
+    !! 3 : as 2, but I will set the coupling as csr matrix including 
+    !!     overlap M->MS/2+SM/2 and treat each atomic oscillator mode separately
+    !!     This is needed to verify whether neglecting overlap is ok
     
     !! Common parameters
     integer :: model = 0
@@ -84,6 +88,14 @@ module elph
     !> Block self energies, used in model (2)
     type(z_DNS), allocatable, dimension(:) :: atmblk_sigma_n
     type(z_DNS), allocatable, dimension(:) :: atmblk_sigma_r
+
+    !> Generic CSR self energies per each mode, now used in model (3)
+    type(z_CSR), allocatable, dimension(:) :: csr_sigma_n
+    type(z_CSR), allocatable, dimension(:) :: csr_sigma_r
+    !> for model 3, CSR couplings
+    type(z_CSR), allocatable, dimension(:) :: csr_couplings
+
+
     !> for model 2 we put the coupling in an atom block array, to avoid
     !  conversion all the time
     type(z_DNS), allocatable, dimension(:) :: atmcoupling
@@ -94,7 +106,7 @@ module elph
     !  for each atom, to speed up some patchworking
     integer, allocatable, dimension(:) :: atmorbstart
     !> For each atom, determine in which PL it sits, to accelerate block-sparse
-    !  assignment
+    !  assignment. Used in model 2,3
     integer, allocatable, dimension(:) :: atmpl
     !!-------------------------------------------------------------------------
 
@@ -160,13 +172,14 @@ contains
     integer, dimension(:), allocatable, intent(in) :: orbsperatm
     integer, dimension(:), pointer, intent(in) :: pl_start
     integer :: niter, ii, jj, natm, ierr
-
+  
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
       stop 'Error: coupling and orbsperatom not compatible'
     end if
     elph%model = 2
     elph%scba_niter = niter
+    elph%scba_iter = 0
     elph%orbsperatm = orbsperatm
     natm = size(orbsperatm)
     call log_allocate(elph%atmorbstart, natm)
@@ -194,7 +207,7 @@ contains
     ! Assign coupling
     do ii = 1,natm
       do jj = 1,elph%orbsperatm(ii)
-      elph%atmcoupling(ii)%val(jj,jj) = coupling(jj + elph%atmorbstart(jj) - 1)
+      elph%atmcoupling(ii)%val(jj,jj) = coupling(jj + elph%atmorbstart(ii) - 1)
       end do
     end do
     ! Determine atmpl
@@ -219,6 +232,128 @@ contains
 
 
   !>
+  ! Initialize the el-ph structure when model = 3 (semilocal S masked)
+  ! @param elph: electron-phonon container
+  ! @param coupling: coupling per orbital (energy units) 
+  ! @param orbsperatm: number of orbitals per each atom
+  ! @param niter: fixed number of scba iterations
+  ! @param pl_start: PL partitioning: used to accelerate block-sparse assignment
+  !                  note: needs to contain NPL+1 elements, the last one 
+  !                  is norbs+1, as in dftb
+  subroutine init_elph_3(elph, coupling, orbsperatm, niter, pl_start, over)
+    Type(Telph), intent(inout) :: elph
+    real(dp), dimension(:), allocatable, intent(in) :: coupling
+    integer, dimension(:), allocatable, intent(in) :: orbsperatm
+    integer, dimension(:), pointer, intent(in) :: pl_start
+    type(z_CSR), pointer, intent(in) :: over
+
+    integer :: niter, ii, jj, natm, ierr, norbs, offset, iimode
+    type(z_COO) :: tmp_coo
+    type(z_CSR) :: work1, work2, work3, over_device
+
+    !Check input size
+    if (size(coupling).ne.sum(orbsperatm)) then
+      stop 'Error: coupling and orbsperatom not compatible'
+    end if
+    elph%model = 3
+    elph%scba_niter = niter
+    elph%scba_iter = 0
+    elph%orbsperatm = orbsperatm
+    natm = size(orbsperatm)
+    norbs = size(coupling)
+    elph%nummodes = natm ! One localized oscillator per atom
+
+    call extract(over, 1, norbs, 1, norbs, over_device)
+
+    !! Check how many modes we really need, 
+    !! in some cases we can have all zero couplings
+    do ii = 1,natm
+      offset = sum(orbsperatm(1:ii-1))
+      !! if all couplings are zero, just skip it.
+      if (all(coupling(offset+1:offset+orbsperatm(ii)) .eq. 0.0d0)) then
+        elph%nummodes = elph%nummodes - 1
+      end if
+    end do
+
+    allocate(elph%csr_sigma_r(elph%nummodes), stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_sigma_r'
+    allocate(elph%csr_sigma_n(elph%nummodes), stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_sigma_n'
+    allocate(elph%csr_couplings(elph%nummodes), stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_couplings'
+    
+    iimode = 0
+    do ii = 1, natm
+     offset = sum(orbsperatm(1:ii-1))
+      !! if all couplings are zero, just skip it.
+      if (all(coupling(offset+1:offset+orbsperatm(ii)) .eq. 0.0d0)) then
+        cycle
+      end if
+      iimode = iimode + 1
+      !! I assemble directly the very sparse CSR
+      call create(work1, norbs, norbs, orbsperatm(ii))
+
+         !   write(*,*) "orbsperatom", orbsperatm(ii), ii, offset, norbs, natm
+      work1%rowpnt(1:offset) = 1
+      work1%rowpnt(offset+1:norbs+1) = orbsperatm(ii) + 1
+      do jj = 1,orbsperatm(ii)
+        work1%nzval(jj) = coupling(jj + offset)
+        work1%rowpnt(jj + offset) = jj
+        work1%colind = jj + offset
+      end do
+      !! M -> M*S/2 + S*M/2
+      call prealloc_mult(work1, over_device, (0.5d0, 0.0d0), work2)
+      call prealloc_mult(over_device, work1, (0.5d0, 0.0d0), work3)
+      call destroy(work1)
+      call prealloc_sum(work2, work3, elph%csr_couplings(iimode))
+      call destroy(work2)
+      call destroy(work3)
+
+    end do
+    call destroy(over_device)
+
+    ! Determine atmpl
+!!$    elph%atmpl = 0
+!!$    do ii = 1,natm
+!!$      do jj = 1, size(pl_start) - 1
+!!$        if (elph%atmorbstart(ii).ge.pl_start(jj).and. &
+!!$            elph%atmorbstart(ii).lt.pl_start(jj + 1)) then
+!!$          elph%atmpl(ii) = jj
+!!$        end if
+!!$      end do
+!!$    end do
+!!$    ! Check that they are all assigned
+!!$    do ii = 1,natm
+!!$      if (elph%atmpl(ii).eq.0) then
+!!$        write(*,*) elph%atmpl
+!!$        stop 'atmpl not correctly set'
+!!$      end if
+!!$    end do
+
+    end subroutine init_elph_3
+
+
+  !>
+  ! Destroy elph structure when model = 1 (elastic model)
+  subroutine destroy_elph_3(elph)
+    Type(Telph) :: elph
+
+    integer :: ii, ierr
+
+    elph%model = 0
+! These should be cleaned up after every energy point
+    deallocate(elph%csr_couplings, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate csr_couplings'
+    deallocate(elph%csr_sigma_r, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate csr_sigma_r'
+    deallocate(elph%csr_sigma_n, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate csr_sigma_n'
+    call log_deallocate(elph%orbsperatm)
+
+  end subroutine destroy_elph_3
+
+
+  !>
   ! Destroy elph structure when model = 1 (elastic model)
   subroutine destroy_elph_1(elph)
     Type(Telph) :: elph
@@ -231,7 +366,7 @@ contains
   end subroutine destroy_elph_1
 
   !>
-  ! Destroy elph structure when model = 1 (elastic model)
+  ! Destroy elph structure when model = 2 (block diagonal elastic model)
   subroutine destroy_elph_2(elph)
     Type(Telph) :: elph
 
@@ -244,14 +379,18 @@ contains
       call destroy(elph%atmcoupling(ii))
     end do
     deallocate(elph%atmcoupling, stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmblk_sigma_r'
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmcoupling'
     deallocate(elph%atmblk_sigma_n, stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmblk_sigma_n'
+    deallocate(elph%atmblk_sigma_r, stat=ierr)
+    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not deallocate atmblk_sigma_r'
     call log_deallocate(elph%orbsperatm)
     call log_deallocate(elph%atmorbstart)
     call log_deallocate(elph%atmpl)
 
   end subroutine destroy_elph_2
+
+ 
 
 
   !>
@@ -265,6 +404,8 @@ contains
        call destroy_elph_1(elph)
      else if (elph%model .eq. 2) then
        call destroy_elph_2(elph)
+     else if (elph%model .eq. 3) then
+       call destroy_elph_3(elph)
      else
        write(*,*) 'Warning, not implemented'
      end if
@@ -315,54 +456,4 @@ contains
 
   end subroutine init_elph
 
-
-
 end module elph
-
-
-!*******
-!*******
-
-!subroutine pippo(n)
-!   integer, intent(in) :: n
-!
-!   integer, dimension(:), allocatable :: A
-!   real(dp), dimension(:), pointer :: P
-!   double DEPRECATED
-!
-!   allocate(A(n))
-
-!   call log_allocate(A,n)     ! safe allocation in libNEGF
-
-!   operazioni su A
-!   call sub(A)
-
-!   call log_deallocate(A)
-
-!end subroutine pippo
-
-
-!subroutine sub(B)
-!   integer, dimension(:) :: B
-
-!   integer :: i
-
-!   do i = 1, size(B)
-!      B(i) = 5
-!   end do
-
-! end subroutine sub
-
-
-!subroutine sub2(B,n)
-!   integer :: B(*)
-!   integer :: n
-
-!   integer :: i
-
-!   do i = 1, n
-!      B(i) = 5
-!   end do
-
-! end subroutine sub2
-

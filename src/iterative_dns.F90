@@ -24,7 +24,7 @@
 #  undef __SUPERLU
 #endif
 #ifdef __LAPACK
-#  undef __PARDISO
+#  undef __PAR3DISO
 #  undef __SUPERLU
 #endif
 #ifdef __SUPERLU
@@ -165,13 +165,9 @@ CONTAINS
     ENDDO
 
     !! Add el-ph self energy if any
-    if (pnegf%elph%model .ne. 0) then
+    if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-
-    !    if (pnegf%elph%numselmodes.gt.0) then
-    !       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
-    !    endif
 
     call allocate_gsm_dns(gsmr,nbl)
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
@@ -440,19 +436,17 @@ CONTAINS
     CALL sub_ESH_dns(ESH_tot,ESH,indblk)
 
     call destroy(ESH_tot)
-
     DO i=1,ncont
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     ENDDO
 
     !! Add el-ph self energy if any
-    if (pnegf%elph%model .ne. 0) then
+    if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
       call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
-
     !Chiamata di Make_gsmr_mem
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
 
@@ -472,12 +466,10 @@ CONTAINS
 
     CALL Make_Gr_mem_dns(ESH,1)
     CALL Make_Gr_mem_dns(ESH,2,nbl)
-
     !! Update el-ph retarded self energy if any
     if (pnegf%elph%model .ne. 0) then
       call update_elph_r(pnegf, Gr)
     endif
-
     !With el-ph we need all columns
     DO i=1,nbl
       CALL Make_Grcol_mem_dns(ESH,i,indblk)
@@ -508,7 +500,6 @@ CONTAINS
     call init_blkmat(Gn,ESH)
 
     CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
-
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
     !! Update el-ph self energy if any
     if (pnegf%elph%model .ne. 0) then
@@ -526,7 +517,6 @@ CONTAINS
 
     ! the following destroys Gn
     call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
-
     DEALLOCATE(Gn)
 
     !! Computation of G_p for Sigma_p
@@ -868,13 +858,15 @@ CONTAINS
     type(Tnegf), intent(inout) :: negf
     TYPE(z_DNS), dimension(:,:), intent(in) :: Gr
 
-    integer :: npl, nblk, n, ii, jj, norbs, indstart, indend
+    TYPE(z_DNS) :: work1, work2, work3
+    integer :: npl, nblk, n, ii, jj, norbs, indstart, indend, nnz
+
+    npl = negf%str%num_PLs
 
     select case(negf%elph%model)
     case (0)
       return
     case (1)
-      npl = negf%str%num_PLs
       do n=1,npl
         associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
           forall(ii = 1:pl_end - pl_start + 1) 
@@ -895,11 +887,37 @@ CONTAINS
             & Gr(n,n)%val(indstart:indend, indstart:indend)), &
             & negf%elph%atmcoupling(ii)%val)
       end do
+    case(3)
+      !! Implement sigma = M*G*M, assuming that PL structure is not only
+      !! preserved, but that only the corresponding Gr blocks are used
+      !! Now dirty, only working without PL
+      if (npl .ne. 1) then
+        write(*,*) 'Model 3 only working with 1 PL'
+        stop 0
+      end if
+
+      do ii=1,negf%elph%nummodes
+        if (negf%elph%scba_iter .ne. 0) then
+          call destroy(negf%elph%csr_sigma_r(ii))
+        end if
+        call create(work1, negf%elph%csr_couplings(ii)%nrow, negf%elph%csr_couplings(ii)%ncol)
+        call csr2dns(negf%elph%csr_couplings(ii), work1)
+        call prealloc_mult(work1, Gr(1,1), work2)
+        work1%val = conjg(transpose(work1%val))
+        call prealloc_mult(work2, work1, work3)
+        call destroy(work1)
+        call destroy(work2)
+        nnz = nzdrop(work3, 1.0d-10)
+        call create(negf%elph%csr_sigma_r(ii), Gr(1,1)%nrow, Gr(1,1)%ncol, nnz)
+        call dns2csr(work3, negf%elph%csr_sigma_r(ii))
+        call destroy(work3)
+      end do
+
     case default
       write(*,*) 'Elph model not yet implemented'
       stop 0
     end select
-    
+
   end subroutine update_elph_r
 
   !***********************************************************************
@@ -911,13 +929,15 @@ CONTAINS
     type(Tnegf), intent(inout) :: negf
     TYPE(z_DNS), dimension(:,:), intent(in) :: Gn
     
-    integer :: npl, nblk, n, ii, jj, norbs, indstart, indend
+    type(z_DNS) :: work1, work2, work3
+    integer :: npl, nblk, n, ii, jj, norbs, indstart, indend, nnz
     
+    npl = negf%str%num_PLs
+
     select case(negf%elph%model)
     case (0)
       return
     case (1)
-      npl = negf%str%num_PLs
       do n=1,npl
         associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
           forall(ii = 1:pl_end - pl_start + 1) 
@@ -938,11 +958,36 @@ CONTAINS
             Gn(n,n)%val(indstart:indend, indstart:indend)), &
             negf%elph%atmcoupling(ii)%val)
       end do
+    case(3)
+      !! Implement sigma = M*G*M^dagger, assuming that PL structure is not only
+      !! preserved, but that only the corresponding Gr blocks are used
+      !! Now dirty, only working without PL
+      if (npl .ne. 1) then
+        write(*,*) 'Model 3 only working with 1 PL'
+        stop 0
+      end if
+
+      do ii=1,negf%elph%nummodes
+        if (negf%elph%scba_iter .ne. 0) then
+          call destroy(negf%elph%csr_sigma_n(ii))
+        end if
+        call create(work1, negf%elph%csr_couplings(ii)%nrow, negf%elph%csr_couplings(ii)%ncol)
+        call csr2dns(negf%elph%csr_couplings(ii), work1)
+        call prealloc_mult(work1, Gn(1,1), work2)
+        work1%val = conjg(transpose(work1%val))
+        call prealloc_mult(work2, work1, work3)
+        call destroy(work1)
+        call destroy(work2)
+        nnz = nzdrop(work3, 1d-10)
+        call create(negf%elph%csr_sigma_n(ii), Gn(1,1)%nrow, Gn(1,1)%ncol, nnz)
+        call dns2csr(work3, negf%elph%csr_sigma_n(ii))
+        call destroy(work3)
+      end do
     case default
       write(*,*) 'Elph model not yet implemented'
       stop 0
     end select
-    
+   
   end subroutine update_elph_n
 
   !***********************************************************************
@@ -955,9 +1000,11 @@ CONTAINS
     type(Telph), intent(in) :: elph
     type(z_DNS), dimension(:,:), intent(inout) :: ESH
     
-    type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_r
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_r, sigma_blk
     integer :: n, nbl, nrow, ierr, ii, jj, nblk, norbs, indstart, indend
-    
+
+    nbl = pnegf%str%num_PLs
+
     ! At first loop there's no self energy
     if (elph%scba_iter .eq. 0 .or. elph%model .eq. 0) then
       return
@@ -968,7 +1015,6 @@ CONTAINS
     case(0)
       return
     case(1)
-      nbl = pnegf%str%num_PLs
       do n=1,nbl
         associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
           forall(ii = 1:pl_end - pl_start + 1) 
@@ -989,6 +1035,25 @@ CONTAINS
             pnegf%elph%atmblk_sigma_r(ii)%val(:,:)
       end do
     case(3)
+        !! Assume sparsity pattern of self energy as PLs 
+        !! For strongly local mode this could be reduced to PL where it 
+        !! sits and neighbors but now I'm lazy
+      call allocate_blk_dns(sigma_blk, nbl)
+      do ii = 1,pnegf%elph%nummodes
+        call sub_ESH_dns(pnegf%elph%csr_sigma_r(ii), sigma_blk, pnegf%str%mat_PL_start)
+        do jj = 1,nbl
+          ESH(jj, jj)%val = ESH(jj, jj)%val - sigma_blk(jj, jj)%val
+          if (jj .lt. nbl) then
+            ESH(jj, jj + 1)%val = ESH(jj, jj + 1)%val - sigma_blk(jj, jj + 1)%val
+            ESH(jj + 1, jj)%val = ESH(jj + 1, jj)%val - sigma_blk(jj + 1, jj)%val
+          end if
+        end do
+      call destroy_ESH(sigma_blk)
+      end do
+      call deallocate_blk_dns(sigma_blk)
+
+    ! Old Alex one
+    case(-1)
       nbl = pnegf%str%num_PLs
       allocate(Sigma_ph_r(nbl,nbl),stat=ierr)
       IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
@@ -1792,15 +1857,15 @@ CONTAINS
     TYPE(z_DNS), DIMENSION(:,:), intent(inout) :: Gn
     INTEGER, intent(in) :: iter
 
-    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n
+    INTEGER, DIMENSION(:), POINTER :: indblk
+    Type(z_DNS), DIMENSION(:,:), ALLOCATABLE :: Sigma_ph_n, sigma_blk
     Type(z_DNS) :: Ga, work1, work2, sigma_tmp
-    INTEGER :: n, k, nbl, nrow, ierr, ii, norbs, nblk, indstart, indend
+    INTEGER :: n, k, nbl, nrow, ierr, ii, jj, norbs, nblk, indstart, indend
 
     !! If this is the first scba cycle, there's nothing to do
     if (pnegf%elph%scba_iter .eq. 0) then
       return
     endif
-
     nbl = pnegf%str%num_PLs
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
@@ -1839,6 +1904,31 @@ CONTAINS
         Sigma_ph_n(n,n)%val(indstart:indend, indstart:indend) = &
             pnegf%elph%atmblk_sigma_n(ii)%val(:,:)
       enddo
+    case(3)
+      do n = 1, nbl
+        nrow = ESH(n,n)%nrow
+        call create(Sigma_ph_n(n,n), nrow, nrow)
+        Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
+        !! Assume sparsity pattern of self energy as PLs 
+        !! For strongly local mode this could be reduced to PL where it 
+        !! sits and neighbors but now I'm lazy
+        call allocate_blk_dns(sigma_blk, nbl)
+        do ii = 1,pnegf%elph%nummodes
+          call sub_ESH_dns(pnegf%elph%csr_sigma_n(ii), sigma_blk, pnegf%str%mat_PL_start)
+          do jj = 1,nbl
+            Sigma_ph_n(jj, jj)%val = Sigma_ph_n(jj, jj)%val + sigma_blk(jj, jj)%val
+            if (jj .lt. nbl) then
+              Sigma_ph_n(jj, jj + 1)%val =  Sigma_ph_n(jj, jj + 1)%val + sigma_blk(jj, jj + 1)%val
+              Sigma_ph_n(jj + 1, jj)%val = Sigma_ph_n(jj + 1, jj)%val + sigma_blk(jj + 1, jj)%val
+            end if
+          end do
+          call destroy_ESH(sigma_blk)
+        end do
+        call deallocate_blk_dns(sigma_blk)
+      end do
+
+    !TODO: maybe csr_sigma can be already destroyed here
+
     case default
       write(*,*) 'Not yet implemented'
       stop 0

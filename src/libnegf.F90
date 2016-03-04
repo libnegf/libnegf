@@ -703,6 +703,7 @@ contains
       call compute_landauer(negf)
   else
       call compute_meir_wingreen(negf)
+      call compute_ldos(negf)
   endif
     
     negf%readOldSGF = flagbkup
