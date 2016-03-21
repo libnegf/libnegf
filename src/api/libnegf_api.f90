@@ -288,7 +288,7 @@ end subroutine negf_destruct_libnegf
 !!* Destructs a given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_verbosity(handler,verbose_lev)
-  use libnegfAPICommon  ! if:mod:use  use negf_param  
+  use libnegfAPICommon  ! if:mod:use   
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: verbose_lev               ! if:var:in
@@ -306,7 +306,7 @@ end subroutine negf_set_verbosity
 !! density of states according to previously specified parameters
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 subroutine negf_solve_landauer(handler)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use libnegf   ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -327,7 +327,7 @@ end subroutine negf_solve_landauer
 !! @param [in]  handler: handler Number for the LIBNEGF instance
 !! @param [out] arraySize: size of energy range array
 subroutine negf_get_energygrid_size(handler, arraySize)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use libnegf   ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -352,7 +352,7 @@ end subroutine negf_get_energygrid_size
 !!             copied (note: must be already allocated)
 !! TODO: do we really need fixed
 subroutine negf_get_transmission(handler, lead_pair, nsteps, energies, transmission)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use libnegf   ! if:mod:use 
   use ln_constants !if:mod:use
   implicit none
@@ -381,7 +381,7 @@ end subroutine negf_get_transmission
 !!                  for default)
 !!  @param[out] current: current value
 subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use libnegf   ! if:mod:use 
   use ln_constants ! if:mod:use
   use globals  ! if:mod:use
@@ -426,7 +426,7 @@ end subroutine negf_write_tunneling_and_dos
 !!* Compute charge Density given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_density_efa(handler,ndofs,density,particle)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use 
   implicit none
@@ -447,7 +447,7 @@ end subroutine negf_density_efa
 !!* Compute charge Density given LIBNEGF instance.
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_density_dft(handler,ndofs,density)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use 
   implicit none
@@ -469,7 +469,7 @@ end subroutine negf_density_dft
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_iteration(handler, iter)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use 
   use libnegf           ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -486,7 +486,7 @@ end subroutine negf_set_iteration
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_output(handler, out_path)
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use 
   use globals             ! if:mod:use
   use libnegf             ! if:mod:use 
   implicit none
@@ -505,7 +505,7 @@ end subroutine negf_set_output
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_scratch(handler, scratch_path)
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use 
   use globals             ! if:mod:use
   use libnegf             ! if:mod:use 
   implicit none
@@ -527,7 +527,7 @@ end subroutine negf_set_scratch
 !!* outer = 2   Computes both upper and lower blocks (needed by dftb+)
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_outer(handler, outer)
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use 
   use libnegf             ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -543,7 +543,7 @@ end subroutine negf_set_outer
 
 
 subroutine negf_set_kpoint(handler, kpoint)
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use
   use libnegf             ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -559,13 +559,12 @@ end subroutine negf_set_kpoint
 
 
 subroutine negf_set_reference(handler, minmax)
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use
   use libnegf             ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: minmax             ! if:var:in  
   
-  ! minmax = 0 takes minimum; minmax = 1 takes maximum mu
   type(NEGFpointers) :: LIB
   
   LIB = transfer(handler, LIB) 
@@ -574,41 +573,9 @@ subroutine negf_set_reference(handler, minmax)
 
 end subroutine negf_set_reference
 
-!!$subroutine negf_set_writetunn(handler, flag)
-!!$  use libnegfAPICommon  ! if:mod:use  use negf_param  
-!!$  use libnegf           ! if:mod:use 
-!!$  implicit none
-!!$  integer :: handler(DAC_handlerSize)  ! if:var:in
-!!$  integer :: flag               ! if:var:in
-!!$
-!!$  type(NEGFpointers) :: LIB
-!!$  
-!!$  LIB = transfer(handler, LIB) 
-!!$ 
-!!$  LIB%pNEGF%writeTunn = .true.
-!!$  if(flag.eq.0) LIB%pNEGF%writeTunn = .false.
-!!$ 
-!!$end subroutine negf_set_writetunn
-!!$
-!!$
-!!$subroutine negf_set_writeldos(handler, flag)
-!!$  use libnegfAPICommon  ! if:mod:use  use negf_param  
-!!$  use libnegf           ! if:mod:use 
-!!$  implicit none
-!!$  integer :: handler(DAC_handlerSize)  ! if:var:in
-!!$  integer :: flag               ! if:var:in
-!!$
-!!$  type(NEGFpointers) :: LIB
-!!$  
-!!$  LIB = transfer(handler, LIB) 
-!!$ 
-!!$  LIB%pNEGF%writeLDOS = .true.
-!!$  if(flag.eq.0) LIB%pNEGF%writeLDOS = .false.
-!!$ 
-!!$end subroutine negf_set_writeldos
 
 subroutine negf_write_partition(handler)
-  use libnegfAPICommon  ! if:mod:use  use negf_param  
+  use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use 
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
@@ -625,7 +592,7 @@ end subroutine negf_write_partition
 !!* Compute current for a given LIBNEGF instance.
 !!* @param [in] handler Number for the LIBNEGF instance to destroy.
 subroutine negf_current(handler, current, unitOfH, unitOfJ)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use 
   use ln_constants ! if:mod:use
   use globals  ! if:mod:use

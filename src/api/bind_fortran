@@ -392,7 +392,7 @@ class FormatterC(Formatter):
           varArgs = argProps[0]
           varAttrs = argProps[3]
           strArgs = varArgs and "(%s)" % ", ".join(varArgs) or ""
-          strAttrs = varAttrs and ", %s" % ", ".join(attribs) or ""
+          strAttrs = varAttrs and ", %s" % ", ".join(varAttrs) or ""
           comments.append("%s%s, %s :: %s%s" % (varType, strAttrs, strIntent,
                                              argName, strArgs))
           
@@ -484,7 +484,7 @@ class FormatterCpp(FormatterC):
           varArgs = argProps[0]
           varAttrs = argProps[3]
           strArgs = varArgs and "(%s)" % ", ".join(varArgs) or ""
-          strAttrs = varAttrs and ", %s" % ", ".join(attribs) or ""
+          strAttrs = varAttrs and ", %s" % ", ".join(varAttrs) or ""
           comments.append("%s%s, %s :: %s%s" % (varType, strAttrs, strIntent,
                                              argName, strArgs))
       # Printing out the external declaration        
