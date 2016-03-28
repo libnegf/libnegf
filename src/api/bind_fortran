@@ -83,6 +83,9 @@ def parse(txt):
     newSub.modules = []
     newSub.varDefs = {}
     defLines = match.group("defs").strip().split("\n")
+    # Strip away bind(c) stuff
+    if "bind(" in defLines[0]:
+        defLines.pop(0)
     for defLine in defLines:
       split = defLine.split("!", 1)
       if len(split) == 2:
@@ -124,7 +127,6 @@ def parse(txt):
                                          attribs)
             else:
               raise ParserError("Invalid variable information '%s'" % minfo)
-
     tree.append(newSub)
     match = PAT_SUBROUTINE.search(txt, match.end())
     
@@ -278,10 +280,14 @@ class FormatterF95(Formatter):
 class FormatterC(Formatter):
   """Formatter for C output"""
 
-  typeMap = { "integer": ("int", True),
+  typeMap = { "integer(c_int)": ("int", True),
+              "integer": ("int", True),
+              "character(kind=c_char)": ("char", True),
               "character": ("char", True),
-              "real" : ("float", True),
-              "complex" : ("complex", True),
+              "real(c_double)" : ("double", True),
+              "real" : ("double", True),
+              "complex(c_complex)" : ("double _Complex", True),
+              "complex" : ("double _Complex", True),
               }
               
 
@@ -417,10 +423,10 @@ class FormatterCpp(FormatterC):
 
   # Substitution of fortran types into C++ types. Boolean flag signalises
   # if the resulting C++-type is a scalar (True) or an array (False)
-  typeMap = { "integer": ("f77_int", True),
-              "character": ("f77_char", True),
-              "real" : ("f77_float", True),
-	      "complex" : ("f77_complex", True),
+  typeMap = { "integer(c_int)": ("int", True),
+              "character(c_char)": ("char", True),
+              "real(c_double)" : ("double", True),
+              "complex" : ("std::complex<double>", True),
               }
 
   def format(self, tree):
