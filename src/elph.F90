@@ -70,6 +70,10 @@ module elph
     
     !> Keep track of SCBA iteration 
     integer :: scba_iter = 0
+
+    !> SCBA Tolerance (Exact meaning may depend on model)
+    real(dp) :: scba_tol = 1.0d-7
+
     !! Model specific
     !! -----------------------------------------------------------------------
     !! Model 1

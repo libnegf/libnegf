@@ -1357,8 +1357,6 @@ contains
     Type(z_CSR) :: Gn
     Type(z_CSR) :: Gn_previous
 
-    real(dp), parameter :: scba_tol = 1d-7
-
     ! Only take non-zero contacts
     do ii=1,size(negf%ni)
        if (negf%ni(ii).eq.0) then
@@ -1401,7 +1399,7 @@ contains
           if (negf%elph%scba_iter.ne.0) then
             scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
             write(*,*) "Error at scba iter ",scba_iter, " : ", scba_error
-            if (scba_error .lt. scba_tol) then 
+            if (scba_error .lt. negf%elph%scba_tol) then 
               write(*,*) "SCBA exit succesfully after ",scba_iter, " iterations"
               ! If exiting, release Gn
               call destroy(Gn)
