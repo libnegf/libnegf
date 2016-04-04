@@ -15,11 +15,10 @@
 ARCH1= $(shell uname -m)
 ARCH = $(ARCH1)-linux-gfortran
 
-DEBUG=0
+DEBUG=2
 # Include system specific settings
 include $(ROOT)/sysmakes/make.$(ARCH)
 
 ############################################################################
 # Overriding standard options:
 ############################################################################
-
