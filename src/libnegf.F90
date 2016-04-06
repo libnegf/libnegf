@@ -391,6 +391,7 @@ contains
     call destroy_matrices(negf)
     call destroy_HS(negf)
     call kill_Tstruct(negf%str) 
+    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
 
     !call destroy_emesh(negf)
 
@@ -471,7 +472,6 @@ contains
        if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
     
-    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
     if (allocated(negf%en_grid)) deallocate(negf%en_grid)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
