@@ -1410,9 +1410,9 @@ contains
           call clone(Gn,Gn_previous)
           call destroy(Gn)
         enddo
-        if (scba_error .gt. scba_tol) then
+        if (scba_error .gt. negf%elph%scba_tol) then
           write(*,*) "WARNING : SCBA exit with error ",scba_error, &
-              & " above reference tolerance at energy ", Ec
+              & " above reference tolerance ",negf%elph%scba_tol, " at energy ", Ec
         end if
         call destroy(Gn_previous)
       endif
