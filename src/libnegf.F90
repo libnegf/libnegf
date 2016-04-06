@@ -695,14 +695,6 @@ contains
     
     integer :: flagbkup
 
-<<<<<<< HEAD
-    ! gp: why is this here??
-=======
-    call extract_device(negf)
-
-    call extract_cont(negf)
-    
->>>>>>> master
     flagbkup = negf%readOldSGF
     if (negf%readOldSGF.ne.1) then
        negf%readOldSGF = 1
@@ -712,7 +704,6 @@ contains
       call compute_landauer(negf)
   else
       call compute_meir_wingreen(negf)
-      call compute_ldos(negf)
   endif
     
     negf%readOldSGF = flagbkup

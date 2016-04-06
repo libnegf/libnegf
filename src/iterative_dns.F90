@@ -185,7 +185,7 @@ CONTAINS
 
 
     ! SAVE ON FILES/MEMORY (for elph).........................
-    if (pnegf%elph%numselmodes.gt.0) then
+    if (pnegf%elph%numselmodes.gt.0 .and. pnegf%elph%model .eq. -1) then
       ! save diagonal blocks of Gn = -i G<
       DO i = 1, nbl
         !print*,'G_r ',minval(abs(Gr(i,i)%val)), maxval(abs(Gr(i,i)%val))
