@@ -43,6 +43,8 @@ program hello
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
   call write_tunneling_and_dos(pnegf)
+  write(*,*) 'Again!'
+  call compute_current(pnegf)
   write(*,*) 'Destroy negf'
   call destroy_negf(pnegf)
   write(*,*) 'Done'

@@ -383,18 +383,14 @@ contains
   end subroutine init_structure
 
 !--------------------------------------------------------------------
+  !> Destroy all the info defined in initialization. 
+  !! To run at the very end of libnegf usage
   subroutine destroy_negf(negf)
     type(Tnegf) :: negf   
 
     call destroy_matrices(negf)
-
+    call destroy_HS(negf)
     call kill_Tstruct(negf%str) 
-
-    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
-    if (allocated(negf%en_grid)) deallocate(negf%en_grid)
-    if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
-    if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
-    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
 
     !call destroy_emesh(negf)
 
@@ -464,6 +460,7 @@ contains
   end subroutine create_DM
 
 
+  !> Destroy matrices created runtime in libnegf
   subroutine destroy_matrices(negf)
     type(Tnegf) :: negf   
     integer :: i
@@ -474,8 +471,13 @@ contains
        if (allocated(negf%HMC(i)%val)) call destroy(negf%HMC(i))
        if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
+    
+    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
+    if (allocated(negf%en_grid)) deallocate(negf%en_grid)
+    if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
+    if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
 
-    call destroy_HS(negf)
     call destroy_DM(negf)
 
   end subroutine destroy_matrices
@@ -695,7 +697,7 @@ contains
     integer :: flagbkup
 
     call extract_device(negf)
-    
+
     call extract_cont(negf)
     
     flagbkup = negf%readOldSGF
