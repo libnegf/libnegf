@@ -20,7 +20,7 @@ DEBUG=0
 include $(ROOT)/sysmakes/make.$(ARCH)
 
 FPPFLAGS+=-DMPI=Y
-INCLUDE=-I../ext_mpifx -I../ext_fftw/include
+INCLUDE=-I../ext_mpifx/src -I../ext_fftw/include
 ############################################################################
 # Overriding standard options:
 ############################################################################

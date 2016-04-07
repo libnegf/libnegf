@@ -1,8 +1,0 @@
-download mpifx library from Bitbucket repository:
-https://pecchia@bitbucket.org/dftbplus/mpifx.git
-
-Dependencies needed by libnegf:
-
-libmpifx_module.mod
-libmpifx.a
-

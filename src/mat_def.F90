@@ -28,7 +28,7 @@ Module mat_def
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 public :: c_DNS, s_CSR ! single precision defs
-public :: z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
+public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
@@ -48,6 +48,7 @@ interface create
    module procedure rcreate_DNS
    module procedure ccreate_DNS
    !module procedure screate_CSR
+   module procedure rcreate_DNS3
    module procedure zcreate_DNS3
    module procedure ccreate_DNS3
 end interface
@@ -86,6 +87,7 @@ interface destroy
    module procedure rdestroy_DNS
    module procedure cdestroy_DNS
    !module procedure sdestroy_CSR
+   module procedure rdestroy_DNS3
    module procedure zdestroy_DNS3
    module procedure cdestroy_DNS3
 end interface
@@ -183,6 +185,13 @@ Type z_DNS
   integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val  
 end Type z_DNS 
+
+Type r_DNS3
+  integer :: nrow = 0
+  integer :: ncol = 0
+  integer :: npoints = 0
+  real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val  
+end Type r_DNS3
 
 Type z_DNS3
   integer :: nrow = 0
@@ -1080,6 +1089,18 @@ subroutine ccreate_DNS(mat,nrow,ncol)
 
 end subroutine ccreate_DNS
 ! ------------------------------------------------------------------
+subroutine rcreate_DNS3(mat,nrow,ncol,npoints)
+  type(r_DNS3) :: mat
+  integer :: nrow, ncol, npoints
+
+  if(nrow.eq.0.or.ncol.eq.0) STOP 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
+
+  mat%ncol=ncol
+  mat%nrow=nrow
+  mat%npoints=npoints
+  call log_allocate(mat%val,nrow,ncol,npoints)
+end subroutine rcreate_DNS3
+! ------------------------------------------------------------------
 
 subroutine zcreate_DNS3(mat,nrow,ncol,npoints)
   type(z_DNS3) :: mat
@@ -1106,6 +1127,16 @@ subroutine ccreate_DNS3(mat,nrow,ncol,npoints)
   call log_allocate(mat%val,nrow,ncol,npoints)
 end subroutine ccreate_DNS3
 ! ------------------------------------------------------------------
+
+subroutine rdestroy_DNS3(mat1)
+  type(r_DNS3) :: mat1
+
+  mat1%nrow=0
+  mat1%ncol=0
+  if (allocated(mat1%val)) then
+     call log_deallocate(mat1%val)
+  end if
+end subroutine rdestroy_DNS3
 
 subroutine zdestroy_DNS3(mat1)
   type(z_DNS3) :: mat1

@@ -39,6 +39,7 @@ module lib_param
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   public :: print_all_vars
+  public :: init_phph
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -429,6 +430,20 @@ contains
      call init_elph(negf%elph)
 
    end subroutine set_defaults
+
+
+   subroutine init_phph(negf, order, filename)
+      type(Tnegf) :: negf
+      integer, intent(in) :: order
+      character(*), intent(in) :: filename
+  
+      call init_phph(negf%phph, negf%str%natoms, order, negf%str%PL_start, negf%str%PL_end) 
+      
+      call load_phph_couplings(negf%phph, filename) 
+
+   end subroutine init_phph
+
+
 
    subroutine print_all_vars(negf,io)
      type(Tnegf) :: negf    
