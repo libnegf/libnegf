@@ -10,13 +10,15 @@ SOURCES = clock.F90  ln_extract.F90 \
           outmatrix.F90 rcm_module.F90 distributions.F90  transform.F90 \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
           globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
-	  population.F90 mkl_dfti.F90 energy_mesh.F90
+	  population.F90 mkl_dfti.F90 energy_mesh.F90 interactions.F90 \
+	  elphdd.F90
 
 OBJS = $(SOURCES:.F90=.o)
 
 NEEDED_MODS = lib_param.mod libnegf.mod ln_allocation.mod \
 	     ln_extract.mod ln_precision.mod ln_structure.mod \
-	     mat_def.mod mpi_globals.mod elph.mod energy_mesh.mod  
+	     mat_def.mod mpi_globals.mod elph.mod energy_mesh.mod \
+	     interactions.mod elphdd.mod
 
 FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
 FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
@@ -47,7 +49,7 @@ clean:
 ln_allocation.o:    ln_precision.o
 ln_constants.o:     ln_precision.o
 lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o elph.o 
-lib_param.o:  energy_mesh.o
+lib_param.o:  energy_mesh.o interactions.o elphdd.o
 mat_def.o:       ln_allocation.o
 iterative.o:     ln_allocation.o  mat_def.o sparsekit_drv.o 
 iterative.o:     inversions.o ln_structure.o
@@ -69,6 +71,8 @@ integrations.o: energy_mesh.o distributions.o contselfenergy.o
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
+interactions.o : globals.o ln_precision.o
+elphdd.o : 	ln_precision.o
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep

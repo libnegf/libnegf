@@ -28,6 +28,8 @@ module lib_param
   use input_output
   use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
   use energy_mesh, only : mesh
+  use interactions, only : Interaction
+  use elphdd, only : ElPhonDephD
 
   implicit none
   private
@@ -147,6 +149,9 @@ module lib_param
    real(dp) :: delta_singular
    type(Telph) :: elph           ! electron-phonon data
    type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+
+   ! Many Body Interactions
+   class(Interaction), allocatable :: inter
 
    !! Output variables: these are filled by internal subroutines to stor
    !! library output
@@ -363,7 +368,8 @@ contains
     !if (size(coupling).ne.negf%H%nrow) then
     !  write(*,*) 'Elph dephasing model coupling size does not match '
     !endif
-    call init_elph_1(negf%elph, coupling, niter)
+    allocate(negf%inter, source=ElPhonDephD(coupling, niter, 1.0d-7))
+    !call init_elph_1(negf%elph, coupling, niter)
   end subroutine set_elph_dephasing
 
   !> Set values for the semi-local electron phonon dephasing model
@@ -407,8 +413,10 @@ contains
   !! task (density or current)
   subroutine destroy_elph_model(negf)
     type(Tnegf) :: negf
-
+    
+    call negf%inter%destroy()
     call destroy_elph(negf%elph)
+
   end subroutine destroy_elph_model
 
   
