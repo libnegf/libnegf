@@ -1233,7 +1233,10 @@ contains
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        !call log_allocatep(negf%tunn_mat,0,0)
        !if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
+       ! If a previous calculation is present, destroy it
+       if (associated(negf%currents)) call log_deallocatep(negf%currents)    
        call log_allocatep(negf%currents,1) 
+
        negf%currents = 0.0_dp 
        return
     endif
@@ -1269,11 +1272,17 @@ contains
     !-------------------------------------------------------
     
     call log_allocate(TUN_MAT,size_ni)
-    call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
+    !If previous calculation is there, destroy output
+    if (associated(negf%tunn_mat)) call  log_deallocatep(negf%tunn_mat)
+    call log_allocatep(negf%tunn_mat,Nstep,size_ni)  
+
     negf%tunn_mat = 0.0_dp 
 
     if (do_LEDOS) then
+       !If previous calculation is there, destroy output
+       if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
        call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
+
        call log_allocate(LEDOS,negf%nLDOS)          
        negf%ldos_mat(:,:)=0.d0
     endif
@@ -1340,9 +1349,10 @@ contains
 
     size_ni = size(negf%tunn_mat,2)
 
-    if (.not.associated(negf%currents)) then
+    ! If previous calculation is there, destroy it
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
       call log_allocatep(negf%currents,size_ni)
-    end if
+
     negf%currents=0.d0
 
     do ii=1,size_ni
