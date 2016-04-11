@@ -29,7 +29,7 @@ module lib_param
   use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
   use energy_mesh, only : mesh
   use interactions, only : Interaction
-  use elphdd, only : ElPhonDephD
+  use elphdd, only : ElPhonDephD, ElPhonDephD_create
 
   implicit none
   private
@@ -360,16 +360,13 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
     type(Tnegf) :: negf
+    type(ElPhonDephD) :: elphdd_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer :: niter
     
-    !! Verify that the size of the coupling fits with the Hamiltonian
-    !! of the device region
-    !if (size(coupling).ne.negf%H%nrow) then
-    !  write(*,*) 'Elph dephasing model coupling size does not match '
-    !endif
-    allocate(negf%inter, source=ElPhonDephD(coupling, niter, 1.0d-7))
-    !call init_elph_1(negf%elph, coupling, niter)
+    call elphondephd_create(elphdd_tmp, coupling, niter, 1.0d-7)
+    allocate(negf%inter, source=elphdd_tmp)
+
   end subroutine set_elph_dephasing
 
   !> Set values for the semi-local electron phonon dephasing model

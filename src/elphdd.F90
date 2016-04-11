@@ -27,7 +27,7 @@ module elphdd
   implicit none
   private
 
-  public :: ElPhonDephD
+  public :: ElPhonDephD, ElPhonDephD_create
 
   type, extends(interaction) :: ElPhonDephD
 
@@ -41,20 +41,16 @@ module elphdd
 
   end type ElPhonDephD
 
-  interface ElPhonDephD
-    module procedure init_ElPhonDephD
-  end interface ElPhonDephD
-
 contains
 
   !>
-  ! Constructor for el-ph dephasing diagonal model
+  ! Factory for el-ph dephasing diagonal model
   ! @param coupling: coupling (energy units) 
   ! @param niter: fixed number of scba iterations
   ! @param tol: scba tolerance
-  function init_ElPhonDephD(coupling, niter, tol) result(this)
-
-    type(ElPhonDephD) :: this
+  subroutine ElPhonDephD_create(this, coupling, niter, tol)
+    
+    type(ElPhonDephD), intent(inout) :: this
     real(dp), dimension(:), allocatable :: coupling
     real(dp), dimension(:), allocatable :: sigma_r
     real(dp), dimension(:), allocatable :: sigma_n
@@ -75,14 +71,14 @@ contains
     this%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
                        !treat them all contemporary)
 
-  end function init_ElPhonDephD
+  end subroutine ElPhonDephD_create
 
-  subroutine destroy(self)
-    class(ElPhonDephD) :: self
+  subroutine destroy(this)
+    class(ElPhonDephD) :: this
 
-    call log_deallocate(self%coupling)
-    call log_deallocate(self%sigma_r)
-    call log_deallocate(self%sigma_n)
+    call log_deallocate(this%coupling)
+    call log_deallocate(this%sigma_r)
+    call log_deallocate(this%sigma_n)
 
   end subroutine destroy
 
