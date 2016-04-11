@@ -49,9 +49,9 @@ module interactions
   end type Interaction
 
   abstract interface
-    subroutine abst_destroy(self)
+    subroutine abst_destroy(this)
       import interaction
-      class(interaction) :: self
+      class(interaction) :: this
     end subroutine abst_destroy
   end interface
 

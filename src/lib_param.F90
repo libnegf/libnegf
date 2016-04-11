@@ -364,8 +364,9 @@ contains
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer :: niter
     
-    call elphondephd_create(elphdd_tmp, coupling, niter, 1.0d-7)
-    allocate(negf%inter, source=elphdd_tmp)
+    call init_elph_1(negf%elph, coupling, niter)
+    !call elphondephd_create(elphdd_tmp, coupling, niter, 1.0d-7)
+    !allocate(negf%inter, source=elphdd_tmp)
 
   end subroutine set_elph_dephasing
 
