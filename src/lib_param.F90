@@ -39,7 +39,7 @@ module lib_param
   public :: set_convfactor, set_fermi, set_potentials, set_fictcont
   public :: set_readoldsgf, set_computation, set_iteration, set_defaults
   public :: print_all_vars
-  public :: init_phph
+  public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
 
@@ -432,16 +432,18 @@ contains
    end subroutine set_defaults
 
 
-   subroutine init_phph(negf, order, filename)
+   subroutine set_phph(negf, order, filename)
       type(Tnegf) :: negf
       integer, intent(in) :: order
       character(*), intent(in) :: filename
-  
-      call init_phph(negf%phph, negf%str%natoms, order, negf%str%PL_start, negf%str%PL_end) 
+ 
+      print*,'(set_phph) init_phph' 
+      call init_phph(negf%phph, negf%str%central_dim, order, negf%str%mat_PL_start, negf%str%mat_PL_end) 
       
+      print*,'(set_phph) load_phph_coupl' 
       call load_phph_couplings(negf%phph, filename) 
 
-   end subroutine init_phph
+   end subroutine set_phph
 
 
 

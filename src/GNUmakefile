@@ -16,7 +16,7 @@ OBJS = $(SOURCES:.F90=.o)
 
 NEEDED_MODS = lib_param.mod libnegf.mod ln_allocation.mod \
 	     ln_extract.mod ln_precision.mod ln_structure.mod \
-	     mat_def.mod mpi_globals.mod elph.mod energy_mesh.mod  
+	     mat_def.mod mpi_globals.mod elph.mod phph.mod energy_mesh.mod  
 
 FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
 FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
@@ -35,6 +35,7 @@ $(TARGET): $(OBJS)
 	ar -r $@ $^
 
 copy:
+	echo cp $(NEEDED_MODS) $(OBJDIR)
 	cp $(NEEDED_MODS) $(OBJDIR)
 
 clean:
