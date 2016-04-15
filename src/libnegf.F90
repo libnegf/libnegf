@@ -698,7 +698,7 @@ contains
        negf%readOldSGF = 1
     end if
 
-    if (negf%elph%model .eq. 0) then
+    if (.not.allocated(negf%inter)) then
       call compute_landauer(negf)
   else
       call compute_meir_wingreen(negf)

@@ -1399,16 +1399,16 @@ contains
       call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
       !! If elph model, then get inside a SCBA cycle. Otherwise Gn is calculated
       !! directly inside meir_wingreen
-      if (negf%elph%model .ne. 0) then
-        do scba_iter = 0, negf%elph%scba_niter
+      if (allocated(negf%inter)) then
+        do scba_iter = 0, negf%inter%scba_niter
           write(*,*) "SCBA iter ", scba_iter
           !Note: Gr,Sigma_r are also calculated and updated here inside
-          negf%elph%scba_iter = scba_iter
+          negf%inter%scba_iter = scba_iter
           call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
-          if (negf%elph%scba_iter.ne.0) then
+          if (negf%inter%scba_iter.ne.0) then
             scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
             write(*,*) "Error at scba iter ",scba_iter, " : ", scba_error
-            if (scba_error .lt. negf%elph%scba_tol) then 
+            if (scba_error .lt. negf%inter%scba_tol) then 
               write(*,*) "SCBA exit succesfully after ",scba_iter, " iterations"
               ! If exiting, release Gn
               call destroy(Gn)
@@ -1419,9 +1419,9 @@ contains
           call clone(Gn,Gn_previous)
           call destroy(Gn)
         enddo
-        if (scba_error .gt. negf%elph%scba_tol) then
+        if (scba_error .gt. negf%inter%scba_tol) then
           write(*,*) "WARNING : SCBA exit with error ",scba_error, &
-              & " above reference tolerance ",negf%elph%scba_tol, " at energy ", Ec
+              & " above reference tolerance ",negf%inter%scba_tol, " at energy ", Ec
         end if
         call destroy(Gn_previous)
       endif
