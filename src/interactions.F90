@@ -25,6 +25,8 @@ module interactions
 
   use globals, only : LST
   use ln_precision, only : dp
+  use mat_def, only : z_dns
+  use ln_structure, only : TStruct_info
 
   implicit none
   private
@@ -41,18 +43,85 @@ module interactions
     integer :: scba_iter = 0
     !> SCBA Tolerance
     real(dp) :: scba_tol = 1.0d-7
+    !> Number of energy points from integration grid
+    !integer :: en_npoints = 0
+    !> Buffer for Gr
+
+    !> System partitioning (as in TNEGF)
+    type(TStruct_info) :: struct
 
   contains
 
     procedure(abst_destroy), deferred :: destroy
+    procedure(abst_add_sigma_r), deferred :: add_sigma_r
+    procedure(abst_get_sigma_n), deferred :: get_sigma_n
+    procedure(abst_set_Gr), deferred :: set_Gr
+    procedure(abst_set_Gn), deferred :: set_Gn
 
   end type Interaction
 
   abstract interface
+
     subroutine abst_destroy(this)
       import interaction
       class(interaction) :: this
     end subroutine abst_destroy
+
+    !> This interface should append
+    !! the retarded self energy to ESH
+    subroutine abst_add_sigma_r(this, esh)
+      import :: interaction
+      import :: z_dns
+      class(interaction) :: this
+      type(z_dns), dimension(:,:), allocatable, intent(inout) :: esh
+    end subroutine abst_add_sigma_r
+
+    !> Returns the lesser (n) Self Energy in block format
+    !! @param [in] this: calling instance
+    !! @param [in] struct: system structure
+    !! @param [inout] blk_sigma_n: block dense sigma_n
+    !! @param [in] ie: index of energy point
+    subroutine abst_get_sigma_n(this, blk_sigma_n, en_index)
+      import :: interaction
+      import :: z_dns
+      class(interaction) :: this
+      type(z_dns), dimension(:,:), allocatable, intent(inout) :: blk_sigma_n
+      integer, intent(in) :: en_index
+    end subroutine abst_get_sigma_n
+
+    !> Give the Gr at given energy point to the interaction
+    subroutine abst_set_Gr(this, Gr, en_index)
+      import :: interaction
+      import :: z_dns
+      class(interaction) :: this
+      type(z_dns), dimension(:,:), allocatable, intent(in) :: Gr
+      integer :: en_index
+    end subroutine abst_set_Gr
+
+    !> Give the Gn at given energy point to the interaction
+    subroutine abst_set_Gn(this, Gn, en_index)
+      import :: interaction
+      import :: z_dns
+      class(interaction) :: this
+      type(z_dns), dimension(:,:), allocatable, intent(in) :: Gn
+      integer :: en_index
+    end subroutine abst_set_Gn
+
+
   end interface
+
+contains
+
+    !> Initialize information needed for buffering G on memory or disk
+    !  Now it only pass the number of energy grid points but it 
+    !  could turn in something more complicated (e.g. an energy path object)
+!!$    subroutine init_Gbuffer(this, en_npoints)
+!!$      class(interaction) :: this
+!!$      integer, intent(in) :: en_npoints
+!!$
+!!$      this%en_npoints = en_npoints
+!!$      
+!!$      
+!!$    end subroutine init_Gbuffer
 
 end module interactions

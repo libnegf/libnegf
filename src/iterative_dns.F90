@@ -166,8 +166,10 @@ CONTAINS
 
     !! Add el-ph self energy if any
     if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
-      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    !----------------------------------
 
     call allocate_gsm_dns(gsmr,nbl)
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
@@ -197,6 +199,8 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call update_elph_r(pnegf, Gr)
     endif
+    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    !-----------------------------------------------------------
 
     call blk2csr(Gr,struct,pnegf%S,A)
 
@@ -442,8 +446,10 @@ CONTAINS
 
     !! Add el-ph self energy if any
     if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
-      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    !---------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
@@ -470,6 +476,8 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call update_elph_r(pnegf, Gr)
     endif
+    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    !--------------------------------------------------------
     !With el-ph we need all columns
     DO i=1,nbl
       CALL Make_Grcol_mem_dns(ESH,i,indblk)
@@ -505,6 +513,8 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call update_elph_n(pnegf, Gn)
     endif
+    if (allocated(pnegf%inter)) call pnegf%inter%set_Gn(Gr, pnegf%iE)
+    !-----------------------------------------------------
     !! Skip this, old implementation
     !print*
     ! save diagonal blocks of G_n
@@ -634,9 +644,10 @@ CONTAINS
 
     !! Add el-ph self energy if any
     if (pnegf%elph%model .ne. 0) then
-      call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
+      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    !------------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
@@ -665,7 +676,8 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call update_elph_r(pnegf, Gr)
     endif
-
+    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    !---------------------------------------------------
     !With el-ph we need all columns
     DO i=1,nbl
       CALL Make_Grcol_mem_dns(ESH,i,indblk)
@@ -1877,18 +1889,7 @@ CONTAINS
     case (0)
       continue
     case (1)
-      do n = 1, nbl
-        nrow = ESH(n,n)%nrow
-        call create(Sigma_ph_n(n,n), nrow, nrow)
-        Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
-        
-        associate(pl_start=>pnegf%str%mat_PL_start(n),&
-            pl_end=>pnegf%str%mat_PL_end(n))
-          forall(ii = 1:pl_end - pl_start + 1) 
-            Sigma_ph_n(n,n)%val(ii,ii) = pnegf%elph%diag_sigma_n(pl_start+ii-1)
-          end forall
-        end associate
-      enddo
+      call pnegf%inter%get_sigma_n(Sigma_ph_n, pnegf%ie)
     case (2)
       do n = 1, nbl
         nrow = ESH(n,n)%nrow

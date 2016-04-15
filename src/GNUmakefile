@@ -71,8 +71,8 @@ integrations.o: energy_mesh.o distributions.o contselfenergy.o
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
-interactions.o : globals.o ln_precision.o
-elphdd.o : 	ln_precision.o
+interactions.o : globals.o ln_precision.o mat_def.o ln_structure.o
+elphdd.o : 	ln_precision.o globals.o mat_def.o ln_structure.o
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep
