@@ -168,7 +168,9 @@ CONTAINS
     if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
       !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(pnegf%inter).and.pnegf%inter%scba_iter.ne.0) then
+      call pnegf%inter%add_sigma_r(ESH)
+    end if
     !----------------------------------
 
     call allocate_gsm_dns(gsmr,nbl)
@@ -428,7 +430,7 @@ CONTAINS
     indblk => struct%mat_PL_start
     cblk => struct%cblk
     ref = pnegf%refcont
-    iter = pnegf%elph%scba_iter
+    iter = pnegf%inter%scba_iter
 
     Ec=cmplx(E,0.d0,dp)
 
@@ -448,7 +450,9 @@ CONTAINS
     if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
       !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(pnegf%inter).and.pnegf%inter%scba_iter.ne.0) then
+      call pnegf%inter%add_sigma_r(ESH)
+    end if
     !---------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
@@ -513,7 +517,7 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       call update_elph_n(pnegf, Gn)
     endif
-    if (allocated(pnegf%inter)) call pnegf%inter%set_Gn(Gr, pnegf%iE)
+    if (allocated(pnegf%inter)) call pnegf%inter%set_Gn(Gn, pnegf%iE)
     !-----------------------------------------------------
     !! Skip this, old implementation
     !print*
@@ -626,7 +630,7 @@ CONTAINS
     cblk => struct%cblk
     ref = pnegf%refcont
     ref_blk = pnegf%str%cblk(ref)
-    iter = pnegf%elph%scba_iter
+    iter = pnegf%inter%scba_iter
 
     Ec=cmplx(E,0.d0,dp)
     !Costruiamo la matrice sparsa ESH
@@ -646,7 +650,9 @@ CONTAINS
     if (pnegf%elph%model .ne. 0) then
       !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
     endif
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(pnegf%inter)) then
+      call pnegf%inter%add_sigma_r(ESH)
+    end if
     !------------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
@@ -705,6 +711,8 @@ CONTAINS
     CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
 
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
+
+    ! I probably need the next set_Gn in interaction for current conservation here
 
     do i=1,size(ni)
       if (ni(i) .eq. 0) then
@@ -1017,7 +1025,7 @@ CONTAINS
 
     nbl = pnegf%str%num_PLs
 
-    ! At first loop there's no self energy
+    ! At first loop we should add no
     if (elph%scba_iter .eq. 0 .or. elph%model .eq. 0) then
       return
     end if
@@ -1875,18 +1883,26 @@ CONTAINS
     INTEGER :: n, k, nbl, nrow, ierr, ii, jj, norbs, nblk, indstart, indend
 
     !! If this is the first scba cycle, there's nothing to do
-    if (pnegf%elph%scba_iter .eq. 0) then
+    if (pnegf%inter%scba_iter .eq. 0) then
       return
     endif
     nbl = pnegf%str%num_PLs
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
+    ! The block sigma n is made available from el-ph model
+    ! Note: the elph models could not keep a copy and calculate it 
+    ! on the fly. You have to rely on the local copy
+    if (allocated(pnegf%inter)) then
+      call pnegf%inter%get_sigma_n(Sigma_ph_n, pnegf%ie)
+    end if
+
     !! Make the sigma_ph_n available.
     !! The exact way depends on the el-ph model
     !! I could do it on the fly to save some memory
     select case(pnegf%elph%model)
     case (0)
+      write(*,*) 'I continue here'
       continue
     case (1)
       call pnegf%inter%get_sigma_n(Sigma_ph_n, pnegf%ie)

@@ -1401,15 +1401,20 @@ contains
       !! directly inside meir_wingreen
       if (allocated(negf%inter)) then
         do scba_iter = 0, negf%inter%scba_niter
-          write(*,*) "SCBA iter ", scba_iter
+
+          write(*,*) "MW SCBA iter ", scba_iter
+
           !Note: Gr,Sigma_r are also calculated and updated here inside
           negf%inter%scba_iter = scba_iter
           call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
           if (negf%inter%scba_iter.ne.0) then
             scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
+
             write(*,*) "Error at scba iter ",scba_iter, " : ", scba_error
+
             if (scba_error .lt. negf%inter%scba_tol) then 
               write(*,*) "SCBA exit succesfully after ",scba_iter, " iterations"
+
               ! If exiting, release Gn
               call destroy(Gn)
               exit
@@ -1427,7 +1432,7 @@ contains
       endif
       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,&
           & negf%ni, tun_mat)
-      !negf%iE = negf%en_grid(ii)%pt
+      negf%iE = negf%en_grid(ii)%pt
       negf%tunn_mat(ii,:) = TUN_MAT(:) * negf%wght
       !Destroy energy dependent elph quantities in model 3
       !This should be substituted by a release sub for each model
@@ -1469,24 +1474,27 @@ contains
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
-    negf%elph%scba_iter = 0
+    negf%inter%scba_iter = 0
     call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
     !! If elph model, then get inside a SCBA cycle 
-    if (negf%elph%model .ne. 0 .and. negf%elph%scba_niter.ne.0) then
-      do scba_iter = 1, negf%elph%scba_niter
+    write(*,*) 'Before scba ' 
+    if (allocated(negf%inter) .and. negf%inter%scba_niter.ne.0) then
+      do scba_iter = 1, negf%inter%scba_niter
+        write(*,*) 'SCBA',scba_iter
         ! Self energies are updated directly in calls_eq_mem
         ! Need to destroy previous Gr
-        negf%elph%scba_iter = scba_iter
+        negf%inter%scba_iter = scba_iter
         call destroy(Gr)
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
       enddo
-       if (negf%elph%model .eq. 3) then
+!       if (negf%elph%model .eq. 3) then
+!REIMPLEMENT in interaction some release memory routine
       ! Destroy energy dependent stuff
-      do i1 =1,negf%elph%nummodes
-        call destroy(negf%elph%csr_sigma_r(i1))
-      end do
-    end if
+!      do i1 =1,negf%elph%nummodes
+!        call destroy(negf%elph%csr_sigma_r(i1))
+!      end do
+!    end if
     endif
 
     do i1=1,ncont

@@ -64,8 +64,8 @@ contains
     type(ElPhonDephD), intent(inout) :: this
     type(TStruct_info), intent(in) :: struct
     real(dp), dimension(:), allocatable :: coupling
-    real(dp), dimension(:), allocatable :: sigma_r
-    real(dp), dimension(:), allocatable :: sigma_n
+    complex(dp), dimension(:), allocatable :: sigma_r
+    complex(dp), dimension(:), allocatable :: sigma_n
     integer, intent(in) :: niter
     real(dp), intent(in) :: tol
 
@@ -79,8 +79,8 @@ contains
     this%coupling = coupling * coupling
     this%scba_niter = niter
     this%scba_tol = tol
-    this%sigma_r = 0.d0
-    this%sigma_n = 0.d0
+    this%sigma_r = (0.0d0, 0.0d0)
+    this%sigma_n = (0.0d0, 0.0d0)
     this%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
                        !treat them all contemporary)
 
@@ -108,6 +108,8 @@ contains
 
     nbl = this%struct%num_PLs
 
+    if (this%scba_iter .eq. 0) return
+
     do n=1,nbl
       associate(pl_start=>this%struct%mat_PL_start(n),&
           & pl_end=>this%struct%mat_PL_end(n))
@@ -130,6 +132,8 @@ contains
 
     integer :: n, nbl, ii, nrow
     nbl = this%struct%num_PLs
+
+    if (this%scba_iter .eq. 0) return
 
     do n = 1, nbl
       associate(pl_start=>this%struct%mat_PL_start(n),&
