@@ -29,7 +29,9 @@ module lib_param
   use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
   use energy_mesh, only : mesh
   use interactions, only : Interaction
-  use elphdd, only : ElPhonDephD, ElPhonDephD_create
+  use elphdd, only : ElPhonDephD, ElPhonDephD_create 
+  use elphdb, only : ElPhonDephB, ElPhonDephB_create
+  use elphds, only : ElPhonDephS, ElPhonDephS_create
 
   implicit none
   private
@@ -374,6 +376,7 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf) :: negf
+    type(ElPhonDephB) :: elphdb_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
     integer :: niter
@@ -383,14 +386,18 @@ contains
     !if (size(coupling).ne.negf%H%nrow) then
     !  write(*,*) 'Elph dephasing model coupling size does not match '
     !endif
-    call init_elph_2(negf%elph, coupling, orbsperatom, niter, &
-        negf%str%mat_PL_start)
+    !call init_elph_2(negf%elph, coupling, orbsperatom, niter, &
+    !    negf%str%mat_PL_start)
+    call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
+    allocate(negf%inter, source=elphdb_tmp)
+
   end subroutine set_elph_block_dephasing
 
  !> Set values for the semi-local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf) :: negf
+    type(ElPhonDephS) :: elphds_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
     integer :: niter
@@ -400,8 +407,11 @@ contains
     !if (size(coupling).ne.negf%H%nrow) then
     !  write(*,*) 'Elph dephasing model coupling size does not match '
     !endif
-    call init_elph_3(negf%elph, coupling, orbsperatom, niter, &
-        negf%str%mat_PL_start, negf%S)
+    !call init_elph_3(negf%elph, coupling, orbsperatom, niter, &
+    !    negf%str%mat_PL_start, negf%S)
+    call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
+    allocate(negf%inter, source=elphds_tmp)
+
   end subroutine set_elph_s_dephasing
 
 
@@ -412,7 +422,7 @@ contains
   subroutine destroy_elph_model(negf)
     type(Tnegf) :: negf
     
-    call negf%inter%destroy()
+    deallocate(negf%inter)
     call destroy_elph(negf%elph)
 
   end subroutine destroy_elph_model

@@ -52,7 +52,6 @@ module interactions
 
   contains
 
-    procedure(abst_destroy), deferred :: destroy
     procedure(abst_add_sigma_r), deferred :: add_sigma_r
     procedure(abst_get_sigma_n), deferred :: get_sigma_n
     procedure(abst_set_Gr), deferred :: set_Gr
@@ -61,11 +60,6 @@ module interactions
   end type Interaction
 
   abstract interface
-
-    subroutine abst_destroy(this)
-      import interaction
-      class(interaction) :: this
-    end subroutine abst_destroy
 
     !> This interface should append
     !! the retarded self energy to ESH

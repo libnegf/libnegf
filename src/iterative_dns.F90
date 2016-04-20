@@ -67,7 +67,6 @@ MODULE iterative_dns
   public :: check_sigma_ph_r
   public :: check_Gl_Gr
 
-  public :: sub_ESH_dns
   public :: rebuild_dns
   public :: Make_gsmr_mem_dns
   public :: Make_gsml_mem_dns
@@ -156,7 +155,7 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+    CALL zcsr2blk_sod(ESH_tot,ESH,indblk)
 
     CALL destroy(ESH_tot)
 
@@ -164,13 +163,9 @@ CONTAINS
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     ENDDO
 
-    !! Add el-ph self energy if any
-    if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
-      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
-    endif
-    if (allocated(pnegf%inter).and.pnegf%inter%scba_iter.ne.0) then
-      call pnegf%inter%add_sigma_r(ESH)
-    end if
+    !! Add interaction self energy contribution, if any
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    
     !----------------------------------
 
     call allocate_gsm_dns(gsmr,nbl)
@@ -197,10 +192,7 @@ CONTAINS
       ENDDO
     endif
     !..........................................................
-    !! Update el-ph self energy if any
-    if (pnegf%elph%model .ne. 0) then
-      call update_elph_r(pnegf, Gr)
-    endif
+    !! Deliver Gr to interaction models if any
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
     !-----------------------------------------------------------
 
@@ -293,7 +285,7 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+    CALL zcsr2blk_sod(ESH_tot,ESH,indblk)
 
     CALL destroy(ESH_tot)
 
@@ -439,20 +431,16 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+    CALL zcsr2blk_sod(ESH_tot,ESH,indblk)
 
     call destroy(ESH_tot)
     DO i=1,ncont
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     ENDDO
 
-    !! Add el-ph self energy if any
-    if (pnegf%elph%model .ne. 0 .and. pnegf%elph%scba_iter .ne. 0) then
-      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
-    endif
-    if (allocated(pnegf%inter).and.pnegf%inter%scba_iter.ne.0) then
-      call pnegf%inter%add_sigma_r(ESH)
-    end if
+    !! Add interaction self energy if any
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+
     !---------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
@@ -477,9 +465,6 @@ CONTAINS
     CALL Make_Gr_mem_dns(ESH,1)
     CALL Make_Gr_mem_dns(ESH,2,nbl)
     !! Update el-ph retarded self energy if any
-    if (pnegf%elph%model .ne. 0) then
-      call update_elph_r(pnegf, Gr)
-    endif
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
     !--------------------------------------------------------
     !With el-ph we need all columns
@@ -513,10 +498,8 @@ CONTAINS
 
     CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
-    !! Update el-ph self energy if any
-    if (pnegf%elph%model .ne. 0) then
-      call update_elph_n(pnegf, Gn)
-    endif
+
+    !! Pass Gr to interaction model
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gn(Gn, pnegf%iE)
     !-----------------------------------------------------
     !! Skip this, old implementation
@@ -638,7 +621,7 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    CALL sub_ESH_dns(ESH_tot,ESH,indblk)
+    CALL zcsr2blk_sod(ESH_tot,ESH,indblk)
 
     call destroy(ESH_tot)
 
@@ -647,12 +630,7 @@ CONTAINS
     ENDDO
 
     !! Add el-ph self energy if any
-    if (pnegf%elph%model .ne. 0) then
-      !call add_elph_sigma_r(pnegf, ESH, pnegf%elph)
-    endif
-    if (allocated(pnegf%inter)) then
-      call pnegf%inter%add_sigma_r(ESH)
-    end if
+    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
     !------------------------------------------------
     !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
@@ -678,10 +656,7 @@ CONTAINS
     CALL Make_Gr_mem_dns(ESH,1)
     CALL Make_Gr_mem_dns(ESH,2,nbl)
 
-    !! Update el-ph retarded self energy if any
-    if (pnegf%elph%model .ne. 0) then
-      call update_elph_r(pnegf, Gr)
-    endif
+    !! Give Gr to interaction model if any
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
     !---------------------------------------------------
     !With el-ph we need all columns
@@ -825,49 +800,6 @@ CONTAINS
 
   END SUBROUTINE destroy_ESH
 
-  !**********************************************************************
-  !
-  !  Divides sparse matrix ES-H in the device region in a sparse matrices
-  !  array ESH(nbl,nbl)  (needs global variable indblk)
-  !
-  !**********************************************************************
-
-  SUBROUTINE sub_ESH_dns(ESH_tot,ESH,indblk)
-
-    !**********************************************************************
-    !Input:
-    !ESH_tot: sparse matrix ES-H related to device
-    !
-    !Output:
-    !ESH(nbl,nbl): dense matrix array -> single matrices allocated 
-    !              internally, array ESH(nbl,nbl) allocated externally
-    !**********************************************************************
-
-    IMPLICIT NONE 
-
-    INTEGER :: i
-    TYPE(z_CSR) :: ESH_tot
-    INTEGER :: nbl
-    TYPE(z_DNS), DIMENSION(:,:) :: ESH
-    INTEGER, DIMENSION(:) :: indblk
-
-    nbl = size(ESH,1)
-
-    DO i=1,nbl
-
-      CALL extract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,ESH(i,i))
-
-    END DO
-
-    DO i=2,nbl
-
-      CALL extract(ESH_tot,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,ESH(i-1,i))
-      CALL extract(ESH_tot,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,ESH(i,i-1))
-
-    END DO
-
-  END SUBROUTINE sub_ESH_dns
-
 
   !***********************************************************************
   !> Update the value of el-ph Retarded  from block matrix
@@ -887,52 +819,11 @@ CONTAINS
     case (0)
       return
     case (1)
-      do n=1,npl
-        associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
-          forall(ii = 1:pl_end - pl_start + 1) 
-            negf%elph%diag_sigma_r(pl_start + ii - 1) = Gr(n,n)%val(ii,ii) * &  
-                & negf%elph%coupling_array(pl_start + ii - 1)
-          end forall
-        end associate
-      end do
+      stop "Deprecated"
     case(2)
-      nblk = size(negf%elph%atmblk_sigma_r)
-      do ii = 1,nblk
-        n = negf%elph%atmpl(ii)
-        norbs = negf%elph%orbsperatm(ii)
-        indstart = negf%elph%atmorbstart(ii) - negf%str%mat_PL_start(n) + 1
-        indend = indstart + norbs - 1
-        negf%elph%atmblk_sigma_r(ii)%val = matmul(matmul( &
-            & negf%elph%atmcoupling(ii)%val, &
-            & Gr(n,n)%val(indstart:indend, indstart:indend)), &
-            & negf%elph%atmcoupling(ii)%val)
-      end do
+      stop "Deprecated"
     case(3)
-      !! Implement sigma = M*G*M, assuming that PL structure is not only
-      !! preserved, but that only the corresponding Gr blocks are used
-      !! Now dirty, only working without PL
-      if (npl .ne. 1) then
-        write(*,*) 'Model 3 only working with 1 PL'
-        stop 0
-      end if
-
-      do ii=1,negf%elph%nummodes
-        if (negf%elph%scba_iter .ne. 0) then
-          call destroy(negf%elph%csr_sigma_r(ii))
-        end if
-        call create(work1, negf%elph%csr_couplings(ii)%nrow, negf%elph%csr_couplings(ii)%ncol)
-        call csr2dns(negf%elph%csr_couplings(ii), work1)
-        call prealloc_mult(work1, Gr(1,1), work2)
-        work1%val = conjg(transpose(work1%val))
-        call prealloc_mult(work2, work1, work3)
-        call destroy(work1)
-        call destroy(work2)
-        nnz = nzdrop(work3, 1.0d-10)
-        call create(negf%elph%csr_sigma_r(ii), Gr(1,1)%nrow, Gr(1,1)%ncol, nnz)
-        call dns2csr(work3, negf%elph%csr_sigma_r(ii))
-        call destroy(work3)
-      end do
-
+      stop "Deprecated"
     case default
       write(*,*) 'Elph model not yet implemented'
       stop 0
@@ -958,51 +849,11 @@ CONTAINS
     case (0)
       return
     case (1)
-      do n=1,npl
-        associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
-          forall(ii = 1:pl_end - pl_start + 1) 
-            negf%elph%diag_sigma_n(pl_start + ii - 1) = Gn(n,n)%val(ii,ii) * &  
-                negf%elph%coupling_array(pl_start + ii - 1)
-          end forall
-        end associate
-      enddo
+      stop "Deprecated"
     case(2)
-      nblk = size(negf%elph%atmblk_sigma_n)
-      do ii = 1,nblk
-        n = negf%elph%atmpl(ii)
-        norbs = negf%elph%orbsperatm(ii)
-        indstart = negf%elph%atmorbstart(ii) - negf%str%mat_PL_start(n) + 1
-        indend = indstart + norbs - 1
-        negf%elph%atmblk_sigma_n(ii)%val = matmul(matmul( &
-            &negf%elph%atmcoupling(ii)%val, &
-            Gn(n,n)%val(indstart:indend, indstart:indend)), &
-            negf%elph%atmcoupling(ii)%val)
-      end do
+      stop "Deprecated"
     case(3)
-      !! Implement sigma = M*G*M^dagger, assuming that PL structure is not only
-      !! preserved, but that only the corresponding Gr blocks are used
-      !! Now dirty, only working without PL
-      if (npl .ne. 1) then
-        write(*,*) 'Model 3 only working with 1 PL'
-        stop 0
-      end if
-
-      do ii=1,negf%elph%nummodes
-        if (negf%elph%scba_iter .ne. 0) then
-          call destroy(negf%elph%csr_sigma_n(ii))
-        end if
-        call create(work1, negf%elph%csr_couplings(ii)%nrow, negf%elph%csr_couplings(ii)%ncol)
-        call csr2dns(negf%elph%csr_couplings(ii), work1)
-        call prealloc_mult(work1, Gn(1,1), work2)
-        work1%val = conjg(transpose(work1%val))
-        call prealloc_mult(work2, work1, work3)
-        call destroy(work1)
-        call destroy(work2)
-        nnz = nzdrop(work3, 1d-10)
-        call create(negf%elph%csr_sigma_n(ii), Gn(1,1)%nrow, Gn(1,1)%ncol, nnz)
-        call dns2csr(work3, negf%elph%csr_sigma_n(ii))
-        call destroy(work3)
-      end do
+      stop "Deprecated"
     case default
       write(*,*) 'Elph model not yet implemented'
       stop 0
@@ -1035,43 +886,11 @@ CONTAINS
     case(0)
       return
     case(1)
-      do n=1,nbl
-        associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
-          forall(ii = 1:pl_end - pl_start + 1) 
-            ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii) - &
-                elph%diag_sigma_r(pl_start + ii - 1)
-          end forall
-        end associate
-      end do
+      stop "Deprecated"
     case (2)
-      nblk = size(pnegf%elph%atmblk_sigma_n)
-      do ii = 1,nblk
-        n = pnegf%elph%atmpl(ii)
-        norbs = pnegf%elph%orbsperatm(ii)
-        indstart = pnegf%elph%atmorbstart(ii) - pnegf%str%mat_PL_start(n) + 1
-        indend = indstart + norbs - 1
-        ESH(n,n)%val(indstart:indend, indstart:indend) = &
-            ESH(n,n)%val(indstart:indend, indstart:indend) - &
-            pnegf%elph%atmblk_sigma_r(ii)%val(:,:)
-      end do
+      stop "Deprecated"
     case(3)
-        !! Assume sparsity pattern of self energy as PLs 
-        !! For strongly local mode this could be reduced to PL where it 
-        !! sits and neighbors but now I'm lazy
-      call allocate_blk_dns(sigma_blk, nbl)
-      do ii = 1,pnegf%elph%nummodes
-        call sub_ESH_dns(pnegf%elph%csr_sigma_r(ii), sigma_blk, pnegf%str%mat_PL_start)
-        do jj = 1,nbl
-          ESH(jj, jj)%val = ESH(jj, jj)%val - sigma_blk(jj, jj)%val
-          if (jj .lt. nbl) then
-            ESH(jj, jj + 1)%val = ESH(jj, jj + 1)%val - sigma_blk(jj, jj + 1)%val
-            ESH(jj + 1, jj)%val = ESH(jj + 1, jj)%val - sigma_blk(jj + 1, jj)%val
-          end if
-        end do
-      call destroy_ESH(sigma_blk)
-      end do
-      call deallocate_blk_dns(sigma_blk)
-
+      stop "Deprecated"
     ! Old Alex one
     case(-1)
       nbl = pnegf%str%num_PLs
@@ -1905,46 +1724,11 @@ CONTAINS
       write(*,*) 'I continue here'
       continue
     case (1)
-      call pnegf%inter%get_sigma_n(Sigma_ph_n, pnegf%ie)
+      stop
     case (2)
-      do n = 1, nbl
-        nrow = ESH(n,n)%nrow
-        call create(Sigma_ph_n(n,n), nrow, nrow)
-        Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
-      enddo
-      nblk = size(pnegf%elph%atmblk_sigma_n)
-      do ii = 1,nblk
-        n = pnegf%elph%atmpl(ii)
-        norbs = pnegf%elph%orbsperatm(ii)
-        indstart = pnegf%elph%atmorbstart(ii) - pnegf%str%mat_PL_start(n) + 1
-        indend = indstart + norbs - 1
-        Sigma_ph_n(n,n)%val(indstart:indend, indstart:indend) = &
-            pnegf%elph%atmblk_sigma_n(ii)%val(:,:)
-      enddo
+      stop "Deprecated"
     case(3)
-      do n = 1, nbl
-        nrow = ESH(n,n)%nrow
-        call create(Sigma_ph_n(n,n), nrow, nrow)
-        Sigma_ph_n(n,n)%val = (0.0_dp, 0.0_dp)
-        !! Assume sparsity pattern of self energy as PLs 
-        !! For strongly local mode this could be reduced to PL where it 
-        !! sits and neighbors but now I'm lazy
-        call allocate_blk_dns(sigma_blk, nbl)
-        do ii = 1,pnegf%elph%nummodes
-          call sub_ESH_dns(pnegf%elph%csr_sigma_n(ii), sigma_blk, pnegf%str%mat_PL_start)
-          do jj = 1,nbl
-            Sigma_ph_n(jj, jj)%val = Sigma_ph_n(jj, jj)%val + sigma_blk(jj, jj)%val
-            if (jj .lt. nbl) then
-              Sigma_ph_n(jj, jj + 1)%val =  Sigma_ph_n(jj, jj + 1)%val + sigma_blk(jj, jj + 1)%val
-              Sigma_ph_n(jj + 1, jj)%val = Sigma_ph_n(jj + 1, jj)%val + sigma_blk(jj + 1, jj)%val
-            end if
-          end do
-          call destroy_ESH(sigma_blk)
-        end do
-        call deallocate_blk_dns(sigma_blk)
-      end do
-
-    !TODO: maybe csr_sigma can be already destroyed here
+      stop "Deprecated"
 
     case default
       write(*,*) 'Not yet implemented'
@@ -3765,7 +3549,7 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    call sub_ESH_dns(ESH_tot,ESH,str%mat_PL_start)
+    call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
     call destroy(ESH_tot)
 
     !Inclusion of the contact Self-Energies to the relevant blocks
@@ -4067,7 +3851,7 @@ CONTAINS
     call prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)    
 
     call allocate_blk_dns(ESH,nbl)
-    call sub_ESH_dns(ESH_tot,ESH,str%mat_PL_start)
+    call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
     call destroy(ESH_tot)
 
     !Inclusion of the contact Self-Energies to the relevant blocks

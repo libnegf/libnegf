@@ -18,6 +18,8 @@
 !!  <http://www.gnu.org/licenses/>.                                         !  
 !!--------------------------------------------------------------------------!
 
+!> Diagonal elastic dephasing model
+
 module elphdd
 
   use ln_precision, only : dp
@@ -43,7 +45,7 @@ module elphdd
     integer :: nummodes
 
   contains
-    procedure :: destroy  
+ 
     procedure :: add_sigma_r
     procedure :: get_sigma_n
     procedure :: set_Gr
@@ -87,17 +89,6 @@ contains
   end subroutine ElPhonDephD_create
 
 
-  !>
-  ! Destructor
-  subroutine destroy(this)
-    class(ElPhonDephD) :: this
-
-    call log_deallocate(this%coupling)
-    call log_deallocate(this%sigma_r)
-    call log_deallocate(this%sigma_n)
-
-  end subroutine destroy
-
   !> This interface should append
   !  the retarded self energy to ESH
   subroutine add_sigma_r(this, esh)
@@ -106,10 +97,8 @@ contains
 
     integer :: n, nbl, ii
 
-    nbl = this%struct%num_PLs
-
     if (this%scba_iter .eq. 0) return
-
+    nbl = this%struct%num_PLs
     do n=1,nbl
       associate(pl_start=>this%struct%mat_PL_start(n),&
           & pl_end=>this%struct%mat_PL_end(n))

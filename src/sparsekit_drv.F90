@@ -32,6 +32,7 @@ MODULE sparsekit_drv
   public :: prealloc_sum, prealloc_mult
   public :: check_nnz, nzdrop, getdiag, trace, getelement
   public :: check_if_hermitian
+  public :: zcsr2blk_sod
 
   public :: zsumcsr1
   public :: ramub_st
@@ -3285,6 +3286,38 @@ end subroutine zcooxcsr_st
     end select 
 
   end subroutine error_msg
+
+  !------------------------------------------------------------
+  !> Convert a CSR in a block dense matrix, only taking the 
+  !  diagonal and sub/over diag
+  subroutine zcsr2blk_sod(Acsr,Ablk,indblk)
+
+        IMPLICIT NONE 
+
+    INTEGER :: i
+    TYPE(z_CSR) :: Acsr
+    INTEGER :: nbl
+    TYPE(z_DNS), DIMENSION(:,:) :: Ablk
+    INTEGER, DIMENSION(:) :: indblk
+
+    nbl = size(Ablk,1)
+
+    DO i=1,nbl
+
+      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,Ablk(i,i))
+
+    END DO
+
+    DO i=2,nbl
+
+      CALL extract(Acsr,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,Ablk(i-1,i))
+      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,Ablk(i,i-1))
+
+    END DO
+
+
+  end subroutine zcsr2blk_sod
+  
 
 end module sparsekit_drv
 

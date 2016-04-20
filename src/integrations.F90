@@ -1434,15 +1434,7 @@ contains
           & negf%ni, tun_mat)
       negf%iE = negf%en_grid(ii)%pt
       negf%tunn_mat(ii,:) = TUN_MAT(:) * negf%wght
-      !Destroy energy dependent elph quantities in model 3
-      !This should be substituted by a release sub for each model
-      ! to clean up after every energy point
-      if (negf%elph%model .eq. 3) then
-        do jj=1,negf%elph%nummodes
-          call destroy(negf%elph%csr_sigma_r(jj))
-          call destroy(negf%elph%csr_sigma_n(jj))
-        end do
-      end if
+
       if (id0.and.negf%verbose.gt.VBT) call write_clock
       do icont=1,ncont
         call destroy(Tlc(icont))
@@ -1488,13 +1480,6 @@ contains
         call destroy(Gr)
         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
       enddo
-!       if (negf%elph%model .eq. 3) then
-!REIMPLEMENT in interaction some release memory routine
-      ! Destroy energy dependent stuff
-!      do i1 =1,negf%elph%nummodes
-!        call destroy(negf%elph%csr_sigma_r(i1))
-!      end do
-!    end if
     endif
 
     do i1=1,ncont
@@ -1531,25 +1516,19 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
 
-    negf%elph%scba_iter = 0
+    negf%inter%scba_iter = 0
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-    if (negf%elph%model .eq. 0) then
+    if (allocated(negf%inter)) then
       call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
     else
       call calls_neq_elph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       !! If elph model, then get inside a SCBA cycle 
-      do scba_iter = 1, negf%elph%scba_niter
-        negf%elph%scba_iter = scba_iter
+      do scba_iter = 1, negf%inter%scba_niter
+        negf%inter%scba_iter = scba_iter
         ! Destroy previous Gn
         call destroy(Gn)
         call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
       enddo
-       if (negf%elph%model .eq. 3) then
-      ! Destroy energy dependent stuff
-      do i1 =1,negf%elph%nummodes
-        call destroy(negf%elph%csr_sigma_n(i1))
-      end do
-      end if
     endif
 
     do i1=1,ncont

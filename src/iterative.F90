@@ -32,9 +32,6 @@
 #  undef __LAPACK
 #endif
 
-
-
-
 MODULE iterative
 
   USE ln_precision
