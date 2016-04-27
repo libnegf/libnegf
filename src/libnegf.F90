@@ -159,6 +159,7 @@ contains
        allocate(negf%H)
        call read_H(401,402,negf%H,fmt)
      else if (target_matrix.eq.1) then
+       allocate(negf%S)
        call read_H(401,402,negf%S,fmt)
      else 
        write(*,*) "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)"
