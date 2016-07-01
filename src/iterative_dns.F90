@@ -704,6 +704,7 @@ CONTAINS
         call zspectral(Gr(ref, ref), Gr(ref, ref), 0, A)
         tmp = frm(lead)-frm(ref)
         call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.d0, 0.d0), work1)
+        call destroy(A)
         call prealloc_mult(Gamma, work1, work2)
         call destroy(work1)
         tun_mat(i) = real(trace(work2))
@@ -1721,7 +1722,6 @@ CONTAINS
     !! I could do it on the fly to save some memory
     select case(pnegf%elph%model)
     case (0)
-      write(*,*) 'I continue here'
       continue
     case (1)
       stop

@@ -422,7 +422,7 @@ contains
   subroutine destroy_elph_model(negf)
     type(Tnegf) :: negf
     
-    deallocate(negf%inter)
+    if (allocated(negf%inter)) deallocate(negf%inter)
     call destroy_elph(negf%elph)
 
   end subroutine destroy_elph_model
