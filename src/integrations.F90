@@ -1533,7 +1533,8 @@ contains
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
     INTEGER :: i,i1,N,Nstep,imin,imax
- 
+    logical :: swapped
+
     curr=0.d0
     N=0
     destep=1.0d10 
@@ -1550,7 +1551,10 @@ contains
       kbT2 = kT2     
     endif
  
+    swapped = .false.
     if (mu2<mu1) then
+      !We have to remember we swapped to get the right sign at the end
+      swapped = .true.
       call swap(mu1,mu2)
       call swap(kbT1,kbT2)
     end if
@@ -1590,7 +1594,8 @@ contains
        enddo
        
     enddo
- 
+
+    if (swapped) curr = -1.d0*curr
     integrate_el = curr
   
   end function integrate_el
