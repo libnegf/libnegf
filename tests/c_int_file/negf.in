@@ -1,0 +1,24 @@
+foo HR.dat               !  filename for real part of H
+foo HI.dat               !  filename for imaginary part of H
+foo identity             !  Real part of S: if S == Id  set 'identity' 
+foo                      !  Imaginary part of S: not used is S is idenity 
+foo 2                    !  number of contacts. 
+foo 1                    !  Number of PLs. If 0, next line is omitted
+foo 60    !  PL end indexes
+foo 80 100               !  Matrix end for each contact
+foo 60 80                !  Surface end for each contact
+foo 0 0                  !  Ec       Ev        conduction/valence edges
+foo 0 0                  !  DEc     DEv      offset from edges
+foo -3.0 3.0 0.01       !  Emin  Emax   Estep for tunneling
+foo 0.0001  0.0001             !  kbT in units used (one per each contact, a unique temperature if no contacts are present) 
+foo 1                    !  weight for k-point (multiplies quantities integrated in energy)
+foo 20 20                !  Np on complex contour for electrons
+foo 0 0                  !  Np on complex contour for holes
+foo 10                   !  Np on real axis integration
+foo 10                   !  number of kT for cutoff fermi functions 
+foo 3                    !  number of poles included in contour
+foo 2                    !  number of spin-degenerate states
+foo 1e-05                !  delta used in G.F.   
+foo 0                    !  number of LDOS intervals. Next containes LDOS indexes only if LDOS != 0
+foo 0.0 0.0              !  electrochemical potential of each contact
+foo 0.0 0.0              ! 	electrochemical potential (holes)
