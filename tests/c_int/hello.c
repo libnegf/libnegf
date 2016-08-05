@@ -4,41 +4,40 @@
 #include <stdio.h>
 #include <string.h>
 
-void padRight(char *string, char pad, int padded_len) {
-    int len = (int) strlen(string);
-    if (len >= padded_len) {
-        return;
-    }
-    int i;
-    for (i = len; i < padded_len + 1; i++) {
-      string[i] = pad;
-    }
-    return;
-}
-
-
 int main()
 {
-  int handler[NEGF_HSIZE];
-  char realmat[] = "HR.dat";
-  char imagmat[] = "HI.dat";
-  int target_matrix = 0;
-  int nrow = 100;
 
-  //strcpy(realmat, "HR.dat");
-  //strcpy(imagmat,"HI.dat");
-  //padRight(realmat, ' ', NEGF_LC);
-  //padRight(imagmat, ' ', NEGF_LC);
+  int handler[NEGF_HSIZE];
+  char realmat[7] = "HR.dat";
+  char imagmat[7] = "HI.dat";
+  struct lnparams params;
+  int surfend[2] = {60,80};
+  int contend[2] = {80,100};
+  int plend[1] = {60};
+  int cblk[2] = {1,1};
   
   printf("Initializing libNEGF \n");
   negf_init_session(handler);
   negf_init(handler);
-  negf_read_hs(handler, &realmat[0], &imagmat[0], &target_matrix);
-  negf_set_s_id(handler, &nrow);
-  negf_read_input(handler);
+  negf_read_hs(handler, &realmat[0], &imagmat[0], 0);
+  negf_set_s_id(handler, 100);
+  negf_init_structure(handler, 2, &contend[0], &surfend[0], 1, &plend[0], &cblk[0]);
 
-  printf("Destroying libNEGF \n");
+  //Set parameters  
+  negf_get_params(handler, &params);
+  params.emin = -3.0;
+  params.emax = 3.0;
+  params.estep = 0.01;
+  params.wght = 3.0;
+  negf_set_params(handler, &params);
+  
+  //Run calculation and write result to file
+  negf_solve_landauer(handler);
+  negf_write_tunneling_and_dos(handler);
+
+  //Release library
   negf_destruct_libnegf(handler);
   negf_destruct_session(handler);
   printf("Done \n");
+
 }

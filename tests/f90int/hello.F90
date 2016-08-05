@@ -22,12 +22,21 @@ program hello
 
   use libnegf
   use lib_param
-  use integrations
 
   implicit none
 
   Type(Tnegf), target :: negf
   Type(Tnegf), pointer :: pnegf
+  Type(lnParams) :: params
+  integer, allocatable :: surfend(:), contend(:), plend(:), cblk(:)
+  real(kind(1.d0)), allocatable :: mu(:), kt(:), energies(:), transmission(:,:)
+
+  surfend = [60,80]
+  contend = [80,100]
+  plend = [60]
+  mu = [0.d0, 0.d0]
+  kt = [1.0d-3, 1.0d-3]
+  cblk = [1,1]
 
   pnegf => negf
 
@@ -37,16 +46,21 @@ program hello
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
-  write(*,*) 'Import input file'
-  call read_negf_in(pnegf)
-  call negf_partition_info(pnegf)
+  call init_structure(pnegf, 2, contend, surfend, 1, plend, cblk)
+  
+  ! Here we set the parameters, only the ones different from default
+  call get_params(pnegf, params)
+  params%Emin = -3.d0
+  params%Emax = 3.d0
+  params%Estep = 1.d-2
+  call set_params(pnegf, params)
+  
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
+  call get_transmission(pnegf, energies, transmission)
+  ! The above passes the transmission, but we write to file for debug
   call write_tunneling_and_dos(pnegf)
-  write(*,*) 'Again!'
-  call compute_current(pnegf)
   write(*,*) 'Destroy negf'
   call destroy_negf(pnegf)
-  write(*,*) 'Done'
 
 end program hello

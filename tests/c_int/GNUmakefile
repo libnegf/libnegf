@@ -3,8 +3,8 @@ include $(ROOT)/Makefile.user
 
 SOURCE = hello.c
 LIBNEGF = $(ROOT)/src/api/libnegf_$(ARCH1).a
-INCLUDES += -I$(ROOT)/src/api
-CC = gcc
+INCLUDES += -I$(ROOT)/src/api -I./
+CC = gcc 
 LDFLAGS = -lm -lgfortran
 all: hello
 
@@ -18,4 +18,4 @@ distclean: clean
 	(cd $(ROOT)/src/api; make clean)
 
 $(LIBNEGF):
-	(cd $(ROOT)/src/api; make)#; make c_binding)
+	(cd $(ROOT)/src/api; make; make c_binding)

@@ -1358,10 +1358,16 @@ contains
     do ii=1,size_ni
        mu1=negf%mu(negf%ni(ii))
        mu2=negf%mu(negf%nf(ii))
-       
-       negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
+       !! If temperature and chemical potential are the same we don't really need
+       !! to do the calculation. I set strictly equal because 
+       !! this is the case when we have default exact initialization to 0.0
+       if (mu1 .eq. mu2 .and. negf%kbT(negf%nf(ii)) .eq. negf%kbT(negf%ni(ii))) then
+         negf%currents(ii) = 0.d0
+       else
+         negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
                             & negf%kbT(negf%ni(ii)), negf%kbT(negf%nf(ii)), &
                             & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+       end if
     enddo
 
   end subroutine electron_current
@@ -1539,13 +1545,15 @@ contains
     destep=1.0d10 
     Nstep=NINT((emax-emin)/estep);
  
-    if (kT1.lt.0.01_dp*Kb) then
-      kbT1 = Kb*0.01_dp
+    !We set a minimum possible value T=1K to avoid
+    !numericla issues
+    if (kT1.lt.1.0_dp*Kb) then
+      kbT1 = Kb*1.0_dp
     else
       kbT1 = kT1     
     endif
-    if (kT2.lt.0.01_dp*Kb) then
-      kbT2 = Kb*0.01_dp
+    if (kT2.lt.1.00_dp*Kb) then
+      kbT2 = Kb*1.00_dp
     else
       kbT2 = kT2     
     endif

@@ -71,7 +71,7 @@ class Subroutine(object):
 ############################################################################
 
 def parse(txt):
-
+  
   start = 0
   match = PAT_SUBROUTINE.search(txt, start)
   tree = []
@@ -129,7 +129,7 @@ def parse(txt):
               raise ParserError("Invalid variable information '%s'" % minfo)
     tree.append(newSub)
     match = PAT_SUBROUTINE.search(txt, match.end())
-    
+  
   return tree
 
 
@@ -288,6 +288,7 @@ class FormatterC(Formatter):
               "real" : ("double", True),
               "complex(c_complex)" : ("double _Complex", True),
               "complex" : ("double _Complex", True),
+              "type(lnparams)" : ("struct lnparams", True)
               }
               
 
@@ -377,15 +378,18 @@ class FormatterC(Formatter):
         argProps = sub.varDefs[argName]
         varType = argProps[1]
         varIntent = argProps[2]
+        ref = "*"
+        if "value" in argProps[3]:
+            ref = ""
         if self.typeMap.has_key(varType):
           (cVarType, isScalar) = self.typeMap[varType]
         else:
           raise FormatterError("No corresponding C-type for '%s'" % varType)
         strConst = varIntent == INTENT_IN and "const " or ""
         if self.printVarNames:
-          cargs.append("%s%s *%s" % (strConst, cVarType, argName))
+          cargs.append("%s%s %s%s" % (strConst, cVarType, ref, argName))
         else:
-          cargs.append("%s%s *" % (strConst, cVarType))
+          cargs.append("%s%s %s" % (strConst, cVarType, ref))
         if self.printOrigTypes:
           if varIntent == INTENT_IN:
             strIntent = "intent(in)"

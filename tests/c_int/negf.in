@@ -9,7 +9,7 @@ foo 80 100               !  Matrix end for each contact
 foo 60 80                !  Surface end for each contact
 foo 0 0                  !  Ec       Ev        conduction/valence edges
 foo 0 0                  !  DEc     DEv      offset from edges
-foo -3.0 3.0 0.01       !  Emin  Emax   Estep for tunneling
+foo -3.0 3.0 0.5       !  Emin  Emax   Estep for tunneling
 foo 0.0001  0.0001             !  kbT in units used (one per each contact, a unique temperature if no contacts are present) 
 foo 1                    !  weight for k-point (multiplies quantities integrated in energy)
 foo 20 20                !  Np on complex contour for electrons
