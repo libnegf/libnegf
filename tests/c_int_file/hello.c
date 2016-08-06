@@ -8,6 +8,7 @@ int main()
 {
 
   int handler[NEGF_HSIZE];
+  int *hand = &handler[0];
   char realmat[7] = "HR.dat";
   char imagmat[7] = "HI.dat";
   struct lnparams params;
@@ -17,13 +18,13 @@ int main()
   int cblk[2] = {1,1};
   
   printf("Initializing libNEGF \n");
-  negf_init_session(handler);
-  negf_init(handler);
-  negf_read_input(handler);
-  negf_solve_landauer(handler);
-  negf_write_tunneling_and_dos(handler);
-  negf_destruct_libnegf(handler);
-  negf_destruct_session(handler);
+  negf_init_session(hand);
+  negf_init(hand);
+  negf_read_input(hand);
+  negf_solve_landauer(hand);
+  negf_write_tunneling_and_dos(hand);
+  negf_destruct_libnegf(hand);
+  negf_destruct_session(hand);
   printf("Done \n");
 
 }
