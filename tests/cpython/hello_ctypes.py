@@ -1,14 +1,6 @@
-import ctypes
-libnegf = ctypes.cdll.LoadLibrary("./libnegf_x86_64.so")
-handler_size = ctypes.c_int()
-libnegf.negf_gethandlersize(ctypes.byref(handler_size))
-print("handler size {}".format(handler_size.value))
-handler = (ctypes.c_int * handler_size.value)()
-print(handler, handler[0], ctypes.pointer(handler))
-libnegf.negf_init_session(ctypes.byref(handler))
-libnegf.negf_init(ctypes.byref(handler))
-libnegf.negf_read_input(ctypes.byref(handler))
-libnegf.negf_solve_landauer(ctypes.byref(handler))
-libnegf.negf_write_tunneling_and_dos(ctypes.byref(handler))
-print("handler available {}".format(handler[0]))
-libnegf.negf_destruct_libnegf(ctypes.byref(handler))
+from libnegf import NEGF
+
+negf = NEGF()
+negf.read_input()
+negf.solve_landauer()
+negf.write_tun_and_dos()
