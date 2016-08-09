@@ -1,2 +1,0 @@
-Same as f90, but it uses the C-like API instead of using directly the F90 API
-Two instances running the same calculation are created at the same time 

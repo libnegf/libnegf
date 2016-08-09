@@ -179,10 +179,7 @@ subroutine negf_set_params(handler, params) bind(c)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
- 
-  write(*,*) 'CC',params%emin
   call set_params(LIB%pNEGF, params)
-  write(*,*) 'FF',LIB%pNEGF%emin
 end subroutine negf_set_params
 
 !!* Getting parameters
@@ -633,3 +630,17 @@ subroutine negf_current(handler, current, unitOfH, unitOfJ)
   call write_tunneling_and_dos(LIB%pNEGF)
 
 end subroutine negf_current
+
+!> Print TNegf container for debug
+subroutine negf_print_tnegf(handler) bind(c)
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf   ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call print_tnegf(LIB%pNEGF)
+
+end subroutine negf_print_tnegf

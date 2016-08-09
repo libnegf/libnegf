@@ -55,7 +55,7 @@ module libnegf
                             ! H need to be already ordered properly 
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
- public :: set_ref_cont
+ public :: set_ref_cont, print_tnegf
  public :: get_transmission  !Returns transmission coefficients and energy range
  public :: associate_transmission, associate_current, associate_ldos
 
@@ -334,7 +334,8 @@ contains
     integer, intent(in) :: nrow
 
     allocate(negf%S)
-    call create_id(negf%S, nrow) 
+    call create_id(negf%S, nrow)
+    negf%isSid = .true. 
 
   end subroutine set_S_id
 
@@ -1241,6 +1242,13 @@ contains
     endif  
      
   end subroutine set_ref_cont
+
+  !> Print TNegf state, for debug
+  subroutine print_tnegf(negf)
+    type(TNegf) :: negf
+
+    call print_all_vars(negf, 6)
+  end subroutine print_tnegf
 
   !////////////////////////////////////////////////////////////////////////
   ! RCM algorithm for reordering.

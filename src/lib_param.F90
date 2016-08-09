@@ -24,7 +24,7 @@ module lib_param
   use ln_precision, only : dp
   use globals
   use mat_def
-  use ln_structure, only : TStruct_info
+  use ln_structure, only : TStruct_info, print_Tstruct
   use input_output
   use elph
   use energy_mesh, only : mesh
@@ -33,7 +33,7 @@ module lib_param
   private
 
   public :: Tnegf, intarray, TEnGrid
-  public :: fill_parameters, pass_DM
+  public :: pass_DM
   public :: set_computation, set_defaults
   public :: print_all_vars
   integer, public, parameter :: MAXNCONT=10
@@ -179,57 +179,6 @@ contains
   end subroutine set_computation      
  ! -------------------------------------------------------------------
 
-  subroutine fill_parameters(negf, verbose, mu_n, mu_p, Ec, Ev, &
-        DeltaEc, DeltaEv, delta, Emin, Emax, Estep, &
-        kbT, Np_n, Np_p, n_kt, n_poles, g_spin)
-
-    type(Tnegf) :: negf
-    integer :: verbose
-
-    real(dp) :: mu_n
-    real(dp) :: mu_p
-    real(dp) :: Ec
-    real(dp) :: Ev
-    real(dp) :: DeltaEc
-    real(dp) :: DeltaEv     
-
-    real(dp) :: delta
-    real(dp) :: Emin
-    real(dp) :: Emax
-    real(dp) :: Estep
-    real(dp) :: kbT
-
-    real(dp) :: Tmin
-    real(dp) :: Tmax
-    real(dp) :: Tstep
-
-    integer :: Np_n(2)
-    integer :: Np_p(2)   
-    integer :: n_kt
-    integer :: n_poles
-    real(dp) :: g_spin   
-
-    negf%verbose = verbose
-
-    negf%mu_n = mu_n
-    negf%mu_p = mu_p
-    negf%Ec = Ec 
-    negf%Ev = Ev
-    negf%DeltaEc = DeltaEc 
-    negf%DeltaEv = DeltaEv 
-    negf%delta = delta
-    negf%Emin = Emin
-    negf%Emax = Emax
-    negf%Estep = Estep
-    negf%kbT = kbT
-    negf%Np_n = Np_n
-    negf%Np_p = Np_p
-    negf%n_kt = n_kt
-    negf%n_poles = n_poles
-    negf%g_spin = g_spin
-
-  end subroutine fill_parameters
-
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
@@ -353,6 +302,8 @@ contains
    subroutine print_all_vars(negf,io)
      type(Tnegf) :: negf    
      integer :: io
+
+     call print_Tstruct(negf%str)
 
      write(io,*) 'verbose=',negf%verbose
 

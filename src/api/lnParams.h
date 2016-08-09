@@ -23,7 +23,7 @@ struct lnparams {
   double mu_n[MAXNCONT];
   double mu_p[MAXNCONT];
   double mu[MAXNCONT];
-  double contact_DOS[MAXNCONT];
+  double contact_dos[MAXNCONT];
   int fictcont[MAXNCONT];
   double kbt[MAXNCONT];
   int np_n[2];
