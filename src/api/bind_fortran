@@ -288,7 +288,8 @@ class FormatterC(Formatter):
               "real" : ("double", True),
               "complex(c_complex)" : ("double _Complex", True),
               "complex" : ("double _Complex", True),
-              "type(lnparams)" : ("struct lnparams", True)
+              "type(lnparams)" : ("struct lnparams", True),
+              "type(c_ptr)" : ("double *", False)
               }
               
 

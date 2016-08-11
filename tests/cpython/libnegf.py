@@ -1,4 +1,5 @@
 from ctypes import *
+import numpy as np
 from numpy.ctypeslib import ndpointer
 from numpy import dtype
 
@@ -156,6 +157,76 @@ class NEGF:
                 c_int(npl), 
                 plend.astype(dtype=INTTYPE), 
                 cblk.astype(dtype=INTTYPE))
+
+
+    def get_transmission(self):
+        """
+        Get a local copy of transmission from libnegf
+
+        Returns:
+            trans (ndarray): transmission for all possible
+                lead pairs (2D array). Each row contains 
+                the result for a lead pair (npair, values).
+        """
+        self._lib.negf_associate_transmission.argtypes = [
+                self._href_type,
+                POINTER(c_int * 2),
+                POINTER(POINTER(c_double))
+                ]
+        tr_pointer = POINTER(c_double)()
+        tr_shape = (c_int * 2)()
+        self._lib.negf_associate_transmission(self._href,
+                pointer(tr_shape),
+                pointer(tr_pointer))
+        tr_shape = (tr_shape[1] , tr_shape[0])
+        trans = (np.ctypeslib.as_array(tr_pointer, shape=tr_shape)).copy()
+        return trans
+
+
+    def get_ldos(self):
+        """
+        Get a local copy of dos from libnegf
+
+        Returns:
+            ldos (ndarray): local DOS for all given orbital intervals
+                (2D array). Each row contains the result for
+                an interval (ninterval, values)
+        """
+        self._lib.negf_associate_ldos.argtypes = [
+                self._href_type,
+                POINTER(c_int * 2),
+                POINTER(POINTER(c_double))
+                ]
+        ldos_pointer = POINTER(c_double)()
+        ldos_shape = (c_int * 2)()
+        self._lib.negf_associate_ldos(self._href,
+                pointer(ldos_shape),
+                pointer(ldos_pointer))
+        ldos_shape = (ldos_shape[1] , ldos_shape[0])
+        ldos = (np.ctypeslib.as_array(ldos_pointer, shape=ldos_shape)).copy()
+        return ldos
+
+
+    def set_ldos_intervals(self, istart, iend):
+        """
+        Define intervals for LDOS calculations
+
+        Args:
+            istart (int array): starting orbitals (fortran indexing)
+            iend (int array): ending orbitals (fortran indexing)
+        """
+        nldos = istart.size
+        self._lib.negf_init_ldos(self._href, c_int(nldos))
+        self._lib.negf_set_ldos_intervals.argtypes = [
+                self._href_type,
+                c_int,
+                ndpointer(c_int),
+                ndpointer(c_int)]
+        self._lib.negf_set_ldos_intervals(self._href,
+                nldos,
+                istart.astype(dtype=INTTYPE),
+                iend.astype(dtype=INTTYPE))
+
 
     def write_tun_and_dos(self):
         """

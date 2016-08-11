@@ -450,6 +450,114 @@ subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
 
 end subroutine negf_get_current
 
+!> Pass pointer to transmission output to a compatible C pointer
+!!  @param[in]  handler:  handler Number for the LIBNEGF instance
+!!  @param[out] tr_shape: shape of transmission n-array (in fortran)
+!!  @param[out] tr_pointer: C pointer to data
+subroutine negf_associate_transmission(handler, tr_shape, tr_pointer) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_loc, c_ptr   ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) :: tr_shape(2) ! if:var:out
+  type(c_ptr), intent(out) :: tr_pointer ! if:var:out
+  
+  type(NEGFpointers) :: LIB
+  real(c_double), dimension(:,:), pointer :: f_p
+
+  LIB = transfer(handler, LIB) 
+  call associate_transmission(LIB%pNEGF, f_p)
+  tr_pointer = c_loc(f_p)
+  tr_shape = shape(f_p)
+
+end subroutine negf_associate_transmission
+
+!> Pass pointer to transmission output to a compatible C pointer
+!!  @param[in]  handler:  handler Number for the LIBNEGF instance
+!!  @param[out] ldos_shape: shape of ldos n-array (in fortran)
+!!  @param[out] ldos_pointer: C pointer to data
+subroutine negf_associate_ldos(handler, ldos_shape, ldos_pointer) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_loc, c_ptr   ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) :: ldos_shape(2) ! if:var:out
+  type(c_ptr), intent(out) :: ldos_pointer ! if:var:out
+  
+  type(NEGFpointers) :: LIB
+  real(c_double), dimension(:,:), pointer :: f_p
+
+  LIB = transfer(handler, LIB) 
+  call associate_ldos(LIB%pNEGF, f_p)
+  ldos_pointer = c_loc(f_p)
+  ldos_shape = shape(f_p)
+
+end subroutine negf_associate_ldos
+
+!!> Set ldos intervals
+!! @param [in] handler: handler Number for the LIBNEGF instance
+!! @param [in] istart(nldos) array with first interval index
+!! @param [in] iend(nldos) array with first interval index
+subroutine negf_set_ldos_intervals(handler, nldos, istart, iend) bind(c)
+  use iso_c_binding, only : c_int ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: nldos ! if:var:in
+  integer(c_int), intent(in) :: istart(*)  ! if:var:in
+  integer(c_int), intent(in) :: iend(*)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call set_ldos_intervals(LIB%pNEGF, nldos, istart, iend)
+end subroutine negf_set_ldos_intervals
+
+!> Initialize the ldos container
+!! @param [in] handler: handler Number for the LIBNEGF instance
+!! @param [in] nldos: number of intervals
+subroutine negf_init_ldos(handler, nldos) bind(c)
+  use iso_c_binding, only : c_int ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: nldos ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call init_ldos(LIB%pNEGF, nldos)
+end subroutine negf_init_ldos
+
+!> Set ldos indexes arrays for a given ldos 
+!!
+!! @param [in] handler: handler Number for the LIBNEGF instance
+!! @param [in] ildos: index of ldos (fortran indexing)
+!! @param [in] idx_size: size of index array
+!! @param [in] idx: array with indexes
+subroutine negf_set_ldos_indexes(handler, ildos, idx_size, idx) bind(c)
+  use iso_c_binding, only : c_int ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: ildos ! if:var:in
+  integer(c_int), intent(in) ::idx_size ! if:var:in
+  integer(c_int), intent(in) :: idx(*)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  integer(c_int), allocatable :: idx_tmp(:)
+
+  LIB = transfer(handler, LIB) 
+  allocate(idx_tmp(idx_size))
+  idx_tmp(1:idx_size) = idx(1:idx_size)
+  call set_ldos_indexes(LIB%pNEGF, ildos, idx_tmp)
+end subroutine negf_set_ldos_indexes
+
 !>
 !!  Write tunneling and density of states (if any) to file
 !!  @param 
@@ -472,25 +580,6 @@ subroutine negf_write_tunneling_and_dos(handler) bind(C)
   
 end subroutine negf_write_tunneling_and_dos
 
-
-!!* Sets iteration in self-consistent loops
-!!* @param handler Number for the LIBNEGF instance to destroy.
-
-!! IS THIS REALLY USED??
-subroutine negf_set_iteration(handler, iter)
-  use libnegfAPICommon  ! if:mod:use 
-  use libnegf           ! if:mod:use 
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: iter                      ! if:var:in
-
-  type(NEGFpointers) :: LIB
-  
-  LIB = transfer(handler, LIB) 
-
-  LIB%pNEGF%iteration = iter
-
-end subroutine negf_set_iteration
 
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
@@ -633,10 +722,11 @@ end subroutine negf_current
 
 !> Print TNegf container for debug
 subroutine negf_print_tnegf(handler) bind(c)
+  use iso_c_binding, only : c_int   ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
 
   type(NEGFpointers) :: LIB
 

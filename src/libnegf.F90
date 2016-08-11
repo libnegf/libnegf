@@ -514,8 +514,8 @@ contains
   !--------------------------------------------------------------------
 
   !> Initialize the ldos info
-  ! @param [in] negf: libnegf container instance
-  ! @param [in] nldos: number of intervals
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] nldos: number of intervals
   subroutine init_ldos(negf,nldos)
     type(Tnegf) :: negf
     integer, intent(in) :: nldos
@@ -526,14 +526,14 @@ contains
     
   end subroutine init_ldos
 
-  !> Set ldos intervals
-  ! @param [in] negf: libnegf container instance
-  ! @param [in] istart(nldos) array with first interval index
-  ! @param [in] iend(nldos) array with first interval index
+  !!> Set ldos intervals
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] istart(nldos) array with first interval index
+  !! @param [in] iend(nldos) array with first interval index
   subroutine set_ldos_intervals(negf, nldos, istart, iend)
     type(Tnegf) :: negf
     integer, intent(in) :: nldos
-    integer, intent(in) :: istart(:), iend(:)
+    integer, intent(in) :: istart(*), iend(*)
     
     integer :: ii, jj
 
@@ -547,10 +547,10 @@ contains
   end subroutine set_ldos_intervals
 
   !> Set ldos indexes arrays for a given ldos 
-  !
-  ! @param [in] negf: libnegf container instance
-  ! @param [in] ildos: index of ldos 
-  ! @param [in] idx: 1D array with indexes
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] ildos: index of ldos 
+  !! @param [in] idx: 1D array with indexes
   subroutine set_ldos_indexes(negf, ildos, idx)
     type(Tnegf) :: negf
     integer, intent(in) :: ildos

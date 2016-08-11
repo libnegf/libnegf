@@ -14,9 +14,13 @@ int main()
   struct lnparams params;
   int surfend[2] = {60,80};
   int contend[2] = {80,100};
+  int ldos_start[1] = {1};
+  int ldos_end[1] = {1};
   int plend[1] = {60};
   int cblk[2] = {1,1};
-  
+  double *tr;
+  int tr_shape[2];
+
   printf("Initializing libNEGF \n");
   negf_init_session(hand);
   negf_init(hand);
@@ -31,9 +35,17 @@ int main()
   params.estep = 0.01;
   params.wght = 3.0;
   negf_set_params(hand, &params);
-  
+ 
+  //Set ldos parameters
+  negf_init_ldos(hand, 1);
+  negf_set_ldos_intervals(hand, 1, &ldos_start[0], &ldos_end[0]);
+
   //Run calculation and write result to file
+  //Also get a reference to transmission, just to try
   negf_solve_landauer(hand);
+  negf_associate_transmission(hand, tr_shape, &tr);
+  printf("shape %d %d",tr_shape[0], tr_shape[1]);
+  printf("shape %e %e",tr[0], tr[1]);
   negf_write_tunneling_and_dos(hand);
 
   //Release library
