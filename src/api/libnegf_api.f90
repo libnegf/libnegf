@@ -415,6 +415,22 @@ subroutine negf_solve_landauer(handler) bind(C)
   call compute_current(LIB%pNEGF)
 end subroutine negf_solve_landauer
 
+!>
+!! Calculate the density matrix for the dft problem
+!! @param[in]  handler: handler Number for the LIBNEGF instance
+subroutine negf_solve_density_dft(handler) bind(C)
+  use iso_c_binding, only : c_int  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use 
+  implicit none
+  integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call compute_density_dft(LIB%pNEGF)
+end subroutine negf_solve_density_dft
+
 
 !>
 !! Get current value for a specific couple of leads
@@ -447,8 +463,104 @@ subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
   current = LIB%pNEGF%currents(leadPair) ! just take first value (2 contacts)
   ! units conversion.
   current = current * convertCurrent(unitH, unitJ)
-
 end subroutine negf_get_current
+
+!> Copy the energy axis on all processors (for output, plot, debug)
+!! Uses a fixed size array interface
+!! @param [in] handler:  handler Number for the LIBNEGF instance
+!! @param [out] npoints (int): 
+!! @param [out] re_en (array): real part of energy values
+!! @param [out] im_en (array): imaginary part of energy values
+!! @param [in] copy (int): 0 if you want only to fill npoints, any value
+!!               if you want to perform the actual copy
+subroutine negf_get_energies(handler, npoints, re_en, im_en, copy) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) ::npoints ! if:var:in
+  real(c_double), intent(out) :: re_en(*)  ! if:var:in
+  real(c_double), intent(out) :: im_en(*)  ! if:var:in
+  integer(c_int), intent(in), value :: copy ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  if (copy.eq.0) then
+    npoints = size(LIB%pNEGF%en_grid)
+  else
+    npoints = size(LIB%pNEGF%en_grid)
+    re_en(1:npoints) = real(LIB%pNEGF%en_grid(1:npoints)%Ec)
+    im_en(1:npoints) = aimag(LIB%pNEGF%en_grid(1:npoints)%Ec)
+  end if
+end subroutine negf_get_energies
+
+!> Copy the energy axis on all processors (for output, plot, debug)
+!! Uses a fixed size array interface
+!! @param [in] handler:  handler Number for the LIBNEGF instance
+!! @param [out] nnz (int): number of non zero values
+!! @param [out] nrow (int): number of rows
+!! @param [out] rowpnt (int array): row pointer indexes, size nrow+1
+!! @param [out] colind (int array): column indexes array, size nnz
+!! @param [out] re_nzval (double array): non zero values (real part), size nnz
+!! @param [out] im_nzval (double array): non zero values (imag part), size nnz
+!! @param [in] copy (int): 0 if you want only to fill npoints, any value
+!!               if you want to perform the actual copy
+subroutine negf_get_dm(handler, nnz, nrow, rowpnt, colind, re_nzval, im_nzval, copy) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) ::nnz ! if:var:in
+  integer(c_int), intent(out) ::nrow ! if:var:in
+  integer(c_int), intent(out) :: rowpnt(*)  ! if:var:in
+  integer(c_int), intent(out) :: colind(*)  ! if:var:in
+  real(c_double), intent(out) :: re_nzval(*)  ! if:var:in
+  real(c_double), intent(out) :: im_nzval(*)  ! if:var:in
+  integer(c_int), intent(in), value :: copy ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  nnz = LIB%pNEGF%rho%nnz
+  nrow = LIB%pNEGF%rho%nrow
+  if (.not.(copy.eq.0)) then
+    rowpnt(1:nrow+1) = LIB%pNEGF%rho%rowpnt(1:nrow+1)
+    colind(1:nnz) = LIB%pNEGF%rho%colind(1:nnz)
+    re_nzval(1:nnz) = real(LIB%pNEGF%rho%nzval(1:nnz))
+    im_nzval(1:nnz) = aimag(LIB%pNEGF%rho%nzval(1:nnz))
+  end if
+end subroutine negf_get_dm
+
+!> Copy the currents values
+!! Uses a fixed size array interface
+!! @param [in] handler:  handler Number for the LIBNEGF instance
+!! @param [out] npairs (int): number of active lead pairs (# current values)
+!! @param [out] currents (array): real part of energy values
+!! @param [in] copy (int): 0 if you want only to fill npoints, any value
+!!               if you want to perform the actual copy
+subroutine negf_get_currents(handler, npairs, currents, copy) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use 
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) :: npairs ! if:var:in
+  real(c_double), intent(out) :: currents(*)  ! if:var:in
+  integer(c_int), intent(in), value :: copy ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  if (copy.eq.0) then
+    npairs = size(LIB%pNEGF%currents)
+  else
+    npairs = size(LIB%pNEGF%currents)
+    currents(1:npairs) = LIB%pNEGF%currents(1:npairs)
+  end if
+end subroutine negf_get_currents
 
 !> Pass pointer to transmission output to a compatible C pointer
 !!  @param[in]  handler:  handler Number for the LIBNEGF instance

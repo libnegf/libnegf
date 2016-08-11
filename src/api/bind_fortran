@@ -286,7 +286,7 @@ class FormatterC(Formatter):
               "character": ("char", True),
               "real(c_double)" : ("double", True),
               "real" : ("double", True),
-              "complex(c_complex)" : ("double _Complex", True),
+              "complex(c_double_complex)" : ("double _Complex", True),
               "complex" : ("double _Complex", True),
               "type(lnparams)" : ("struct lnparams", True),
               "type(c_ptr)" : ("double *", False)

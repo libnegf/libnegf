@@ -2,9 +2,11 @@ from ctypes import *
 import numpy as np
 from numpy.ctypeslib import ndpointer
 from numpy import dtype
+from scipy.sparse import csr_matrix
 
 MAXCONT = 10
 INTTYPE = 'int32'
+REALTYPE = 'float64'
 
 class NEGF:
 
@@ -102,6 +104,13 @@ class NEGF:
         self.set_params()
         self._lib.negf_solve_landauer(self._href)
 
+    def solve_density(self):
+        """
+        Solve the density problem for an all electron problem (dft like)
+        """
+        self.set_params()
+        self._lib.negf_solve_density_dft(self._href)
+
     def read_hs(self, re_fname, im_fname, target):
         """
         Read H and S from file.
@@ -157,6 +166,108 @@ class NEGF:
                 c_int(npl), 
                 plend.astype(dtype=INTTYPE), 
                 cblk.astype(dtype=INTTYPE))
+
+
+    def get_energies(self):
+        """
+        Get a local copy of energies array
+
+        Returns:
+            real_en (array): real part of points on 
+            energy axis. This quantity may change in libnegf in 
+            runtime when performing different integrals (contour, 
+            real axis)
+            im_en (array): imaginary part (same as above)
+        """
+        self._lib.negf_get_energies.argtypes = [
+                self._href_type,
+                POINTER(c_int),
+                ndpointer(c_double),
+                ndpointer(c_double),
+                c_int
+                ]
+        npoints = c_int()
+        self._lib.negf_get_energies(self._href,
+                byref(npoints), 
+                np.zeros(1,dtype=REALTYPE), 
+                np.zeros(1,dtype=REALTYPE), 0)
+        re_en = np.zeros(npoints.value, dtype=REALTYPE)
+        im_en = np.zeros(npoints.value, dtype=REALTYPE)
+        self._lib.negf_get_energies(self._href,
+                byref(npoints), re_en, im_en, 1)
+        return re_en, im_en
+
+    
+    def get_currents(self):
+        """
+        Get a local copy of currents array
+
+        Returns:
+            currents (array): array of currents for
+            each possible lead pair defined in input
+        """
+        self._lib.negf_get_currents.argtypes = [
+                self._href_type,
+                POINTER(c_int),
+                ndpointer(c_double),
+                c_int
+                ]
+        npoints = c_int()
+        self._lib.negf_get_currents(self._href,
+                byref(npoints), 
+                np.zeros(1,dtype=REALTYPE), 0)
+        currents = np.zeros(npoints.value, dtype=REALTYPE)
+        self._lib.negf_get_currents(self._href,
+                byref(npoints), currents, 1)
+        return currents
+    
+    
+    def get_dm(self):
+        """
+        Get a local copy of CSR sparse density matrix
+
+        Returns:
+            dm (scipy sparse): density matrix
+        """
+        print('get')
+        self._lib.negf_get_dm.argtypes = [
+                self._href_type,
+                POINTER(c_int),
+                POINTER(c_int),
+                ndpointer(c_int),
+                ndpointer(c_int),
+                ndpointer(c_double),
+                ndpointer(c_double),
+                c_int
+                ]
+        nnz = c_int()
+        nrow = c_int()
+        print('here')
+        self._lib.negf_get_dm(self._href,
+                byref(nnz),
+                byref(nrow),
+                np.zeros(1,dtype=INTTYPE), 
+                np.zeros(1,dtype=INTTYPE), 
+                np.zeros(1,dtype=REALTYPE), 
+                np.zeros(1,dtype=REALTYPE), 0)
+        print('there')
+        rowpnt =np.zeros(nrow.value + 1, dtype=INTTYPE)
+        colind =np.zeros(nnz.value, dtype=INTTYPE)
+        re_dm = np.zeros(nnz.value, dtype=REALTYPE)
+        im_dm = np.zeros(nnz.value, dtype=REALTYPE)
+        self._lib.negf_get_dm(self._href,
+                byref(nnz), 
+                byref(nrow),
+                rowpnt,
+                colind,
+                re_dm,
+                im_dm, 1)
+        #Fix indexing
+        rowpnt = rowpnt - 1
+        colind = colind - 1
+        dm = csr_matrix((re_dm + 1j*im_dm, colind, rowpnt), dtype='complex128')
+        return dm
+
 
 
     def get_transmission(self):

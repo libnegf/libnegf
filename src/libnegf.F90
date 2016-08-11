@@ -56,8 +56,8 @@ module libnegf
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
- public :: get_transmission  !Returns transmission coefficients and energy range
  public :: associate_transmission, associate_current, associate_ldos
+ public :: get_energies, get_dm, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -696,36 +696,23 @@ contains
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
+    call destroy_DM(negf)
 
   end subroutine destroy_negf
   !--------------------------------------------------------------------
-
-  !> 
-  !! Return the transmission and energy points between all
-  !! pairs of leads by copy. Energies are returned as real.
-  !! Input arrays will be filled with the values (no pointer)
-  !! Note: inout arrays maybe allocated or not, if they are not
-  !! they will be allocated
+  !> Copy the energy axis on all processors (for output, plot, debug)
   !! @param [in] negf: negf container
-  !! @param [inout] energies: array filled with energies
-  !! @param [inout] transmission: 2d array filled with transmission for each
-  !!                 lead pair (nstep, npairs)
-  !!
-  !! Allocate the arrays internally if they are not already allocated
-  subroutine get_transmission(negf, energies, transmission)
-    type(TNegf), intent(in)  :: negf
-    real(dp), allocatable, intent(inout) :: energies(:), transmission(:,:)
+  !! @param [out] energies: energy values, it can eb allocated internally
+  subroutine get_energies(negf, energies)
+    type(Tnegf), intent(in) :: negf
+    complex(dp), allocatable :: energies(:)
 
     if (.not.allocated(energies)) then
       allocate(energies(size(negf%en_grid)))
     end if
-    energies = real(negf%en_grid(:)%Ec)
-    if (.not.allocated(transmission)) then 
-      allocate(transmission(size(negf%en_grid), size(negf%ni)))
-    end if
-    transmission = negf%tunn_mat
+    energies = negf%en_grid(:)%Ec
 
-  end subroutine get_transmission
+  end subroutine get_energies
 
   !> 
   !! Associate an input pointer with the internal pointer of 
@@ -773,26 +760,36 @@ contains
 
   end subroutine associate_current
 
-
   !> 
-  !! Get single current for a leads couple ni(N), nf(N), or integrated
-  !! on lead N for the MW. Also the lead indexes are returned for reference.
-  subroutine get_current(negf, N, ni_out, nf_out, current)
+  !! Get currents by copy. 
+  !! @param [in] negf: negf container
+  !! @param [out] currents: current values, it can eb allocated internally
+  subroutine get_currents(negf, currents)
     type(TNegf), intent(in)  :: negf
-    integer, intent(in) :: N
-    integer, intent(out) :: ni_out, nf_out
-    real(dp), intent(out) :: current
+    real(dp), intent(out) :: currents(:)
 
-    ni_out = negf%ni(N)
-    nf_out = negf%nf(N)
-    current = negf%currents(N)
+    currents = negf%currents(:)
+  end subroutine get_currents
 
-  end subroutine get_current
+  !> Get density matrix CSR sparse arrays by copy
+  !! @param [in] negf: negf container
+  !! @param [out] nzval: number of non zero values
+  !! @param [out] nrow: number of rows
+  !! @param [out] rowpnt (int array): row pointer indexes
+  !! @param [out] colind (int array): column indexes array
+  !! @param [out] nzval (complex array): non zero values
+  subroutine get_dm(negf, nnz, nrow, rowpnt, colind, nzval)
+    type(TNegf), intent(in)  :: negf
+    integer, intent(out) :: nnz, nrow
+    integer, intent(out) :: rowpnt(:), colind(:)
+    real(dp), intent(out) :: nzval(:)
 
-  !>
-  !! Associate currents pointer to the input one
-
-  !>
+    nnz = negf%rho%nnz
+    nrow = negf%rho%nrow
+    rowpnt = negf%rho%rowpnt
+    colind = negf%rho%colind
+    nzval = negf%rho%nzval
+  end subroutine get_dm
 
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
@@ -817,8 +814,6 @@ contains
        if (allocated(negf%HMC(i)%val)) call destroy(negf%HMC(i))
        if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
-    
-    call destroy_DM(negf)
 
   end subroutine destroy_matrices
 !--------------------------------------------------------------------
@@ -902,9 +897,11 @@ contains
 
 
     call extract_device(negf)
-
     call extract_cont(negf)
 
+    !! Did anyone passed externally allocated DM? If not, create it
+    call create_DM(negf)
+    
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
     

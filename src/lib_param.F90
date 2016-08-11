@@ -34,7 +34,7 @@ module lib_param
 
   public :: Tnegf, intarray, TEnGrid
   public :: pass_DM
-  public :: set_computation, set_defaults
+  public :: set_defaults
   public :: print_all_vars
   integer, public, parameter :: MAXNCONT=10
 
@@ -171,14 +171,6 @@ module lib_param
 contains
   
  ! -------------------------------------------------------------------
-  subroutine set_computation(negf,DorE) 
-    type(Tnegf) :: negf
-    character(1) :: DorE           !Density or En.Density
-
-    negf%DorE=DorE
-  end subroutine set_computation      
- ! -------------------------------------------------------------------
-
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
