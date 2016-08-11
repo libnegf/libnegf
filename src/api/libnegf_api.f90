@@ -468,7 +468,7 @@ subroutine negf_associate_transmission(handler, tr_shape, tr_pointer) bind(c)
 
   LIB = transfer(handler, LIB) 
   call associate_transmission(LIB%pNEGF, f_p)
-  tr_pointer = c_loc(f_p)
+  tr_pointer = c_loc(f_p(1,1))
   tr_shape = shape(f_p)
 
 end subroutine negf_associate_transmission
@@ -491,7 +491,7 @@ subroutine negf_associate_ldos(handler, ldos_shape, ldos_pointer) bind(c)
 
   LIB = transfer(handler, LIB) 
   call associate_ldos(LIB%pNEGF, f_p)
-  ldos_pointer = c_loc(f_p)
+  ldos_pointer = c_loc(f_p(1,1))
   ldos_shape = shape(f_p)
 
 end subroutine negf_associate_ldos
