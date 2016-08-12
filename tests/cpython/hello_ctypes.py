@@ -1,12 +1,39 @@
 from libnegf import NEGF
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy
 
 negf = NEGF()
-negf.read_hs("HR.dat", "HI.dat", 0)
+
+######################################################################
+# Assign matrices: you can either load from file or pass a csr matrix
+# Uncomment the correspoinding section for debug
+###################################
+# Load data
+# negf.read_hs("HR.dat", "HI.dat", 0)
+###################################
+# Explicit assignment
+mat = np.zeros(shape=(100,100), dtype='complex128')
+for ii in range(80):
+    mat[ii,ii-1] = 1.0
+    mat[ii-1,ii] = 1.0
+for ii in range(81,100):
+    mat[ii,ii-1] = 1.0
+    mat[ii-1,ii] = 1.0
+mat[0,80] = 1.0
+mat[80,0] = 1.0
+
+# I'm going to add a double barrier, just for fun!
+mat[25,25] = 1.0
+mat[35,35] = 1.0
+
+mat_csr = scipy.sparse.csr_matrix(mat)
+mat_csr.sort_indices()
+negf.set_h(mat_csr)
+###################################
 negf.set_s_id(100)
 negf.init_structure(2, np.array([80,100]), np.array([60,80]), 
-        2, np.array([30, 60]), np.array([2,1]))
+        4, np.array([15, 30, 45, 60]), np.array([4,1]))
 negf.params.emin = -3.0
 negf.params.emax = 3.0
 negf.params.estep = 0.01

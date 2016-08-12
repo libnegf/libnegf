@@ -526,7 +526,7 @@ contains
     
   end subroutine init_ldos
 
-  !!> Set ldos intervals
+  !> Set ldos intervals
   !! @param [in] negf: libnegf container instance
   !! @param [in] istart(nldos) array with first interval index
   !! @param [in] iend(nldos) array with first interval index

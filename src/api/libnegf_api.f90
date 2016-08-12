@@ -197,7 +197,6 @@ subroutine negf_get_params(handler, params) bind(c)
   call get_params(LIB%pNEGF, params)
 end subroutine negf_get_params
 
-
 !!* Passing Hamiltonian from memory 
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_h(handler, nrow, A, JA, IA)
@@ -214,9 +213,7 @@ subroutine negf_set_h(handler, nrow, A, JA, IA)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
- 
-  call set_H(LIB%pNEGF,nrow, A, JA, IA)
-  
+  call set_H(LIB%pNEGF,nrow, A, JA, IA)  
 end subroutine negf_set_h 
 
 !!* Passing Overlap from memory                        
@@ -235,10 +232,64 @@ subroutine negf_set_s(handler, nrow, A, JA, IA)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
- 
-  call set_S(LIB%pNEGF,nrow, A, JA, IA)
-  
+  call set_S(LIB%pNEGF,nrow, A, JA, IA)  
 end subroutine negf_set_s 
+
+!> Same as negf_set_s, but pass separately real 
+!! and imaginary part (for ctypes c-python interface)
+subroutine negf_set_s_cp(handler, nrow, a_re, a_im, ja, ia) bind(c)
+  use iso_c_binding, only : c_int, c_double 
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  use ln_precision      ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: nrow     ! if:var:out
+  real(c_double) :: a_re(*) ! if:var:out 
+  real(c_double) :: a_im(*) ! if:var:out 
+  integer(c_int) :: ja(*)    ! if:var:out
+  integer(c_int) :: ia(*)    ! if:var:out
+
+  type(NEGFpointers) :: LIB
+  integer :: nnz, ii
+  complex(dp), allocatable :: A(:)
+
+  LIB = transfer(handler, LIB)
+  nnz = IA(nrow+1) - IA(1)
+  allocate(A(nnz))
+  do ii = 1, nnz
+    A(ii) = dcmplx(A_re(ii), A_im(ii))
+  end do
+  call set_S(LIB%pNEGF,nrow, A, JA, IA)  
+end subroutine negf_set_s_cp
+
+!> Same as negf_set_h, but pass separately real 
+!! and imaginary part (for ctypes c-python interface)
+subroutine negf_set_h_cp(handler, nrow, a_re, a_im, ja, ia) bind(c)
+  use iso_c_binding, only : c_int, c_double 
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  use ln_precision      ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: nrow     ! if:var:out
+  real(c_double) :: a_re(*) ! if:var:out 
+  real(c_double) :: a_im(*) ! if:var:out 
+  integer(c_int) :: ja(*)    ! if:var:out
+  integer(c_int) :: ia(*)    ! if:var:out
+
+  type(NEGFpointers) :: LIB
+  integer :: nnz, ii
+  complex(dp), allocatable :: A(:)
+
+  LIB = transfer(handler, LIB)
+  nnz = ia(nrow+1) - ia(1)
+  allocate(A(nnz))
+  do ii = 1,nnz
+    A(ii) = dcmplx(a_re(ii), a_im(ii))
+  end do
+  call set_H(LIB%pNEGF,nrow, A, JA, IA)  
+end subroutine negf_set_h_cp
 
 !!* Passing Overlap from memory                        
 !!* @param  handler  Contains the handler for the new instance on return

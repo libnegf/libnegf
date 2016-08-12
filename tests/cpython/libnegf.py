@@ -168,6 +168,60 @@ class NEGF:
                 cblk.astype(dtype=INTTYPE))
 
 
+    def set_h(self, mat):
+        """
+        Set H from a scipy.sparse.csr_matrix
+        NOTE: libnegf is picky about the order of the PL blocks
+        in the sparse matrix as well. There is no automatic reordering,
+        you should have a well-sorted matrix.
+        
+        Args:
+            mat (complex csr_matrix): input Hamiltonian
+        """
+        self._lib.negf_set_h_cp.argtypes = [
+            self._href_type,
+            c_int,
+            ndpointer(c_double),
+            ndpointer(c_double),
+            ndpointer(c_int),
+            ndpointer(c_int)]
+        mat_re = np.array(np.real(mat.data))
+        mat_im = np.array(np.imag(mat.data))
+        self._lib.negf_set_h_cp(self._href,
+            c_int(mat.shape[0]),
+            mat_re,
+            mat_im,
+            mat.indices + 1,
+            mat.indptr + 1
+        )
+        
+    def set_s(self, mat):
+        """
+        Set S from a scipy.sparse.csr_matrix
+        NOTE: libnegf is picky about the order of the PL blocks
+        in the sparse matrix as well. There is no automatic reordering,
+        you should have a well-sorted matrix.
+        
+        Args:
+            mat (complex csr_matrix): input Overlap
+        """
+        self._lib.negf_set_s_cp.argtypes = [
+            self._href_type,
+            c_int,
+            ndpointer(c_double),
+            ndpointer(c_double),
+            ndpointer(c_int),
+            ndpointer(c_int)]
+        mat_re = np.array(np.real(mat.data))
+        mat_im = np.array(np.imag(mat.data))
+        self._lib.negf_set_s_cp(self._href,
+            c_int(mat.shape[0]),
+            mat_re,
+            mat_im,
+            mat.indices + 1,
+            mat.indptr + 1
+        )
+
     def get_energies(self):
         """
         Get a local copy of energies array
@@ -242,7 +296,6 @@ class NEGF:
                 ]
         nnz = c_int()
         nrow = c_int()
-        print('here')
         self._lib.negf_get_dm(self._href,
                 byref(nnz),
                 byref(nrow),
@@ -250,7 +303,6 @@ class NEGF:
                 np.zeros(1,dtype=INTTYPE), 
                 np.zeros(1,dtype=REALTYPE), 
                 np.zeros(1,dtype=REALTYPE), 0)
-        print('there')
         rowpnt =np.zeros(nrow.value + 1, dtype=INTTYPE)
         colind =np.zeros(nnz.value, dtype=INTTYPE)
         re_dm = np.zeros(nnz.value, dtype=REALTYPE)
