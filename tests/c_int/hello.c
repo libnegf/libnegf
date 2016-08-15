@@ -33,7 +33,6 @@ int main()
   params.emin = -3.0;
   params.emax = 3.0;
   params.estep = 0.01;
-  params.wght = 3.0;
   negf_set_params(hand, &params);
  
   //Set ldos parameters
@@ -44,8 +43,8 @@ int main()
   //Also get a reference to transmission, just to try
   negf_solve_landauer(hand);
   negf_associate_transmission(hand, tr_shape, &tr);
-  printf("shape %d %d",tr_shape[0], tr_shape[1]);
-  printf("shape %e %e",tr[0], tr[1]);
+  printf("shape %d %d \n",tr_shape[0], tr_shape[1]);
+  printf("tr %e %e \n",tr[0], tr[1]);
   negf_write_tunneling_and_dos(hand);
 
   //Release library

@@ -161,11 +161,11 @@ class NEGF:
                 ]
         self._lib.negf_init_structure(self._href,
                 c_int(ncont), 
-                contend.astype(dtype=INTTYPE), 
-                surfend.astype(dtype=INTTYPE),
+                contend.astype(dtype=INTTYPE, copy=False), 
+                surfend.astype(dtype=INTTYPE, copy=False),
                 c_int(npl), 
-                plend.astype(dtype=INTTYPE), 
-                cblk.astype(dtype=INTTYPE))
+                plend.astype(dtype=INTTYPE, copy=False), 
+                cblk.astype(dtype=INTTYPE, copy=False))
 
 
     def set_h(self, mat):
@@ -283,7 +283,6 @@ class NEGF:
         Returns:
             dm (scipy sparse): density matrix
         """
-        print('get')
         self._lib.negf_get_dm.argtypes = [
                 self._href_type,
                 POINTER(c_int),
@@ -387,8 +386,8 @@ class NEGF:
                 ndpointer(c_int)]
         self._lib.negf_set_ldos_intervals(self._href,
                 nldos,
-                istart.astype(dtype=INTTYPE),
-                iend.astype(dtype=INTTYPE))
+                istart.astype(dtype=INTTYPE, copy=False),
+                iend.astype(dtype=INTTYPE, copy=False))
 
 
     def write_tun_and_dos(self):
