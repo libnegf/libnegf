@@ -39,16 +39,16 @@ LNOPT = #-static
 
 # Override options for different DEBUG modes
 ifeq ($(DEBUG),1)
-    FC90OPT = -g -Wall -pedantic -fbounds-check
-    CCOPT = -g
+    FC90OPT = -g -Wall -pedantic -fbounds-check -fPIC
+    CCOPT = -g -fPIC
 endif
 ifeq ($(DEBUG),2)
-    FC90OPT = -g -Wall -pedantic
-    CCOPT = -g
+    FC90OPT = -g -Wall -pedantic -fPIC
+    CCOPT = -g -fPIC
 endif
 ifeq ($(DEBUG),3)
-    FC90OPT = -g  -Wall -pedantic -fbounds-check
-    CCOPT = -g
+    FC90OPT = -g  -Wall -pedantic -fbounds-check -fPIC
+    CCOPT = -g -fPIC
 endif
 
 # Library options in general

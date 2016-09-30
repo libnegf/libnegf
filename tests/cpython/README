@@ -1,7 +1,0 @@
-A make for this test must still be written.
-Current usage:
-
-1) Compile a shared libnegf library and create the c_binding
-2) copy the c_binging here
-3) run $python ./setup.py build
-4) try to import the cpynegf module in build/lib.linux-x86_64-2.7

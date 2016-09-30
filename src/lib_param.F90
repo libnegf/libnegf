@@ -24,7 +24,7 @@ module lib_param
   use ln_precision, only : dp
   use globals
   use mat_def
-  use ln_structure, only : TStruct_info
+  use ln_structure, only : TStruct_info, print_Tstruct
   use input_output
   use elph
   use phph
@@ -35,17 +35,18 @@ module lib_param
   private
 
   public :: Tnegf, intarray, TEnGrid
-  public :: fill_parameters, pass_HS, pass_DM
-  public :: set_convfactor, set_fermi, set_potentials, set_fictcont
-  public :: set_readoldsgf, set_computation, set_iteration, set_defaults
+  public :: pass_DM
+  public :: set_defaults
   public :: print_all_vars
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
-
   type intarray
     integer, dimension(:), allocatable :: indexes
   end type intarray 
+
+
+
 
  !! Structure used to define energy points for the integration
  !! For every point we define
@@ -66,54 +67,72 @@ module lib_param
      complex(dp) :: wght
  end type TEnGrid
 
- type Tnegf
 
+ !> General libnegf container
+ !! Contains input data, runtime quantities and output data
+ type Tnegf
    !! Input parameters: set by library user
+   !! General
    integer :: verbose
    type(mpifx_comm) :: mpicomm
+   integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
+   character(len=LST) :: scratch_path    ! Folder for scratch work
+   character(len=LST) :: out_path        ! Folder for output data
+   real(dp) :: g_spin            ! spin degeneracy
+   real(dp) :: delta             ! delta for G.F. 
+   real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS 
+   real(dp) :: eneconv           ! Energy conversion factor
+   integer :: iteration          ! Number of current SCC itaration
+   integer  :: spin              ! spin component
+   real(dp) :: wght              ! k-point weight 
+   integer :: kpoint             ! k-point index
+   character(1) :: DorE              ! Density or En.Density
+
+   !! Contacts info
    real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
    real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
-   character(LST) :: scratch_path    ! Folder for scratch work
-   character(LST) :: out_path        ! Folder for output data
-   real(dp) :: Efermi(MAXNCONT)      ! Contact Fermi Energy (before external 
-                                     ! and built int potential)
-   real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential (dft calculation)
-   integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
+   real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential (dft calculation)   
    real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
-   real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
-   integer  :: nLdos                 ! Number of LDOS intervals
-   real(dp) :: Ec                ! conduction band edge 
-   real(dp) :: Ev                ! valence band edge
-   real(dp) :: delta             ! delta for G.F. 
-   real(dp) :: dos_delta         ! delta for T(E) and DOS 
-   real(dp) :: Emin              ! Tunneling or dos interval
-   real(dp) :: Emax              ! 
-   real(dp) :: Estep             ! Tunneling or dos E step
-   real(dp) :: g_spin            ! spin degeneracy
    logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
+   real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
+
+   !! Contour integral
    integer :: Np_n(2)            ! Number of points for n 
    integer :: Np_p(2)            ! Number of points for p 
    integer :: Np_real(11)        ! Number of points for integration over real axis
    integer :: n_kt               ! Number of kT extending integrations
    integer :: n_poles            ! Number of poles 
+   real(dp) :: Ec                ! conduction band edge 
+   real(dp) :: Ev                ! valence band edge
+
+   !! Real axis
+   real(dp) :: Emin              ! Tunneling or dos interval
+   real(dp) :: Emax              ! 
+   real(dp) :: Estep             ! Tunneling or dos E step
+
+   !! Emitter and collector for transmission or Meir-Wingreen 
+   !! (only emitter in this case)
+   integer :: ni(MAXNCONT)       ! ni: emitter contact list 
+   integer :: nf(MAXNCONT)       ! nf: collector contact list
+
+
+   integer  :: nldos                 ! Number of LDOS intervals
+
+ 
+
    type(intarray), dimension(:), allocatable :: LDOS !Array of LDOS descriptor 
                                                      !(contain only index of atoms 
                                                      !for LDOS projection)  
+   real(dp) :: DeltaEc           ! safe guard energy below Ec
+   real(dp) :: DeltaEv           ! safe guard energy above Ev
 
    !! Runtime variables: used internally by the library
-   character(1) :: DorE              ! Density or En.Density
    type(format) :: form              ! Form of file-Hamiltonian
    logical  :: dumpHS                ! Used for debug
    real(dp) :: muref             ! reference elec.chem potential
-   real(dp) :: DeltaEc           ! safe guard energy below Ec
-   real(dp) :: DeltaEv           ! safe guard energy above Ev
    real(dp) :: E                 ! Holding variable 
    real(dp) :: dos               ! Holding variable
-   real(dp) :: eneconv           ! Energy conversion factor
-   integer :: iteration          ! Iterazione (SCC)
    integer :: activecont         ! contact selfenergy
-   integer :: ni(MAXNCONT)       ! ni: emitter contact list 
-   integer :: nf(MAXNCONT)       ! nf: collector contact list
    integer :: minmax             ! in input: 0 take minimum, 1 take maximum mu  
    integer :: refcont            ! reference contact (for non equilib)
    integer :: outer              ! flag switching computation of     
@@ -136,12 +155,6 @@ module lib_param
    logical    :: intDM           ! tells DM is internally allocated
 
    type(TStruct_Info) :: str     ! system structure
-
-
-   integer  :: spin              ! spin component
-
-   real(dp) :: wght              ! k-point weight 
-   integer :: kpoint             ! k-point index
    integer :: iE                 ! Energy point (integer point)
    complex(dp) :: Epnt           ! Energy point (complex)
    integer :: local_en_points    ! Local number of energy points
@@ -149,9 +162,6 @@ module lib_param
    real(dp), dimension(:,:), pointer :: tunn_mat => null()
    real(dp), dimension(:,:), pointer :: ldos_mat => null()
    real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
-
-
-
 
    real(dp) :: int_acc           ! integration accuracy
    real(dp), dimension(:), pointer :: E_singular => null()
@@ -217,100 +227,8 @@ contains
 
     negf%ReadoldSGF=flag
   end subroutine set_readoldsgf    
+  
  ! -------------------------------------------------------------------
-
-  subroutine set_fermi(negf,ncont,efermi)
-    type(Tnegf) :: negf
-    integer :: ncont
-    real(dp) :: efermi(*)
-    
-    negf%Efermi(1:ncont) = Efermi(1:ncont)
-  end subroutine set_fermi
-
-  subroutine set_potentials(negf,ncont,mu)
-    type(Tnegf) :: negf
-    integer :: ncont
-    real(dp) :: mu(*)
-
-    negf%mu(1:ncont) = mu(1:ncont)
-  end subroutine set_potentials
- ! -------------------------------------------------------------------
-
-
-  subroutine fill_parameters(negf, verbose, mu_n, mu_p, Ec, Ev, &
-        DeltaEc, DeltaEv, delta, Emin, Emax, Estep, &
-        kbT, Np_n, Np_p, n_kt, n_poles, g_spin)
-
-    type(Tnegf) :: negf
-    integer :: verbose
-
-    real(dp) :: mu_n
-    real(dp) :: mu_p
-    real(dp) :: Ec
-    real(dp) :: Ev
-    real(dp) :: DeltaEc
-    real(dp) :: DeltaEv     
-
-    real(dp) :: delta
-    real(dp) :: Emin
-    real(dp) :: Emax
-    real(dp) :: Estep
-    real(dp) :: kbT
-
-    real(dp) :: Tmin
-    real(dp) :: Tmax
-    real(dp) :: Tstep
-
-    integer :: Np_n(2)
-    integer :: Np_p(2)   
-    integer :: n_kt
-    integer :: n_poles
-    real(dp) :: g_spin   
-
-    negf%verbose = verbose
-
-    negf%mu_n = mu_n
-    negf%mu_p = mu_p
-    negf%Ec = Ec 
-    negf%Ev = Ev
-    negf%DeltaEc = DeltaEc 
-    negf%DeltaEv = DeltaEv 
-
-    negf%delta = delta
-    negf%Emin = Emin
-    negf%Emax = Emax
-    negf%Estep = Estep
-    negf%kbT = kbT
-
-    negf%Np_n = Np_n
-    negf%Np_p = Np_p
-    negf%n_kt = n_kt
-    negf%n_poles = n_poles
-    negf%g_spin = g_spin
-
-  end subroutine fill_parameters
-  ! -----------------------------------------------------
-  !  Pass H,S as externally allocated matrices
-  ! -----------------------------------------------------
-  subroutine pass_HS(negf,H,S)
-    type(Tnegf) :: negf    
-    type(z_CSR), target :: H
-    type(z_CSR), optional, target :: S
-
-    negf%H => H
-    
-    if (present(S)) then
-       negf%S => S      
-    else
-       negf%isSid=.true.
-       allocate(negf%S)
-       call create_id(negf%S,negf%H%nrow) 
-    endif
-
-    negf%intHS = .false.
-
-  end subroutine pass_HS
-
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
@@ -382,7 +300,6 @@ contains
      negf%FictCont = .false.   ! Ficticious contact 
 
      negf%mu = 0.d0            ! Potenziale elettrochimico
-     negf%efermi= 0.d0         ! Energia di Fermi dei contatti
      negf%contact_DOS = 0.d0   ! Ficticious contact DOS
 
      negf%wght = 1.d0
@@ -424,9 +341,10 @@ contains
      negf%minmax = 1         ! Set reference cont to max(mu)  
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer = 2          ! Compute full D.M. L,U extra
-    
+     negf%dumpHS = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy 
                              ! Only in adaptive refinement 
+     negf%nldos = 0
      call init_elph(negf%elph)
 
    end subroutine set_defaults
@@ -451,6 +369,8 @@ contains
      type(Tnegf) :: negf    
      integer :: io
 
+     call print_Tstruct(negf%str)
+
      write(io,*) 'verbose=',negf%verbose
 
      write(io,*) 'scratch= "'//trim(negf%scratch_path)//'"'
@@ -459,7 +379,6 @@ contains
      write(io,*) 'isSid= ',negf%isSid
 
      write(io,*) 'Contact Parameters:'
-     write(io,*) 'Efermi= ', negf%efermi
      write(io,*) 'mu= ', negf%mu
      write(io,*) 'WideBand= ', negf%FictCont
      write(io,*) 'DOS= ', negf%contact_DOS

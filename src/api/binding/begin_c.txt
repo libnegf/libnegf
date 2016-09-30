@@ -16,3 +16,4 @@
 #define NEGF_HSIZE 4
 #define NEGF_PADCHAR ' '
 
+#include "lnParams.h"

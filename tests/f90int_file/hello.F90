@@ -27,40 +27,21 @@ program hello
 
   Type(Tnegf), target :: negf
   Type(Tnegf), pointer :: pnegf
-  Type(lnParams) :: params
-  integer, allocatable :: surfend(:), contend(:), plend(:), cblk(:)
-  real(kind(1.d0)), allocatable :: mu(:), kt(:), energies(:), transmission(:,:)
-
-  surfend = [60,80]
-  contend = [80,100]
-  plend = [60]
-  mu = [0.d0, 0.d0]
-  kt = [1.0d-3, 1.0d-3]
-  cblk = [1,1]
+  real(kind(1.d0)), allocatable :: energies(:), transmission(:,:)
 
   pnegf => negf
 
   write(*,*) 'Libnegf hello world'
   write(*,*) 'Init...'
   call init_negf(pnegf)
-  write(*,*) 'Import Hamiltonian'
-  call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
-  call set_S_id(pnegf, 100)
-  call init_structure(pnegf, 2, contend, surfend, 1, plend, cblk)
-  
-  ! Here we set the parameters, only the ones different from default
-  call get_params(pnegf, params)
-  params%Emin = -3.d0
-  params%Emax = 3.d0
-  params%Estep = 1.d-2
-  call set_params(pnegf, params)
+  call read_negf_in(negf)
   
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
   call get_transmission(pnegf, energies, transmission)
   ! The above passes the transmission, but we write to file for debug
   call write_tunneling_and_dos(pnegf)
-  write(*,*) 'Destroy negf'
+  write(*,*) 'Release libnegf'
   call destroy_negf(pnegf)
 
 end program hello

@@ -1248,7 +1248,10 @@ contains
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
        !call log_allocatep(negf%tunn_mat,0,0)
        !if (do_ledos) call log_allocatep(negf%ldos_mat,0,0)
+       ! If a previous calculation is present, destroy it
+       if (associated(negf%currents)) call log_deallocatep(negf%currents)    
        call log_allocatep(negf%currents,1) 
+
        negf%currents = 0.0_dp 
        return
     endif
@@ -1284,11 +1287,17 @@ contains
     !-------------------------------------------------------
     
     call log_allocate(TUN_MAT,size_ni)
-    call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
+    !If previous calculation is there, destroy output
+    if (associated(negf%tunn_mat)) call  log_deallocatep(negf%tunn_mat)
+    call log_allocatep(negf%tunn_mat,Nstep,size_ni)  
+
     negf%tunn_mat = 0.0_dp 
 
     if (do_LEDOS) then
+       !If previous calculation is there, destroy output
+       if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
        call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
+
        call log_allocate(LEDOS,negf%nLDOS)          
        negf%ldos_mat(:,:)=0.d0
     endif
@@ -1355,18 +1364,25 @@ contains
 
     size_ni = size(negf%tunn_mat,2)
 
-    if (.not.associated(negf%currents)) then
+    ! If previous calculation is there, destroy it
+    if (associated(negf%currents)) call log_deallocatep(negf%currents)    
       call log_allocatep(negf%currents,size_ni)
-    end if
+
     negf%currents=0.d0
 
     do ii=1,size_ni
        mu1=negf%mu(negf%ni(ii))
        mu2=negf%mu(negf%nf(ii))
-       
-       negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
+       !! If temperature and chemical potential are the same we don't really need
+       !! to do the calculation. I set strictly equal because 
+       !! this is the case when we have default exact initialization to 0.0
+       if (mu1 .eq. mu2 .and. negf%kbT(negf%nf(ii)) .eq. negf%kbT(negf%ni(ii))) then
+         negf%currents(ii) = 0.d0
+       else
+         negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
                             & negf%kbT(negf%ni(ii)), negf%kbT(negf%nf(ii)), &
                             & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+       end if
     enddo
 
   end subroutine electron_current
@@ -1649,24 +1665,30 @@ contains
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
     INTEGER :: i,i1,N,Nstep,imin,imax
- 
+    logical :: swapped
+
     curr=0.d0
     N=0
     destep=1.0d10 
     Nstep=NINT((emax-emin)/estep);
  
-    if (kT1.lt.0.01_dp*Kb) then
-      kbT1 = Kb*0.01_dp
+    !We set a minimum possible value T=1K to avoid
+    !numericla issues
+    if (kT1.lt.1.0_dp*Kb) then
+      kbT1 = Kb*1.0_dp
     else
       kbT1 = kT1     
     endif
-    if (kT2.lt.0.01_dp*Kb) then
-      kbT2 = Kb*0.01_dp
+    if (kT2.lt.1.00_dp*Kb) then
+      kbT2 = Kb*1.00_dp
     else
       kbT2 = kT2     
     endif
  
+    swapped = .false.
     if (mu2<mu1) then
+      !We have to remember we swapped to get the right sign at the end
+      swapped = .true.
       call swap(mu1,mu2)
       call swap(kbT1,kbT2)
     end if
@@ -1706,7 +1728,8 @@ contains
        enddo
        
     enddo
- 
+
+    if (swapped) curr = -1.d0*curr
     integrate_el = curr
   
   end function integrate_el
