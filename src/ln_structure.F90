@@ -164,7 +164,7 @@ contains
       write(*,*) 'C: ',i, str%mat_C_start(i), str%mat_C_end(i)
       write(*,*) 'cont dim:',str%mat_C_end(i)-str%mat_C_start(i)+1
     enddo  
-   
+    write(*,*) 'cblk: ',str%cblk 
     write(*,*) 'total dim:',str%total_dim
 
   end subroutine print_Tstruct

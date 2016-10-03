@@ -6,7 +6,7 @@
 !! Non Equilibrium Green's Function calculation                             ! 
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
-!! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
+!! Former Contributors: Luca Latessa, Aldo Di Carlo                        !
 !!                                                                          !
 !! libNEGF is free software: you can redistribute it and/or modify          !
 !! it under the terms of the GNU Lesse General Public License as published  !
@@ -35,11 +35,19 @@ module libnegf
  use sparsekit_drv
  use integrations
 
+ use iso_c_binding
+
  implicit none
  private
 
- public :: init_negf, destroy_negf, init_ldos
- public :: set_H, set_S, set_S_id, read_HS
+ !Input and work flow procedures
+ public :: lnParams
+ public :: init_negf, destroy_negf
+ public :: init_structure
+ public :: get_params, set_params
+ public :: init_ldos, set_ldos_intervals, set_ldos_indexes
+
+ public :: set_H, set_S, set_S_id, read_HS, pass_HS
  public :: read_negf_in
  public :: negf_version 
  public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S,rho,rhoE)
@@ -47,8 +55,9 @@ module libnegf
                             ! H need to be already ordered properly 
  public :: negf_partition_info  !write down partition info
  private :: find_cblocks        ! Find interacting contact block
- public :: set_ref_cont
- public :: get_transmission  !Returns transmission coefficients and energy range
+ public :: set_ref_cont, print_tnegf
+ public :: associate_transmission, associate_current, associate_ldos
+ public :: get_energies, get_dm, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -79,40 +88,114 @@ module libnegf
  integer, PARAMETER :: VBT=70
  integer, PARAMETER :: MAXNUMPLs = 10000
 
-contains
-  
-  !--------------------------------------------------------------------
-  ! Init libNEGF
-  ! General initializations of libNEGF are currently done via files.
-  ! "negf.in" contains all parameters information
-  ! all needed info about the structure and matrix format.
-  ! H and S are also read-in from files
-  ! Some parameters are still hard-coded and need to be set from api  
-  !--------------------------------------------------------------------
+  !-----------------------------------------------------------------------------
+  !> Contains all the general parameters to be passed as input to library
+  !! which are compatible with iso_c_binding representations
+  !! 1-1 correspondance to input parameter in type Tnegf
+  type, bind(c) :: lnparams
+   !! General
+   !> verbosity, > 100 is maximum
+   integer(c_int) :: verbose
+   !> Managing SGF readwrite: 0: Read 1: compute 2: comp & save
+   integer(c_int)  :: readoldsgf 
+   !> Spin component (for io)
+   integer(c_int)  :: spin
+   !> k-point index (for io)
+   integer(c_int) :: kpoint 
+   !> Current iteration (for io) 
+   integer(c_int) :: iteration          ! Number of current SCC itaration
+   !> Spin degeneracy
+   real(c_double) :: g_spin          
+   !> Imaginary delta
+   real(c_double) :: delta           
+   !> Additional delta to force more broadening in the DOS 
+   real(c_double) :: dos_delta
+   !> Energy conversion factor
+   real(c_double) :: eneconv
+   !> Weight for k-point integration, output integrals are scaled accordingly
+   real(c_double) :: wght        
+   !> Conduction band edge
+   real(c_double) :: ec
+   !> Valence band edge
+   real(c_double) :: ev        
+   !! Real axis integral
+   !> Minimum energy for real axis (current integration, DOS, tunneling)
+   real(c_double) :: emin       
+   !> Maximum energy for real axis
+   real(c_double) :: emax   
+   !> Energy step for real axis
+   real(c_double) :: estep    
+   !! Contacts info
+   !> Electron electrochemical potential
+   real(c_double) :: mu_n(MAXNCONT)
+   !> Hole electrochemical potential
+   real(c_double) :: mu_p(MAXNCONT)  
+   !> Electron electrochemical Potential (for dft)
+   real(c_double) :: mu(MAXNCONT)    
+   !> Contact DOS for WBA
+   real(c_double) :: contact_dos(MAXNCONT) 
+   !> Logical value: is the contact WB?
+   logical(c_bool)  :: fictcont(MAXNCONT)
+   !> Electronic temperature for each contact
+   real(c_double) :: kbt(MAXNCONT) 
+   !! Contour integral
+   !> Number of points for n 
+   integer(c_int) :: np_n(2)
+   !> Number of points for p 
+   integer(c_int) :: np_p(2)
+   !> Number of real axis points
+   integer(c_int) :: np_real(11)
+   !> ! Number of kT extending integrations
+   integer(c_int) :: n_kt
+   !> Number of poles
+   integer(c_int) :: n_poles
+   !! Emitter and collector for transmission or Meir-Wingreen 
+   !! (only emitter in this case)
+   !> Emitter contact list (or lead for integration in MW)
+   integer(c_int) :: ni(MAXNCONT)
+   !> Collector contact list
+   integer(c_int) :: nf(MAXNCONT)
+   !> Should I calculate the density ("D") or the energy weighted density ("E")?
+   character(kind=c_char, len=1) :: dore  ! Density or En.Density
+  end type lnparams
+  !-----------------------------------------------------------------------------
 
+contains
+
+  !--------------------------------------------------------------------
+  !>  Init libNEGF
+  !!  General initializations of libNEGF are currently done via files.
+  !!  "negf.in" contains all parameters information
+  !!  all needed info about the structure and matrix format.
+  !!  H and S are also read-in from files
+  !!  Some parameters are still hard-coded and need to be set from api  
+  !--------------------------------------------------------------------
   subroutine init_negf(negf)
     type(Tnegf) :: negf
 
     call set_defaults(negf)
-
-    !print*, '(init_negf) Initializing libnegf...'
-
     negf%form%formatted = .true.
     negf%isSid = .false.
     negf%form%type = "PETSc" 
     negf%form%fmt = "F" 
 
    end subroutine init_negf
-   
-   !--------------------------------------------------------------------
+
+   !!===================================================================
+   !! INPUT Routines
+   !!===================================================================     
+
+   !!-------------------------------------------------------------------
+   !! Passing & reading H,S
+   !!-------------------------------------------------------------------
+
+   !>--------------------------------------------------------------------
    !!  Read H and S from file
-   !!    Args:
-   !!      negf: libnegf container instance
-   !!      real_path (string): filename for real part of target matrix in PETSC format
-   !!      imag_path (string): filename for imaginary part of target matrix in PETSC format. 
-   !!        By default a zero matrix is built
-   !!      target_matrix (integer): controlo flag which specify if the Hamiltonian
-   !!        or the Overlap is parsed. 0 for the Hamiltonian, 1 for the Overlap
+   !!  @param[in] negf: libnegf container instance
+   !!  @param[in] real_path (string): filename for real part of target matrix in PETSC format
+   !!  @param[in] imag_path (string): filename for imaginary part of target matrix in PETSC format. 
+   !!  @param[in] target_matrix (integer): controlo flag which specify if the Hamiltonian
+   !!      or the Overlap is parsed. 0 for the Hamiltonian, 1 for the Overlap
    !!      formatted (logical, optional): true (default) if file is formatted.
    !!
    !!   Note: up to now both the real and imaginary part files must have the same 
@@ -171,7 +254,14 @@ contains
      negf%intHS=.true.
 
    end subroutine read_HS
-  !--------------------------------------------------------------------
+
+  !-------------------------------------------------------------------
+  !> Pass H from memory in CSR format
+  !! @param[in] negf: libnegf container instance
+  !! @param[in] nrow: number of rows
+  !! @param[in] nzval: number of non zero values
+  !! @param[in] colind: column indexes
+  !! @param[in] rowpnt: row pointers
   subroutine set_H(negf, nrow, nzval, colind, rowpnt)
     type(Tnegf) :: negf
     integer :: nrow
@@ -198,12 +288,15 @@ contains
     enddo  
     negf%intHS=.true.
 
-    !print*,'nrow = ',negf%H%nrow
-    !print*,'nnz = ',negf%H%rowpnt(nrow+1)-1, negf%H%nnz
-
   end subroutine set_H
 
-  !--------------------------------------------------------------------
+  !-------------------------------------------------------------------
+  !> Pass S from memory in CSR format
+  !! @param[in] negf: libnegf container instance
+  !! @param[in] nrow: number of rows
+  !! @param[in] nzval: number of non zero values
+  !! @param[in] colind: column indexes
+  !! @param[in] rowpnt: row pointers
   subroutine set_S(negf, nrow, nzval, colind, rowpnt)
     type(Tnegf) :: negf
     integer :: nrow
@@ -230,78 +323,294 @@ contains
     enddo  
     negf%intHS=.true.
     
-    !print*,'nrow = ',negf%H%nrow
-    !print*,'nnz = ',negf%H%rowpnt(nrow+1)-1, negf%H%nnz
-
-
   end subroutine set_S
-  !--------------------------------------------------------------------
+
+  !-------------------------------------------------------------------
+  !> Set S as identity
+  !! @param[in] negf: libnegf container instance
+  !! @param[in] nrow: number of rows
   subroutine set_S_id(negf, nrow)
     type(Tnegf) :: negf
-    integer :: nrow
-    !integer :: nnz
+    integer, intent(in) :: nrow
 
     allocate(negf%S)
-    call create_id(negf%S, nrow) 
+    call create_id(negf%S, nrow)
+    negf%isSid = .true. 
 
   end subroutine set_S_id
-  
+
+  !------------------------------------------------------------------
+  !> Assign H,S pointers to externally allocated matrices
+  !! @param [in]  negf: libnegf container instance
+  !! @param [in] H: target z_CSR hamiltonian
+  !! @param [in] S: target z_CSR overlap (optional, default to identity)
+  subroutine pass_HS(negf,H,S)
+    type(Tnegf) :: negf    
+    type(z_CSR), target :: H
+    type(z_CSR), optional, target :: S
+
+    negf%H => H
+    if (present(S)) then
+       negf%S => S      
+    else
+       negf%isSid=.true.
+       allocate(negf%S)
+       call create_id(negf%S,negf%H%nrow) 
+    endif
+    negf%intHS = .false.
+
+  end subroutine pass_HS
+
+  !!-------------------------------------------------------------------
+  !! Setting structure and partitioning
+  !!-------------------------------------------------------------------
+  !------------------------------------------------------------------
+  !> Set device/contact and PLs partition information
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] ncont: number of contacts
+  !! @param [in] contend: on which hamiltonian index where are contacts 
+  !!               ending? Array with size ncont
+  !! @param [in] surfend: on which index is Device surface ending before
+  !!              the corresponding contact (would be beginning contact-1)
+  !! @param [in] npl: number of principal layers
+  !! @param [in] plend: indexes where each principal layer ends
+  !! @param [in] cblk: array with index of interacting blocks for each 
+  !!               contact(fortran indexing. If cblk is not known, use 
+  !!               find_cblocks
+  !!
+  !! If nbl = 0 the code will try to guess an automatic partitioning
+  !!
+  !! Example: device goes from 1 to 60. Contacts from 61 to 80 and to
+  !! 81 to 100. Only 1 PL:
+  !!  ncont = 2
+  !!  contend = [80, 100]
+  !!  surfend = [60, 80]
+  !!  npl = 1
+  !!  plend = [60]
+  subroutine init_structure(negf, ncont, contend, surfend, npl, plend, cblk)
+     type(Tnegf) :: negf
+     integer, intent(in) :: ncont
+     integer, intent(in), allocatable :: contend(:), surfend(:)
+     integer, intent(in) :: npl
+     integer, intent(in), allocatable :: plend(:)
+     integer, intent(in), allocatable :: cblk(:)
+
+     integer, allocatable :: plend_tmp(:)
+     integer :: npl_tmp
+
+     if (size(contend) .ne. ncont) then
+       stop "Error in set_structure: contend and ncont mismatch"
+     end if
+     if (size(surfend) .ne. ncont) then
+       stop "Error in set_structure: surfend and ncont mismatch"
+     end if
+     if (npl .ne. 0 .and. size(plend) .ne. npl) then
+       stop "Error in set_structure: plend and npl mismatch"
+     end if
+     
+     if (npl .eq. 0) then
+       call log_allocate(plend_tmp, MAXNUMPLs)  
+       call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)   
+     else 
+       plend_tmp = plend
+       npl_tmp = npl
+     end if
+    call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk, negf%str)    
+
+  end subroutine init_structure
+
+  !!-------------------------------------------------------------------
+  !! Get/Set parameters container
+  !!-------------------------------------------------------------------
+
+  !> Set paramters from libnegf. Useful to get defaults
+  !!  or to only set some values
+  subroutine get_params(negf, params)
+    type(Tnegf) :: negf
+    type(lnParams), intent(out) :: params
+
+    params%verbose = negf%verbose
+    params%ReadoldSGF = negf%ReadoldSGF
+    !params%scratch_path = negf%scratch_path
+    !params%out_path = negf%out_path
+    params%g_spin = negf%g_spin
+    params%delta = negf%delta
+    params%dos_delta = negf%dos_delta
+    params%mu_n = negf%mu_n
+    params%mu_p = negf%mu_p
+    params%mu = negf%mu
+    params%contact_dos = negf%contact_dos
+    params%FictCont = negf%FictCont
+    params%kbT = negf%kbT
+    params%Np_n = negf%Np_n
+    params%Np_real = negf%Np_real
+    params%n_kt = negf%n_kt
+    params%n_poles = negf%n_poles
+    params%Ec = negf%Ec
+    params%Ev = negf%Ev
+    params%Emin = negf%Emin
+    params%Emax = negf%Emax
+    params%Estep = negf%Estep
+    params%ni = negf%ni
+    params%nf = negf%nf    
+    params%eneconv = negf%eneconv
+    params%spin = negf%spin
+    params%wght = negf%wght
+    params%kpoint = negf%kpoint
+    params%iteration = negf%iteration
+    params%DorE = negf%DorE
+
+  end subroutine get_params
+
+  !> Assign parameters to libnegf
+  subroutine set_params(negf, params)
+    type(Tnegf) :: negf
+    type(lnParams), intent(in) :: params
+
+    negf%verbose = params%verbose
+    negf%ReadoldSGF = params%ReadoldSGF
+    !negf%scratch_path = params%scratch_path
+    !negf%out_path = params%out_path
+    negf%g_spin = params%g_spin
+    negf%delta = params%delta
+    negf%dos_delta = params%dos_delta
+    negf%mu_n = params%mu_n
+    negf%mu_p = params%mu_p
+    negf%mu = params%mu
+    negf%contact_dos = params%contact_dos
+    negf%FictCont = params%FictCont
+    negf%kbT = params%kbT
+    negf%Np_n = params%Np_n
+    negf%Np_real = params%Np_real
+    negf%n_kt = params%n_kt
+    negf%n_poles = params%n_poles
+    negf%Ec = params%Ec
+    negf%Ev = params%Ev
+    negf%Emin = params%Emin
+    negf%Emax = params%Emax
+    negf%Estep = params%Estep
+    negf%ni = params%ni
+    negf%nf = params%nf
+    negf%eneconv = params%eneconv
+    negf%spin = params%spin
+    negf%wght = params%wght
+    negf%kpoint = params%kpoint
+    negf%iteration = params%iteration
+    negf%DorE = params%DorE
+
+    !! Some internal variables in libnegf are set internally 
+    !! after parameters are available
+    call set_ref_cont(negf)
+
+  end subroutine set_params
+
+
   !--------------------------------------------------------------------
+  ! LDOS methods: you can set N index intervals OR N separate index 
+  ! arrays. You have to initialize the data by indicating the number of 
+  ! ldos interval (nldos) and then you can either set the start/end
+  ! indexes for intervals OR append one by one explicit arrays
+  !
+  !--------------------------------------------------------------------
+
+  !> Initialize the ldos info
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] nldos: number of intervals
+  subroutine init_ldos(negf,nldos)
+    type(Tnegf) :: negf
+    integer, intent(in) :: nldos
+
+    if (allocated(negf%ldos)) deallocate(negf%ldos)
+    allocate(negf%ldos(nldos))
+    negf%nldos = nldos
+    
+  end subroutine init_ldos
+
+  !> Set ldos intervals
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] istart(nldos) array with first interval index
+  !! @param [in] iend(nldos) array with first interval index
+  subroutine set_ldos_intervals(negf, nldos, istart, iend)
+    type(Tnegf) :: negf
+    integer, intent(in) :: nldos
+    integer, intent(in) :: istart(*), iend(*)
+    
+    integer :: ii, jj
+
+    do ii = 1, negf%nldos
+      call log_allocate(negf%ldos(ii)%indexes,iend(ii)-istart(ii)+1)
+      do jj = 1, iend(ii) - istart(ii) + 1
+        negf%ldos(ii)%indexes(jj) = istart(ii) + jj - 1
+      end do
+    end do
+
+  end subroutine set_ldos_intervals
+
+  !> Set ldos indexes arrays for a given ldos 
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] ildos: index of ldos 
+  !! @param [in] idx: 1D array with indexes
+  subroutine set_ldos_indexes(negf, ildos, idx)
+    type(Tnegf) :: negf
+    integer, intent(in) :: ildos
+    integer, intent(in) :: idx(:)
+    
+    integer :: ii, jj
+
+    negf%ldos(ildos)%indexes = idx
+
+  end subroutine set_ldos_indexes
+
+
+  !--------------------------------------------------------------------
+  !> Initialize and set parameters from input file negf.in
   subroutine read_negf_in(negf)
     type(Tnegf) :: negf
     Integer :: ncont, nbl, ii, jj, ist, iend
-    Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end, cblk
+    Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end
     character(32) :: tmp
     character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
+    integer, dimension(:), allocatable :: cblk
 
     open(101, file="negf.in", form='formatted')
   
-    read(101,*) file_re_H 
-    read(101,*) file_im_H
+    read(101,*) tmp, file_re_H 
+    read(101,*) tmp, file_im_H
 
-    read(101,*) file_re_S
-    read(101,*) file_im_S
+    read(101,*) tmp, file_re_S
+    read(101,*) tmp, file_im_S
 
+    call read_HS(negf, file_re_H, file_im_H, 0)
     if (trim(file_re_S).eq.'identity') then
-         negf%isSid = .true.     
-    endif
+         negf%isSid = .true.
+         call set_S_id(negf, negf%H%nrow)
+    else
+      call read_HS(negf, file_re_S, file_im_S, 1)
+    end if
 
     !! A dummy descriptor must be present at the beginning of each line
     !! Used for debug 
     read(101,*) tmp, ncont
-
-    call log_allocate(cblk,ncont)
+    call log_allocate(cblk, ncont)
     call log_allocate(cont_end,ncont)
-    call log_allocate(surf_end,ncont)
-
+    surf_end = cont_end
+    !call log_allocate(surf_end,ncont)
     read(101,*) tmp, nbl
-
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
        read(101,*) tmp, PL_end(1:nbl)
     end if
-
     read(101,*) tmp, cont_end(1:ncont)
     read(101,*) tmp, surf_end(1:ncont)
 
-    if (nbl .eq. 0) then
-       call log_allocate(PL_end, MAXNUMPLs)  
-       call block_partition(negf%H, surf_end(1), cont_end, surf_end, ncont, nbl, PL_end)   
-    endif
-    
-    call find_cblocks(negf%H ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
-
-    !if (negf%verbose .gt. 50) then
-    !   write(*,*) '(init NEGF) nbl: ', nbl
-    !   write(*,*) "(init NEGF) blocks interactions:",cblk(1:ncont)     
-    !endif
-
-    call init_structure(negf, ncont, nbl, PL_end, cont_end, surf_end, cblk)
+    call find_cblocks(negf%H, ncont, nbl, PL_end, cont_end, surf_end, cblk)
+    call init_structure(negf, ncont, cont_end, surf_end, nbl, PL_end, cblk)
        
     call log_deallocate(PL_end)
-    call log_deallocate(cblk)
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
+    call log_deallocate(cblk)
 
     read(101,*)  tmp, negf%Ec, negf%Ev
     read(101,*)  tmp, negf%DeltaEc, negf%DeltaEv
@@ -374,16 +683,6 @@ contains
  end subroutine negf_partition_info
 
 !--------------------------------------------------------------------
-  subroutine init_structure(negf,ncont,nbl,PL_end,cont_end,surf_end,cblk)
-    type(Tnegf) :: negf
-    Integer :: ncont, nbl
-    Integer, dimension(:) :: PL_end, cont_end, surf_end, cblk
-
-    call create_Tstruct(ncont, nbl, PL_end, cont_end, surf_end, cblk, negf%str)
-
-  end subroutine init_structure
-
-!--------------------------------------------------------------------
   !> Destroy all the info defined in initialization. 
   !! To run at the very end of libnegf usage
   subroutine destroy_negf(negf)
@@ -392,66 +691,105 @@ contains
     call destroy_matrices(negf)
     call destroy_HS(negf)
     call kill_Tstruct(negf%str) 
-    if (allocated(negf%LDOS)) call destroy_ldos(negf%LDOS)
+    if (allocated(negf%LDOS)) deallocate(negf%ldos)
     if (allocated(negf%en_grid)) deallocate(negf%en_grid)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
-
-    !call destroy_emesh(negf)
+    call destroy_DM(negf)
 
   end subroutine destroy_negf
-  
   !--------------------------------------------------------------------
-  subroutine init_ldos(negf,nregs,sizes)
-    type(Tnegf) :: negf
-    integer :: nregs
-    integer, dimension(:) :: sizes
-
-    integer :: err, i
-    
-    allocate(negf%ldos(nregs),stat=err)
-    if (err/=0) stop 'allocation error of ldos'
-
-    do i=1, nregs
-      call log_allocate(negf%ldos(i)%indexes,sizes(i))
-    end do
-    
-  end subroutine init_ldos
-  !--------------------------------------------------------------------
-  subroutine destroy_ldos(ldos)
-    type(intarray), dimension(:), allocatable :: ldos 
-      
-    integer :: err, i
-
-    do i=1, size(ldos)
-      call log_deallocate(ldos(i)%indexes)
-    end do
-
-    deallocate(ldos)
-    
-  end subroutine destroy_ldos
-  
-  !> 
-  !! Return the transmission and energy points between a given 
-  !! pair of leads. Energies are returned as real.
-  !! Input arrays will be filled with the values (no direct pointer access)
-  !! Note: inout arrays maybe allocated or not, in F2003 if they are not
-  !! they will be automatically allocated
+  !> Copy the energy axis on all processors (for output, plot, debug)
   !! @param [in] negf: negf container
-  !! @param [in] lead_pair: specifies which leads are considered 
-  !!             for retrieving current (as ordered in ni, nf)
-  !! @param [inout] energies: array filled with energies
-  !! @param [inout] transmission: array filled with transmission
-  subroutine get_transmission(negf, lead_pair, energies, transmission)
+  !! @param [out] energies: energy values, it can eb allocated internally
+  subroutine get_energies(negf, energies)
+    type(Tnegf), intent(in) :: negf
+    complex(dp), allocatable :: energies(:)
+
+    if (.not.allocated(energies)) then
+      allocate(energies(size(negf%en_grid)))
+    end if
+    energies = negf%en_grid(:)%Ec
+
+  end subroutine get_energies
+
+  !> 
+  !! Associate an input pointer with the internal pointer of 
+  !! transmissions. Return NULL if internal pointer is not
+  !! associated
+  subroutine associate_transmission(negf, tr_pointer)
     type(TNegf), intent(in)  :: negf
-    integer, intent(in) :: lead_pair
-    real(dp), dimension(:), allocatable, intent(inout) :: energies, transmission
+    real(dp), dimension(:,:), pointer, intent(inout) :: tr_pointer
 
-    energies(:) = real(negf%en_grid(:)%Ec)
-    transmission(:) = negf%tunn_mat(:,lead_pair)
+    if (associated(negf%tunn_mat)) then
+      tr_pointer => negf%tunn_mat
+    else 
+      tr_pointer => NULL()
+    end if
 
-  end subroutine get_transmission
+  end subroutine associate_transmission
+
+  !> 
+  !!  Associate an input pointer with the internal pointer of 
+  !! LDOS
+  subroutine associate_ldos(negf, ldos_pointer)
+    type(TNegf), intent(in)  :: negf
+    real(dp), dimension(:,:), pointer, intent(inout) :: ldos_pointer
+
+    if (associated(negf%ldos_mat)) then
+      ldos_pointer => negf%ldos_mat
+    else 
+      ldos_pointer => NULL()
+    end if
+
+  end subroutine associate_ldos
+
+  !> 
+  !!  Associate an input pointer with the internal pointer of 
+  !! currents
+  subroutine associate_current(negf, curr_pointer)
+    type(TNegf), intent(in)  :: negf
+    real(dp), dimension(:), pointer, intent(inout) :: curr_pointer
+
+    if (associated(negf%currents)) then
+      curr_pointer => negf%currents
+    else 
+      curr_pointer => NULL()
+    end if
+
+  end subroutine associate_current
+
+  !> 
+  !! Get currents by copy. 
+  !! @param [in] negf: negf container
+  !! @param [out] currents: current values, it can eb allocated internally
+  subroutine get_currents(negf, currents)
+    type(TNegf), intent(in)  :: negf
+    real(dp), intent(out) :: currents(:)
+
+    currents = negf%currents(:)
+  end subroutine get_currents
+
+  !> Get density matrix CSR sparse arrays by copy
+  !! @param [in] negf: negf container
+  !! @param [out] nzval: number of non zero values
+  !! @param [out] nrow: number of rows
+  !! @param [out] rowpnt (int array): row pointer indexes
+  !! @param [out] colind (int array): column indexes array
+  !! @param [out] nzval (complex array): non zero values
+  subroutine get_dm(negf, nnz, nrow, rowpnt, colind, nzval)
+    type(TNegf), intent(in)  :: negf
+    integer, intent(out) :: nnz, nrow
+    integer, intent(out) :: rowpnt(:), colind(:)
+    real(dp), intent(out) :: nzval(:)
+
+    nnz = negf%rho%nnz
+    nrow = negf%rho%nrow
+    rowpnt = negf%rho%rowpnt
+    colind = negf%rho%colind
+    nzval = negf%rho%nzval
+  end subroutine get_dm
 
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
@@ -476,8 +814,6 @@ contains
        if (allocated(negf%HMC(i)%val)) call destroy(negf%HMC(i))
        if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
     enddo
-    
-    call destroy_DM(negf)
 
   end subroutine destroy_matrices
 !--------------------------------------------------------------------
@@ -561,9 +897,11 @@ contains
 
 
     call extract_device(negf)
-
     call extract_cont(negf)
 
+    !! Did anyone passed externally allocated DM? If not, create it
+    call create_DM(negf)
+    
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
     
@@ -925,6 +1263,13 @@ contains
      
   end subroutine set_ref_cont
 
+  !> Print TNegf state, for debug
+  subroutine print_tnegf(negf)
+    type(TNegf) :: negf
+
+    call print_all_vars(negf, 6)
+  end subroutine print_tnegf
+
   !////////////////////////////////////////////////////////////////////////
   ! RCM algorithm for reordering.
   ! 
@@ -1152,12 +1497,13 @@ contains
     integer, dimension(:), intent(in) :: PL_end 
     integer, dimension(:), intent(in) :: cont_end
     integer, dimension(:), intent(in) :: surf_end
-    integer, dimension(:), intent(inout) :: cblk
+    integer, dimension(:), allocatable, intent(out) :: cblk
 
     integer :: j1,k,i,min,max
     integer, dimension(:), allocatable :: PL_start
 
     call log_allocate(PL_start,nbl)
+    call log_allocate(cblk,ncont)
 
     PL_start(1) = 1
 

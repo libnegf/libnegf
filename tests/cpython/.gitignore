@@ -1,2 +1,3 @@
-libnegf.h
-build
+*.pyc
+tunnel*
+LEDOS*

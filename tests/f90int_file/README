@@ -1,0 +1,2 @@
+A minimal test on a linear chain. Calculate the transmission.  
+The main program is using directly F90 subroutines and linked to libnegf ojects (similar to dftb+)
