@@ -26,18 +26,24 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info, print_Tstruct
   use input_output
-  use elph
+  use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
   use phph
   use energy_mesh, only : mesh
+  use interactions, only : Interaction
+  use elphdd, only : ElPhonDephD, ElPhonDephD_create 
+  use elphdb, only : ElPhonDephB, ElPhonDephB_create
+  use elphds, only : ElPhonDephS, ElPhonDephS_create
   use libmpifx_module, only : mpifx_comm 
 
   implicit none
   private
 
   public :: Tnegf, intarray, TEnGrid
-  public :: pass_DM
-  public :: set_defaults
-  public :: print_all_vars
+  public :: fill_parameters, pass_HS, pass_DM
+  public :: set_convfactor, set_fermi, set_potentials, set_fictcont
+  public :: set_readoldsgf, set_computation, set_iteration, set_defaults
+  public :: print_all_vars, set_elph_dephasing, destroy_elph_model
+  public :: set_elph_block_dephasing, set_elph_s_dephasing
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
@@ -159,18 +165,23 @@ module lib_param
    complex(dp) :: Epnt           ! Energy point (complex)
    integer :: local_en_points    ! Local number of energy points
    type(TEnGrid), dimension(:), allocatable :: en_grid
-   real(dp), dimension(:,:), pointer :: tunn_mat => null()
-   real(dp), dimension(:,:), pointer :: ldos_mat => null()
-   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
-
    real(dp) :: int_acc           ! integration accuracy
    real(dp), dimension(:), pointer :: E_singular => null()
    real(dp) :: delta_singular
-
    type(Telph) :: elph           ! electron-phonon data
    type(Tphph) :: phph           ! phonon-phonon data
 
    type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+
+   ! Many Body Interactions
+   class(Interaction), allocatable :: inter
+
+   !! Output variables: these are filled by internal subroutines to stor
+   !! library output
+   real(dp), dimension(:,:), pointer :: tunn_mat => null()
+   real(dp), dimension(:,:), pointer :: ldos_mat => null()
+   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
+   
 
  end type Tnegf
 
@@ -285,7 +296,75 @@ contains
 
   end subroutine copy_HS
   
-  
+  !> Set values for the local electron phonon dephasing model
+  !! (elastic scattering only)
+  subroutine set_elph_dephasing(negf, coupling, niter)
+    type(Tnegf) :: negf
+    type(ElPhonDephD) :: elphdd_tmp
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    integer :: niter
+    
+    !call init_elph_1(negf%elph, coupling, niter)
+    call elphondephd_create(elphdd_tmp, negf%str, coupling, niter, 1.0d-7)
+    allocate(negf%inter, source=elphdd_tmp)
+
+  end subroutine set_elph_dephasing
+
+  !> Set values for the semi-local electron phonon dephasing model
+  !! (elastic scattering only)
+  subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
+    type(Tnegf) :: negf
+    type(ElPhonDephB) :: elphdb_tmp
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    integer :: niter
+    
+    !! Verify that the size of the coupling fits with the Hamiltonian
+    !! of the device region
+    !if (size(coupling).ne.negf%H%nrow) then
+    !  write(*,*) 'Elph dephasing model coupling size does not match '
+    !endif
+    !call init_elph_2(negf%elph, coupling, orbsperatom, niter, &
+    !    negf%str%mat_PL_start)
+    call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
+    allocate(negf%inter, source=elphdb_tmp)
+
+  end subroutine set_elph_block_dephasing
+
+ !> Set values for the semi-local electron phonon dephasing model
+  !! (elastic scattering only)
+  subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
+    type(Tnegf) :: negf
+    type(ElPhonDephS) :: elphds_tmp
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    integer :: niter
+    
+    !! Verify that the size of the coupling fits with the Hamiltonian
+    !! of the device region
+    !if (size(coupling).ne.negf%H%nrow) then
+    !  write(*,*) 'Elph dephasing model coupling size does not match '
+    !endif
+    !call init_elph_3(negf%elph, coupling, orbsperatom, niter, &
+    !    negf%str%mat_PL_start, negf%S)
+    call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
+    allocate(negf%inter, source=elphds_tmp)
+
+  end subroutine set_elph_s_dephasing
+
+
+
+  !> Destroy elph model. This routine is accessible from interface as 
+  !! it can be meaningful to "switch off" elph when doing different
+  !! task (density or current)
+  subroutine destroy_elph_model(negf)
+    type(Tnegf) :: negf
+    
+    if (allocated(negf%inter)) deallocate(negf%inter)
+    call destroy_elph(negf%elph)
+
+  end subroutine destroy_elph_model
+
   
   subroutine set_defaults(negf)
     type(Tnegf) :: negf    
@@ -345,7 +424,6 @@ contains
      negf%int_acc = 1.d-3    ! Integration accuracy 
                              ! Only in adaptive refinement 
      negf%nldos = 0
-     call init_elph(negf%elph)
 
    end subroutine set_defaults
 

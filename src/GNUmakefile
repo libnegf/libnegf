@@ -9,8 +9,9 @@ SOURCES = clock.F90  ln_extract.F90 \
           contselfenergy.F90 inversions.F90 libnegf.F90 ln_structure.F90 \
           outmatrix.F90 rcm_module.F90 distributions.F90  transform.F90 \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
-          globals.F90   iterative_dns.F90 iterative_ph.F90 ln_constants.F90   mat_def.F90 \
-	  population.F90 mkl_dfti.F90 energy_mesh.F90
+          globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
+	  population.F90 mkl_dfti.F90 energy_mesh.F90 interactions.F90 \
+	  elphdd.F90 elphdb.F90 elphds.F90
 
 OBJS = $(SOURCES:.F90=.o)
 
@@ -48,12 +49,12 @@ clean:
 ln_allocation.o:    ln_precision.o
 ln_constants.o:     ln_precision.o
 lib_param.o:  ln_precision.o globals.o mat_def.o ln_structure.o input_output.o elph.o 
-lib_param.o:  energy_mesh.o phph.o
+lib_param.o:  energy_mesh.o interactions.o elphdd.o elphdb.o elphds.o phph.o
 mat_def.o:       ln_allocation.o
 iterative.o:     ln_allocation.o  mat_def.o sparsekit_drv.o 
 iterative.o:     inversions.o ln_structure.o
-iterative_dns.o: ln_allocation.o  mat_def.o sparsekit_drv.o transform.o
-iterative_dns.o: inversions.o ln_structure.o elph.o
+iterative_dns.o: ln_allocation.o  mat_def.o sparsekit_drv.o lib_param.o transform.o
+iterative_dns.o: inversions.o ln_structure.o ln_constants.o 
 iterative_ph.o: ln_allocation.o  mat_def.o sparsekit_drv.o transform.o
 iterative_ph.o: inversions.o ln_structure.o phph.o
 ln_extract.o: ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o
@@ -74,6 +75,10 @@ transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
 elph.o:      ln_precision.o
 phph.o:      ln_precision.o
+interactions.o : globals.o ln_precision.o mat_def.o ln_structure.o
+elphdd.o : 	ln_precision.o globals.o mat_def.o ln_structure.o
+elphdb.o : 	ln_precision.o globals.o mat_def.o ln_structure.o
+elphds.o : 	ln_precision.o globals.o mat_def.o ln_structure.o 
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep

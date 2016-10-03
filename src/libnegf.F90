@@ -1032,32 +1032,55 @@ contains
     
     integer :: flagbkup
 
-    call extract_device(negf)
-
-    call extract_cont(negf)
-    
     flagbkup = negf%readOldSGF
     if (negf%readOldSGF.ne.1) then
        negf%readOldSGF = 1
     end if
 
-    call tunneling_int_def(negf)
-
-    call tunneling_and_dos(negf)
-
-    call electron_current(negf)
-   
-    !!GP Locally writing energy dependent data is not meaningful in the MPI
-    !implementation, because the gathering is done externally.
-    ! An implementation node by node is still active, for debugging purposes 
-    !call write_tunneling_and_dos(negf)
+    if (.not.allocated(negf%inter)) then
+      call compute_landauer(negf)
+  else
+      call compute_meir_wingreen(negf)
+  endif
     
-    call destroy_matrices(negf)
- 
     negf%readOldSGF = flagbkup
-  
+    write(*,*) 'Releasing libnegf'
   end subroutine compute_current
 
+  !-------------------------------------------------------------------------------
+  !> Calculate current, tunneling and, if specified, density of states using
+  !! Landauer formula. DOS is calculated during the T(E) loop 
+  !! @param negf input/output container
+  subroutine compute_landauer(negf) 
+
+    type(Tnegf) :: negf
+
+    call extract_device(negf)
+    call extract_cont(negf)
+    call tunneling_int_def(negf)
+    ! TODO: need a check on elph here, but how to handle exception and messages
+    call tunneling_and_dos(negf)
+    call electron_current(negf)
+    call destroy_matrices(negf)
+
+  end subroutine compute_landauer
+
+  !-------------------------------------------------------------------------------
+  !> Calculate current, tunneling and, if specified, density of states using
+  !! Landauer formula. DOS is calculated during the T(E) loop 
+  !! @param negf input/output container
+  subroutine compute_meir_wingreen(negf) 
+
+    type(Tnegf) :: negf
+
+    call extract_device(negf)
+    call extract_cont(negf)
+    call tunneling_int_def(negf)
+    call meir_wingreen(negf)
+    call electron_current(negf)
+    call destroy_matrices(negf)
+
+  end subroutine compute_meir_wingreen
 
   ! --------------------------------------------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate
