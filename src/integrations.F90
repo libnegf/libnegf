@@ -682,7 +682,7 @@ contains
 
      Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
      type(z_CSR) :: GreenR, TmpMt 
-     integer :: i, i1, ncont, Ntot, outer, scba_iter
+     integer :: i, i1, ncont, Ntot, outer
      real(dp) :: ncyc
      complex(dp) :: Ec, zt
     
@@ -707,37 +707,11 @@ contains
 
         call compute_Gr(negf, outer, ncont, Ec, GreenR)
 
-!!$        
-!!$        call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-!!$  
-!!$        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-!!$
-!!$        !! If elph model, then get inside a SCBA cycle 
-!!$        if (negf%elph%model .ne. 0 .and. negf%elph%scba_iterations.ne.0) then
-!!$        do scba_iter = 1, negf%elph%scba_niter
-!!$          if (negf%elph%model .eq. 1) then
-!!$            call elph_sigma_r_mod1(negf%elph, GreenR)
-!!$          else
-!!$            write(*,*) 'Not yet implemented'
-!!$            stop 0
-!!$          endif
-!!$         negf%elph%scba_iter = scba_iter
-!!$         call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,GreenR,negf%str,outer)
-!!$       enddo
-!!$      endif
+        if(negf%DorE.eq.'E') zt = zt * Ec
 
-        if(negf%DorE.eq.'D') then
-           call concat(TmpMt,zt,GreenR,1,1)
-        endif
-        if(negf%DorE.eq.'E') then
-           call concat(TmpMt,zt*Ec,GreenR,1,1)
-        endif
+        call concat(TmpMt,zt,GreenR,1,1)
     
         call destroy(GreenR)
-    
-!!$        do i1=1,ncont
-!!$           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-!!$        enddo
     
         if (id0.and.negf%verbose.gt.VBT) call write_clock
     
@@ -750,11 +724,7 @@ contains
         call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
      endif
  
-     ! The MPI gather here
-
      call destroy(TmpMt)
-
-     !call destroy_en_grid()
 
   end subroutine contour_int
 
@@ -884,12 +854,9 @@ contains
 
        call compute_Gn(negf, outer, ncont, Ec, frm_f, GreenR)
 
-       if(negf%DorE.eq.'D') then
-          call concat(TmpMt,zt,GreenR,1,1)
-       endif
-       if(negf%DorE.eq.'E') then
-          call concat(TmpMt,zt*Er,GreenR,1,1)
-       endif
+       if(negf%DorE.eq.'E') zt = zt * Er 
+       
+       call concat(TmpMt,zt,GreenR,1,1)
 
        call destroy(GreenR) 
 
@@ -915,8 +882,6 @@ contains
     call destroy(TmpMt)
     
     call log_deallocate(frm_f)
-     
-    !call destroy_en_grid()
 
   end subroutine real_axis_int
   
@@ -1481,14 +1446,11 @@ contains
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
-    negf%inter%scba_iter = 0
     call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
     call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
     !! If elph model, then get inside a SCBA cycle 
-    write(*,*) 'Before scba ' 
-    if (allocated(negf%inter) .and. negf%inter%scba_niter.ne.0) then
+    if (allocated(negf%inter)) then
       do scba_iter = 1, negf%inter%scba_niter
-        write(*,*) 'SCBA',scba_iter
         ! Self energies are updated directly in calls_eq_mem
         ! Need to destroy previous Gr
         negf%inter%scba_iter = scba_iter
@@ -1531,11 +1493,11 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
 
-    negf%inter%scba_iter = 0
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-    if (allocated(negf%inter)) then
-      call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, negf%str, frm, Gn, outer)
+    if (.not.allocated(negf%inter)) then
+      call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
     else
+      negf%inter%scba_iter = 0
       call calls_neq_elph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       !! If elph model, then get inside a SCBA cycle 
       do scba_iter = 1, negf%inter%scba_niter
@@ -1568,23 +1530,16 @@ contains
 
     ! If previous calculation is there, destroy it
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
-      call log_allocatep(negf%currents,size_ni)
+    call log_allocatep(negf%currents,size_ni)
 
     negf%currents=0.d0
 
     do ii=1,size_ni
        mu1=negf%mu(negf%ni(ii))
        mu2=negf%mu(negf%nf(ii))
-       !! If temperature and chemical potential are the same we don't really need
-       !! to do the calculation. I set strictly equal because 
-       !! this is the case when we have default exact initialization to 0.0
-       if (mu1 .eq. mu2 .and. negf%kbT(negf%nf(ii)) .eq. negf%kbT(negf%ni(ii))) then
-         negf%currents(ii) = 0.d0
-       else
-         negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
-                            & negf%kbT(negf%ni(ii)), negf%kbT(negf%nf(ii)), &
-                            & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
-       end if
+       negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
+                          & negf%kbT(negf%ni(ii)), negf%kbT(negf%nf(ii)), &
+                          & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
   end subroutine electron_current
@@ -1678,6 +1633,8 @@ contains
        delta = negf%delta * negf%delta 
        ! Mingo: 
        !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
+       ! Alex:
+       !delta = 2.0_dp * negf%delta * Ec
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
        call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1874,15 +1831,15 @@ contains
     destep=1.0d10 
     Nstep=NINT((emax-emin)/estep);
  
-    !We set a minimum possible value T=1K to avoid
-    !numericla issues
-    if (kT1.lt.1.0_dp*Kb) then
-      kbT1 = Kb*1.0_dp
+    !We set a minimum possible value T = 0.01 K to avoid
+    !numerical issues
+    if (kT1 < 0.01_dp*Kb) then
+      kbT1 = Kb*0.01_dp
     else
       kbT1 = kT1     
     endif
-    if (kT2.lt.1.00_dp*Kb) then
-      kbT2 = Kb*1.00_dp
+    if (kT2 < 0.01_dp*Kb) then
+      kbT2 = Kb*0.01_dp
     else
       kbT2 = kT2     
     endif
@@ -1894,7 +1851,7 @@ contains
       call swap(mu1,mu2)
       call swap(kbT1,kbT2)
     end if
- 
+
     imin=0
     imax=Nstep 
  

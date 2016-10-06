@@ -33,25 +33,22 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create 
   use elphdb, only : ElPhonDephB, ElPhonDephB_create
   use elphds, only : ElPhonDephS, ElPhonDephS_create
-  use libmpifx_module, only : mpifx_comm 
+  !use libmpifx_module, only : mpifx_comm 
 
   implicit none
   private
 
-  public :: Tnegf, intarray, TEnGrid
-  public :: fill_parameters, pass_HS, pass_DM
-  public :: set_convfactor, set_fermi, set_potentials, set_fictcont
-  public :: set_readoldsgf, set_computation, set_iteration, set_defaults
-  public :: print_all_vars, set_elph_dephasing, destroy_elph_model
+  public :: Tnegf, intArray, TEnGrid
+  public :: set_defaults, print_all_vars
+
+  public :: set_elph_dephasing, destroy_elph_model
   public :: set_elph_block_dephasing, set_elph_s_dephasing
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
-  type intarray
+  type intArray
     integer, dimension(:), allocatable :: indexes
-  end type intarray 
-
-
+  end type intArray 
 
 
  !! Structure used to define energy points for the integration
@@ -80,7 +77,7 @@ module lib_param
    !! Input parameters: set by library user
    !! General
    integer :: verbose
-   type(mpifx_comm) :: mpicomm
+   !type(mpifx_comm) :: mpicomm
    integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
    character(len=LST) :: scratch_path    ! Folder for scratch work
    character(len=LST) :: out_path        ! Folder for output data
@@ -123,10 +120,7 @@ module lib_param
 
 
    integer  :: nldos                 ! Number of LDOS intervals
-
- 
-
-   type(intarray), dimension(:), allocatable :: LDOS !Array of LDOS descriptor 
+   type(intArray), dimension(:), allocatable :: LDOS !Array of LDOS descriptor 
                                                      !(contain only index of atoms 
                                                      !for LDOS projection)  
    real(dp) :: DeltaEc           ! safe guard energy below Ec
@@ -139,7 +133,7 @@ module lib_param
    real(dp) :: E                 ! Holding variable 
    real(dp) :: dos               ! Holding variable
    integer :: activecont         ! contact selfenergy
-   integer :: minmax             ! in input: 0 take minimum, 1 take maximum mu  
+   integer :: min_or_max         ! in input: 0 take minimum, 1 take maximum mu  
    integer :: refcont            ! reference contact (for non equilib)
    integer :: outer              ! flag switching computation of     
                                  ! the Device/Contact DM
@@ -187,114 +181,7 @@ module lib_param
 
 contains
  
-  subroutine set_mpi_comm(negf, mpicomm)
-   type(Tnegf) :: negf
-   type(mpifx_comm) :: mpicomm
-
-   negf%mpicomm = mpicomm
-
-  end subroutine
- ! -------------------------------------------------------------------
-   
-  subroutine set_convfactor(negf, eneconv)
-    type(Tnegf) :: negf
-    real(dp) :: eneconv
-    
-    negf%eneconv=eneconv
-
-  end subroutine set_convfactor
-  
- ! -------------------------------------------------------------------
-  subroutine set_fictcont(negf,cont,dos)
-    type(Tnegf) :: negf
-    integer :: cont
-    real(dp) :: DOS
  
-    negf%FictCont(cont) = .true. 
-    negf%contact_DOS(cont) = DOS
-
-  end subroutine set_fictcont
- ! -------------------------------------------------------------------
-
-  subroutine set_iteration(negf,iter)
-    type(Tnegf) :: negf
-    integer :: iter
-
-    negf%iteration = iter
-  end subroutine set_iteration      
- ! -------------------------------------------------------------------
-
-  subroutine set_computation(negf,DorE) 
-    type(Tnegf) :: negf
-    character(1) :: DorE           !Density or En.Density
-
-    negf%DorE=DorE
-  end subroutine set_computation      
- ! -------------------------------------------------------------------
-
-  subroutine set_readOldSGF(negf,flag) 
-    type(Tnegf) :: negf
-    integer :: flag
-
-    negf%ReadoldSGF=flag
-  end subroutine set_readoldsgf    
-  
- ! -------------------------------------------------------------------
-  ! -----------------------------------------------------
-  !  Pass an externally allocated density matrix
-  ! -----------------------------------------------------
-  subroutine pass_DM(negf,rho, rhoE)
-    type(Tnegf) :: negf    
-    type(z_CSR), optional, target :: rho
-    type(z_CSR), optional, target :: rhoE
- 
-    if (present(rho)) then
-       negf%rho => rho
-       if(allocated(negf%rho%nzval)) then
-          call destroy(negf%rho)
-       endif   
-    endif 
-
-    if (present(rhoE)) then
-       negf%rho_eps => rhoE
-       if (allocated(negf%rho_eps%nzval)) then
-          call destroy(negf%rho_eps)
-       endif 
-    end if
-    
-    negf%intDM = .false.
-
-  end subroutine pass_DM
- 
-  ! -----------------------------------------------------
-  !  Allocate and copy H,S 
-  ! -----------------------------------------------------
-  subroutine copy_HS(negf,H,S)
-    type(Tnegf) :: negf    
-    type(z_CSR), target :: H
-    type(z_CSR), optional, target :: S
-
-    call create(negf%H,H%nrow,H%ncol,H%nnz)
-    negf%H%nzval = H%nzval
-    negf%H%colind = H%colind
-    negf%H%rowpnt = H%rowpnt
-    negf%H%sorted = H%sorted   
-    
-    if (present(S)) then
-       negf%isSid=.false.
-       call create(negf%S,S%nrow,S%ncol,S%nnz)
-       negf%S%nzval = S%nzval
-       negf%S%colind = S%colind
-       negf%S%rowpnt = S%rowpnt
-       negf%S%sorted = S%sorted
-    else
-       negf%isSid=.true.
-       call create_id(negf%S,negf%H%nrow) 
-    endif
-    
-    negf%intHS = .true.
-
-  end subroutine copy_HS
   
   !> Set values for the local electron phonon dephasing model
   !! (elastic scattering only)
@@ -304,7 +191,6 @@ contains
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer :: niter
     
-    !call init_elph_1(negf%elph, coupling, niter)
     call elphondephd_create(elphdd_tmp, negf%str, coupling, niter, 1.0d-7)
     allocate(negf%inter, source=elphdd_tmp)
 
@@ -319,13 +205,6 @@ contains
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
     integer :: niter
     
-    !! Verify that the size of the coupling fits with the Hamiltonian
-    !! of the device region
-    !if (size(coupling).ne.negf%H%nrow) then
-    !  write(*,*) 'Elph dephasing model coupling size does not match '
-    !endif
-    !call init_elph_2(negf%elph, coupling, orbsperatom, niter, &
-    !    negf%str%mat_PL_start)
     call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
     allocate(negf%inter, source=elphdb_tmp)
 
@@ -340,13 +219,6 @@ contains
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
     integer :: niter
     
-    !! Verify that the size of the coupling fits with the Hamiltonian
-    !! of the device region
-    !if (size(coupling).ne.negf%H%nrow) then
-    !  write(*,*) 'Elph dephasing model coupling size does not match '
-    !endif
-    !call init_elph_3(negf%elph, coupling, orbsperatom, niter, &
-    !    negf%str%mat_PL_start, negf%S)
     call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
     allocate(negf%inter, source=elphds_tmp)
 
@@ -417,7 +289,7 @@ contains
      negf%ni(1) = 1
      negf%nf = 0             ! nf
      negf%nf(1) = 2          !
-     negf%minmax = 1         ! Set reference cont to max(mu)  
+     negf%min_or_max = 1         ! Set reference cont to max(mu)  
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer = 2          ! Compute full D.M. L,U extra
      negf%dumpHS = .false.
@@ -473,7 +345,7 @@ contains
      write(io,*) 'Np_p= ', negf%Np_p
      write(io,*) 'nkT= ', negf%n_kt
      write(io,*) 'nPoles= ', negf%n_poles
-     write(io,*) 'minmax= ', negf%minmax
+     write(io,*) 'min_or_max= ', negf%min_or_max
      write(io,*) 'refcont= ', negf%refcont
 
      write(io,*) 'Transmission Parameters:'

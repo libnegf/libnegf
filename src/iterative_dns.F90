@@ -165,7 +165,6 @@ CONTAINS
 
     !! Add interaction self energy contribution, if any
     if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
-    
     !----------------------------------
 
     call allocate_gsm_dns(gsmr,nbl)
@@ -186,6 +185,7 @@ CONTAINS
     ! SAVE ON FILES/MEMORY (for elph).........................
     if (pnegf%elph%numselmodes.gt.0 .and. pnegf%elph%model .eq. -1) then
       ! save diagonal blocks of Gn = -i G<
+      print*,'SAVE Gr'
       DO i = 1, nbl
         !print*,'G_r ',minval(abs(Gr(i,i)%val)), maxval(abs(Gr(i,i)%val))
         call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
@@ -196,13 +196,16 @@ CONTAINS
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
     !-----------------------------------------------------------
 
+    print*,'blk2csr'
     call blk2csr(Gr,struct,pnegf%S,A)
 
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
+    print*,'outer'
       CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.FALSE.,A)   
     CASE(2)
+    print*,'outer'
       CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.TRUE.,A) 
     END SELECT
 
@@ -224,7 +227,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,struct,frm,Glout,out)
+  SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 
     !****************************************************************************
     !
@@ -253,7 +256,6 @@ CONTAINS
     TYPE(z_CSR), intent(inout)  :: Glout
     TYPE(z_DNS), DIMENSION(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     REAL(dp), intent(in)  :: E
-    TYPE(Tstruct_info), intent(in)  :: struct
     REAL(dp), DIMENSION(:), intent(in)  :: frm
     INTEGER, intent(in)  :: out
 
@@ -272,10 +274,10 @@ CONTAINS
       write(*,*) "Warning: calls_neq_mem is not compatible with el-ph models"
     endif
 
-    nbl = struct%num_PLs
-    ncont = struct%num_conts
-    indblk => struct%mat_PL_start
-    cblk => struct%cblk
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    indblk => pnegf%str%mat_PL_start
+    cblk => pnegf%str%cblk
     ref = pnegf%refcont
 
     Ec=cmplx(E,0.d0,dp)
@@ -342,17 +344,17 @@ CONTAINS
 
     call init_blkmat(Gn,ESH)
 
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
 
-    call blk2csr(Gn,struct,pnegf%S,Glout)
+    call blk2csr(Gn,pnegf%str,pnegf%S,Glout)
 
     !Calcolo degli outer blocks 
     SELECT CASE (out)
     CASE(0)
     CASE(1)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.false.,Glout)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
     CASE(2)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
     END SELECT
 
     CALL destroy_blk(Gn)
@@ -413,14 +415,12 @@ CONTAINS
     TYPE(z_DNS), DIMENSION(:,:), ALLOCATABLE :: ESH, Gn, Gp
     TYPE(z_CSR) :: ESH_tot, Gl
     LOGICAL :: mask(MAXNCONT)
-    TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:), allocatable :: cfrm
 
-    struct = pnegf%str
-    nbl = struct%num_PLs
-    ncont = struct%num_conts
-    indblk => struct%mat_PL_start
-    cblk => struct%cblk
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    indblk => pnegf%str%mat_PL_start
+    cblk => pnegf%str%cblk
     ref = pnegf%refcont
     iter = pnegf%inter%scba_iter
 
@@ -496,7 +496,7 @@ CONTAINS
 
     call init_blkmat(Gn,ESH)
 
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
 
     !! Pass Gr to interaction model
@@ -527,7 +527,7 @@ CONTAINS
 !!$    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gp(nbl,nbl)'
 !!$    call init_blkmat(Gp,ESH)
 !!$    
-!!$    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,struct,Gp)
+!!$    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,pnegf%str,Gp)
 !!$    deallocate(cfrm)
 !!$    
 !!$    call Make_Gp_ph(pnegf,ESH,iter,Gp)
@@ -603,14 +603,12 @@ CONTAINS
     type(z_DNS) :: work1, work2, work3, Gamma, A
     TYPE(z_CSR) :: ESH_tot, Gl
     LOGICAL :: mask(MAXNCONT)
-    TYPE(Tstruct_info) :: struct
     REAL(dp), DIMENSION(:), allocatable :: cfrm
 
-    struct = pnegf%str
-    nbl = struct%num_PLs
-    ncont = struct%num_conts
-    indblk => struct%mat_PL_start
-    cblk => struct%cblk
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    indblk => pnegf%str%mat_PL_start
+    cblk => pnegf%str%cblk
     ref = pnegf%refcont
     ref_blk = pnegf%str%cblk(ref)
     iter = pnegf%inter%scba_iter
@@ -683,7 +681,7 @@ CONTAINS
     !! TEMPORARY AND INEFFICIENT: CALCULATE THE FULL GN WHEN A BLOCK 
     !! (THE CONTACT ONE) IS ENOUGH
     !! WE HAVE Gn WITHOUT REFERENCE CONTACT?? (usual neq contributions)
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
 
     call Make_Gn_ph(pnegf,ESH,iter,Gn)
 

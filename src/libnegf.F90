@@ -47,7 +47,9 @@ module libnegf
  public :: get_params, set_params
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes
 
- public :: set_H, set_S, set_S_id, read_HS, pass_HS
+ public :: set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
+ public :: set_readoldsgf, set_computation, set_iteration
+ public :: set_convfactor, set_fictcont
  public :: read_negf_in
  public :: negf_version 
  public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S,rho,rhoE)
@@ -57,7 +59,7 @@ module libnegf
  private :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
- public :: get_energies, get_dm, get_currents
+ public :: get_energies, pass_DM, get_DM, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -157,7 +159,9 @@ module libnegf
    integer(c_int) :: nf(MAXNCONT)
    !> Should I calculate the density ("D") or the energy weighted density ("E")?
    character(kind=c_char, len=1) :: dore  ! Density or En.Density
-  end type lnparams
+   !> Reference contact is set to maximum or minimum Fermi level
+   integer(c_int) :: min_or_max
+ end type lnparams
   !-----------------------------------------------------------------------------
 
 contains
@@ -361,6 +365,35 @@ contains
 
   end subroutine pass_HS
 
+  ! -----------------------------------------------------
+  !  Allocate and copy H,S 
+  ! -----------------------------------------------------
+  subroutine copy_HS(negf,H,S)
+    type(Tnegf) :: negf    
+    type(z_CSR), target :: H
+    type(z_CSR), optional, target :: S
+
+    call create(negf%H,H%nrow,H%ncol,H%nnz)
+    negf%H%nzval = H%nzval
+    negf%H%colind = H%colind
+    negf%H%rowpnt = H%rowpnt
+    negf%H%sorted = H%sorted   
+    
+    if (present(S)) then
+       negf%isSid=.false.
+       call create(negf%S,S%nrow,S%ncol,S%nnz)
+       negf%S%nzval = S%nzval
+       negf%S%colind = S%colind
+       negf%S%rowpnt = S%rowpnt
+       negf%S%sorted = S%sorted
+    else
+       negf%isSid=.true.
+       call create_id(negf%S,negf%H%nrow) 
+    endif
+    
+    negf%intHS = .true.
+
+  end subroutine copy_HS
   !!-------------------------------------------------------------------
   !! Setting structure and partitioning
   !!-------------------------------------------------------------------
@@ -497,7 +530,7 @@ contains
     negf%kpoint = params%kpoint
     negf%iteration = params%iteration
     negf%DorE = params%DorE
-
+    negf%min_or_max = params%min_or_max
     !! Some internal variables in libnegf are set internally 
     !! after parameters are available
     call set_ref_cont(negf)
@@ -525,6 +558,20 @@ contains
     negf%nldos = nldos
     
   end subroutine init_ldos
+
+  !> Destroy the LDOS container
+  subroutine destroy_ldos(ldos)
+    type(intarray), dimension(:), allocatable :: ldos 
+      
+    integer :: err, i
+    do i=1, size(ldos)
+      call log_deallocate(ldos(i)%indexes)
+    end do
+
+    deallocate(ldos)
+    
+  end subroutine destroy_ldos
+
 
   !> Set ldos intervals
   !! @param [in] negf: libnegf container instance
@@ -561,7 +608,61 @@ contains
     negf%ldos(ildos)%indexes = idx
 
   end subroutine set_ldos_indexes
+  ! -------------------------------------------------------------------
 
+  !subroutine set_mpi_comm(negf, mpicomm)
+  ! type(Tnegf) :: negf
+  ! type(mpifx_comm) :: mpicomm
+  !
+  ! negf%mpicomm = mpicomm
+  !
+  !end subroutine
+  ! -------------------------------------------------------------------
+   
+  subroutine set_convfactor(negf, eneconv)
+    type(Tnegf) :: negf
+    real(dp) :: eneconv
+    
+    negf%eneconv=eneconv
+
+  end subroutine set_convfactor
+  
+  ! -------------------------------------------------------------------
+  subroutine set_fictcont(negf,cont,dos)
+    type(Tnegf) :: negf
+    integer :: cont
+    real(dp) :: DOS
+ 
+    negf%FictCont(cont) = .true. 
+    negf%contact_DOS(cont) = DOS
+
+  end subroutine set_fictcont
+  ! -------------------------------------------------------------------
+
+  subroutine set_iteration(negf,iter)
+    type(Tnegf) :: negf
+    integer :: iter
+
+    negf%iteration = iter
+  end subroutine set_iteration      
+  ! -------------------------------------------------------------------
+
+  subroutine set_computation(negf,DorE) 
+    type(Tnegf) :: negf
+    character(1) :: DorE           !Density or En.Density
+
+    negf%DorE=DorE
+  end subroutine set_computation      
+  ! -------------------------------------------------------------------
+
+  subroutine set_readOldSGF(negf,flag) 
+    type(Tnegf) :: negf
+    integer :: flag
+
+    negf%ReadoldSGF=flag
+  end subroutine set_readoldsgf    
+  
+  ! -------------------------------------------------------------------
 
   !--------------------------------------------------------------------
   !> Initialize and set parameters from input file negf.in
@@ -682,7 +783,7 @@ contains
 
  end subroutine negf_partition_info
 
-!--------------------------------------------------------------------
+  !--------------------------------------------------------------------
   !> Destroy all the info defined in initialization. 
   !! To run at the very end of libnegf usage
   subroutine destroy_negf(negf)
@@ -691,7 +792,7 @@ contains
     call destroy_matrices(negf)
     call destroy_HS(negf)
     call kill_Tstruct(negf%str) 
-    if (allocated(negf%LDOS)) deallocate(negf%ldos)
+    if (allocated(negf%LDOS)) call destroy_ldos(negf%ldos)
     if (allocated(negf%en_grid)) deallocate(negf%en_grid)
     if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
@@ -699,6 +800,8 @@ contains
     call destroy_DM(negf)
 
   end subroutine destroy_negf
+
+
   !--------------------------------------------------------------------
   !> Copy the energy axis on all processors (for output, plot, debug)
   !! @param [in] negf: negf container
@@ -714,6 +817,7 @@ contains
 
   end subroutine get_energies
 
+  !--------------------------------------------------------------------
   !> 
   !! Associate an input pointer with the internal pointer of 
   !! transmissions. Return NULL if internal pointer is not
@@ -730,6 +834,7 @@ contains
 
   end subroutine associate_transmission
 
+  !--------------------------------------------------------------------
   !> 
   !!  Associate an input pointer with the internal pointer of 
   !! LDOS
@@ -745,6 +850,7 @@ contains
 
   end subroutine associate_ldos
 
+  !--------------------------------------------------------------------
   !> 
   !!  Associate an input pointer with the internal pointer of 
   !! currents
@@ -760,6 +866,7 @@ contains
 
   end subroutine associate_current
 
+  !--------------------------------------------------------------------
   !> 
   !! Get currents by copy. 
   !! @param [in] negf: negf container
@@ -778,7 +885,7 @@ contains
   !! @param [out] rowpnt (int array): row pointer indexes
   !! @param [out] colind (int array): column indexes array
   !! @param [out] nzval (complex array): non zero values
-  subroutine get_dm(negf, nnz, nrow, rowpnt, colind, nzval)
+  subroutine get_DM(negf, nnz, nrow, rowpnt, colind, nzval)
     type(TNegf), intent(in)  :: negf
     integer, intent(out) :: nnz, nrow
     integer, intent(out) :: rowpnt(:), colind(:)
@@ -789,7 +896,7 @@ contains
     rowpnt = negf%rho%rowpnt
     colind = negf%rho%colind
     nzval = negf%rho%nzval
-  end subroutine get_dm
+  end subroutine get_DM
 
   !-------------------------------------------------------------------- 
   subroutine create_DM(negf)
@@ -802,8 +909,34 @@ contains
 
   end subroutine create_DM
 
+  ! -----------------------------------------------------
+  !  Pass an externally allocated density matrix
+  ! -----------------------------------------------------
+  subroutine pass_DM(negf,rho, rhoE)
+    type(Tnegf) :: negf    
+    type(z_CSR), optional, target :: rho
+    type(z_CSR), optional, target :: rhoE
+ 
+    if (present(rho)) then
+       negf%rho => rho
+       if(allocated(negf%rho%nzval)) then
+          call destroy(negf%rho)
+       endif   
+    endif 
 
-!> Destroy matrices created runtime in libnegf
+    if (present(rhoE)) then
+       negf%rho_eps => rhoE
+       if (allocated(negf%rho_eps%nzval)) then
+          call destroy(negf%rho_eps)
+       endif 
+    end if
+    
+    negf%intDM = .false.
+
+  end subroutine pass_DM
+  
+  !-------------------------------------------------------------------- 
+  !> Destroy matrices created runtime in libnegf
   subroutine destroy_matrices(negf)
     type(Tnegf) :: negf   
     integer :: i
@@ -816,7 +949,8 @@ contains
     enddo
 
   end subroutine destroy_matrices
-!--------------------------------------------------------------------
+
+  !--------------------------------------------------------------------
   subroutine destroy_HS(negf)
     type(Tnegf) :: negf
 
@@ -843,7 +977,7 @@ contains
 
   end subroutine destroy_HS   
 
-!--------------------------------------------------------------------
+  !--------------------------------------------------------------------
   subroutine destroy_DM(negf)
     type(Tnegf) :: negf   
 
@@ -1234,10 +1368,10 @@ contains
   !---------------------------------------------------------------------------
   ! Sets the Reference contact for non-eq calculations
   ! 
-  ! The behaviour depends on how negf%minmax has been set.
+  ! The behaviour depends on how negf%min_or_max has been set.
   !
-  ! minmax = 0 : refcont is chosen at the minimum   mu
-  ! minmax = 1 : refcont is chosen at the maximum   mu 
+  ! min_or_max = 0 : refcont is chosen at the minimum   mu
+  ! min_or_max = 1 : refcont is chosen at the maximum   mu 
   ! 
   subroutine set_ref_cont(negf)
 
@@ -1248,7 +1382,7 @@ contains
     ncont = negf%str%num_conts
 
     if (ncont > 0) then
-      if (negf%minmax .eq. 0) then
+      if (negf%min_or_max .eq. 0) then
          negf%muref = minval(negf%mu(1:ncont))
          nc_vec = minloc(negf%mu(1:ncont))  
       else
