@@ -556,7 +556,17 @@ contains
      nkT = negf%n_kt * kbT
      Lambda = 2.d0* negf%n_poles * KbT * pi
      mumin = muref - nkT
-     
+     Elow = negf%Ec
+    
+     write(*,*) 'kbT=',kbT
+     write(*,*) 'nkT=',nkT
+     write(*,*) 'muref=',muref
+     write(*,*) 'mumin=',mumin
+     write(*,*) 'n_poles=',negf%n_poles
+     write(*,*) 'Lambda=',Lambda
+     write(*,*) 'Elow=',Elow
+
+
      Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
      !! destroy previously defined grids, if any
      call destroy_en_grid(negf%en_grid)
@@ -571,7 +581,6 @@ contains
      !  --- [ | Gr(z) dz  ] =  --- [ | iGr(t)Re  dt ]  
      !  2pi [ /           ]    2pi [ /              ]
      !----------------------------------------------------
-     Elow = negf%Ec
      Centre = (Lambda**2-Elow**2+(mumin)**2)/(2.d0*(mumin-Elow))
      Rad = Centre - Elow
      if (kbT.ne.0.d0) then        
@@ -701,21 +710,23 @@ contains
         call write_point(negf%verbose,negf%en_grid(i), Ntot) 
         if (negf%en_grid(i)%cpu .ne. id) cycle
 
-        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
     
         Ec = negf%en_grid(i)%Ec 
         zt = negf%en_grid(i)%wght
-        negf%iE = negf%en_grid(i)%pt 
+        negf%iE = negf%en_grid(i)%pt
+
+        if (id0) write(*,*) 'point ',negf%iE,' E=',Ec 
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
         call compute_Gr(negf, outer, ncont, Ec, GreenR)
+        
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
         if(negf%DorE.eq.'E') zt = zt * Ec
 
         call concat(TmpMt,zt,GreenR,1,1)
     
         call destroy(GreenR)
-    
-        if (id0.and.negf%verbose.gt.VBT) call write_clock
     
      enddo
   
@@ -851,10 +862,14 @@ contains
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
        enddo
+       if (id0) write(*,*) 'point ',negf%iE,' E=',Ec 
+       if (id0) write(*,*) 'fermi1=',frm_f(1),' fermi2=',frm_f(2) 
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
        call compute_Gn(negf, outer, ncont, Ec, frm_f, Gn)
+       
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
        if(negf%DorE.eq.'E') zt = zt * Er 
        
@@ -862,7 +877,6 @@ contains
 
        call destroy(Gn) 
 
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
     enddo
 
