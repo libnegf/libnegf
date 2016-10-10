@@ -1178,7 +1178,7 @@ contains
   endif
     
     negf%readOldSGF = flagbkup
-    write(*,*) 'Releasing libnegf'
+    
   end subroutine compute_current
 
   !-------------------------------------------------------------------------------
@@ -1210,7 +1210,7 @@ contains
     call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    call meir_wingreen(negf)
+    !call meir_wingreen(negf)
     call electron_current(negf)
     call destroy_matrices(negf)
 
