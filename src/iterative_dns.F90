@@ -24,7 +24,7 @@
 #  undef __SUPERLU
 #endif
 #ifdef __LAPACK
-#  undef __PAR3DISO
+#  undef __PARDISO
 #  undef __SUPERLU
 #endif
 #ifdef __SUPERLU
@@ -106,7 +106,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_eq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,A,struct,outer)
+  SUBROUTINE calls_eq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,A,outer)
 
     !****************************************************************************
     !
@@ -136,7 +136,6 @@ CONTAINS
     TYPE(z_DNS), DIMENSION(:), intent(in) :: SelfEneR
     TYPE(z_DNS), DIMENSION(:), intent(in) :: Tlc, Tcl, gsurfR
     TYPE(z_CSR), intent(out) :: A
-    TYPE(Tstruct_info), intent(in) :: struct
     INTEGER, intent(in) :: outer
 
     !Work
@@ -145,10 +144,10 @@ CONTAINS
     INTEGER :: i,ierr, nbl, ncont
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
 
-    nbl = struct%num_PLs
-    ncont = struct%num_conts
-    cblk => struct%cblk
-    indblk => struct%mat_PL_start
+    nbl = pnegf%str%num_PLs
+    ncont = pnegf%str%num_conts
+    cblk => pnegf%str%cblk
+    indblk => pnegf%str%mat_PL_start
 
     ! Take CSR H,S and build ES-H in dense blocks
     CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),E,ESH_tot)
@@ -185,7 +184,6 @@ CONTAINS
     ! SAVE ON FILES/MEMORY (for elph).........................
     if (pnegf%elph%numselmodes.gt.0 .and. pnegf%elph%model .eq. -1) then
       ! save diagonal blocks of Gn = -i G<
-      print*,'SAVE Gr'
       DO i = 1, nbl
         !print*,'G_r ',minval(abs(Gr(i,i)%val)), maxval(abs(Gr(i,i)%val))
         call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
@@ -196,17 +194,14 @@ CONTAINS
     if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
     !-----------------------------------------------------------
 
-    print*,'blk2csr'
-    call blk2csr(Gr,struct,pnegf%S,A)
+    call blk2csr(Gr,pnegf%str,pnegf%S,A)
 
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-    print*,'outer'
-      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.FALSE.,A)   
+      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,pnegf%str,.FALSE.,A)   
     CASE(2)
-    print*,'outer'
-      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,.TRUE.,A) 
+      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,pnegf%str,.TRUE.,A) 
     END SELECT
 
     !Distruzione dell'array Gr
@@ -4130,7 +4125,7 @@ END MODULE iterative_dns
 !!$    CALL concat(A,Gr(1,1),1,1)
 !!$
 !!$    !***
-!!$    !Diagonal, Subdiagonal and Super953diagonal blocks
+!!$    !Diagonal, Subdiagonal and Superdiagonal blocks
 !!$    !***
 !!$    DO i=2,nbl
 !!$

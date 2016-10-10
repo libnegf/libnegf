@@ -39,7 +39,9 @@ module integrations
  use clock
  use elph
  use energy_mesh 
- 
+
+ implicit none 
+
  private
 
  public :: contour_int       ! generalized contour integrator 
@@ -170,14 +172,14 @@ contains
        
        if (negf%en_grid(i)%cpu /= id) cycle
       
-       Ec = negf%en_grid(i)%Ec+(0.d0,1.d0)*negf%dos_delta
+       Ec = negf%en_grid(i)%Ec + j*negf%dos_delta  !MUST use tunneling_int_def  
        negf%iE = negf%en_grid(i)%pt
 
        call compute_Gr(negf, outer, ncont, Ec, Gr)
 
        call log_allocate(diag, Gr%nrow)
        call getdiag(Gr,diag)
-       diag = aimag(diag)*(-1.d0,0.d0)/pi
+       diag = - aimag(diag)/pi
 
        do i1 = 1, size(negf%LDOS)
            negf%ldos_mat(i, i1) = sum(diag(negf%LDOS(i1)%indexes))
@@ -783,23 +785,23 @@ contains
     deallocate(pnts)
 
     ! distribute energy grid:  0 1 2 3 ... 0 1 2 .... 0 1 2 ....
-    !do i = 0, Ntot-1
-    !   negf%en_grid(i+1)%cpu = mod(i,numprocs)
-    !enddo
+    do i = 0, Ntot-1
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
     
     ! distribute energy grid:  0 0 0 0 ... 1 1 1 .... 2 2 2 ....
-    np=Ntot/numprocs
-    i1 = 0
-    do i = 1, Ntot, np 
-      negf%en_grid(i:i+np-1)%cpu = i1 
-      i1 = i1 + 1 
-    end do
-   
-    if (id .ne. numprocs-1) then
-      negf%local_en_points = np
-    else
-      negf%local_en_points = np + mod(Ntot,numprocs)
-    endif 
+    !np=Ntot/numprocs
+    !i1 = 0
+    !do i = 1, Ntot, np 
+    !  negf%en_grid(i:i+np-1)%cpu = i1 
+    !  i1 = i1 + 1 
+    !end do
+    !
+    !if (id .ne. numprocs-1) then
+    !  negf%local_en_points = np
+    !else
+    !  negf%local_en_points = np + mod(Ntot,numprocs)
+    !endif 
 
   end subroutine real_axis_int_def
   !-----------------------------------------------------------------------
@@ -1280,7 +1282,7 @@ contains
        negf%iE = negf%en_grid(i)%pt
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
-       call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+       call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
        if (id0.and.negf%verbose.gt.VBT) call write_clock
       
 
@@ -1446,8 +1448,10 @@ contains
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
-    call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-    call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+    call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+
+    call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
+
     !! If elph model, then get inside a SCBA cycle 
     if (allocated(negf%inter)) then
       do scba_iter = 1, negf%inter%scba_niter
@@ -1455,15 +1459,12 @@ contains
         ! Need to destroy previous Gr
         negf%inter%scba_iter = scba_iter
         call destroy(Gr)
-        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+        call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
       enddo
     endif
 
     do i1=1,ncont
       call destroy(Tlc(i1),Tcl(i1))
-    enddo
-
-    do i1=1,ncont
       call destroy(SelfEneR(i1),GS(i1))
     enddo
 
@@ -1491,27 +1492,27 @@ contains
     integer :: scba_iter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    real(dp) :: Er
 
-
+    Er = real(Ec)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+
     if (.not.allocated(negf%inter)) then
-      call calls_neq_mem_dns(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      call calls_neq_mem_dns(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
     else
       negf%inter%scba_iter = 0
-      call calls_neq_elph(negf, real(Ec), SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      call calls_neq_elph(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       !! If elph model, then get inside a SCBA cycle 
       do scba_iter = 1, negf%inter%scba_niter
         negf%inter%scba_iter = scba_iter
         ! Destroy previous Gn
         call destroy(Gn)
-        call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm, Gn,outer)
+        call calls_neq_elph(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       enddo
     endif
 
     do i1=1,ncont
       call destroy(Tlc(i1),Tcl(i1))
-    enddo
-    do i1=1,ncont
       call destroy(SelfEneR(i1),GS(i1))
     enddo
 
