@@ -129,6 +129,7 @@ module elph
     real(dp) :: Erange(2)     !Integration interval
 
     integer :: scba_iterations
+    logical :: diagonal
     logical :: Selfene_Gr
     logical :: Selfene_Gless
     logical :: Selfene_Hilb

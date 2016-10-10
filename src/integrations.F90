@@ -816,7 +816,7 @@ contains
     type(Tnegf) :: negf
 
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    type(z_CSR) :: GreenR, TmpMt 
+    type(z_CSR) :: Gn, TmpMt 
 
     integer :: ref, Npoints
     integer :: i, i1, j1, outer, ncont
@@ -854,13 +854,13 @@ contains
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
-       call compute_Gn(negf, outer, ncont, Ec, frm_f, GreenR)
+       call compute_Gn(negf, outer, ncont, Ec, frm_f, Gn)
 
        if(negf%DorE.eq.'E') zt = zt * Er 
        
-       call concat(TmpMt,zt,GreenR,1,1)
+       call concat(TmpMt,zt,Gn,1,1)
 
-       call destroy(GreenR) 
+       call destroy(Gn) 
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -1307,10 +1307,7 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
        
        do icont=1,ncont
-          call destroy(Tlc(icont))
-          call destroy(Tcl(icont))
-          call destroy(SelfEneR(icont))
-          call destroy(GS(icont))
+         call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
        enddo
        
     enddo !Loop on energy 
@@ -1419,10 +1416,7 @@ contains
 
       if (id0.and.negf%verbose.gt.VBT) call write_clock
       do icont=1,ncont
-        call destroy(Tlc(icont))
-        call destroy(Tcl(icont))
-        call destroy(SelfEneR(icont))
-        call destroy(GS(icont))
+        call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
       enddo
 
     enddo
@@ -1464,8 +1458,7 @@ contains
     endif
 
     do i1=1,ncont
-      call destroy(Tlc(i1),Tcl(i1))
-      call destroy(SelfEneR(i1),GS(i1))
+      call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
     enddo
 
   end subroutine compute_Gr
@@ -1494,7 +1487,7 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp) :: Er
 
-    Er = real(Ec)
+    Er = real(Ec,dp)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
     if (.not.allocated(negf%inter)) then
@@ -1512,8 +1505,7 @@ contains
     endif
 
     do i1=1,ncont
-      call destroy(Tlc(i1),Tcl(i1))
-      call destroy(SelfEneR(i1),GS(i1))
+      call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
     enddo
 
   end subroutine compute_Gn
