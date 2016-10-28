@@ -492,6 +492,7 @@ contains
     params%kpoint = negf%kpoint
     params%iteration = negf%iteration
     params%DorE = negf%DorE
+    params%min_or_max = negf%min_or_max
 
   end subroutine get_params
 

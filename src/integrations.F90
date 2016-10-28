@@ -139,7 +139,24 @@ contains
     endif
 
   end subroutine write_point
-               
+
+  subroutine write_message_clock(verbose,message)
+    integer, intent(in) :: verbose
+    character(*), intent(in) :: message
+
+    if (id0 .and. verbose.gt.VBT) then
+        call message_clock(message)
+    end if  
+
+  end subroutine write_message_clock
+
+  subroutine write_end_clock(verbose)
+    integer, intent(in) :: verbose
+
+    if (id0 .and. verbose.gt.VBT) call write_clock()
+    
+  end subroutine write_end_clock
+
   !-----------------------------------------------------------------------
   ! Projected DOS on atoms or obitals
   !-----------------------------------------------------------------------
@@ -558,15 +575,6 @@ contains
      mumin = muref - nkT
      Elow = negf%Ec
     
-     write(*,*) 'kbT=',kbT
-     write(*,*) 'nkT=',nkT
-     write(*,*) 'muref=',muref
-     write(*,*) 'mumin=',mumin
-     write(*,*) 'n_poles=',negf%n_poles
-     write(*,*) 'Lambda=',Lambda
-     write(*,*) 'Elow=',Elow
-
-
      Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
      !! destroy previously defined grids, if any
      call destroy_en_grid(negf%en_grid)
@@ -715,7 +723,6 @@ contains
         zt = negf%en_grid(i)%wght
         negf%iE = negf%en_grid(i)%pt
 
-        if (id0) write(*,*) 'point ',negf%iE,' E=',Ec 
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
         call compute_Gr(negf, outer, ncont, Ec, GreenR)
@@ -862,8 +869,6 @@ contains
        do j1 = 1,ncont
           frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT(j1))
        enddo
-       if (id0) write(*,*) 'point ',negf%iE,' E=',Ec 
-       if (id0) write(*,*) 'fermi1=',frm_f(1),' fermi2=',frm_f(2) 
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
