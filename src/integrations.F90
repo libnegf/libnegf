@@ -32,7 +32,7 @@ module integrations
  use sparsekit_drv
  use inversions
  use iterative_dns
- use iterative_ph
+ !use iterative_ph
  use mat_def
  use ln_extract
  use contselfenergy
@@ -63,7 +63,7 @@ module integrations
  public :: phonon_tunneling   ! computes T(E) for phonons
  public :: phonon_current     ! computes heat currents
  public :: thermal_conductance ! computes thermal conductance
- public :: phonon_phonon      ! computes thermal conductance
+ !public :: phonon_phonon      ! computes thermal conductance
 
  public :: integrate_el       ! integration of tunneling (el)
  public :: integrate_ph       ! integration of tunneling (ph)
@@ -1710,109 +1710,109 @@ contains
   end subroutine phonon_current
  
   !------------------------------------------------------------------------------- 
-  subroutine phonon_phonon(negf)
-    type(Tnegf) :: negf
-
-    ! Local Variables
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    Type(z_CSR) :: Gr
-    Real(dp), Dimension(:), allocatable :: TUN_MAT
-    Real(dp), Dimension(:), allocatable :: LEDOS
-    Real(dp) :: mu1, mu2   ! contact potentials
-    Real(dp) :: ncyc       ! stores average number of iters in decimation 
-
-    Integer :: i, i1, icont, icpl      ! dummy counters
-    Integer :: ncont               ! number of contacts
-    Integer :: size_ni, size_nf    ! emitter-collector contacts
-    
-    Integer :: Nstep               ! number of integration points
-    Complex(dp) :: Ec              ! Energy point
-    Complex(dp) :: delta
-    logical :: do_LEDOS
- 
-    ! Get out immediately if Emax<Emin 
-    if (negf%Emax.le.negf%Emin) then
-       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
-       call log_allocatep(negf%currents,1) 
-       negf%currents = 0.0_dp 
-       return
-    endif
-    !-------------------------------------------------------
-    
-    do_LEDOS = .false. 
-    if(negf%nLDOS.gt.0) do_LEDOS=.true.
-    ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
-    ncyc=0
-    
-    !Extract emitter-collector contacts -------------------
-    !Tunneling set-up
-    do i=1,size(negf%ni)
-       if (negf%ni(i).eq.0) then
-          size_ni=i-1
-          exit
-       endif
-    enddo
-    
-    do i=1,size(negf%nf)
-       if (negf%nf(i).eq.0) then
-          size_nf=i-1
-          exit
-       endif
-    enddo
-
-    !check size_ni .ne. size_nf
-    if (size_ni.ne.size_nf) then 
-       size_ni=min(size_ni,size_nf)
-       size_nf=min(size_ni,size_nf)
-    endif
-    !-------------------------------------------------------
-    
-    call log_allocate(TUN_MAT,size_ni)
-    call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
-    negf%tunn_mat = 0.0_dp 
-
-    if (do_LEDOS) then
-       call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
-       call log_allocate(LEDOS,negf%nLDOS)          
-       negf%ldos_mat(:,:)=0.d0
-    endif
-    !-------------------------------------------------------
-  
-    negf%phph%scba_iter = 0
-     
-    do i = 1, Nstep
-      
-       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
-       if (negf%en_grid(i)%cpu /= id) cycle
-      
-       Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
-       negf%iE = negf%en_grid(i)%pt
-       
-       ! delta*delta for reasons of units 
-       delta = negf%delta * negf%delta 
-       ! Mingo: 
-       !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
-
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
-       call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
-     
-       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str,.false.)
-
-       !call calls_Dn_ph(negf,Ec,...)    
-    
-       do i1=1,ncont
-          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-       enddo
-
-    end do
-
-    call log_deallocate(TUN_MAT)
-    if(do_LEDOS) call log_deallocate(LEDOS)
-  
-
-  end subroutine phonon_phonon
+!!$  subroutine phonon_phonon(negf)
+!!$    type(Tnegf) :: negf
+!!$
+!!$    ! Local Variables
+!!$    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+!!$    Type(z_CSR) :: Gr
+!!$    Real(dp), Dimension(:), allocatable :: TUN_MAT
+!!$    Real(dp), Dimension(:), allocatable :: LEDOS
+!!$    Real(dp) :: mu1, mu2   ! contact potentials
+!!$    Real(dp) :: ncyc       ! stores average number of iters in decimation 
+!!$
+!!$    Integer :: i, i1, icont, icpl      ! dummy counters
+!!$    Integer :: ncont               ! number of contacts
+!!$    Integer :: size_ni, size_nf    ! emitter-collector contacts
+!!$    
+!!$    Integer :: Nstep               ! number of integration points
+!!$    Complex(dp) :: Ec              ! Energy point
+!!$    Complex(dp) :: delta
+!!$    logical :: do_LEDOS
+!!$ 
+!!$    ! Get out immediately if Emax<Emin 
+!!$    if (negf%Emax.le.negf%Emin) then
+!!$       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
+!!$       call log_allocatep(negf%currents,1) 
+!!$       negf%currents = 0.0_dp 
+!!$       return
+!!$    endif
+!!$    !-------------------------------------------------------
+!!$    
+!!$    do_LEDOS = .false. 
+!!$    if(negf%nLDOS.gt.0) do_LEDOS=.true.
+!!$    ncont = negf%str%num_conts
+!!$    Nstep = size(negf%en_grid)
+!!$    ncyc=0
+!!$    
+!!$    !Extract emitter-collector contacts -------------------
+!!$    !Tunneling set-up
+!!$    do i=1,size(negf%ni)
+!!$       if (negf%ni(i).eq.0) then
+!!$          size_ni=i-1
+!!$          exit
+!!$       endif
+!!$    enddo
+!!$    
+!!$    do i=1,size(negf%nf)
+!!$       if (negf%nf(i).eq.0) then
+!!$          size_nf=i-1
+!!$          exit
+!!$       endif
+!!$    enddo
+!!$
+!!$    !check size_ni .ne. size_nf
+!!$    if (size_ni.ne.size_nf) then 
+!!$       size_ni=min(size_ni,size_nf)
+!!$       size_nf=min(size_ni,size_nf)
+!!$    endif
+!!$    !-------------------------------------------------------
+!!$    
+!!$    call log_allocate(TUN_MAT,size_ni)
+!!$    call log_allocatep(negf%tunn_mat,Nstep,size_ni)   
+!!$    negf%tunn_mat = 0.0_dp 
+!!$
+!!$    if (do_LEDOS) then
+!!$       call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
+!!$       call log_allocate(LEDOS,negf%nLDOS)          
+!!$       negf%ldos_mat(:,:)=0.d0
+!!$    endif
+!!$    !-------------------------------------------------------
+!!$  
+!!$    negf%phph%scba_iter = 0
+!!$     
+!!$    do i = 1, Nstep
+!!$      
+!!$       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
+!!$       if (negf%en_grid(i)%cpu /= id) cycle
+!!$      
+!!$       Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
+!!$       negf%iE = negf%en_grid(i)%pt
+!!$       
+!!$       ! delta*delta for reasons of units 
+!!$       delta = negf%delta * negf%delta 
+!!$       ! Mingo: 
+!!$       !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec 
+!!$
+!!$       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
+!!$       call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+!!$       if (id0.and.negf%verbose.gt.VBT) call write_clock
+!!$     
+!!$       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str,.false.)
+!!$
+!!$       !call calls_Dn_ph(negf,Ec,...)    
+!!$    
+!!$       do i1=1,ncont
+!!$          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
+!!$       enddo
+!!$
+!!$    end do
+!!$
+!!$    call log_deallocate(TUN_MAT)
+!!$    if(do_LEDOS) call log_deallocate(LEDOS)
+!!$  
+!!$
+!!$  end subroutine phonon_phonon
 
 
 
