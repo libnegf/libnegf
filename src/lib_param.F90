@@ -33,7 +33,6 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create 
   use elphdb, only : ElPhonDephB, ElPhonDephB_create
   use elphds, only : ElPhonDephS, ElPhonDephS_create
-  !use libmpifx_module, only : mpifx_comm 
 
   implicit none
   private

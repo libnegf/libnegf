@@ -24,7 +24,7 @@ module transform
 
    use ln_precision
    use mpi_globals
-   !use MKL_DFTI
+   use libmpifx_module, only : mpifx_comm
    use, intrinsic :: iso_c_binding
    implicit none   
    include 'fftw3.f03'

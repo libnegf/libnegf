@@ -3,15 +3,12 @@ SHELL = /bin/sh
 .SUFFIXES:
 .SUFFIXES: .c .C .f90 .o
 
-ROOT = ../../
-include $(ROOT)/Makefile.user
-
-FC = $(FC90)
+FC90 = $(FC)
+FC90OPT = $(FCOPT)
 API = $(shell pwd)
-## TIBERCADROOT = $(HOME)/projects/tibercad/trunk
-## TIBERCADNEGF = $(TIBERCADROOT)/src/core/modules/negf/libnegf
-TARGET = libnegf_$(ARCH1).a
-SHARED = libnegf_$(ARCH1).so
+
+TARGET = libnegf_$(ARCH).a
+SHARED = libnegf_$(ARCH).so
 SKITOBJECTS = sparsekit/*.o
 
 MODULES = mpi_globals.o ln_constants.o ln_precision.o ln_allocation.o \
@@ -34,7 +31,7 @@ tests: test_negf_api_c test_negf_api_f
 
 test_api_c: cpp_wrapped_binding test_upt_api_c.o $(TARGET) 	
 	$(CC) $(LDFLAGS) -o $@ test_api_c.o $(TARGET) $(LCFLAGS)
-
+	
 test_api_f: test_api_f.o $(TARGET)
 	$(FC90) $(LDFLAGS) -o $@ test_api_f.o $(TARGET) $(LFLAGS)
 

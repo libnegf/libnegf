@@ -1,25 +1,34 @@
-ROOT = ..
-include $(ROOT)/Makefile.user
+#ROOT = ..
+#include $(ROOT)/Makefile.user
+include ../sysmakes/make.$(ARCH)
 
 TARGET = libnegf-$(ARCH).a
 
 SOURCES = clock.F90  ln_extract.F90 \
-	  complexbands.F90  input_output.F90 \
+	        complexbands.F90  input_output.F90 \
           lib_param.F90 elph.F90 phph.F90 ln_precision.F90 mpi_globals.F90  \
           contselfenergy.F90 inversions.F90 libnegf.F90 ln_structure.F90 \
           outmatrix.F90 rcm_module.F90 distributions.F90  transform.F90 \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
           globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
-	  population.F90 mkl_dfti.F90 energy_mesh.F90 interactions.F90 \
-	  elphdd.F90 elphdb.F90 elphds.F90
+					population.F90 mkl_dfti.F90 energy_mesh.F90 interactions.F90 \
+	        elphdd.F90 elphdb.F90 elphds.F90
 
 OBJS = $(SOURCES:.F90=.o)
+NEEDED_MODS = $(SOURCES:.F90=.mod)
 
-NEEDED_MODS = lib_param.mod libnegf.mod ln_allocation.mod \
-	     ln_extract.mod ln_precision.mod ln_structure.mod \
-	     mat_def.mod mpi_globals.mod elph.mod phph.mod energy_mesh.mod  
+INCLUDES=
+ifeq ($(MPI),Y) 
+  INCLUDES += -I../mpi_include -I../ext_mpifx/src
+endif
 
-FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
+ifeq ($(INELASTIC),Y)
+  INCLUDES += -I../ext_fftw/include
+endif
+
+
+#FPPFLAGS += -D__GITREVISION='"$(shell git describe)"'
+FPPFLAGS += -D__GITREVISION='"000"'
 FPPFLAGS += -D__COMPDATE='"$(shell date +'%F')"'
 FPP = $(CPP)
 
@@ -28,7 +37,7 @@ FPP = $(CPP)
 
 .F90.o:
 	$(FPP) $(FPPFLAGS) $*.F90 > $*.f90
-	$(FC90) $(FC90OPT) $(INCLUDE) -o $@ -c $*.f90
+	$(FXX) $(FXXOPT) $(INCLUDES) -o $@ -c $*.f90
 
 all: $(TARGET) 
 

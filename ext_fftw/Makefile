@@ -5,9 +5,11 @@ all: install
 
 .PHONY: install 
 
+DIR=$(shell pwd)
+
 install: _COMPILE_ 
-	make install prefix=$(PWD)  -C fftw-$(VER)
-	rm -f _UNTAR_ _CONFIGURE_ _COMPILE_
+	make install prefix=$(DIR)  -C fftw-$(VER)
+	#rm -f _UNTAR_ _CONFIGURE_ _COMPILE_
 	
 _COMPILE_: _CONFIGURE_ 
 	make -C fftw-$(VER) 

@@ -37,12 +37,12 @@
 #
 # Last Updated:  May 9, 1994.
 
-ROOT = ..
-LIBNEGFSRC = $(ROOT)/src
-include $(ROOT)/Makefile.user
-F77 = $(FC90)
+#ROOT = ..
+#LIBNEGFSRC = $(ROOT)/src
+#include $(ROOT)/Makefile.user
+F77 = $(FC)
 AR = ar -rcv 
-OPT= $(FC90OPT) -c
+OPT= $(FCOPT) -c
 #
 # library objects
 #
