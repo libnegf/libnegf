@@ -1,0 +1,61 @@
+# -*- makefile -*-
+############################################################################
+# System dependent Makefile options for
+# Linux, gfortran (4.4.3) + Atlas (3.6.0)
+############################################################################
+MPI_PATH=/usr/pack/mpich-3.1.1-ma
+export PROFILE_INCPATHS=-I$(MPI_PATH)/include
+
+# Fortran 2003 compiler
+FC=gfortran-4.8.1
+
+FCOPT = -O2
+
+FXX = mpif90-3.1.1
+
+# Options for the Fortran 2003 compiler 
+FXXOPT = -fc=$(FC) -O2 -fall-intrinsics -std=f2003 
+
+# Preprocessor (leave empty, if the compiler has a built in preprocessor)
+CPP = cpp -traditional
+
+# Options for preprocessing
+CPPOPT = -DDEBUG=$(DEBUG)
+
+# Fortran preprocessor (invokes CPP as defined above and process the result)
+# FPP = $(ROOT)/utils/fpp/fpp.sh general
+
+# Linker
+LN = $(FXX)
+
+# M4 preprocessor
+M4 = m4
+
+# Linker options
+LNOPT = 
+
+# Library options in general
+LIBOPT = 
+
+# How to link specific libraries
+LIB_LAPACK = 
+LIB_BLAS = -L$(SCALAPACKDIR) -lscalapack \
+           -L$(ATLASDIR) -llapack -lf77blas -lcblas -latlas
+
+# Any other libraries to be linked
+OTHERLIBS = 
+
+############################################################################
+# Developer settings
+############################################################################
+
+# Override options for different DEBUG modes
+ifeq ($(DEBUG),1)
+    FXXOPT = -g -Wall -std=f2003 -pedantic -fall-intrinsics
+endif
+ifeq ($(DEBUG),2)
+    FXXOPT = -g -Wall -std=f2003 -pedantic -fall-intrinsics -fbounds-check
+endif
+ifeq ($(DEBUG),3)
+    FXXOPT = -g -Wall -std=f2003 -pedantic -fall-intrinsics -fbounds-check
+endif
