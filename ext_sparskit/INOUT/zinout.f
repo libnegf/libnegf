@@ -44,7 +44,8 @@ c  skit   : writes matrics to a file, format same as above.            c
 c  prtunf : writes matrics (in CSR format) unformatted                 c
 c  readunf: reads unformatted data of matrics (in CSR format)          c
 c----------------------------------------------------------------------c
-	subroutine zreadmt (nmax,nzmax,job,iounit,a,ja,ia,rhs,nrhs,
+c-----+---------------------------------------------------------------------+
+      subroutine zreadmt (nmax,nzmax,job,iounit,a,ja,ia,rhs,nrhs,
      *                     guesol,nrow,ncol,nnz,title,key,type,ierr)
 c-----------------------------------------------------------------------
 c this subroutine reads  a boeing/harwell matrix. handles right hand 
@@ -55,13 +56,13 @@ c         updated Oct 31, 1989.
 c-----------------------------------------------------------------------
 c on entry:
 c---------
-c nmax 	 =  max column dimension  allowed for matrix. The array ia should 
-c	    be of length at least ncol+1 (see below) if job.gt.0
-c nzmax	 = max number of nonzeros elements allowed. the arrays a, 
+c nmax   =  max column dimension  allowed for matrix. The array ia should 
+c     be of length at least ncol+1 (see below) if job.gt.0
+c nzmax  = max number of nonzeros elements allowed. the arrays a, 
 c          and ja should be of length equal to nnz (see below) if these
 c          arrays are to be read (see job).
 c          
-c job	 = integer to indicate what is to be read. (note: job is an
+c job  = integer to indicate what is to be read. (note: job is an
 c          input and output parameter, it can be modified on return)
 c          job = 0    read the values of ncol, nrow, nnz, title, key,
 c                     type and return. matrix is not read and arrays
@@ -69,9 +70,9 @@ c                     a, ja, ia, rhs are not touched.
 c          job = 1    read srtucture only, i.e., the arrays ja and ia.
 c          job = 2    read matrix including values, i.e., a, ja, ia
 c          job = 3    read matrix and right hand sides: a,ja,ia,rhs.
-c		      rhs may contain initial guesses and exact 
+c         rhs may contain initial guesses and exact 
 c                     solutions appended to the actual right hand sides.
-c		      this will be indicated by the output parameter
+c         this will be indicated by the output parameter
 c                     guesol [see below]. 
 c                     
 c nrhs   = integer. nrhs is an input as well as ouput parameter.
@@ -91,8 +92,8 @@ c          Note that no error message is triggered (i.e. ierr = 0
 c          on return in these cases. It is therefore important to
 c          compare the values of job on entry and return ).
 c
-c a	 = the a matrix in the a, ia, ja (column) storage format
-c ja 	 = row number of element a(i,j) in array a.
+c a  = the a matrix in the a, ia, ja (column) storage format
+c ja   = row number of element a(i,j) in array a.
 c ia     = pointer  array. ia(i) points to the beginning of column i.
 c
 c rhs    = real array of size nrow + 1 if available (see job)
@@ -104,17 +105,17 @@ c
 c guesol = a 2-character string indicating whether an initial guess 
 c          (1-st character) and / or the exact solution (2-nd
 c          character) is provided with the right hand side.
-c	   if the first character of guesol is 'G' it means that an
+c    if the first character of guesol is 'G' it means that an
 c          an intial guess is provided for each right-hand side.
 c          These are appended to the right hand-sides in the array rhs.
-c	   if the second character of guesol is 'X' it means that an
+c    if the second character of guesol is 'X' it means that an
 c          exact solution is provided for each right-hand side.
 c          These are  appended to the right hand-sides 
 c          and the initial guesses (if any) in the array rhs.
 c
 c nrow   = number of rows in matrix
-c ncol	 = number of columns in matrix 
-c nnz	 = number of nonzero elements in A. This info is returned
+c ncol   = number of columns in matrix 
+c nnz  = number of nonzero elements in A. This info is returned
 c          even if there is not enough space in a, ja, ia, in order
 c          to determine the minimum storage needed. 
 c
@@ -188,6 +189,7 @@ c        the fourth block uses the same storage format as for the matrix
 c        to describe the NRHS right hand sides provided, with a column
 c        being replaced by a right hand side.
 c-----------------------------------------------------------------------
+c-----+---------------------------------------------------------------------+
       implicit none
       character title*72, key*8, type*3, ptrfmt*16, indfmt*16,
      1       valfmt*20, rhsfmt*20, rhstyp*3, guesol*2
@@ -223,17 +225,17 @@ c     --- reading values of matrix if required....
       if (job .le. 1)  return
 c     --- and if available ----------------------- 
       if (valcrd .le. 0) then
-	 job = 1
-	 return
+        job = 1
+        return
       endif
       read (iounit,valfmt) (a(i), i = 1, nnz)
 c     --- reading rhs if required ---------------- 
       if (job .le. 2)  return
 c     --- and if available ----------------------- 
       if ( rhscrd .le. 0) then
-	 job = 2
-	 nrhs = 0
-	 return
+        job = 2
+        nrhs = 0
+        return
       endif
 c     
 c     --- read right-hand-side.-------------------- 
@@ -279,10 +281,13 @@ c
       endif
 c     
       return
-c--------- end of readmt -----------------------------------------------
-c----------------------------------------------------------------------- 
+c      
       end
-c-----------------------------------------------------------------------
+c      
+c-----end of readmt -----------------------------------------------
+c----------------------------------------------------------------------- 
+c
+c-----+---------------------------------------------------------------------+
       subroutine zprtmt (nrow,ncol,a,ja,ia,rhs,guesol,title,key,type,
      1     ifmt,job,iounit)
 c-----------------------------------------------------------------------
@@ -295,13 +300,13 @@ c-----------------------------------------------------------------------
 c on entry:
 c---------
 c nrow   = number of rows in matrix
-c ncol	 = number of columns in matrix 
-c a	 = complex*16 array containing the values of the matrix stored 
+c ncol   = number of columns in matrix 
+c a  = complex*16 array containing the values of the matrix stored 
 c          columnwise
-c ja 	 = integer array of the same length as a containing the column
+c ja   = integer array of the same length as a containing the column
 c          indices of the corresponding matrix elements of array a.
 c ia     = integer array of containing the pointers to the beginning of 
-c	   the row in arrays a and ja.
+c    the row in arrays a and ja.
 c rhs    = complex array  containing the right-hand-side (s) and optionally
 c          the associated initial guesses and/or exact solutions
 c          in this order. See also guesol for details. the vector rhs will
@@ -311,11 +316,11 @@ c
 c guesol = a 2-character string indicating whether an initial guess 
 c          (1-st character) and / or the exact solution (2-nd)
 c          character) is provided with the right hand side.
-c	   if the first character of guesol is 'G' it means that an
+c    if the first character of guesol is 'G' it means that an
 c          an intial guess is provided for each right-hand sides. 
 c          These are assumed to be appended to the right hand-sides in 
 c          the array rhs.
-c	   if the second character of guesol is 'X' it means that an
+c    if the second character of guesol is 'X' it means that an
 c          exact solution is provided for each right-hand side.
 c          These are assumed to be appended to the right hand-sides 
 c          and the initial guesses (if any) in the array rhs.
@@ -324,29 +329,29 @@ c title  = character*72 = title of matrix test ( character a*72 ).
 c key    = character*8  = key of matrix 
 c type   = charatcer*3  = type of matrix.
 c
-c ifmt	 = integer specifying the format chosen for the complex values
-c	   to be output (i.e., for a, and for rhs-guess-sol if 
+c ifmt   = integer specifying the format chosen for the complex values
+c    to be output (i.e., for a, and for rhs-guess-sol if 
 c          applicable). The meaning of ifmt is as follows.
-c	  * if (ifmt .lt. 100) then the D descriptor is used,
+c   * if (ifmt .lt. 100) then the D descriptor is used,
 c           format Dd.m, in which the length (m) of the mantissa is 
 c           precisely the integer ifmt (and d = ifmt+6)
-c	  * if (ifmt .gt. 100) then prtmt will use the 
+c   * if (ifmt .gt. 100) then prtmt will use the 
 c           F- descriptor (format Fd.m) in which the length of the 
 c           mantissa (m) is the integer mod(ifmt,100) and the length 
 c           of the integer part is k=ifmt/100 (and d = k+m+2)
-c	    Thus  ifmt= 4   means  D10.4  +.xxxxD+ee    while
-c	          ifmt=104  means  F7.4   +x.xxxx
-c	          ifmt=205  means  F9.5   +xx.xxxxx
-c	    Note: formats for ja, and ia are internally computed.
+c     Thus  ifmt= 4   means  D10.4  +.xxxxD+ee    while
+c           ifmt=104  means  F7.4   +x.xxxx
+c           ifmt=205  means  F9.5   +xx.xxxxx
+c     Note: formats for ja, and ia are internally computed.
 c
-c job	 = integer to indicate whether matrix values and
-c	   a right-hand-side is available to be written
+c job  = integer to indicate whether matrix values and
+c    a right-hand-side is available to be written
 c          job = 1   write srtucture only, i.e., the arrays ja and ia.
 c          job = 2   write matrix including values, i.e., a, ja, ia
 c          job = 3   write matrix and one right hand side: a,ja,ia,rhs.
-c	   job = nrhs+2 write matrix and nrhs successive right hand sides
-c	   Note that there cannot be any right-hand-side if the matrix
-c	   has no values. Also the initial guess and exact solutions when 
+c    job = nrhs+2 write matrix and nrhs successive right hand sides
+c    Note that there cannot be any right-hand-side if the matrix
+c    has no values. Also the initial guess and exact solutions when 
 c          provided are for each right hand side. For example if nrhs=2 
 c          and guesol='GX' there are 6 vectors to write.
 c          
@@ -362,7 +367,7 @@ c Notes: 1) This code attempts to pack as many elements as possible per
 c        80-character line. 
 c        2) this code attempts to avoid as much as possible to put
 c        blanks in the formats that are written in the 4-line header
-c	 (This is done for purely esthetical reasons since blanks
+c  (This is done for purely esthetical reasons since blanks
 c        are ignored in format descriptors.)
 c        3) sparse formats for right hand sides and guesses are not
 c        supported.
@@ -372,25 +377,24 @@ c-----------------------------------------------------------------------
      1     guesol*2, rhstyp*3
       integer totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow, ncol,
      1     nnz, nrhs, len, nperli, nrwindx
-      integer ja(*), ia(*) 	
+      integer ja(*), ia(*)  
       complex*16 a(*),rhs(*)
 c--------------
 c     compute pointer format
 c--------------
-       integer ix,job,ifmt,ihead,i,next,iounit,iend
-       nnz    = ia(ncol+1) -1
-       if (nnz .eq. 0) then
-	   return
-	endif
+      integer ix,job,ifmt,ihead,i,next,iounit,iend
+      nnz    = ia(ncol+1) -1
+      if (nnz .eq. 0) then
+        return
+      endif
       len    = int ( alog10(0.1+real(nnz+1))) + 1
       nperli = 80/len
       ptrcrd = ncol/nperli + 1
       if (len .gt. 9) then
-         assign 101 to ix
+         write (ptrfmt,101) nperli,len
       else
-         assign 100 to ix
+         write (ptrfmt,100) nperli,len
       endif
-      write (ptrfmt,ix) nperli,len
  100  format(1h(,i2,1HI,i1,1h) )
  101  format(1h(,i2,1HI,i2,1h) )
 c----------------------------
@@ -403,7 +407,7 @@ c----------------------------
 c---------------
 c compute values and rhs format (using the same for both)
 c--------------- 
-      valcrd	= 0
+      valcrd  = 0
       rhscrd  = 0
 c quit this part if no values provided.
       if (job .le. 1) goto 20
@@ -415,14 +419,13 @@ c
          nperli = 80/len
 c     
          if (len .le. 9 ) then
-            assign 102 to ix
+            write(valfmt,102) nperli,len,ifmt
          elseif (ifmt .le. 9) then
-            assign 103 to ix
+            write(valfmt,103) nperli,len,ifmt
          else 
-            assign 104 to ix
+            write(valfmt,104) nperli,len,ifmt
          endif
 c     
-         write(valfmt,ix) nperli,len,ifmt
  102     format(1h(,i2,1hF,i1,1h.,i1,1h) )
  103     format(1h(,i2,1hF,i2,1h.,i1,1h) )
  104     format(1h(,i2,1hF,i2,1h.,i2,1h) )
@@ -432,24 +435,23 @@ C
          nperli = 80/len
 c     try to minimize the blanks in the format strings.
          if (nperli .le. 9) then
-	    if (len .le. 9 ) then
-	       assign 105 to ix
-	    elseif (ifmt .le. 9) then
-	       assign 106 to ix
-	    else 
-	       assign 107 to ix
-	    endif
-	 else 
-	    if (len .le. 9 ) then
-	       assign 108 to ix
-	    elseif (ifmt .le. 9) then
-	       assign 109 to ix
-	    else 
-               assign 110 to ix
+            if (len .le. 9 ) then
+               write(valfmt,105) nperli,len,ifmt
+            elseif (ifmt .le. 9) then
+               write(valfmt,106) nperli,len,ifmt
+            else 
+               write(valfmt,107) nperli,len,ifmt
+            endif
+         else 
+            if (len .le. 9 ) then
+               write(valfmt,108) nperli,len,ifmt
+            elseif (ifmt .le. 9) then
+               write(valfmt,109) nperli,len,ifmt
+            else 
+               write(valfmt,110) nperli,len,ifmt
             endif
          endif
 c-----------
-         write(valfmt,ix) nperli,len,ifmt
  105     format(1h(,i1,1hD,i1,1h.,i1,1h) )
  106     format(1h(,i1,1hD,i2,1h.,i1,1h) )
  107     format(1h(,i1,1hD,i2,1h.,i2,1h) )
@@ -457,7 +459,7 @@ c-----------
  109     format(1h(,i2,1hD,i2,1h.,i1,1h) )
  110     format(1h(,i2,1hD,i2,1h.,i2,1h) )
 c     
-      endif 	    
+      endif       
       valcrd = (nnz-1)/nperli+1
       nrhs   = job -2
       if (nrhs .ge. 1) then
@@ -508,10 +510,11 @@ c
       endif
 c     
       return
-c----------end of prtmt ------------------------------------------------ 
 c-----------------------------------------------------------------------
       end
+c----------end of prtmt ------------------------------------------------ 
 c----------------------------------------------------------------------- 
+c-----+---------------------------------------------------------------------+
       subroutine zdump (i1,i2,values,a,ja,ia,iout)
       implicit none
       integer i1, i2, ia(*), ja(*), iout
@@ -544,41 +547,43 @@ c     local variables
 c
 c select mode horizontal or vertical 
 c
-        maxr = 0
-        do 1 i=i1, i2
-           maxr = max0(maxr,ia(i+1)-ia(i))
- 1      continue
-        
-        if (maxr .le. 8) then
+       maxr = 0
+       do i=i1, i2
+          maxr = max0(maxr,ia(i+1)-ia(i))
+        end do 
+       
+       if (maxr .le. 8) then
 c
 c able to do one row acros line
 c
-        do 2 i=i1, i2
-           write(iout,100) i
-	   k1=ia(i)
-	   k2 = ia(i+1)-1
-	   write (iout,101) (ja(k),k=k1,k2)
-	   if (values) write (iout,102) (a(k),k=k1,k2)
- 2      continue
-      else 
+          do i=i1, i2
+            write(iout,100) i
+            k1=ia(i)
+            k2 = ia(i+1)-1
+            write (iout,101) (ja(k),k=k1,k2)
+            if (values) write (iout,102) (a(k),k=k1,k2)
+          end do 
+
+       else 
 c
 c unable to one row acros line. do three items at a time
 c across a line 
-         do 3 i=i1, i2
-            if (values) then
-               write(iout,200) i
-            else
-               write(iout,203) i               
-            endif
-            k1=ia(i)
-            k2 = ia(i+1)-1
-            if (values) then
-               write (iout,201) (ja(k),a(k),k=k1,k2)
-            else
-               write (iout,202) (ja(k),k=k1,k2)
-            endif
- 3       continue
-      endif 
+          do  i=i1, i2
+             if (values) then
+                write(iout,200) i
+             else
+                write(iout,203) i               
+             endif
+             k1=ia(i)
+             k2 = ia(i+1)-1
+             if (values) then
+                write (iout,201) (ja(k),a(k),k=k1,k2)
+             else
+                write (iout,202) (ja(k),k=k1,k2)
+             endif
+          end do 
+c        
+        endif 
 c
 c formats :
 c
@@ -593,10 +598,11 @@ c-------------xiiiiiihhhhhhddddddddd-*-
  203  format (1h ,30(1h-),' row',i3,1x,30(1h-),/
      *     3('  column  :  column   *') )
       return
-c----end-of-dump--------------------------------------------------------
 c-----------------------------------------------------------------------
       end
+c---- end-of-dump--------------------------------------------------------
 c-----------------------------------------------------------------------
+c-----+---------------------------------------------------------------------+
       subroutine zpspltm(nrow,ncol,mode,ja,ia,title,ptitle,size,munt,
      *     nlines,lines,iunt)
 c-----------------------------------------------------------------------
@@ -655,7 +661,6 @@ c additional note: use of 'cm' assumes european format for paper size
 c (21cm wide) and use of 'in' assumes american format (8.5in wide).
 c The correct centering of the figure depends on the proper choice. Y.S.
 c-----------------------------------------------------------------------
-c external 
       integer LENSTR
       external LENSTR
 c local variables ---------------------------------------------------
@@ -673,7 +678,6 @@ c-----------------------------------------------------------------------
       nc = ncol
       n = nc
       if (mode .eq. 0) n = nr
-c      nnz = ia(n+1) - ia(1) 
       maxdim = max(nrow, ncol)
       m = 1 + maxdim
       nc = nc+1
@@ -772,7 +776,7 @@ c
 c     drawing the separation lines 
 c 
       write(iunt,*)  ' 0.2 setlinewidth'
-      do 22 kol=1, nlines 
+      do kol=1, nlines 
          isep = lines(kol) 
 c
 c     horizontal lines 
@@ -788,7 +792,7 @@ c
          yy = real(nrow+1)  
          write(iunt,13) xx, zero,' moveto '
          write(iunt,13) xx, yy, ' lineto stroke '             
- 22     continue
+      end do    
 c 
 c----------- plotting loop ---------------------------------------------
 c
@@ -797,23 +801,23 @@ c
       write(iunt,10) '/p {moveto 0 -.40 rmoveto '
       write(iunt,10) '           0  .80 rlineto stroke} def'
 c     
-      do 1 ii=1, n
+      do ii=1, n
         istart = ia(ii)
         ilast  = ia(ii+1)-1 
         if (mode .eq. 1) then
-          do 2 k=istart, ilast
+          do k=istart, ilast
             write(iunt,11) ii-1, nrow-ja(k), ' p'
- 2        continue 
+          end do   
         else
-          do 3 k=istart, ilast
+          do k=istart, ilast
             write(iunt,11) ja(k)-1, nrow-ii, ' p'
- 3        continue          
+          end do            
 c add diagonal element if MSR mode.
           if (mode .eq. 2) 
      *         write(iunt,11) ii-1, nrow-ii, ' p' 
 c
         endif
- 1    continue
+      end do   
 c-----------------------------------------------------------------------
       write(iunt,10) 'showpage'
       return
@@ -824,7 +828,9 @@ c
  13   format (2(F9.2,1x),A)
 c-----------------------------------------------------------------------
       end
+c
 c  GP: commented, duplicate from inout.f
+c-----+---------------------------------------------------------------------+
 c      integer function lenstr(s)
 cc-----------------------------------------------------------------------
 cc return length of the string S
@@ -835,18 +841,18 @@ c      intrinsic len
 c      integer n
 cc----------------------------------------------------------------------- 
 c      n = len(s)
-c10    continue
-c        if (s(n:n).eq.' ') then
-c          n = n-1
-c          if (n.gt.0) go to 10
-c        end if
+c      if (s(n:n).eq.' ') then
+c        n = n-1
+c        if (n.gt.0) go to 10
+c      end if
 c      lenstr = n
 cc
 c      return
-c--------end-of-pspltm--------------------------------------------------
 c-----------------------------------------------------------------------
 c      end
+c------end-of-pspltm--------------------------------------------------
 c----------------------------------------------------------------------- 
+c-----+---------------------------------------------------------------------+
       subroutine zpltmt (nrow,ncol,mode,ja,ia,title,key,type,
      1     job, iounit)
 c-----------------------------------------------------------------------
@@ -863,15 +869,15 @@ c file.
 c-----------------------------------------------------------------------
 c nrow   = number of rows in matrix
 c
-c ncol	 = number of columns in matrix 
+c ncol   = number of columns in matrix 
 c
 c mode   = integer indicating whether the matrix is stored
 c          row-wise (mode = 0) or column-wise (mode=1)
 c
 c ja     = column indices of nonzero elements when matrix is
-c	   stored rowise. Row indices if stores column-wise.
+c    stored rowise. Row indices if stores column-wise.
 c ia     = integer array of containing the pointers to the 
-c	   beginning of the columns in arrays a, ja.
+c    beginning of the columns in arrays a, ja.
 c
 c title  = character*71 = title of matrix test ( character a*71 ).
 c key    = character*8  = key of matrix 
@@ -898,24 +904,24 @@ c-----------------
 c In the fortran code:
 c  a) read a Harwell/Boeing matrix
 c          call readmt (.....)
-c	   iout = 13
+c    iout = 13
 c  b) generate pic file:
 c          call  pltmt (nrow,ncol,mode,ja,ia,title,key,type,iout)
-c	   stop
+c    stop
 c ---------
 c Then in a unix environment plot the matrix by the command
 c
-c	pic FOR013.DAT | troff -me | lpr -Ppsx
+c pic FOR013.DAT | troff -me | lpr -Ppsx
 c
 c-----------------------------------------------------------------------
 c notes: 1) Plots square as well as rectangular matrices.
 c            (however not as much tested with rectangular matrices.)
-c	  2) the dot-size is adapted according to the size of the
+c   2) the dot-size is adapted according to the size of the
 c            matrix.
-c	  3) This is not meant at all as a way of plotting large
+c   3) This is not meant at all as a way of plotting large
 c            matrices. The pic file generaled will have one line for
 c            each nonzero element. It is  only meant for use in
-c	     such things as document poreparations etc..
+c      such things as document poreparations etc..
 c         4) The caption written will print the 71 character long
 c            title. This may not be centered correctly if the
 c            title has trailing blanks (a problem with Troff).
@@ -975,23 +981,23 @@ c
 c     
 c-----------plottingloop --------------------------------------------- 
 c     
-      do 1 ii=1, n
+      do ii=1, n
          istart = ia(ii)
          ilast  = ia(ii+1)-1 
          if (mode .ne. 0) then
             x = real(ii-1)
-            do 2 k=istart, ilast
+            do k=istart, ilast
                y = xnrow-real(ja(k))
                write(iounit,128) xshift+x*hscale, yshift+y*vscale
- 2          continue 
+            end do   
          else
             y = xnrow - real(ii)
-            do 3 k=istart, ilast
+            do k=istart, ilast
                x = real(ja(k)-1)
                write(iounit,128) xshift+x*hscale, yshift+y*vscale
- 3          continue	    
+            end do        
          endif
- 1    continue
+      end do  
 c-----------------------------------------------------------------------
  128  format(7h"." at ,f6.3,1h,,f6.3,8h ljust  )
       write (iounit, 129)
@@ -1005,9 +1011,9 @@ c
      *     'Matrix:  ',a8,',  Type:  ',a3,/,a72)
  130  format('Dimension: ',i4,' x ',i4,',  Nonzero elements: ',i5)
       return
-c----------------end-of-pltmt ------------------------------------------
 c----------------------------------------------------------------------- 
       end
+c-----end-of-pltmt ------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zsmms (n,first,last,mode,a,ja,ia,iout)
       integer ia(*), ja(*), n, first, last, mode, iout
@@ -1046,27 +1052,25 @@ c determine mode ( msr or csr )
 c
         msr = .false.
         csc = .false. 
-	if (mod(mode,10) .eq. 1) csc = .true.
-        if ( (mode/10) .eq. 1) msr = .true. 
-        
+      if (mod(mode,10) .eq. 1) csc = .true.
+      if ( (mode/10) .eq. 1) msr = .true. 
         write (iout,*) n
-      do 2 i=first, last 
+      do i=first, last 
          k1=ia(i)
          k2 = ia(i+1)-1
-c     write (iout,*) ' row ', i 
          if (msr) write(iout,'(2i6,e22.14)')  i, i, a(i) 
-         do 10 k=k1, k2
+         do k=k1, k2
             if (csc) then
                write(iout,103)  ja(k), i, a(k)
             else
                write(iout,103)  i, ja(k), a(k)
             endif 
- 10      continue
- 2    continue
+         end do  
+      end do  
  103  format (2i6,2x,1h(,e22.14,1h,,e22.14,1h))
-c----end-of-smms--------------------------------------------------------
 c-----------------------------------------------------------------------
       end
+c-----end-of-smms--------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zreadsm (nmax,nzmax,n,nnz,ia,ja,a,iout,ierr)
       integer nmax, nzmax, row, n, iout, i, j, k, ierr
@@ -1121,9 +1125,9 @@ c
 
 c     set the pointers when needed
       if (i.gt.row) then
-         do 20 k = row+1, i
+         do k = row+1, i
             ia(k) = nnz
- 20      continue
+         end do   
          row = i
       else if (i.lt.row) then
          goto 1040
@@ -1184,9 +1188,9 @@ c
  1040 ierr = 5
  2000 n = 0
       return
-c----end-of-readsm------------------------------------------------------
 c-----------------------------------------------------------------------
       end
+c-----end-of-readsm------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zreadsk (nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
       integer nmax, nzmax, iounit, n, nnz, i, ierr
@@ -1203,8 +1207,8 @@ c coded by Kesheng Wu on Oct 21, 1991 with supervision of Y. Saad
 c-----------------------------------------------------------------------
 c on entry:
 c---------
-c nmax 	 = max column dimension  allowed for matrix.
-c nzmax	 = max number of nonzeros elements allowed. the arrays a, 
+c nmax   = max column dimension  allowed for matrix.
+c nzmax  = max number of nonzeros elements allowed. the arrays a, 
 c          and ja should be of length equal to nnz (see below).
 c iounit = logical unit number where to read the matrix from.
 c
@@ -1214,7 +1218,7 @@ c ia,
 c ja,
 c a      = matrx in CSR format
 c n      = number of rows(columns) in matrix
-c nnz	 = number of nonzero elements in A. This info is returned
+c nnz  = number of nonzero elements in A. This info is returned
 c          even if there is not enough space in a, ja, ia, in order
 c          to determine the minimum storage needed.
 c ierr   = error code,
@@ -1278,9 +1282,9 @@ c     the real return statement
 c     
  2000 n = 0
       return
-c---------end of readsk ------------------------------------------------
 c-----------------------------------------------------------------------
       end
+c-----end of readsk ------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zskit (n, a, ja, ia, ifmt, iounit, ierr)
 c-----------------------------------------------------------------------
@@ -1345,11 +1349,10 @@ c--------------
       print *, ' skit entries:', n, nnz, len, nperli
 
       if (len .gt. 9) then
-         assign 101 to ix
+         write (ptrfmt,101) nperli,len
       else
-         assign 100 to ix
+         write (ptrfmt,100) nperli,len
       endif
-      write (ptrfmt,ix) nperli,len
  100  format(1h(,i2,1HI,i1,1h) )
  101  format(1h(,i2,1HI,i2,1h) )
 c----------------------------
@@ -1369,42 +1372,39 @@ c---------------------------
          nperli = 80/len
 c     
          if (len .le. 9 ) then
-            assign 102 to ix
+            write(valfmt,102) nperli,len,ifmt
          elseif (ifmt .le. 9) then
-            assign 103 to ix
+            write(valfmt,103) nperli,len,ifmt
          else 
-            assign 104 to ix
+            write(valfmt,104) nperli,len,ifmt
          endif
 c     
-         write(valfmt,ix) nperli,len,ifmt
- 102	 format(1h(,i2,6h(1h(,F,i1,1h.,i1,6h,1h,,F,i1,1h.,i1,5h,2h) ,2h)))
- 103	 format(1h(,i2,6h(1h(,F,i2,1h.,i1,6h,1h,,F,i2,1h.,i1,5h,2h) ,2h)))
- 104	 format(1h(,i2,6h(1h(,F,i2,1h.,i2,6h,1h,,F,i2,1h.,i2,5h,2h) ,2h))) 
+ 102   format(1h(,i2,6h(1h(,F,i1,1h.,i1,6h,1h,,F,i1,1h.,i1,5h,2h) ,2h)))
+ 103   format(1h(,i2,6h(1h(,F,i2,1h.,i1,6h,1h,,F,i2,1h.,i1,5h,2h) ,2h)))
+ 104   format(1h(,i2,6h(1h(,F,i2,1h.,i2,6h,1h,,F,i2,1h.,i2,5h,2h) ,2h))) 
 C     
       else
          len = ifmt + 7
          lent = 2*len+3
          nperli = 80/lent
-c     try to minimize the blanks in the format strings.
          if (nperli .le. 9) then
-	    if (len .le. 9 ) then
-	       assign 105 to ix
-	    elseif (ifmt .le. 9) then
-	       assign 106 to ix
-	    else 
-	       assign 107 to ix
-	    endif
-	 else 
-	    if (len .le. 9 ) then
-	       assign 108 to ix
-	    elseif (ifmt .le. 9) then
-	       assign 109 to ix
-	    else 
-               assign 110 to ix
+            if (len .le. 9 ) then
+               write(valfmt,105) nperli,len,ifmt
+            elseif (ifmt .le. 9) then
+               write(valfmt,106) nperli,len,ifmt
+            else 
+               write(valfmt,107) nperli,len,ifmt
+            endif
+         else 
+            if (len .le. 9 ) then
+               write(valfmt,108) nperli,len,ifmt
+            elseif (ifmt .le. 9) then
+               write(valfmt,109) nperli,len,ifmt
+            else 
+               write(valfmt,110) nperli,len,ifmt
             endif
          endif
 c-----------
-         write(valfmt,ix) nperli,len,ifmt
  105   format(1h(,i1,6h(1h(,D,i1,1h.,i1,6h,1h,,D,i1,1h.,i1,5h,2h) ,2h)))
  106   format(1h(,i1,6h(1h(,D,i2,1h.,i1,6h,1h,,D,i2,1h.,i1,5h,2h) ,2h)))
  107   format(1h(,i1,6h(1h(,D,i2,1h.,i2,6h,1h,,D,i2,1h.,i2,5h,2h) ,2h)))
@@ -1412,7 +1412,7 @@ c-----------
  109   format(1h(,i2,6h(1h(,D,i2,1h.,i1,6h,1h,,D,i2,1h.,i1,5h,2h) ,2h)))
  110   format(1h(,i2,6h(1h(,D,i2,1h.,i2,6h,1h,,D,i2,1h.,i2,5h,2h) ,2h)))
 c     
-      endif 	    
+      endif       
 c     
 c     output the data
 c     
@@ -1423,7 +1423,7 @@ c
       k=mod(nnz, nperli)
       nn=nnz-k 
       write(iounit,valfmt,err=1000) ( a(i), i = 1, nn )
-      write(valfmt,ix) k,len,ifmt,len,ifmt
+      write(valfmt,110) k,len,ifmt,len,ifmt
       write(iounit,valfmt,err=1000) ( a(i), i = 1, k )
 c
 c     done, if no trouble is encounted in writing data
@@ -1442,9 +1442,9 @@ c
       write(6,indfmt) (ja(i), i=1, nnz)
       write(6,valfmt) ( a(i), i=1, nnz)
       return
-c----------end of skit ------------------------------------------------- 
 c-----------------------------------------------------------------------
       end
+c-----end of skit ------------------------------------------------- 
 c-----------------------------------------------------------------------
       subroutine zprtunf(n, a, ja, ia, iout, ierr)
 c-----------------------------------------------------------------------
@@ -1461,7 +1461,7 @@ c    ja: integer array stores the column indices of each entry.
 c     a: the non-zero entries of the matrix.
 c  iout: the unit number opened for storing the matrix.
 c On return:
-c  ierr: a error, 0 if everything's OK, else 1 if error in writing data.
+c  ierr: a error, 0 if everything is OK, else 1 if error in writing data.
 c On error:
 c  set ierr to 1.
 c  No redirection is made, since direct the machine code to the standard
@@ -1486,7 +1486,7 @@ c
  1000 ierr = 1
       return
       end
-c---------end of prtunf ------------------------------------------------
+c-----end of prtunf ------------------------------------------------
 c
 c-----------------------------------------------------------------------
       subroutine zreadunf(nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
@@ -1553,4 +1553,4 @@ c
  2000 n = 0
       return
       end
-c---------end of readunf ----------------------------------------------
+c-----end of readunf ----------------------------------------------

@@ -142,6 +142,8 @@ objects: $(OBJ)
          done 
 
 distclean: clean
+	rm -f *.a
+
 	rm -f $(TARGET)
 
 tarit: 
