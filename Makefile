@@ -37,8 +37,8 @@ ext_sparskit:
 	make FC=$(FC) FCOPT=$(FCOPT) ARCH=$(ARCH) -C $@
 
 ext_mpifx:
-	cp ./sysmakes/make.$(ARCH) $@/make.arch
-	cp ./mpi_include/mpi.mod $@/src
+	cp -f ./sysmakes/make.$(ARCH) $@/make.arch
+	cp -f ./mpi_include/mpi.mod $@/src
 	make ROOT=../.. -C $@/src
 
 ext_fftw:
