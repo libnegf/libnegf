@@ -100,7 +100,7 @@ contains
     surfdim = pnegf%str%mat_C_Start(i) - pnegf%str%mat_B_Start(i)
     ! ngs space for surface + 1 PL
     ngs = (contdim + surfdim)/2
-
+    
     avncyc=0.0
     ncyc=0
     nfc=0
@@ -287,9 +287,9 @@ contains
     if (err /= 0) STOP 'no space for allocation in decimation'
 
     Ao_s=Ao;
-
+      !write(*,*)                                                          !debug
     do i1=1,300
-      !write(*,*) 'decimation:',i1
+      !write(*,*) 'decimation:',i1                                         !debug
       !call zinv(inAo,Ao,n)
       call compGreen(inAo,Ao,n)
 
@@ -384,8 +384,8 @@ contains
     enddo
 
   end subroutine compute_contacts_csr
-!-------------------------------------------------------------------------------
-
+  
+  !-------------------------------------------------------------------------------
   subroutine compute_contacts_dns(Ec,pnegf,ncyc,Tlc,Tcl,SelfEneR,GS)
     complex(dp), intent(in) :: Ec
     Type(Tnegf), intent(inout) :: pnegf
@@ -396,13 +396,14 @@ contains
 
     Type(z_DNS) :: TpMt
 
-    Integer :: nbl, ncont, i
+    Integer :: nbl, ncont, i, j1,j2  !debug j1,j2 for debug
+    Integer :: ngs                                                          !DAR
     Real(dp) :: avncyc
 
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
     avncyc = 0
-
+    
     ! -----------------------------------------------------------------------
     !  Calculation of contact self-energies
     ! -----------------------------------------------------------------------
@@ -414,8 +415,42 @@ contains
 
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS(i))
+       !------------------------------------------------------------------------
+       !DAR begin
+       !------------------------------------------------------------------------
+       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tReadSelfEnergy) cycle                       
        
+       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tReadSurfaceGF) then
+          ngs=(pnegf%str%mat_C_end(i)+ 1- pnegf%str%mat_B_Start(i))/2 
+          GS(i)%val=pnegf%tranas%cont(i)%SurfaceGF(:,:,pnegf%tranas%e%IndexEnergy)
+          GS(i)%nrow=ngs
+          GS(i)%ncol=ngs
+       else                                                                        
+          call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS(i))
+       end if
+
+       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tWriteSurfaceGF) &                          
+            pnegf%tranas%cont(i)%SurfaceGF(:,:,pnegf%tranas%e%IndexEnergy)=GS(i)%val
+
+       !------------------------------------------------------------------------
+       !DAR end
+       !------------------------------------------------------------------------
+          
+          !debug begin
+          !print *, 'GS',i,'IndexEnergy=',pnegf%tranas%e%IndexEnergy
+          !do j1=1,GS(i)%ncol
+          !   print *, GS(i)%val(j1,1:GS(i)%ncol)
+          !end do
+          !print *, 'pnegf%HMC(i)'
+          !do j1=1,pnegf%HMC(i)%ncol
+          !   print *, pnegf%HMC(i)%val(j1,1:pnegf%HMC(i)%ncol)
+          !end do
+          !print *, 'pnegf%SMC(i)'
+          !do j1=1,pnegf%SMC(i)%ncol
+          !   print *, pnegf%SMC(i)%val(j1,1:pnegf%SMC(i)%ncol)
+          !end do        
+          !debug end
+     
        avncyc = avncyc + ncyc
 
        call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),Ec,Tlc(i))
@@ -428,10 +463,24 @@ contains
 
        call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
 
+          !debug begin
+          !print *, 'Tlc'
+          !do j1=1,Tlc(i)%ncol
+          !   print *, Tlc(i)%val(j1,1:Tlc(i)%ncol)
+          !end do
+          !print *, 'Tcl'
+          !do j1=1,Tcl(i)%ncol
+          !   print *, Tcl(i)%val(j1,1:Tcl(i)%ncol)
+          !end do
+          !print *, 'SE'
+          !do j1=1,SelfEneR(i)%ncol
+          !   print *, SelfEneR(i)%val(j1,1:SelfEneR(i)%ncol)
+          !end do
+          !debug end
+
     enddo
 
   end subroutine compute_contacts_dns
-
 
   !--------------------------------------------------------------------
   subroutine SelfEnergies_csr(E,ncont,GS,Tlc,Tcl,SelfEneR)
