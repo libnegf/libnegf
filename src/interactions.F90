@@ -104,7 +104,7 @@ module interactions
 
   end interface
 
-!contains                                                                   !DAR
+!contains
 
     !> Initialize information needed for buffering G on memory or disk
     !  Now it only pass the number of energy grid points but it 

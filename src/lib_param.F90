@@ -237,7 +237,7 @@ module lib_param
    logical :: tModel = .false.
    logical :: tRead_negf_in = .false.
    logical :: tTrans = .false.
-   logical :: tCalcSelfEnergies = .false.
+   logical :: tCalcSelfEnergies = .true.
    integer :: NumStates       
    character(len=LST) :: FileName
    real(kind=dp), dimension(:,:), allocatable :: H_dev
@@ -358,7 +358,7 @@ contains
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%kbT = 1.d-5        ! electronic temperature
+     negf%kbT = 0.d0         ! electronic temperature
      negf%g_spin = 2.d0      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n 
@@ -371,7 +371,7 @@ contains
      negf%ni(1) = 1
      negf%nf = 0             ! nf
      negf%nf(1) = 2          !
-     negf%min_or_max = 1         ! Set reference cont to max(mu)  
+     negf%min_or_max = 1     ! Set reference cont to max(mu)  
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer = 2          ! Compute full D.M. L,U extra
      negf%dumpHS = .false.

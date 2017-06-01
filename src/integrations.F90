@@ -1243,7 +1243,7 @@ contains
     write(*,"('>>> The Landauer transport (transmission [and DOS]) is started.')")   
     write(*,*)                                                                     
     end if
-    !DAR end
+    !DAR end    
     
     ! Get out immediately if Emax<Emin 
     if (negf%Emax.le.negf%Emin) then
@@ -1257,8 +1257,9 @@ contains
        negf%currents = 0.0_dp 
        return
     endif
+
     !-------------------------------------------------------
-   
+    
     do_LEDOS = .false. 
     if(negf%nLDOS.gt.0) do_LEDOS=.true.
     ncont = negf%str%num_conts
@@ -1286,10 +1287,10 @@ contains
        size_ni=min(size_ni,size_nf)
        size_nf=min(size_ni,size_nf)
     endif
+
     !-------------------------------------------------------
     
     call log_allocate(TUN_MAT,size_ni)
- 
     !If previous calculation is there, destroy output
     if (associated(negf%tunn_mat)) call  log_deallocatep(negf%tunn_mat)
     call log_allocatep(negf%tunn_mat,Nstep,size_ni)  
@@ -1301,14 +1302,14 @@ contains
        if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
        call log_allocatep(negf%ldos_mat,Nstep,negf%nLDOS)
 
-       call log_allocate(LEDOS,negf%nLDOS)
-      
+       call log_allocate(LEDOS,negf%nLDOS)          
        negf%ldos_mat(:,:)=0.d0
     endif
+
     !-------------------------------------------------------
 
     call WriteRead_SGF_SE(negf)                                             !DAR
-     
+    
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
@@ -1317,7 +1318,7 @@ contains
       
        Ec = negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
-       
+
        !DAR begin - Compute Self-Energies
        negf%tranas%e%IndexEnergy=i
        if(negf%tCalcSelfEnergies) then                                                       
@@ -1351,18 +1352,18 @@ contains
        !   print *, SelfEneR(2)%val(j1,1:SelfEneR(1)%ncol)
        !end do
        !debug end
-       
+
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
           call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
                              & negf%str,TUN_MAT)
- 
+
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
-
+          
           call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
                            & negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
           
@@ -1375,7 +1376,7 @@ contains
        do icont=1,ncont
          call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
        enddo
-   
+       
     enddo !Loop on energy 
 
     !call destroy_en_grid()
@@ -1388,7 +1389,7 @@ contains
     write(*,"('>>> The Landauer transport (transmission [and DOS]) is finished.')")  
     end if
     !DAR end - tunneling_and_dos
- 
+  
   end subroutine tunneling_and_dos
 
   !---------------------------------------------------------------------------
@@ -1628,7 +1629,7 @@ contains
          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')       
          !call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
          negf%tTrans=.true.
-         call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+         call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
          negf%tTrans=.false.
          if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -1701,11 +1702,11 @@ contains
     Nstep = size(negf%en_grid)
 
     do icont=1,ncont
-
        npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
+       
        if(negf%tranas%cont(icont)%tReadSelfEnergy.or.negf%tranas%cont(icont)%tWriteSelfEnergy.or.negf%tManyBody) &
           allocate(negf%tranas%cont(icont)%SelfEnergy(npl,npl,size(negf%en_grid)))
-   
+ 
        if(negf%tranas%cont(icont)%tReadSelfEnergy) then
           open(14,form="unformatted",file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf' &
                ,action="read")
@@ -1721,6 +1722,7 @@ contains
                trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
        else
           negf%tCalcSelfEnergies = .true.
+
        end if
 
        if(negf%tranas%cont(icont)%tReadSurfaceGF.or.negf%tranas%cont(icont)%tWriteSurfaceGF) then
@@ -1773,7 +1775,7 @@ contains
     Type(z_CSR) :: Gr_previous
     !DAR end
 
-    call compute_contacts(Ec+(0.d0,1.d0)*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
  
     call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 

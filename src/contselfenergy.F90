@@ -40,7 +40,7 @@ module ContSelfEnergy
  implicit none
  private
  
- integer, PARAMETER :: VBT=99
+ integer, PARAMETER :: VBT=70                                      !DAR 99 -> 70
 
   public :: surface_green !surface_green_2 
   public :: SelfEnergy

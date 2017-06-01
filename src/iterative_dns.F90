@@ -46,6 +46,7 @@ MODULE iterative_dns
   USE elph
   USE ln_structure, only : TStruct_Info
   USE lib_param, only : MAXNCONT, Tnegf, intarray
+  use mpi_globals, only : id, numprocs, id0                                 !DAR
   USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
   USE clock
   !USE transform
@@ -559,6 +560,7 @@ CONTAINS
 !!$    call init_blkmat(Gp,ESH)
 !!$    
 !!$    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,pnegf%str,Gp)
+
 !!$    deallocate(cfrm)
 !!$    
 !!$    call Make_Gp_ph(pnegf,ESH,iter,Gp)
@@ -638,7 +640,7 @@ CONTAINS
     LOGICAL :: mask(MAXNCONT)
     REAL(dp), DIMENSION(:), allocatable :: cfrm
 
-    !print *, 'debug: iterative_meir_wingreen is started'
+    if (id0.and.pnegf%verbose.gt.80) print *, 'iterative_meir_wingreen is started'
     
     nbl = pnegf%str%num_PLs
     ncont = pnegf%str%num_conts
@@ -778,7 +780,7 @@ CONTAINS
     CALL destroy_ESH(ESH)
     DEALLOCATE(ESH)
 
-    !print *, 'debug: iterative_meir_wingreen is finished'
+    if (id0.and.pnegf%verbose.gt.80) print *, 'iterative_meir_wingreen is finished'
 
   end subroutine iterative_meir_wingreen
 
@@ -800,7 +802,7 @@ integer :: INFO                                       ! LAPACK
 integer, allocatable :: IPIV(:)                       ! LAPACK
 complex, allocatable :: GG(:,:),WORK(:)               ! LAPACK
 
-!print *, 'debug: transmission_BP_corrected is started'
+if (id0.and.negf%verbose.gt.80) print *, 'transmission_BP_corrected is started'
 
 NumLevels=negf%str%central_dim
 
@@ -883,7 +885,7 @@ do mm=0,NumLevels+1
 !   end do
 
    !write(*,"('Trans(',I0,',',I0,',',I0,')=',F12.6)")nn,mm,i,Trans(nn,mm,i)
-   !write(*,"('    T(',I0,',',I0,') is calculated')")nn,mm
+   if (id0.and.negf%verbose.gt.90) write(*,"('    T(',I0,',',I0,') is calculated')")nn,mm
 end do
 end do
 
@@ -893,7 +895,7 @@ do n=0,NumLevels+1
       if(m.ne.n) R(n)=R(n)-Trans(m,n)
    end do
    !write(*,"('R(',I0,',',I0,')=',F12.6)")n,i,R(n,i)
-   !write(*,"('    R(',I0,') is calculated')")n
+   if (id0.and.negf%verbose.gt.90) write(*,"('    R(',I0,') is calculated')")n
 end do
 
 do n=1,NumLevels
@@ -902,7 +904,7 @@ do m=1,NumLevels
 end do
 W(n,n)=W(n,n)+1-R(n)+Trans(n,n)
 end do
-!write(*,"('    W is calculated')")
+if (id0.and.negf%verbose.gt.90) write(*,"('    W is calculated')")
 
 GG=W
 
@@ -911,7 +913,7 @@ call CGETRI(NumLevels,GG,NumLevels,IPIV,WORK,NumLevels,INFO)
 
 W=GG
  
-!write(*,"('    W is inverted')")
+if (id0.and.negf%verbose.gt.90) write(*,"('    W is inverted')")
   
 Transmission=Trans(0,NumLevels+1)
 do n=1,NumLevels
@@ -920,13 +922,13 @@ do m=1,NumLevels
 end do
 end do
 
-!print *, 'Transmission(',negf%iE,')=',Transmission
+if (id0.and.negf%verbose.gt.90) print *, 'Transmission(',negf%iE,')=',Transmission
 
 negf%tunn_mat_bp(negf%iE,1)=Transmission
 
 deallocate(Trans,Gam1,Gam2,W,R,GG,WORK,IPIV,GreenR,SigmaR)
 
-!print *, 'debug: transmission_BP_corrected is finished'
+if (id0.and.negf%verbose.gt.80) print *, 'transmission_BP_corrected is finished'
  
 end subroutine transmission_BP_corrected
 
