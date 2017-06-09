@@ -288,7 +288,7 @@ contains
     integer :: niter
     
     call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
-    allocate(negf%inter, source=elphdb_tmp)
+    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphdb_tmp)
 
   end subroutine set_elph_block_dephasing
 
@@ -303,7 +303,7 @@ contains
     integer :: niter
 
     call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
-    allocate(negf%inter, source=elphds_tmp)
+    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphds_tmp)
 
   end subroutine set_elph_s_dephasing
 
