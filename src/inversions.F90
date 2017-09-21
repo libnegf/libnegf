@@ -36,7 +36,8 @@ private
 INTEGER :: t1_i,t2_I,cr_i,cm_i,t1_ii,t2_ii,cr_ii,cm_ii
 LOGICAL, PARAMETER :: timing=.FALSE.
 
-public :: ZMSKINVP_LA,  ZMSKINVP_MA, zINVP_MA
+! SPARSKIT iterative solvers removed (Alex)
+!public :: ZMSKINVP_LA,  ZMSKINVP_MA, zINVP_MA
 public :: zINV_LAPACK
 #ifdef __SUPERLU
 public :: zINV_LU
@@ -103,9 +104,6 @@ contains
 
   end subroutine compGreen_arr
 
-!DEBUGGED AND COMPLETE***************************************************
-
-!DEBUGGED AND COMPLETE***************************************************
 
 !******************************************************
 !                                                     | 
@@ -113,7 +111,7 @@ contains
 !                                                     |
 !******************************************************
 
-subroutine ZMSKINVP_LA(A_csr, M_csc, INV_csc)
+!subroutine ZMSKINVP_LA(A_csr, M_csc, INV_csc)
 
 !*************************************************************************
 !Calculate the inverted of A_csr matrix in CSR format masked             |
@@ -128,188 +126,188 @@ subroutine ZMSKINVP_LA(A_csr, M_csc, INV_csc)
 !Note for allocation: INV_csc has the same dimension of M_csc            |
 !*************************************************************************
 
-integer :: i, j, index_start, index_end, row_index, nzval_address  
-integer :: ierr, LU_iwk, iout
-type(z_CSR) :: A_csr
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
-type(z_MSR) :: LU_msr
-integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
-type(z_CSC) :: M_csc, INV_csc
+!integer :: i, j, index_start, index_end, row_index, nzval_address  
+!integer :: ierr, LU_iwk, iout
+!type(z_CSR) :: A_csr
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!type(z_MSR) :: LU_msr
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!type(z_CSC) :: M_csc, INV_csc
 
 !Define parameters for PGMRES and FILTER calls
 !im = krylov subspace dimension for PGMRES solver
 !maxits = maximum iterations number allowed in PGMRES solver
 !eps = maximum allowed error in PGMRES solver
+!
+!integer :: im=15, maxits=35
+!real(kind=dp), PARAMETER :: eps=1e-16
+!
+!
+!write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
+!  
+!  LU_iwk=A_csr%nnz+1
+!  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
+!  call log_allocate(LU_ju,A_csr%nrow)
+!  call log_allocate(LU_levs,LU_iwk) 
+!  !End Allocation
+!    
+!write(*,*)  "Call LU0 preconditioning for pgmres solver"
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
+!  
+!   call log_deallocate(LU_levs)
+!  
+!  nzval_address=1
+!  INV_csc%rowind=M_csc%rowind
+!  INV_csc%colpnt=M_csc%colpnt
+!
+!write(*,*) "Allocations and initializations for PGMRES solver"
+!write(*,*) im*A_csr%nrow+1
+!  iout=0
+!
+!  call log_allocate(vv,im*A_csr%nrow+1) 
+! call log_allocate(x,A_csr%nrow)
+! call log_allocate(y,A_csr%nrow)  
+! 
+! x(:)=(0.d0,0.d0) !Solution initial guess
+!
+! do i=1,A_csr%nrow
+!
+!    y(:)=(0.d0,0.d0)
+!    y(i)=(1.d0,0.d0)
+!
+!    !Call iterative approssimative solver PGMRES
+!    call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
+!          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
+!
+!    if (ierr.ne.0) then
+!       write(*,*)'Error number ',ierr,' in pgmres linear solver'
+!    endif
+!
+!    index_start=M_csc%colpnt(i)
+!    index_end=M_csc%colpnt(i+1)
+!
+!    do j=index_start,index_end-1
+!
+!       row_index=M_csc%rowind(j)
+!       INV_csc%nzval(nzval_address)=x(row_index)
+!       nzval_address=nzval_address+1
+!    enddo
+!
+! enddo
+! 
+!write(*,*) "Work arrays and structures deallocation"
+! call destroy(LU_msr)
+! call log_deallocate(vv)
+! call log_deallocate(LU_ju)
+! call log_deallocate(x)
+!  call log_deallocate(y)
 
-integer :: im=15, maxits=35
-real(kind=dp), PARAMETER :: eps=1e-16
-
-
-write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
-  
-  LU_iwk=A_csr%nnz+1
-  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
-  call log_allocate(LU_ju,A_csr%nrow)
-  call log_allocate(LU_levs,LU_iwk) 
-  !End Allocation
-    
-write(*,*)  "Call LU0 preconditioning for pgmres solver"
-  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-  
-  call log_deallocate(LU_levs)
-  
-  nzval_address=1
-  INV_csc%rowind=M_csc%rowind
-  INV_csc%colpnt=M_csc%colpnt
-
-write(*,*) "Allocations and initializations for PGMRES solver"
-write(*,*) im*A_csr%nrow+1
-  iout=0
-
-  call log_allocate(vv,im*A_csr%nrow+1) 
-  call log_allocate(x,A_csr%nrow)
-  call log_allocate(y,A_csr%nrow)  
-  
-  x(:)=(0.d0,0.d0) !Solution initial guess
-
-  do i=1,A_csr%nrow
-
-     y(:)=(0.d0,0.d0)
-     y(i)=(1.d0,0.d0)
-
-     !Call iterative approssimative solver PGMRES
-     call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
-          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
-
-     if (ierr.ne.0) then
-        write(*,*)'Error number ',ierr,' in pgmres linear solver'
-     endif
-
-     index_start=M_csc%colpnt(i)
-     index_end=M_csc%colpnt(i+1)
-
-     do j=index_start,index_end-1
-
-        row_index=M_csc%rowind(j)
-        INV_csc%nzval(nzval_address)=x(row_index)
-        nzval_address=nzval_address+1
-     enddo
-
-  enddo
-  
- write(*,*) "Work arrays and structures deallocation"
-  call destroy(LU_msr)
-  call log_deallocate(vv)
-  call log_deallocate(LU_ju)
-  call log_deallocate(x)
-  call log_deallocate(y)
-
-
-END subroutine ZMSKINVP_LA
-
-
+ 
+!END subroutine ZMSKINVP_LA
+ 
+ 
 !*************************************************************************
 !                                                                        | 
 !  PGMRES based inversion subroutine with masking and more arguments     |
 !                                                                        |
 !*************************************************************************
+!
+!subroutine ZMSKINVP_MA(A_csr, M_csc, INV_csc, im, maxits, eps)
+!
+!
+!!*************************************************************************
+!!Calculate the inverted of A_csr matrix in CSR format masked             |
+!!with M_csc matrix in CSC format. Result is INV_csc in CSC format.       |
+!!                                                                        |
+!!Input:                                                                  |
+!!A_csr: Matrix to be inverted in Real CSR format                         |
+ !M_csc: Mask matrix in csc format                                        |
+!!im: krylov subspace dimension for PGMRES solver                         |
+!!maxits: maximum iterations number for PGMRES solver                     |
+!!eps: error allowed in PGMRES solver                                     |
+!!Output:                                                                 |
+!!INV_csc: Inverted masked matrix                                         |
+!!*************************************************************************
+!
+!integer :: i, j, index_start, index_end, row_index, nzval_address  
+!integer :: ierr, LU_iwk, iout
+!type(z_CSR) :: A_csr
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!type(z_MSR) :: LU_msr
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!type(z_CSC) :: M_csc, INV_csc
+!
+!integer :: im, maxits
+!real(kind=dp) :: eps
+!
+!
+!write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
+!  
+!  LU_iwk=A_csr%nnz+1
+!  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
+!  call log_allocate(LU_ju,A_csr%nrow)
+!  call log_allocate(LU_levs,LU_iwk) 
+!  !End Allocation
+!    
+!write(*,*)  "Call LU0 preconditioning for pgmres solver"
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
+!  
+!  call log_deallocate(LU_levs)
+!  
+!  nzval_address=1
+!  INV_csc%rowind=M_csc%rowind
+!  INV_csc%colpnt=M_csc%colpnt
+!
+!write(*,*) "Allocations and initializations for PGMRES solver"
+!write(*,*) im*A_csr%nrow+1
+!  iout=0
+!
+!  call log_allocate(vv,im*A_csr%nrow+1) 
+!  call log_allocate(x,A_csr%nrow)
+!  call log_allocate(y,A_csr%nrow)  
+!  
+!  x(:)=(0.d0, 0.d0) !Solution initial guess
+!
+!  do i=1,A_csr%nrow
+!
+!     y(:)=(0.d0, 0.d0)
+!     y(i)=(1.d0, 0.d0)
+!
+!     !Call iterative approssimative solver PGMRES
+!     call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
+!          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
+!
+!     if (ierr.ne.0) then
+!        write(*,*)'Error number ',ierr,' in pgmres linear solver'
+!     endif
+!
+!     index_start=M_csc%colpnt(i)
+!     index_end=M_csc%colpnt(i+1)
+!
+!     do j=index_start,index_end-1
+!
+!         row_index=M_csc%rowind(j)
+!        INV_csc%nzval(nzval_address)=x(row_index)
+!        nzval_address=nzval_address+1
+!     enddo
 
-subroutine ZMSKINVP_MA(A_csr, M_csc, INV_csc, im, maxits, eps)
-
-
-!*************************************************************************
-!Calculate the inverted of A_csr matrix in CSR format masked             |
-!with M_csc matrix in CSC format. Result is INV_csc in CSC format.       |
-!                                                                        |
-!Input:                                                                  |
-!A_csr: Matrix to be inverted in Real CSR format                         |
-!M_csc: Mask matrix in csc format                                        |
-!im: krylov subspace dimension for PGMRES solver                         |
-!maxits: maximum iterations number for PGMRES solver                     |
-!eps: error allowed in PGMRES solver                                     |
-!Output:                                                                 |
-!INV_csc: Inverted masked matrix                                         |
-!*************************************************************************
-
-integer :: i, j, index_start, index_end, row_index, nzval_address  
-integer :: ierr, LU_iwk, iout
-type(z_CSR) :: A_csr
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
-type(z_MSR) :: LU_msr
-integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
-type(z_CSC) :: M_csc, INV_csc
-
-integer :: im, maxits
-real(kind=dp) :: eps
-
-
-write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
+!  enddo
   
-  LU_iwk=A_csr%nnz+1
-  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
-  call log_allocate(LU_ju,A_csr%nrow)
-  call log_allocate(LU_levs,LU_iwk) 
-  !End Allocation
-    
-write(*,*)  "Call LU0 preconditioning for pgmres solver"
-  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-  
-  call log_deallocate(LU_levs)
-  
-  nzval_address=1
-  INV_csc%rowind=M_csc%rowind
-  INV_csc%colpnt=M_csc%colpnt
-
-write(*,*) "Allocations and initializations for PGMRES solver"
-write(*,*) im*A_csr%nrow+1
-  iout=0
-
-  call log_allocate(vv,im*A_csr%nrow+1) 
-  call log_allocate(x,A_csr%nrow)
-  call log_allocate(y,A_csr%nrow)  
-  
-  x(:)=(0.d0, 0.d0) !Solution initial guess
-
-  do i=1,A_csr%nrow
-
-     y(:)=(0.d0, 0.d0)
-     y(i)=(1.d0, 0.d0)
-
-     !Call iterative approssimative solver PGMRES
-     call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
-          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
-
-     if (ierr.ne.0) then
-        write(*,*)'Error number ',ierr,' in pgmres linear solver'
-     endif
-
-     index_start=M_csc%colpnt(i)
-     index_end=M_csc%colpnt(i+1)
-
-     do j=index_start,index_end-1
-
-        row_index=M_csc%rowind(j)
-        INV_csc%nzval(nzval_address)=x(row_index)
-        nzval_address=nzval_address+1
-     enddo
-
-  enddo
-  
- write(*,*) "Work arrays and structures deallocation"
-  call destroy(LU_msr)
-  call log_deallocate(vv)
-  call log_deallocate(LU_ju)
-  call log_deallocate(x)
-  call log_deallocate(y)
-
-
-END subroutine ZMSKINVP_MA
+! write(*,*) "Work arrays and structures deallocation"
+!  call destroy(LU_msr)
+!  call log_deallocate(vv)
+!  call log_deallocate(LU_ju)
+!  call log_deallocate(x)
+!  call log_deallocate(y)
+!
+!
+!END subroutine ZMSKINVP_MA
 
 
 !**************************************************************
@@ -317,98 +315,99 @@ END subroutine ZMSKINVP_MA
 !  PGMRES based inversion without masking and more arguments  |
 !                                                             |
 !**************************************************************
-
-subroutine zINVP_MA(A_csr, INV, nrow, im, maxits, eps)
-
-!*************************************************************************
-!Calculate the inverted of A_csr matrix in CSR format                    |
-!Result is INV in dense format.                                          |
-!                                                                        |
-!Input:                                                                  |
-!A_csr: Matrix to be inverted in Real CSR format                         |                                       
-!im: krylov subspace dimension for PGMRES solver                         |
-!maxits: maximum iterations number for PGMRES solver                     |
-!eps: error allowed in PGMRES solver                                     |
-!nrow: INV matrix number of rows                                         |
-!Output:                                                                 |
-!INV: Inverted matrix                                                    |
-!*************************************************************************
-
-integer :: i
-integer :: nrow, ierr, LU_iwk, iout
-type(z_CSR) :: A_csr
-complex(kind=dp), DIMENSION(nrow,nrow) :: INV
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
-type(z_MSR) :: LU_msr
-integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
-
-integer :: im, maxits
-real(kind=dp) :: eps
-
-if (nrow.ne.A_csr%nrow) then
-  stop 'Error in INVP_MA: INV must have same number of rows of A_csr'
-endif
-  
-write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
-  
-  LU_iwk=A_csr%nnz+1
-  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk-1)
-  call log_allocate(LU_ju,A_csr%nrow)
-  call log_allocate(LU_levs,LU_iwk) 
-  !End Allocation
-    
-write(*,*)  "Call LU0 preconditioning for pgmres solver"
-  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-  
-  call log_deallocate(LU_levs)
-  
-!Debug
-write(*,*) "Allocations and initializations for PGMRES solver"
-!EndDebug
-  iout=0
-  
-  call log_allocate(vv,im*A_csr%nrow+1) 
-  call log_allocate(x,A_csr%nrow)
-  call log_allocate(y,A_csr%nrow)  
-  
-  x(:)=(0.d0, 0.d0) !Solution initial guess
-
-  do i=1,A_csr%nrow
-
-     y(:)=(0.d0, 0.d0)
-     y(i)=(1.d0, 0.d0)
-
-     !Call iterative approssimative solver PGMRES
-     call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
-          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
-
-     if (ierr.ne.0) then
-        write(*,*)'Error number ',ierr,' in pgmres linear solver'
-        if (ierr.eq.1) then
-          write(*,*) 'Convergence not achieved in the allowed number of iterations'
-        endif
-        if (ierr.eq.(-1)) then
-          write(*,*) 'The initial guess (x=0) seems to be the exact solution'
-        endif
-     endif
-
-     INV(:,i)=x(:)  
-
-  enddo
-  
-  call destroy(LU_msr)
-  call log_deallocate(LU_ju)
-  call log_deallocate(x)
-  call log_deallocate(y)
-  call log_deallocate(vv)
-  !Debug
-  write(*,*)'INVP_MA Done'
-  !EndDebug
-
-end subroutine zINVP_MA
+!
+!subroutine zINVP_MA(A_csr, INV, nrow, im, maxits, eps)
+!
+!!*************************************************************************
+!!Calculate the inverted of A_csr matrix in CSR format                    |
+!!Result is INV in dense format.                                          |
+!!                                                                        |
+!!Input:                                                                  |
+!!A_csr: Matrix to be inverted in Real CSR format                         |                                       
+!!im: krylov subspace dimension for PGMRES solver                         |
+!!maxits: maximum iterations number for PGMRES solver                     |
+!!eps: error allowed in PGMRES solver                                     |
+!!nrow: INV matrix number of rows                                         |
+!!Output:                                                                 |
+!!INV: Inverted matrix                                                    |
+ !*************************************************************************
+!
+!integer :: i
+!integer :: nrow, ierr, LU_iwk, iout
+!type(z_CSR) :: A_csr
+!complex(kind=dp), DIMENSION(nrow,nrow) :: INV
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!type(z_MSR) :: LU_msr
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!
+!integer :: im, maxits
+!real(kind=dp) :: eps
+!
+!if (nrow.ne.A_csr%nrow) then
+!  stop 'Error in INVP_MA: INV must have same number of rows of A_csr'
+!endif
+!  
+!write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
+!  
+!  LU_iwk=A_csr%nnz+1
+!  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk-1)
+!  call log_allocate(LU_ju,A_csr%nrow)
+!  call log_allocate(LU_levs,LU_iwk) 
+!  !End Allocation
+!    
+!write(*,*)  "Call LU0 preconditioning for pgmres solver"
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
+!  
+!  call log_deallocate(LU_levs)
+!  
+!!Debug
+!write(*,*) "Allocations and initializations for PGMRES solver"
+!!EndDebug
+!  iout=0
+!  
+!  call log_allocate(vv,im*A_csr%nrow+1) 
+!  call log_allocate(x,A_csr%nrow)
+!  call log_allocate(y,A_csr%nrow)  
+!  
+!  x(:)=(0.d0, 0.d0) !Solution initial guess
+!
+!  do i=1,A_csr%nrow
+!
+!     y(:)=(0.d0, 0.d0)
+!     y(i)=(1.d0, 0.d0)
+!
+!     !Call iterative approssimative solver PGMRES
+!     call zpgmres(A_csr%nrow, im, y, x, vv, eps, maxits, iout, A_csr%nzval, A_csr%colind, &
+!          A_csr%rowpnt, LU_msr%nzval, LU_msr%index, LU_ju, ierr)
+!
+!     if (ierr.ne.0) then
+!        write(*,*)'Error number ',ierr,' in pgmres linear solver'
+!        if (ierr.eq.1) then
+!          write(*,*) 'Convergence not achieved in the allowed number of iterations'
+!        endif
+!        if (ierr.eq.(-1)) then
+!          write(*,*) 'The initial guess (x=0) seems to be the exact solution'
+!        endif
+!     endif
+!
+!     INV(:,i)=x(:)  
+!
+!  enddo
+!  
+!  call destroy(LU_msr)
+!  call log_deallocate(LU_ju)
+!  call log_deallocate(x)
+!  call log_deallocate(y)
+!  call log_deallocate(vv)
+   !Debug
+!  write(*,*)'INVP_MA Done'
+   !EndDebug
+!
+!end subroutine zINVP_MA
+!
 
 #ifdef __SUPERLU
 !*********************************************

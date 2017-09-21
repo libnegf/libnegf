@@ -26,7 +26,7 @@ module libnegf
  use ln_allocation
  use lib_param
  use globals, only : LST
- use mpi_globals, only : id, numprocs, id0
+ use mpi_globals, only : id, numprocs, id0, negf_mpi_init
  use input_output
  use ln_structure
  use rcm_module
@@ -39,6 +39,8 @@ module libnegf
 
  implicit none
  private
+
+ public :: id0, negf_mpi_init
 
  !Input and work flow procedures
  public :: lnParams
@@ -70,7 +72,7 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
-
+ 
  public ::  write_tunneling_and_dos ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed 
                                     ! by calling program
@@ -161,6 +163,8 @@ module libnegf
    character(kind=c_char, len=1) :: dore  ! Density or En.Density
    !> Reference contact is set to maximum or minimum Fermi level
    integer(c_int) :: min_or_max
+   !> Wether S is an identity matrix
+   logical(c_bool) :: isSid
  end type lnparams
   !-----------------------------------------------------------------------------
 
@@ -183,7 +187,7 @@ contains
     negf%form%type = "PETSc" 
     negf%form%fmt = "F" 
 
-   end subroutine init_negf
+  end subroutine init_negf
 
    !!===================================================================
    !! INPUT Routines
@@ -354,8 +358,8 @@ contains
     type(z_CSR), optional, target :: S
 
     negf%H => H
-    if (present(S)) then
-       negf%S => S      
+    if (present(S)) then   
+       negf%S => S   
     else
        negf%isSid=.true.
        allocate(negf%S)
@@ -394,6 +398,7 @@ contains
     negf%intHS = .true.
 
   end subroutine copy_HS
+  
   !!-------------------------------------------------------------------
   !! Setting structure and partitioning
   !!-------------------------------------------------------------------
@@ -493,6 +498,7 @@ contains
     params%iteration = negf%iteration
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
+    params%isSid = negf%isSid
 
   end subroutine get_params
 
@@ -532,12 +538,12 @@ contains
     negf%iteration = params%iteration
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
+    negf%isSid = params%isSid
     !! Some internal variables in libnegf are set internally 
     !! after parameters are available
     call set_ref_cont(negf)
 
   end subroutine set_params
-
 
   !--------------------------------------------------------------------
   ! LDOS methods: you can set N index intervals OR N separate index 
@@ -618,8 +624,8 @@ contains
   ! negf%mpicomm = mpicomm
   !
   !end subroutine
-  ! -------------------------------------------------------------------
-   
+  
+  ! -------------------------------------------------------------------   
   subroutine set_convfactor(negf, eneconv)
     type(Tnegf) :: negf
     real(dp) :: eneconv
@@ -638,8 +644,8 @@ contains
     negf%contact_DOS(cont) = DOS
 
   end subroutine set_fictcont
-  ! -------------------------------------------------------------------
-
+  
+  ! ------------------------------------------------------------------
   subroutine set_iteration(negf,iter)
     type(Tnegf) :: negf
     integer :: iter
@@ -653,15 +659,15 @@ contains
     character(1) :: DorE           !Density or En.Density
 
     negf%DorE=DorE
-  end subroutine set_computation      
+  end subroutine set_computation
+  
   ! -------------------------------------------------------------------
-
   subroutine set_readOldSGF(negf,flag) 
     type(Tnegf) :: negf
     integer :: flag
 
     negf%ReadoldSGF=flag
-  end subroutine set_readoldsgf    
+  end subroutine set_readoldsgf
   
   ! -------------------------------------------------------------------
 
@@ -684,6 +690,7 @@ contains
     read(101,*) tmp, file_im_S
 
     call read_HS(negf, file_re_H, file_im_H, 0)
+    negf%H%nzval=negf%H%nzval/27.21138469   !DAR
     if (trim(file_re_S).eq.'identity') then
          negf%isSid = .true.
          call set_S_id(negf, negf%H%nrow)
@@ -731,6 +738,7 @@ contains
     read(101,*)  tmp, negf%g_spin
     read(101,*)  tmp, negf%delta
     read(101,*)  tmp, negf%nLDOS
+    deallocate(negf%LDOS)   !DAR
     allocate(negf%LDOS(negf%nLDOS))
     do ii = 1, negf%nLDOS
       read(101,*) tmp, ist, iend
@@ -750,8 +758,8 @@ contains
     !print*, '(init NEGF) done'
 
   end subroutine read_negf_in
-!--------------------------------------------------------------------
-
+ 
+  !-------------------------------------------------------------------- 
   subroutine negf_version(negf)
     type(Tnegf) :: negf
     !character(3), parameter :: SVNVER= __SVNREVISION 
@@ -765,7 +773,7 @@ contains
   end subroutine negf_version
 
 !--------------------------------------------------------------------
-   subroutine negf_partition_info(negf)
+  subroutine negf_partition_info(negf)
       type(Tnegf) :: negf
        
       integer :: i
@@ -782,7 +790,7 @@ contains
         enddo
       close(1001)
 
- end subroutine negf_partition_info
+  end subroutine negf_partition_info
 
   !--------------------------------------------------------------------
   !> Destroy all the info defined in initialization. 
@@ -1039,7 +1047,7 @@ contains
     
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
-    
+   
     !Decide what to do with surface GFs.
     !sets readOldSGF: if it is 0 or 1 it is left so 
     if (negf%readOldSGF.eq.2) then
@@ -1151,7 +1159,7 @@ contains
   !-------------------------------------------------------------------------------
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
-    
+       
     call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
@@ -1164,7 +1172,7 @@ contains
   subroutine compute_current(negf)
 
     type(Tnegf) :: negf
-    
+
     integer :: flagbkup
 
     flagbkup = negf%readOldSGF
@@ -1172,14 +1180,14 @@ contains
        negf%readOldSGF = 1
     end if
 
-    if (.not.allocated(negf%inter)) then
-      call compute_landauer(negf)
-  else
-      call compute_meir_wingreen(negf)
-  endif
-    
+    if ((.not.allocated(negf%inter)).and.(.not.negf%tDephasingBP)) then
+       call compute_landauer(negf);
+    else
+       call compute_meir_wingreen(negf);
+    endif
+
     negf%readOldSGF = flagbkup
-    
+
   end subroutine compute_current
 
   !-------------------------------------------------------------------------------
@@ -1195,7 +1203,7 @@ contains
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
     call tunneling_and_dos(negf)
-    call electron_current(negf)
+    call electron_current(negf)                   
     call destroy_matrices(negf)
 
   end subroutine compute_landauer
@@ -1211,8 +1219,8 @@ contains
     call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    !call meir_wingreen(negf)
-    call electron_current(negf)
+    call meir_wingreen(negf)
+    call electron_current_meir_wingreen(negf)                               !DAR
     call destroy_matrices(negf)
 
   end subroutine compute_meir_wingreen
@@ -1314,7 +1322,7 @@ contains
         write(ofKP,'(i6.6)') negf%kpoint
         write(idstr,'(i6.6)') id
         
-        open(1021,file=trim(negf%out_path)//'LEDOS_'//ofKP//'_'//idstr//'.dat')
+        open(1021,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat')  !DAR
         
         do i = 1,Nstep
           
@@ -1394,7 +1402,7 @@ contains
     else
       negf%muref = negf%mu(1)
       negf%refcont = 1  
-    endif  
+    endif
      
   end subroutine set_ref_cont
 

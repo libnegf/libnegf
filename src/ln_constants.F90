@@ -62,7 +62,7 @@ module ln_constants
   ! Heat conductance quantum:  
   ! Note, g0= 9.464309602837370d-013 W/K^2*T with these units
   ! This contrast literature: g0 = 9.456d-13 W/K^2 T
-  real(dp), parameter    :: g0= (pi**2)*Kb*Kb/(3.d0*hh) *ee ! W/K^2*T
+  real(dp), parameter    :: g0= (pi**2)*Kb*Kb/(3.0_dp*hh) *ee ! W/K^2*T
 
   ! electric conductance quantum:  
   real(dp), parameter    :: Go= 2*ee/hh                   ! A/V 

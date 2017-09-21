@@ -33,6 +33,7 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create 
   use elphdb, only : ElPhonDephB, ElPhonDephB_create
   use elphds, only : ElPhonDephS, ElPhonDephS_create
+  !use libmpifx_module, only : mpifx_comm
 
   implicit none
   private
@@ -67,8 +68,58 @@ module lib_param
      integer :: cpu
      complex(dp) :: Ec
      complex(dp) :: wght
- end type TEnGrid
+  end type TEnGrid
 
+  !DAR begin - in Tnegf
+  !-----------------------------------------------------------------------------
+
+  type :: Tdeph_bp
+
+     real(dp), allocatable, dimension(:) :: coupling
+     
+  end type Tdeph_bp
+
+  type :: Tdephasing
+
+     type(Tdeph_bp) :: bp
+     
+  end type Tdephasing
+
+  type Tcontact
+
+     character(132) :: name
+     logical :: tWriteSelfEnergy = .false.
+     logical :: tReadSelfEnergy = .false.
+     complex(kind=dp), dimension(:,:,:), allocatable :: SelfEnergy ! Electrode Self-Energy
+     logical :: tWriteSurfaceGF = .false.
+     logical :: tReadSurfaceGF = .false.
+     complex(kind=dp), dimension(:,:,:), allocatable :: SurfaceGF ! Electrode Surface Green Function
+
+  end type Tcontact
+
+  type Telectrons
+
+     integer :: IndexEnergy
+
+  end type Telectrons
+
+  type Toutput
+
+     logical :: tWriteDOS = .false.
+     logical :: tDOSwithS = .false.
+
+  end type Toutput
+
+  type Ttranas
+
+     type(Telectrons) :: e
+     type(Tcontact), dimension(:), allocatable :: cont
+     type(Toutput) :: out 
+
+  end type Ttranas
+
+  !-----------------------------------------------------------------------------
+  !DAR - end
 
  !> General libnegf container
  !! Contains input data, runtime quantities and output data
@@ -172,9 +223,39 @@ module lib_param
    !! Output variables: these are filled by internal subroutines to stor
    !! library output
    real(dp), dimension(:,:), pointer :: tunn_mat => null()
+   real(dp), dimension(:,:), pointer :: tunn_mat_bp => null()               !DAR
    real(dp), dimension(:,:), pointer :: ldos_mat => null()
    real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
-   
+
+   !DAR begin - in Tnegf
+   !----------------------------------------------------------------------------
+   logical :: tNoGeometry = .false.
+   logical :: tWriteDFTB = .false.
+   logical :: tReadDFTB = .false.
+   logical :: tOrthonormal = .false.
+   logical :: tOrthonormalDevice = .false.
+   logical :: tModel = .false.
+   logical :: tRead_negf_in = .false.
+   logical :: tTrans = .false.
+   logical :: tCalcSelfEnergies = .true.
+   integer :: NumStates       
+   character(len=LST) :: FileName
+   real(kind=dp), dimension(:,:), allocatable :: H_dev
+   real(kind=dp), dimension(:,:), allocatable :: S_dev
+   real(kind=dp), dimension(:,:), allocatable :: H_all
+   real(kind=dp), dimension(:,:), allocatable :: S_all
+   logical :: tManyBody = .false.
+   logical :: tElastic = .true.
+   logical :: tDephasingVE = .false.
+   logical :: tDephasingBP = .false.
+   logical :: tZeroCurrent = .false.
+   integer :: MaxIter = 1000
+   logical :: tWrite_ldos = .false.
+   logical :: tWrite_negf_params = .false.
+   type(Ttranas) :: tranas
+   type(Tdephasing) :: deph
+   !----------------------------------------------------------------------------
+   !DAR end
 
  end type Tnegf
 
@@ -185,19 +266,21 @@ contains
   !> Set values for the local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
+
     type(Tnegf) :: negf
     type(ElPhonDephD) :: elphdd_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer :: niter
     
     call elphondephd_create(elphdd_tmp, negf%str, coupling, niter, 1.0d-7)
-    allocate(negf%inter, source=elphdd_tmp)
+    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphdd_tmp)
 
   end subroutine set_elph_dephasing
 
   !> Set values for the semi-local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
+
     type(Tnegf) :: negf
     type(ElPhonDephB) :: elphdb_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
@@ -205,21 +288,22 @@ contains
     integer :: niter
     
     call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
-    allocate(negf%inter, source=elphdb_tmp)
+    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphdb_tmp)
 
   end subroutine set_elph_block_dephasing
 
  !> Set values for the semi-local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
+
     type(Tnegf) :: negf
     type(ElPhonDephS) :: elphds_tmp
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
     integer :: niter
-    
+
     call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
-    allocate(negf%inter, source=elphds_tmp)
+    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphds_tmp)
 
   end subroutine set_elph_s_dephasing
 
@@ -236,7 +320,6 @@ contains
 
   end subroutine destroy_elph_model
 
-  
   subroutine set_defaults(negf)
     type(Tnegf) :: negf    
 
@@ -271,15 +354,15 @@ contains
      negf%intDM = .true.
 
      negf%delta = 1.d-4      ! delta for G.F. 
-     negf%dos_delta = 1.d-4      ! delta for DOS 
+     negf%dos_delta = 1.d-4  ! delta for DOS 
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%kbT = 0.d0        ! electronic temperature
-     negf%g_spin = 2.d0        ! spin degeneracy
+     negf%kbT = 0.d0         ! electronic temperature
+     negf%g_spin = 2.d0      ! spin degeneracy
 
-     negf%Np_n = (/20, 20/)   ! Number of points for n 
-     negf%Np_p = (/20, 20/)   ! Number of points for p 
+     negf%Np_n = (/20, 20/)  ! Number of points for n 
+     negf%Np_p = (/20, 20/)  ! Number of points for p 
      negf%n_kt = 10          ! Numero di kT per l'integrazione
      negf%n_poles = 3        ! Numero di poli 
      negf%iteration = 1      ! Iterazione (SCC)
@@ -288,7 +371,7 @@ contains
      negf%ni(1) = 1
      negf%nf = 0             ! nf
      negf%nf(1) = 2          !
-     negf%min_or_max = 1         ! Set reference cont to max(mu)  
+     negf%min_or_max = 1     ! Set reference cont to max(mu)  
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer = 2          ! Compute full D.M. L,U extra
      negf%dumpHS = .false.

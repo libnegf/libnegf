@@ -104,8 +104,6 @@ module interactions
 
   end interface
 
-!contains
-
     !> Initialize information needed for buffering G on memory or disk
     !  Now it only pass the number of energy grid points but it 
     !  could turn in something more complicated (e.g. an energy path object)
