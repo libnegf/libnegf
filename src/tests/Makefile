@@ -125,6 +125,9 @@ testcomplex: testcomplexband.F90 $(LIBNEGF) $(MODULES)
 	$(FC90) $(FC90OPT) -c testcomplexband.F90 
 	$(FC) $(LINKFLAG)  -o $@  testcomplexband.o $(LIBNEGF) $(LIBS)
 	
+testfermi: testfermi.F90 $(LIBNEGF) $(MODULES)
+	$(FC90) $(FC90OPT) -c testfermi.F90 
+	$(FC) $(LINKFLAG)  -o $@  testfermi.o $(LIBNEGF) $(LIBS)
 
 clean: 
 	(rm -f ifc* work* core .f90 *.mod *.o; )
