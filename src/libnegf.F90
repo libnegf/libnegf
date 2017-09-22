@@ -40,6 +40,7 @@ module libnegf
  implicit none
  private
 
+ public :: Tnegf, z_CSR
  public :: id0, negf_mpi_init
 
  !Input and work flow procedures
