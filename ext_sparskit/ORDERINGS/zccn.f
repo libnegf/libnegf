@@ -1,30 +1,3 @@
-!!--------------------------------------------------------------------------!
-!! ComplexSPARSKIT                                                          ! 
-!!                                                                          !
-!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
-!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
-!! Copyright (C) 2005, the Regents of the University of Minnesota           !
-!!                                                                          !
-!! The original library has been modified starting from 2006                !
-!! to offer floating complex support. All the additional and                !
-!! modified code has been written by:                                       !
-!!                                                                          !
-!! Alessandro Pecchia, Gabriele Penazzi                                     !  
-!! Copyright (C) 2006                                                       !
-!!                                                                          !
-!! and is released under LGPL 3.0                                           !  
-!!                                                                          ! 
-!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with ComplexSPARSKIT.  If not, see                        !
-!!  <http://www.gnu.org/licenses/>.                                         ! 
-!!--------------------------------------------------------------------------!
-
-
 c----------------------------------------------------------------------c
 c                          S P A R S K I T                             c
 c----------------------------------------------------------------------c
@@ -94,7 +67,7 @@ c              and on the new (output) ordering.
 c     lpw    = integer array of length N corresponding to the
 c              permutation of the unknowns. We allow LPW to be a vector 
 c              different from the identity on input.
-c     amat   = complex*16 values of the matrix given by the structure IA, JA.
+c     amat   = complex(kind(1.0d0)) values of the matrix given by the structure IA, JA.
 c     ja     = integer array of length NNZERO (= IA(N+1)-IA(1)) corresponding
 c              to the column indices of nonzero elements of the matrix, stored
 c              rowwise. It is modified only if the matrix has more
@@ -117,15 +90,15 @@ C     Laura C. Dutto - email: dutto@cerca.umontreal.ca
 c                      July 1992 - Update: March 1994
 C-----------------------------------------------------------------------
       integer izs(nw), lpw(n), nsbloc(0:nblcmx), ia(n+1), ja(*)
-      complex*16 amat(*), tmp
+      complex(kind(1.0d0)) amat(*), zizs(nw)
       logical impr
-      character*6 chsubr
+      character(6) chsubr
 C-----------------------------------------------------------------------
       ier    = 0
       impr   = iout.gt.0.and.iout.le.99
       ntb    = ia(n+1) - 1
       mxccex = max(nblcmx,20)
-c.....The matrix AMAT is a complex*16 vector
+c.....The matrix AMAT is a complex(kind(1.0d0)) vector
       ireal  = 2
 c
 c.....MXPTBL: maximal number of vertices by block
@@ -170,14 +143,16 @@ c..........We copy IA and JA on IAT and JAT respectively
            call ccnicopy(n+1, ia, izs(iiat))
            call ccnicopy(ntb, ja, izs(ijat))
            if(job .eq. 1) call zcopy(ntb, amat, 1, izs(iamat), 1)
-           call zdperm(n, izs(iamat), izs(ijat), izs(iiat), amat,
+           zizs(1:nw)=cmplx(izs(1:nw))
+           call zdperm(n, zizs(iamat), izs(ijat), izs(iiat), amat,
      *                ja, ia, izs(ilpw), izs(ilpw), job)
            ipos = 1
 c..........We sort columns inside JA.
-           call zcsrcsc(n, job, ipos, amat, ja, ia, tmp,
+           zizs(1:nw)=cmplx(izs(1:nw))
+           call zcsrcsc(n, job, ipos, amat, ja, ia, zizs(iamat),
      *                 izs(ijat), izs(iiat))
-           izs(iamat) = aint(abs(tmp)) 
-           call zcsrcsc(n, job, ipos, tmp, izs(ijat), izs(iiat),
+           zizs(1:nw)=cmplx(izs(1:nw))
+           call zcsrcsc(n, job, ipos, zizs(iamat), izs(ijat), izs(iiat),
      *                 amat, ja, ia)
       endif
 c.....We modify the ordering of unknowns in LPW
@@ -505,7 +480,7 @@ C-----------------------------------------------------------------------
       dimension lpw(n), kpw(mxptbl*nbloc), ia(n+1), ja(*),
      *          lccnex((mxccex+1)*nbloc), nsbloc(0:nbloc), mark(n)
       logical impr
-      character chsubr*6
+      character(6) chsubr
 C-----------------------------------------------------------------------
       ier  = 0
       impr = iout.gt.0.and.iout.le.99

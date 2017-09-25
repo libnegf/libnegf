@@ -7,7 +7,7 @@ MPI_PATH=/usr/pack/mpich-3.1.1-ma
 export PROFILE_INCPATHS=-I$(MPI_PATH)/include
 
 # Fortran 2003 compiler
-FC=gfortran-4.8.1
+FC=gfortran-6.2.0
 
 FCOPT = -O2
 
@@ -17,10 +17,10 @@ FXX = mpif90-3.1.1
 FXXOPT = -fc=$(FC) -O2 -fall-intrinsics -std=f2003 
 
 # Preprocessor (leave empty, if the compiler has a built in preprocessor)
-CPP = cpp -traditional
+FPP = fypp
 
 # Options for preprocessing
-CPPOPT = -DDEBUG=$(DEBUG)
+FPPOPT = -DDEBUG=$(DEBUG)
 
 # Fortran preprocessor (invokes CPP as defined above and process the result)
 # FPP = $(ROOT)/utils/fpp/fpp.sh general

@@ -1,57 +1,126 @@
+-----------------------------------------------------------------------
+                 S P A R S K I T   F O R    lib N E G F
+----------------------------------------------------------------------- 
 
-                         ----------
-                         | UNSUPP |
-                         ---------- 
-
- This is meant to contain any  subroutine that is not part 
- of SPARSKIT proper (for example preconditioners, iterative 
- solvers, plotting and other tools,...) but which are
- nevertheless provided with the understanding that they may
- not be the best codes around or that there is further work
- needed on them.. 
-
- CONTRIBUTIONS REQUESTED. 
- ----------------------- 
-		             ----------------- 
-		             Current contents:
-			     -----------------
-SUBDIRECTORY BLAS1
-------------------
-
-* blas1.f : includes subroutines:
-            dcopy : copies a vector, x, to a vector, y.
-            ddot  : dot product of two vectors.
-            csscal: scales a complex vector by a real constant.
-            cswap : interchanges two vectors.
-            csrot : applies a plane rotation.
-            cscal : scales a vector by a constant.
-            ccopy : copies a vector, x, to a vector, y.
-            drotg : construct givens plane rotation.
-            drot  : applies a plane rotation.
-            dswap : interchanges two vectors.
-            dscal : scales a vector by a constant.
-            daxpy : constant times a vector plus a vector.
-            
-SUBDIRECTORY PLOTS
------------------- 
-
-* psgrd.f contains subroutine "psgrid" which plots a symmetric graph.
-
-* texplt1.f contains subroutine "texplt" allows several matrices
-  in the same picture by calling texplt several times and exploiting job and
-  different shifts.
-
-* texgrid1.f contains subroutine "texgrd" which generates tex commands
-  for plotting a symmetric graph associated with a mesh. Allows
-  several grids in the same picture by calling texgrd several times and
-  exploiting job and different shifts.
+This is a derivative work of the original SPARSKIT library (see below)
+for the libNEGF code during the years 2007-2010 done by A. Pecchia and 
+G. Penazzi.  We  chosed  this  library  because  of  the  many formats
+supported and handy routines provided to extract matrix sub-blocks. 
+We explored iterative solvers  like  GMRES in order to  obtain  matrix 
+inversions for the Green's  functions, but this  way  proved not to be 
+numerically stable and direct solvers have been preferred.
+The library is still used for the manipulation of CSR matrices in order 
+to convert formats and extract sub-blocks or perform matrix algebra.
+The library has been generalized to DOUBLE COMPLEX arithmetics in
+FORMATS, UNARY, INFO, ORDERINGS, BLASSM.  
+To the contrary no solvers in ITSOL have been generalized.     
 
 
- SUBDIRECTORY MATEXP   
- -------------------
- routines related to matrix exponentials. 
+-----------------------------------------------------------------------
+                   S P A R S K I T   V E R S I O N  2.
+----------------------------------------------------------------------- 
+
+Latest update : Tue Mar  8 11:01:12 CST 2005
+
+-----------------------------------------------------------------------
+
+Welcome  to SPARSKIT  VERSION  2.  SPARSKIT is  a  package of  FORTRAN
+subroutines  for working  with  sparse matrices.  It includes  general
+sparse  matrix  manipulation  routines  as  well as  a  few  iterative
+solvers, see detailed description of contents below.
+
+ Copyright (C) 2005, the Regents of the University of Minnesota 
+
+SPARSKIT is  free software; you  can redistribute it and/or  modify it
+under the terms of the  GNU Lesser General Public License as published
+by the  Free Software Foundation [version  2.1 of the  License, or any
+later version.]
+
+A copy of  the licencing agreement is attached in  the file LGPL.  For
+additional information  contact the Free Software  Foundation Inc., 59
+Temple Place - Suite 330, Boston, MA 02111, USA or visit the web-site
+ 
+ http://www.gnu.org/copyleft/lesser.html
 
 
-* exppro.f    computes w=exp( t A) v   -- + a simple test program rexp.f 
-* phipro.f    computes w = phi(At)v, where phi(x)=(1-exp(x))/x;
-              Also allows to solve the P.D.E. system y'= A y + b  
+DISCLAIMER
+----------
+
+SPARSKIT  is distributed  in  the hope  that  it will  be useful,  but
+WITHOUT   ANY  WARRANTY;   without  even   the  implied   warranty  of
+MERCHANTABILITY  or FITNESS  FOR A  PARTICULAR PURPOSE.   See  the GNU
+Lesser General Public License for more details.
+
+For more information contact saad@cs.umn.edu
+
+
+---------------------------------------------------
+            S P A R S K I T   VERSION 2  
+---------------------------------------------------
+
+In this directory you will  find  all relevant subdirectories and  the
+Unix makefile which  will  compile all the   modules and make  a  unix
+library  libskit.a.   Please read  the makefile.    Making the library
+should be  the first thing  to do  when starting  to use  the package.
+Some  of  the    objects   will be  linked    into  a  library  called
+libskit.a. Others   will  not be  linked  but  can be used    by other
+makefiles for test  problems provided in  the subdirectories.  You can
+then  link    to  libskit.a  by   default  instead  of  the individual
+modules. (Please report   any  compilation problems or  (even   minor)
+warnings  immediatly to saad@cs.umn.edu). Once  this   is done, it  is
+recommended to run the test problems provided.  There are various test
+suites in  each of the subdirectories  and makefiles are available for
+each.     See  explanations in the   README   files in each individual
+subdirectory.
+
+You may also make and run  the test programs  using the dotests script
+provided in this directory.  Output from this script may be redirected
+into a file and compared to the sample output files out.xxx.  There is
+an  additional  script called sgrep  which  is  useful for looking for
+tools   in   all  the  subdirectories.    Read  the   sgrep  file  for
+instructions.
+
+----------------------------------------------------------------------- 
+
+ Here is some information on the SPARSKIT sub-directories.
+
+ BLASSM : Basic linear algebra with sparse matrices. 
+	  contains two modules: blassm.f and matvec.f
+
+ DOC    : contains the main documentation of the package
+
+ INFO   : information routine (new one) . Info2 (spectral 
+	  information) not available yet.
+
+ FORMATS: Contains the Format Conversion routines in
+	  formats.f and the manipulation routines in
+	  unary.f           
+
+ INOUT  : input output routines. contains the module inout.f
+
+ ITSOL  : contains the iterative solution package. Various 
+          iterative solvers and preconditioners are provided. 
+
+ MATGEN : matrix generation routines.
+	  contains the module genmat.f and several subroutines 
+	  called by it. Also contains zlatev.f (contributed
+	  by E. Rothman, from Cornell).
+ 
+ ORDERINGS: 
+          still in the works. But contains a few coloring routines 
+          and level-set related orderings -- (e.g., cuthill Mc Kee, etc.) 
+
+ UNSUPP : various `unsupported' routines and drivers.
+	  (misc. routines includind routines for 
+          plotting.. BLAS1 is also added for completeness) 
+
+ See the file "logfile" for a complete revision history. 
+
+ Report any problems, suggestions, etc.. to
+
+	Yousef Saad.
+	saad@cs.umn.edu
+
+ ----------------------------------------------------------------------- 
+
+ 

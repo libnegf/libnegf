@@ -41,6 +41,7 @@ module lib_param
   public :: Tnegf, intArray, TEnGrid
   public :: set_defaults, print_all_vars
 
+  public :: set_bp_dephasing
   public :: set_elph_dephasing, destroy_elph_model
   public :: set_elph_block_dephasing, set_elph_s_dephasing
   public :: set_phph
@@ -74,19 +75,14 @@ module lib_param
   !-----------------------------------------------------------------------------
 
   type :: Tdeph_bp
-
      real(dp), allocatable, dimension(:) :: coupling
-     
   end type Tdeph_bp
 
   type :: Tdephasing
-
      type(Tdeph_bp) :: bp
-     
   end type Tdephasing
 
   type Tcontact
-
      character(132) :: name
      logical :: tWriteSelfEnergy = .false.
      logical :: tReadSelfEnergy = .false.
@@ -94,28 +90,21 @@ module lib_param
      logical :: tWriteSurfaceGF = .false.
      logical :: tReadSurfaceGF = .false.
      complex(kind=dp), dimension(:,:,:), allocatable :: SurfaceGF ! Electrode Surface Green Function
-
   end type Tcontact
 
   type Telectrons
-
      integer :: IndexEnergy
-
   end type Telectrons
 
   type Toutput
-
      logical :: tWriteDOS = .false.
      logical :: tDOSwithS = .false.
-
   end type Toutput
 
   type Ttranas
-
      type(Telectrons) :: e
      type(Tcontact), dimension(:), allocatable :: cont
      type(Toutput) :: out 
-
   end type Ttranas
 
   !-----------------------------------------------------------------------------
@@ -261,7 +250,17 @@ module lib_param
 
 contains
  
- 
+  !> Set buttiker probe dephasing
+  subroutine set_bp_dephasing(negf, coupling)
+    type(Tnegf) :: negf
+    real(dp),  dimension(:), intent(in) :: coupling
+
+    if (.not.allocated(negf%deph%bp%coupling)) then
+       allocate(negf%deph%bp%coupling(size(coupling)))
+    end if
+    negf%deph%bp%coupling = coupling
+
+  end subroutine set_bp_dephasing
   
   !> Set values for the local electron phonon dephasing model
   !! (elastic scattering only)

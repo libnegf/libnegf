@@ -1,0 +1,16 @@
+# 
+# 
+#
+
+
+all: libnegf
+
+.PHONY:  ext_sparskit 
+
+libnegf: ext_sparskit 
+	$(MAKE) -f $(SRCDIR)/GNUmakefile \
+	  ARCH="$(ARCH)" MPI="$(MPI)" INELASTIC="$(INELASTIC)" \
+	  FPP="$(FPP)" FPPOPT="$(FPPOPT)" SRCDIR="$(SRCDIR)" \
+	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" INCLUDES="$(INCLUDES)" 
+
+

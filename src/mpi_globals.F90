@@ -21,7 +21,7 @@
 
 module mpi_globals
 
-#ifdef MPI
+#:if defined("MPI")
   
   use libmpifx_module
   
@@ -47,12 +47,12 @@ module mpi_globals
       
     end subroutine negf_mpi_init
 
-#else
+#:else
   
   logical, parameter ::  id0 = .true.
   integer, parameter :: id = 0, numprocs = 1
          
-#endif
+#:endif
 
 
 end module mpi_globals

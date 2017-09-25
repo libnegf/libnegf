@@ -39,12 +39,12 @@ LOGICAL, PARAMETER :: timing=.FALSE.
 ! SPARSKIT iterative solvers removed (Alex)
 !public :: ZMSKINVP_LA,  ZMSKINVP_MA, zINVP_MA
 public :: zINV_LAPACK
-#ifdef __SUPERLU
+#:if defined("__SUPERLU")
 public :: zINV_LU
-#endif
-#ifdef __PARDISO
+#:endif
+#:if defined("__PARDISO")
 public :: zINV_PARDISO
-#endif
+#:endif
 
 public :: compGreen ! wrapper to different type of computations
 public :: inverse, block2Green, block3Green
@@ -409,7 +409,7 @@ contains
 !end subroutine zINVP_MA
 !
 
-#ifdef __SUPERLU
+#:if defined("__SUPERLU")
 !*********************************************
 !                                            |
 !  SuperLU based inversion without masking   |
@@ -474,7 +474,7 @@ subroutine zINV_LU(A_csr, INV)
 
 end subroutine zINV_LU
 
-#endif
+#:endif
 
 !!$!************************************************
 !!$!                                               |
@@ -546,7 +546,7 @@ end subroutine zINV_LU
 !!$
 !!$end subroutine zINV_LU
 
-#ifdef __PARDISO 
+#:if defined("__PARDISO") 
 !***********************************************************
 !
 !  PARDISO Direct inversion
@@ -738,7 +738,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
 END SUBROUTINE zINV_PARDISO
 
-#endif
+#:endif
 
 !---------- INTERFACE FOR LAPACK INVERSION (Complex MATRICES) -------------
 subroutine zINV_LAPACK(A_csr, INV)

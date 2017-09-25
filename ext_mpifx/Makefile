@@ -1,23 +1,22 @@
 
 all: _COMPILE_ 
 
-
-DIR=$(shell pwd)
 	
 _COMPILE_: _CONFIGURE_ 
-	make -C $(DIR)/src
+	make -C $(ROOT)/ext_mpifx/master-mpifx/src
 	touch _COMPILE_ 
 
 _CONFIGURE_: _UNTAR_
-	cp ../sysmakes/make.$(ARCH)
+	cp $(ROOT)/sysmakes/make.$(ARCH) \
+	  $(ROOT)/ext_mpifx/master-mpifx/make.arch
 	touch _CONFIGURE_
 	
-_UNTAR_: develop.tar.gz
-	tar -xvf develop.tar.gz --strip 1 
+_UNTAR_: master.zip
+	unzip $< 
 	touch _UNTAR_
 
-develop.tar.gz:
-	wget bitbucket.org/dftbplus/mpifx/get/develop.tar.gz 
+master.zip:
+	wget github.com/dftbplus/mpifx/archive/master.zip
 
 distclean:
 	rm -rf fftw-$(VER)* lib include bin shared

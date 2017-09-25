@@ -186,7 +186,6 @@ c
    50 continue
       return
       end
-c-----+---------------------------------------------------------------------+
       double precision function dnrm2 ( n, dx, incx)
       integer          next
       double precision   dx(1), cutlo, cuthi, hitest, sum, xmax,zero,one
@@ -238,7 +237,7 @@ c
    10 assign 30 to next
       sum = zero
       nn = n * incx
-c                         begin main loop
+c                                                 begin main loop
       i = 1
    20    go to next,(30, 50, 70, 110)
    30 if( dabs(dx(i)) .gt. cutlo) go to 85
@@ -250,11 +249,11 @@ c
    50 if( dx(i) .eq. zero) go to 200
       if( dabs(dx(i)) .gt. cutlo) go to 85
 c
-c                        prepare for phase 2.
+c                                prepare for phase 2.
       assign 70 to next
       go to 105
 c
-c                        prepare for phase 4.
+c                                prepare for phase 4.
 c
   100 i = j
       assign 110 to next
@@ -310,7 +309,6 @@ c
       return
       end
 
-c-----+---------------------------------------------------------------------+
       subroutine  dscal(n,da,dx,incx)
 c     scales a vector by a constant.
 c     uses unrolled loops for increment equal to one.

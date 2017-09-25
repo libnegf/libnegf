@@ -167,7 +167,7 @@ c-----------------------------------------------------------------------
       integer totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow, ncol,
      1     nnz, neltvl, nrhs, nmax, nzmax, nrwindx
       integer ia (nmax+1), ja (nzmax) 
-      real*8 a(nzmax), rhs(*) 
+      double precision a(nzmax), rhs(*) 
 c-----------------------------------------------------------------------
       ierr = 0
       lenrhs = nrhs
@@ -268,7 +268,7 @@ c on entry:
 c---------
 c nrow   = number of rows in matrix
 c ncol   = number of columns in matrix 
-c a  = real*8 array containing the values of the matrix stored 
+c a  = double precision array containing the values of the matrix stored 
 c          columnwise
 c ja   = integer array of the same length as a containing the column
 c          indices of the corresponding matrix elements of array a.
@@ -344,7 +344,7 @@ c----+----------------------------------------------------------------------+
       integer totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow, ncol,
      1     nnz, nrhs, len, nperli, nrwindx
       integer ja(*), ia(*)  
-      real*8 a(*),rhs(*)
+      double precision a(*),rhs(*)
 c--------------
 c     compute pointer format
 c--------------
@@ -468,7 +468,7 @@ c-----end of prtmt ------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine dump (i1,i2,values,a,ja,ia,iout)
       integer i1, i2, ia(*), ja(*), iout
-      real*8 a(*) 
+      double precision a(*) 
       logical values 
 c-----------------------------------------------------------------------
 c outputs rows i1 through i2 of a sparse matrix stored in CSR format 
@@ -779,8 +779,6 @@ c-----------------------------------------------------------------------
 c return length of the string S
 c-----------------------------------------------------------------------
       character*(*) s
-      integer len
-      intrinsic len
       integer n
 c----------------------------------------------------------------------- 
       n = len(s)
@@ -957,7 +955,7 @@ c-----end-of-pltmt ------------------------------------------
 c-----------------------------------------------------------------------
       subroutine smms (n,first,last,mode,a,ja,ia,iout)
       integer ia(*), ja(*), n, first, last, mode, iout
-      real*8 a(*)
+      double precision a(*)
 c-----------------------------------------------------------------------
 c writes a matrix in Coordinate (SMMS) format -- 
 c-----------------------------------------------------------------------
@@ -1014,7 +1012,7 @@ c-----------------------------------------------------------------------
       subroutine readsm (nmax,nzmax,n,nnz,ia,ja,a,iout,ierr)
       integer nmax, nzmax, row, n, iout, i, j, k, ierr
       integer ia(nmax+1), ja(nzmax)
-      real*8  a(nzmax), x
+      double precision  a(nzmax), x
 c-----------------------------------------------------------------------
 c     read a matrix in coordinate format as is used in the SMMS
 c     package (F. Alvarado), i.e. the row is in ascending order.
@@ -1134,7 +1132,7 @@ c-----------------------------------------------------------------------
       subroutine readsk (nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
       integer nmax, nzmax, iounit, n, nnz, i, ierr
       integer ia(nmax+1), ja(nzmax) 
-      real*8 a(nzmax)
+      double precision a(nzmax)
 c-----------------------------------------------------------------------
 c Reads matrix in Compressed Saprse Row format. The data is supposed to
 c appear in the following order -- n, ia, ja, a
@@ -1238,7 +1236,7 @@ c-----------------------------------------------------------------------
 c on entry:
 c---------
 c n      = number of rows(columns) in matrix
-c a      = real*8 array containing the values of the matrix stored 
+c a      = double precision array containing the values of the matrix stored 
 c          columnwise
 c ja     = integer array of the same length as a containing the column
 c          indices of the corresponding matrix elements of array a.
@@ -1274,7 +1272,7 @@ c-----------------------------------------------------------------------
       character ptrfmt*16,indfmt*16,valfmt*20
       integer iounit, n, ifmt, len, nperli, nnz, i, ihead
       integer ja(*), ia(*), ierr
-      real*8 a(*)
+      double precision a(*)
 c--------------
 c     compute pointer format
 c--------------
@@ -1387,7 +1385,7 @@ c  No redirection is made, since direct the machine code to the standard
 c output may cause unpridictable consequences.
 c-----------------------------------------------------------------------
       integer iout, n, nnz, ierr, ia(*), ja(*)
-      real*8  a(*)
+      double precision  a(*)
       nnz = ia(n+1)-ia(1) 
 c
       write(unit=iout, err=1000)  n
@@ -1435,7 +1433,7 @@ c-----------------------------------------------------------------------
 c
       integer nmax, nzmax, n, iounit, nnz, k
       integer ia(nmax+1), ja(nzmax)
-      real*8  a(nzmax)
+      double precision  a(nzmax)
 c
       rewind iounit
 c      

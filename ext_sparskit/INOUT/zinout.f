@@ -196,7 +196,7 @@ c-----+---------------------------------------------------------------------+
       integer totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow, ncol,
      1     nnz, neltvl, nrhs, nmax, nzmax, nrwindx
       integer ia (nmax+1), ja (nzmax) 
-      complex*16 a(nzmax), rhs(*) 
+      complex(kind(1.0d0)) a(nzmax), rhs(*) 
 c-----------------------------------------------------------------------
       integer ierr,iounit,job,n,i,lenrhs,nvec,len,next,iend
       ierr = 0
@@ -301,7 +301,7 @@ c on entry:
 c---------
 c nrow   = number of rows in matrix
 c ncol   = number of columns in matrix 
-c a  = complex*16 array containing the values of the matrix stored 
+c a  = complex(kind(1.0d0)) array containing the values of the matrix stored 
 c          columnwise
 c ja   = integer array of the same length as a containing the column
 c          indices of the corresponding matrix elements of array a.
@@ -378,7 +378,7 @@ c-----------------------------------------------------------------------
       integer totcrd, ptrcrd, indcrd, valcrd, rhscrd, nrow, ncol,
      1     nnz, nrhs, len, nperli, nrwindx
       integer ja(*), ia(*)  
-      complex*16 a(*),rhs(*)
+      complex(kind(1.0d0)) a(*),rhs(*)
 c--------------
 c     compute pointer format
 c--------------
@@ -512,13 +512,13 @@ c
       return
 c-----------------------------------------------------------------------
       end
-c----------end of prtmt ------------------------------------------------ 
+c-----end of prtmt ------------------------------------------------ 
 c----------------------------------------------------------------------- 
 c-----+---------------------------------------------------------------------+
       subroutine zdump (i1,i2,values,a,ja,ia,iout)
       implicit none
       integer i1, i2, ia(*), ja(*), iout
-      complex*16 a(*) 
+      complex(kind(1.0d0)) a(*) 
       logical values 
 c-----------------------------------------------------------------------
 c outputs rows i1 through i2 of a sparse matrix stored in CSR format 
@@ -828,29 +828,7 @@ c
  13   format (2(F9.2,1x),A)
 c-----------------------------------------------------------------------
       end
-c
-c  GP: commented, duplicate from inout.f
-c-----+---------------------------------------------------------------------+
-c      integer function lenstr(s)
-cc-----------------------------------------------------------------------
-cc return length of the string S
-cc-----------------------------------------------------------------------
-c      character*(*) s
-c      integer len
-c      intrinsic len
-c      integer n
-cc----------------------------------------------------------------------- 
-c      n = len(s)
-c      if (s(n:n).eq.' ') then
-c        n = n-1
-c        if (n.gt.0) go to 10
-c      end if
-c      lenstr = n
-cc
-c      return
-c-----------------------------------------------------------------------
-c      end
-c------end-of-pspltm--------------------------------------------------
+c-----end-of-zpspltm--------------------------------------------------
 c----------------------------------------------------------------------- 
 c-----+---------------------------------------------------------------------+
       subroutine zpltmt (nrow,ncol,mode,ja,ia,title,key,type,
@@ -1017,7 +995,7 @@ c-----end-of-pltmt ------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zsmms (n,first,last,mode,a,ja,ia,iout)
       integer ia(*), ja(*), n, first, last, mode, iout
-      complex*16 a(*)
+      complex(kind(1.0d0)) a(*)
 c-----------------------------------------------------------------------
 c writes a matrix in Coordinate (SMMS) format -- 
 c-----------------------------------------------------------------------
@@ -1075,7 +1053,7 @@ c-----------------------------------------------------------------------
       subroutine zreadsm (nmax,nzmax,n,nnz,ia,ja,a,iout,ierr)
       integer nmax, nzmax, row, n, iout, i, j, k, ierr
       integer ia(nmax+1), ja(nzmax)
-      complex*16  a(nzmax), x
+      complex(kind(1.0d0))  a(nzmax), x
 c-----------------------------------------------------------------------
 c     read a matrix in coordinate format as is used in the SMMS
 c     package (F. Alvarado), i.e. the row is in ascending order.
@@ -1195,7 +1173,7 @@ c-----------------------------------------------------------------------
       subroutine zreadsk (nmax,nzmax,n,nnz,a,ja,ia,iounit,ierr)
       integer nmax, nzmax, iounit, n, nnz, i, ierr
       integer ia(nmax+1), ja(nzmax) 
-      complex*16 a(nzmax)
+      complex(kind(1.0d0)) a(nzmax)
 c-----------------------------------------------------------------------
 c Reads matrix in Compressed Saprse Row format. The data is supposed to
 c appear in the following order -- n, ia, ja, a
@@ -1299,7 +1277,7 @@ c-----------------------------------------------------------------------
 c on entry:
 c---------
 c n      = number of rows(columns) in matrix
-c a      = complex*16 array containing the values of the matrix stored 
+c a      = complex(kind(1.0d0)) array containing the values of the matrix stored 
 c          columnwise
 c ja     = integer array of the same length as a containing the column
 c          indices of the corresponding matrix elements of array a.
@@ -1336,7 +1314,7 @@ c-----------------------------------------------------------------------
       character ptrfmt*16,indfmt*16,valfmt*20
       integer iounit, n, ifmt, len, nperli, nnz, i, ihead
       integer ja(*), ia(*), ierr, lent, k
-      complex*16 a(*)
+      complex(kind(1.0d0)) a(*)
       integer ix,nn
 c--------------
 c     compute pointer format
@@ -1469,7 +1447,7 @@ c output may cause unpridictable consequences.
 c-----------------------------------------------------------------------
       implicit none
       integer iout, n, nnz, ierr, ia(*), ja(*)
-      complex*16  a(*)
+      complex(kind(1.0d0))  a(*)
       integer k
       nnz = ia(n+1)-ia(1) 
 c
@@ -1520,7 +1498,7 @@ c
       implicit none
       integer nmax, nzmax, n, iounit, nnz, k
       integer ia(nmax+1), ja(nzmax)
-      complex*16  a(nzmax)
+      complex(kind(1.0d0))  a(nzmax)
       integer ierr,unit
 c
       rewind iounit

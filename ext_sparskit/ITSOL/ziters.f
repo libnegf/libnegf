@@ -1,30 +1,3 @@
-!!--------------------------------------------------------------------------!
-!! ComplexSPARSKIT                                                          ! 
-!!                                                                          !
-!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
-!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
-!! Copyright (C) 2005, the Regents of the University of Minnesota           !
-!!                                                                          !
-!! The original library has been modified starting from 2006                !
-!! to offer floating complex support. All the additional and                !
-!! modified code has been written by:                                       !
-!!                                                                          !
-!! Alessandro Pecchia, Gabriele Penazzi                                     !  
-!! Copyright (C) 2006                                                       !
-!!                                                                          !
-!! and is released under LGPL 3.0                                           !  
-!!                                                                          ! 
-!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with ComplexSPARSKIT.  If not, see                        !
-!!  <http://www.gnu.org/licenses/>.                                         ! 
-!!--------------------------------------------------------------------------!
-
-
 c----------------------------------------------------------------------c
 c                          S P A R S K I T                             c
 c----------------------------------------------------------------------c
@@ -3392,7 +3365,7 @@ c-----------------------------------------------------------------------
       logical function zbrkdn(alpha, ipar)
       implicit none
       integer ipar(16)
-      complex*16 alpha
+      real*8 alpha
       real*8 zero, one, beta
       parameter (zero=0.0D0, one=1.0D0)
 c-----------------------------------------------------------------------
@@ -3402,29 +3375,29 @@ c
 c     If alpha == 0, ipar(1) = -3,
 c     if alpha is an abnormal number, ipar(1) = -9.
 c-----------------------------------------------------------------------
-      brkdn = .false.
+      zbrkdn = .false.
       if (abs(alpha).gt.zero) then
          beta = one / abs(alpha)
          if (.not. beta.gt.zero) then
-            brkdn = .true.
+            zbrkdn = .true.
             ipar(1) = -9
          endif
-      else if (alpha.lt.zero) then
+      else if (abs(alpha).lt.zero) then
          beta = one / abs(alpha)
          if (.not. beta.lt.zero) then
-            brkdn = .true.
+            zbrkdn = .true.
             ipar(1) = -9
          endif
       else if (abs(alpha).eq.zero) then
-         brkdn = .true.
+         zbrkdn = .true.
          ipar(1) = -3
       else
-         brkdn = .true.
+         zbrkdn = .true.
          ipar(1) = -9
       endif
       return
       end
-c-----end-of-brkdn
+c-----end-of-zbrkdn
 c-----------------------------------------------------------------------
       subroutine zbisinit(ipar,fpar,wksize,dsc,lp,rp,wk)
       implicit none

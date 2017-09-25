@@ -1,30 +1,3 @@
-!!--------------------------------------------------------------------------!
-!! ComplexSPARSKIT                                                          ! 
-!!                                                                          !
-!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
-!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
-!! Copyright (C) 2005, the Regents of the University of Minnesota           !
-!!                                                                          !
-!! The original library has been modified starting from 2006                !
-!! to offer floating complex support. All the additional and                !
-!! modified code has been written by:                                       !
-!!                                                                          !
-!! Alessandro Pecchia, Gabriele Penazzi                                     !  
-!! Copyright (C) 2006                                                       !
-!!                                                                          !
-!! and is released under LGPL 3.0                                           !  
-!!                                                                          ! 
-!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with ComplexSPARSKIT.  If not, see                        !
-!!  <http://www.gnu.org/licenses/>.                                         ! 
-!!--------------------------------------------------------------------------!
-
-
 c----------------------------------------------------------------------c
 c                          S P A R S K I T                             c
 c----------------------------------------------------------------------c
@@ -59,7 +32,7 @@ c----------------------------------------------------------------------c
 c 1)     M A T R I X    B Y    V E C T O R     P R O D U C T S         c
 c----------------------------------------------------------------------c
       subroutine zamux (n, x, y, a,ja,ia) 
-      complex*16  x(*), y(*), a(*) 
+      complex(kind(1.0d0))  x(*), y(*), a(*) 
       integer n, ja(*), ia(*)
 c-----------------------------------------------------------------------
 c         A times a vector
@@ -82,7 +55,7 @@ c
 c-----------------------------------------------------------------------
 c local variables
 c
-      complex*16 t
+      complex(kind(1.0d0)) t
       integer i, k
 c-----------------------------------------------------------------------
       do 100 i = 1,n
@@ -105,7 +78,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine zamuxms (n, x, y, a,ja)
-      complex*16  x(*), y(*), a(*)
+      complex(kind(1.0d0))  x(*), y(*), a(*)
       integer n, ja(*)
 c-----------------------------------------------------------------------
 c         A times a vector in MSR format
@@ -147,7 +120,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine zatmux (n, x, y, a, ja, ia)
-      complex*16 x(*), y(*), a(*) 
+      complex(kind(1.0d0)) x(*), y(*), a(*) 
       integer n, ia(*), ja(*)
 c-----------------------------------------------------------------------
 c         transp( A ) times a vector
@@ -196,7 +169,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine zatmuxr (m, n, x, y, a, ja, ia)
-      complex*16 x(*), y(*), a(*) 
+      complex(kind(1.0d0)) x(*), y(*), a(*) 
       integer m, n, ia(*), ja(*)
 c-----------------------------------------------------------------------
 c         transp( A ) times a vector, A can be rectangular
@@ -245,7 +218,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine zamuxe (n,x,y,na,ncol,a,ja) 
-      complex*16 x(n), y(n), a(na,*)  
+      complex(kind(1.0d0)) x(n), y(n), a(na,*)  
       integer  n, na, ncol, ja(na,*)
 c-----------------------------------------------------------------------
 c        A times a vector in Ellpack Itpack format (ELL)               
@@ -292,7 +265,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zamuxd (n,x,y,diag,ndiag,idiag,ioff) 
       integer n, ndiag, idiag, ioff(idiag) 
-      complex*16 x(n), y(n), diag(ndiag,idiag)
+      complex(kind(1.0d0)) x(n), y(n), diag(ndiag,idiag)
 c-----------------------------------------------------------------------
 c        A times a vector in Diagonal storage format (DIA) 
 c----------------------------------------------------------------------- 
@@ -313,7 +286,7 @@ c idiag  = number of diagonals in matrix.
 c diag   = real array of size (ndiag x idiag) containing the diagonals
 c          
 c ioff   = integer array of length idiag, containing the offsets of the
-c   	   diagonals of the matrix:
+c        diagonals of the matrix:
 c          diag(i,k) contains the element a(i,i+ioff(k)) of the matrix.
 c
 c on return:
@@ -327,12 +300,12 @@ c
 c-----------------------------------------------------------------------
       do 1 j=1, n
          y(j) = 0.0d0
- 1    continue	
+ 1    continue  
       do 10 j=1, idiag
          io = ioff(j)
          i1 = max0(1,1-io)
          i2 = min0(n,n-io)
-         do 9 k=i1, i2	
+         do 9 k=i1, i2  
             y(k) = y(k)+diag(k,j)*x(k+io)
  9       continue
  10   continue
@@ -344,7 +317,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zamuxj (n, x, y, jdiag, a, ja, ia)
       integer n, jdiag, ja(*), ia(*)
-      complex*16 x(n), y(n), a(*)  
+      complex(kind(1.0d0)) x(n), y(n), a(*)  
 c-----------------------------------------------------------------------
 c        A times a vector in Jagged-Diagonal storage format (JAD) 
 c----------------------------------------------------------------------- 
@@ -399,7 +372,7 @@ c-----------------------------------------------------------------------
       subroutine zvbrmv(nr, nc, ia, ja, ka, a, kvstr, kvstc, x, b)
 c-----------------------------------------------------------------------
       integer nr, nc, ia(nr+1), ja(*), ka(*), kvstr(nr+1), kvstc(*)
-      complex*16  a(*), x(*), b(*)
+      complex(kind(1.0d0))  a(*), x(*), b(*)
 c-----------------------------------------------------------------------
 c     Sparse matrix-full vector product, in VBR format.
 c-----------------------------------------------------------------------
@@ -420,7 +393,7 @@ c
 c-----------------------------------------------------------------------
 c-----local variables
       integer n, i, j, ii, jj, k, istart, istop
-      complex*16  xjj
+      complex(kind(1.0d0))  xjj
 c---------------------------------
       n = kvstc(nc+1)-1
       do i = 1, n
@@ -452,7 +425,7 @@ c 2)     T R I A N G U L A R    S Y S T E M    S O L U T I O N S       c
 c----------------------------------------------------------------------c
       subroutine zlsol (n,x,y,al,jal,ial)
       integer n, jal(*),ial(n+1) 
-      complex*16  x(n), y(n), al(*) 
+      complex(kind(1.0d0))  x(n), y(n), al(*) 
 c-----------------------------------------------------------------------
 c   solves    L x = y ; L = lower unit triang. /  CSR format
 c----------------------------------------------------------------------- 
@@ -472,12 +445,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x  = The solution of  L x  = y.
+c x  = The solution of  L x  = y.
 c--------------------------------------------------------------------
 c local variables 
 c
       integer k, j 
-      complex*16  t
+      complex(kind(1.0d0))  t
 c-----------------------------------------------------------------------
       x(1) = y(1) 
       do 150 k = 2, n
@@ -495,7 +468,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine zldsol (n,x,y,al,jal) 
       integer n, jal(*) 
-      complex*16 x(n), y(n), al(*) 
+      complex(kind(1.0d0)) x(n), y(n), al(*) 
 c----------------------------------------------------------------------- 
 c     Solves L x = y    L = triangular. MSR format 
 c-----------------------------------------------------------------------
@@ -516,12 +489,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x = The solution of  L x = y .
+c x = The solution of  L x = y .
 c--------------------------------------------------------------------
 c local variables 
 c
       integer k, j 
-      complex*16 t 
+      complex(kind(1.0d0)) t 
 c-----------------------------------------------------------------------
       x(1) = y(1)*al(1) 
       do 150 k = 2, n
@@ -538,7 +511,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zlsolc (n,x,y,al,jal,ial)
       integer n, jal(*),ial(*) 
-      complex*16  x(n), y(n), al(*) 
+      complex(kind(1.0d0))  x(n), y(n), al(*) 
 c-----------------------------------------------------------------------
 c       SOLVES     L x = y ;    where L = unit lower trang. CSC format
 c-----------------------------------------------------------------------
@@ -549,7 +522,7 @@ c
 c On entry:
 c---------- 
 c n      = integer. dimension of problem.
-c y      = complex*16 array containg the right side.
+c y      = complex(kind(1.0d0)) array containg the right side.
 c
 c al,
 c jal,
@@ -558,12 +531,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x  = The solution of  L x  = y.
+c x  = The solution of  L x  = y.
 c-----------------------------------------------------------------------
 c local variables 
 c
       integer k, j
-      complex*16 t
+      complex(kind(1.0d0)) t
 c-----------------------------------------------------------------------
       do 140 k=1,n
          x(k) = y(k) 
@@ -582,7 +555,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zldsolc (n,x,y,al,jal) 
       integer n, jal(*)
-      complex*16 x(n), y(n), al(*)
+      complex(kind(1.0d0)) x(n), y(n), al(*)
 c-----------------------------------------------------------------------
 c    Solves     L x = y ;    L = nonunit Low. Triang. MSC format 
 c----------------------------------------------------------------------- 
@@ -604,12 +577,12 @@ c           format.
 c
 c On return:
 c----------- 
-c	x = The solution of  L x = y .
+c x = The solution of  L x = y .
 c--------------------------------------------------------------------
 c local variables
 c
       integer k, j
-      complex*16 t 
+      complex(kind(1.0d0)) t 
 c-----------------------------------------------------------------------
       do 140 k=1,n
          x(k) = y(k) 
@@ -629,7 +602,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------  
       subroutine zldsoll (n,x,y,al,jal,nlev,lev,ilev) 
       integer n, nlev, jal(*), ilev(nlev+1), lev(n)
-      complex*16 x(n), y(n), al(*)
+      complex(kind(1.0d0)) x(n), y(n), al(*)
 c-----------------------------------------------------------------------
 c    Solves L x = y    L = triangular. Uses LEVEL SCHEDULING/MSR format 
 c-----------------------------------------------------------------------
@@ -652,10 +625,10 @@ c          ordering.
 c
 c On return:
 c----------- 
-c	x = The solution of  L x = y .
+c x = The solution of  L x = y .
 c--------------------------------------------------------------------
       integer ii, jrow, i 
-      complex*16 t 
+      complex(kind(1.0d0)) t 
 c     
 c     outer loop goes through the levels. (SEQUENTIAL loop)
 c     
@@ -681,7 +654,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zusol (n,x,y,au,jau,iau)
       integer n, jau(*),iau(n+1) 
-      complex*16  x(n), y(n), au(*) 
+      complex(kind(1.0d0))  x(n), y(n), au(*) 
 c----------------------------------------------------------------------- 
 c             Solves   U x = y    U = unit upper triangular. 
 c-----------------------------------------------------------------------
@@ -701,12 +674,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x = The solution of  U x = y . 
+c x = The solution of  U x = y . 
 c-------------------------------------------------------------------- 
 c local variables 
 c
       integer k, j 
-      complex*16  t
+      complex(kind(1.0d0))  t
 c-----------------------------------------------------------------------
       x(n) = y(n) 
       do 150 k = n-1,1,-1 
@@ -724,7 +697,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine zudsol (n,x,y,au,jau) 
       integer n, jau(*) 
-      complex*16  x(n), y(n),au(*) 
+      complex(kind(1.0d0))  x(n), y(n),au(*) 
 c----------------------------------------------------------------------- 
 c             Solves   U x = y  ;   U = upper triangular in MSR format
 c-----------------------------------------------------------------------
@@ -745,12 +718,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x = The solution of  U x = y .
+c x = The solution of  U x = y .
 c--------------------------------------------------------------------
 c local variables 
 c
       integer k, j
-      complex*16 t
+      complex(kind(1.0d0)) t
 c-----------------------------------------------------------------------
       x(n) = y(n)*au(n)
       do 150 k = n-1,1,-1
@@ -767,7 +740,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine zusolc (n,x,y,au,jau,iau)
-      complex*16  x(*), y(*), au(*) 
+      complex(kind(1.0d0))  x(*), y(*), au(*) 
       integer n, jau(*),iau(*)
 c-----------------------------------------------------------------------
 c       SOUVES     U x = y ;    where U = unit upper trang. CSC format
@@ -779,7 +752,7 @@ c
 c On entry:
 c---------- 
 c n      = integer. dimension of problem.
-c y      = complex*16 array containg the right side.
+c y      = complex(kind(1.0d0)) array containg the right side.
 c
 c au,
 c jau,
@@ -788,12 +761,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x  = The solution of  U x  = y.
+c x  = The solution of  U x  = y.
 c-----------------------------------------------------------------------
 c local variables 
 c     
       integer k, j
-      complex*16 t
+      complex(kind(1.0d0)) t
 c-----------------------------------------------------------------------
       do 140 k=1,n
          x(k) = y(k) 
@@ -812,7 +785,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zudsolc (n,x,y,au,jau)   
       integer n, jau(*) 
-      complex*16 x(n), y(n), au(*)  
+      complex(kind(1.0d0)) x(n), y(n), au(*)  
 c-----------------------------------------------------------------------
 c    Solves     U x = y ;    U = nonunit Up. Triang. MSC format 
 c----------------------------------------------------------------------- 
@@ -825,7 +798,7 @@ c
 c On entry:
 c---------- 
 c n      = integer. dimension of problem.
-c y      = complex*16 array containg the right hand side.
+c y      = complex(kind(1.0d0)) array containg the right hand side.
 c
 c au,
 c jau,   = Upper triangular matrix stored in Modified Sparse Column
@@ -833,12 +806,12 @@ c          format.
 c
 c On return:
 c----------- 
-c	x = The solution of  U x = y .
+c x = The solution of  U x = y .
 c--------------------------------------------------------------------
 c local variables 
 c 
       integer k, j
-      complex*16 t
+      complex(kind(1.0d0)) t
 c----------------------------------------------------------------------- 
       do 140 k=1,n
          x(k) = y(k) 

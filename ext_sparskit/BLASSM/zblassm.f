@@ -1,30 +1,3 @@
-!!--------------------------------------------------------------------------!
-!! ComplexSPARSKIT                                                          ! 
-!!                                                                          !
-!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
-!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
-!! Copyright (C) 2005, the Regents of the University of Minnesota           !
-!!                                                                          !
-!! The original library has been modified starting from 2006                !
-!! to offer floating complex support. All the additional and                !
-!! modified code has been written by:                                       !
-!!                                                                          !
-!! Alessandro Pecchia, Gabriele Penazzi                                     !  
-!! Copyright (C) 2006                                                       !
-!!                                                                          !
-!! and is released under LGPL 3.0                                           !  
-!!                                                                          ! 
-!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with ComplexSPARSKIT.  If not, see                        !
-!!  <http://www.gnu.org/licenses/>.                                         ! 
-!!--------------------------------------------------------------------------!
-
-
 c----------------------------------------------------------------------c
 c                          S P A R S K I T                             c
 c----------------------------------------------------------------------c
@@ -50,7 +23,7 @@ c----------------------------------------------------------------------c
        subroutine zamub (nrow,ncol,job,a,ja,ia,b,jb,ib,
      *                  c,jc,ic,nzmax,iw,ierr) 
 
-      complex*16 a(*), b(*), c(*) 
+      complex(kind(1.0d0)) a(*), b(*), c(*) 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(*),ic(*),iw(ncol)
       integer job,nzmax
 c-----------------------------------------------------------------------
@@ -98,23 +71,22 @@ c   The row dimension of B is not needed. However there is no checking
 c   on the condition that ncol(A) = nrow(B). 
 c
 c----------------------------------------------------------------------- 
-      complex*16 scal 
+      complex(kind(1.0d0)) scal 
       logical values
       values = (job .ne. 0) 
       len = 0
       ic(1) = 1 
       ierr = 0
 c     initialize array iw.
-      do 1 j=1, ncol
+      do j=1, ncol
          iw(j) = 0
- 1    continue
+      enddo
 c
-      do 500 ii=1, nrow 
-c     row i 
-         do 200 ka=ia(ii), ia(ii+1)-1 
-	    if (values) scal = a(ka)
-	    jj   = ja(ka)
-	    do 100 kb=ib(jj),ib(jj+1)-1
+      do ii=1, nrow 
+         do ka=ia(ii), ia(ii+1)-1 
+            if (values) scal = a(ka)
+            jj   = ja(ka)
+            do kb=ib(jj),ib(jj+1)-1
                jcol = jb(kb)
                jpos = iw(jcol)
                if (jpos .eq. 0) then
@@ -129,21 +101,20 @@ c     row i
                else
                   if (values) c(jpos) = c(jpos) + scal*b(kb)
                endif
- 100	    continue
- 200     continue
-         do 201 k=ic(ii), len
-	    iw(jc(k)) = 0
- 201     continue
+            end do   
+         end do
+         do k=ic(ii), len
+             iw(jc(k)) = 0
+         end do
          ic(ii+1) = len+1
- 500  continue
-      return
-c-------------end-of-zamub----------------------------------------------
+      enddo
+
+      end subroutine zamub
 c-----------------------------------------------------------------------
-      end
 c-----------------------------------------------------------------------
        subroutine zdiamub(nrow,ncol,a,ja,ia,b,jb,ib,c) 
 
-      complex*16 a(*), b(*), c(*) 
+      complex(kind(1.0d0)) a(*), b(*), c(*) 
       integer ja(*),jb(*),ia(nrow+1),ib(*)
 c-----------------------------------------------------------------------
 c computes the diagonal of the matrix by matrix product D = D + A B 
@@ -171,21 +142,21 @@ c   A and B must be squared. No checking !
 c   on the condition that ncol(A) = nrow(B). 
 c
 c----------------------------------------------------------------------- 
-      complex*16 scal 
+      complex(kind(1.0d0)) scal 
 
       len = 0
 
       do 500 ii=1, nrow 
 c     row i 
          do 200 ka=ia(ii), ia(ii+1)-1 
-	    scal = a(ka)
-	    jj   = ja(ka)
-	    do 100 kb=ib(jj),ib(jj+1)-1
+      scal = a(ka)
+      jj   = ja(ka)
+      do 100 kb=ib(jj),ib(jj+1)-1
                jcol = jb(kb)
                if (jcol .eq. ii) then
                   c(jcol) = c(jcol) + scal*b(kb)
                endif
- 100	    continue
+ 100      continue
  200     continue
  500  continue
 
@@ -197,7 +168,7 @@ c-----------------------------------------------------------------------
        subroutine zcplsamub(nrow,ncol,job,a,ja,ia,s,b,jb,ib, 
      *                                c,jc,ic,nzmax,iw,ierr) 
 
-      complex*16 a(*), b(*), c(*), s
+      complex(kind(1.0d0)) a(*), b(*), c(*), s
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(*),ic(*),iw(ncol)
 c-----------------------------------------------------------------------
 c performs the matrix by matrix product C = C + s A B 
@@ -244,7 +215,7 @@ c   The row dimension of B is not needed. However there is no checking
 c   on the condition that ncol(A) = nrow(B). 
 c
 c----------------------------------------------------------------------- 
-      complex*16 scal 
+      complex(kind(1.0d0)) scal 
       logical values
       values = (job .ne. 0) 
       len = 0
@@ -258,9 +229,9 @@ c
       do 500 ii=1, nrow 
 c     row i 
          do 200 ka=ia(ii), ia(ii+1)-1 
-	    if (values) scal = a(ka)
-	    jj   = ja(ka)
-	    do 100 kb=ib(jj),ib(jj+1)-1
+      if (values) scal = a(ka)
+      jj   = ja(ka)
+      do 100 kb=ib(jj),ib(jj+1)-1
                jcol = jb(kb)
                jpos = iw(jcol)
                if (jpos .eq. 0) then
@@ -275,10 +246,10 @@ c     row i
                else
                   if (values) c(jpos) = c(jpos) + alpha*scal*b(kb)
                endif
- 100	    continue
+ 100      continue
  200     continue
          do 201 k=ic(ii), len
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  201     continue
          ic(ii+1) = len+1
  500  continue
@@ -290,7 +261,7 @@ c-----------------------------------------------------------------------
        subroutine zamubs (nrow,ncol,job,a,ja,ia,s,b,jb,ib,
      *                    c,jc,ic,nzmax,iw,ierr) 
 
-      complex*16 a(*), b(*), c(*), s 
+      complex(kind(1.0d0)) a(*), b(*), c(*), s 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(*),ic(*),iw(ncol)
 c-----------------------------------------------------------------------
 c performs the scalar per matrix by matrix product C =s* A B 
@@ -338,7 +309,7 @@ c   The row dimension of B is not needed. However there is no checking
 c   on the condition that ncol(A) = nrow(B). 
 c
 c----------------------------------------------------------------------- 
-      complex*16 scal 
+      complex(kind(1.0d0)) scal 
       logical values
       values = (job .ne. 0) 
       len = 0
@@ -352,9 +323,9 @@ c
       do 500 ii=1, nrow 
 c     row i 
          do 200 ka=ia(ii), ia(ii+1)-1 
-	    if (values) scal = a(ka)*s
-	    jj   = ja(ka)
-	    do 100 kb=ib(jj),ib(jj+1)-1
+      if (values) scal = a(ka)*s
+      jj   = ja(ka)
+      do 100 kb=ib(jj),ib(jj+1)-1
                jcol = jb(kb)
                jpos = iw(jcol)
                if (jpos .eq. 0) then
@@ -369,10 +340,10 @@ c     row i
                else
                   if (values) c(jpos) = c(jpos) + scal*b(kb)
                endif
- 100	    continue
+ 100      continue
  200     continue
          do 201 k=ic(ii), len
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  201     continue
          ic(ii+1) = len+1
  500  continue
@@ -385,7 +356,7 @@ c-----------------------------------------------------------------------
       subroutine zas1pls2b (nrow,ncol,job,a,ja,ia,s1,s2,b,jb,ib,
      *     c,jc,ic,nzmax,iw,ierr)
 
-      complex*16 a(*), b(*), c(*), s1, s2 
+      complex(kind(1.0d0)) a(*), b(*), c(*), s1, s2 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(nrow+1),ic(nrow+1),
      *     iw(ncol)
 c-----------------------------------------------------------------------
@@ -396,7 +367,7 @@ c
 c
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and B
+c nrow  = integer. The row dimension of A and B
 c ncol  = integer. The column dimension of A and B.
 c job   = integer. Job indicator. When job = 0, only the structure
 c                  (i.e. the arrays jc, ic) is computed and the
@@ -411,9 +382,9 @@ c s2   = complex scalar
 c
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format.
+c ib  =  Matrix B in compressed sparse row format.
 c
-c nzmax	= integer. The  length of the arrays c and jc.
+c nzmax = integer. The  length of the arrays c and jc.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -421,9 +392,9 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row sparse format.
-c	    
-c ierr	= integer. serving as error message. 
+c ic  = resulting matrix C in compressed sparse row sparse format.
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return,
 c         ierr .gt. 0 means that amub stopped while computing the
 c         i-th row  of C with i=ierr, because the number 
@@ -431,7 +402,7 @@ c         of elements in C exceeds nzmax.
 c
 c work arrays:
 c------------
-c iw	= integer work array of length equal to the number of
+c iw  = integer work array of length equal to the number of
 c         columns in A.
 c
 c-----------------------------------------------------------------------
@@ -469,7 +440,7 @@ c
             endif
  300     continue
          do 301 k=ic(ii), len
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  301     continue
          ic(ii+1) = len+1
  500  continue
@@ -483,7 +454,7 @@ c-----------------------------------------------------------------------
       subroutine zaplb (nrow,ncol,job,a,ja,ia,b,jb,ib,
      *     c,jc,ic,nzmax,iw,ierr)
 
-      complex*16 a(*), b(*), c(*) 
+      complex(kind(1.0d0)) a(*), b(*), c(*) 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(nrow+1),ic(nrow+1),
      *     iw(ncol)
 c-----------------------------------------------------------------------
@@ -491,7 +462,7 @@ c performs the matrix sum  C = A+B.
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and B
+c nrow  = integer. The row dimension of A and B
 c ncol  = integer. The column dimension of A and B.
 c job   = integer. Job indicator. When job = 0, only the structure
 c                  (i.e. the arrays jc, ic) is computed and the
@@ -503,9 +474,9 @@ c ia   = Matrix A in compressed sparse row format.
 c 
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format.
+c ib  =  Matrix B in compressed sparse row format.
 c
-c nzmax	= integer. The  length of the arrays c and jc.
+c nzmax = integer. The  length of the arrays c and jc.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -513,9 +484,9 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row sparse format.
-c	    
-c ierr	= integer. serving as error message. 
+c ic  = resulting matrix C in compressed sparse row sparse format.
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return,
 c         ierr .gt. 0 means that amub stopped while computing the
 c         i-th row  of C with i=ierr, because the number 
@@ -523,7 +494,7 @@ c         of elements in C exceeds nzmax.
 c
 c work arrays:
 c------------
-c iw	= integer work array of length equal to the number of
+c iw  = integer work array of length equal to the number of
 c         columns in A.
 c
 c-----------------------------------------------------------------------
@@ -561,7 +532,7 @@ c
             endif
  300     continue
          do 301 k=ic(ii), len
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  301     continue
          ic(ii+1) = len+1
  500  continue
@@ -574,7 +545,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zaplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,
      *                  ierr)
-      complex*16 a(*), b(*), c(*) 
+      complex(kind(1.0d0)) a(*), b(*), c(*) 
 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(nrow+1),ic(nrow+1)
 c-----------------------------------------------------------------------
@@ -585,7 +556,7 @@ c each row, provided the original matrices are sorted in the same way.
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and B
+c nrow  = integer. The row dimension of A and B
 c ncol  = integer. The column dimension of A and B.
 c job   = integer. Job indicator. When job = 0, only the structure
 c                  (i.e. the arrays jc, ic) is computed and the
@@ -597,10 +568,10 @@ c ia   = Matrix A in compressed sparse row format with entries sorted
 c 
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format with entries sorted
+c ib  =  Matrix B in compressed sparse row format with entries sorted
 c        ascendly in each row   
 c
-c nzmax	= integer. The  length of the arrays c and jc.
+c nzmax = integer. The  length of the arrays c and jc.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -608,10 +579,10 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row sparse format
+c ic  = resulting matrix C in compressed sparse row sparse format
 c         with entries sorted ascendly in each row. 
-c	    
-c ierr	= integer. serving as error message. 
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return,
 c         ierr .gt. 0 means that amub stopped while computing the
 c         i-th row  of C with i=ierr, because the number 
@@ -679,7 +650,7 @@ c-----------------------------------------------------------------------
       subroutine zaplsb (nrow,ncol,job,a,ja,ia,s,b,jb,ib,
      *     c,jc,ic,nzmax,iw,ierr)
 
-      complex*16 a(*), b(*), c(*), s 
+      complex(kind(1.0d0)) a(*), b(*), c(*), s 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(nrow+1),ic(nrow+1),
      *     iw(ncol)
 c-----------------------------------------------------------------------
@@ -690,7 +661,7 @@ c
 c
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and B
+c nrow  = integer. The row dimension of A and B
 c ncol  = integer. The column dimension of A and B.
 c job   = integer. Job indicator. When job = 0, only the structure
 c                  (i.e. the arrays jc, ic) is computed and the
@@ -702,9 +673,9 @@ c ia   = Matrix A in compressed sparse row format.
 c 
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format.
+c ib  =  Matrix B in compressed sparse row format.
 c
-c nzmax	= integer. The  length of the arrays c and jc.
+c nzmax = integer. The  length of the arrays c and jc.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -712,9 +683,9 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row sparse format.
-c	    
-c ierr	= integer. serving as error message. 
+c ic  = resulting matrix C in compressed sparse row sparse format.
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return,
 c         ierr .gt. 0 means that amub stopped while computing the
 c         i-th row  of C with i=ierr, because the number 
@@ -722,7 +693,7 @@ c         of elements in C exceeds nzmax.
 c
 c work arrays:
 c------------
-c iw	= integer work array of length equal to the number of
+c iw  = integer work array of length equal to the number of
 c         columns in A.
 c
 c-----------------------------------------------------------------------
@@ -760,7 +731,7 @@ c
             endif
  300     continue
          do 301 k=ic(ii), len
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  301     continue
          ic(ii+1) = len+1
  500  continue
@@ -775,7 +746,7 @@ c-----------------------------------------------------------------------
       subroutine zaplsb1 (nrow,ncol,a,ja,ia,s,b,jb,ib,c,jc,ic,
      *     nzmax,ierr)
 
-      complex*16 a(*), b(*), c(*), s
+      complex(kind(1.0d0)) a(*), b(*), c(*), s
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(nrow+1),ic(nrow+1)
 c-----------------------------------------------------------------------
 c performs the operation C = A+s B for matrices in sorted CSR format.
@@ -785,21 +756,21 @@ c each row, provided the original matrices are sorted in the same way.
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and B
+c nrow  = integer. The row dimension of A and B
 c ncol  = integer. The column dimension of A and B.
 c
 c a,
 c ja,
 c ia   = Matrix A in compressed sparse row format with entries sorted
 c
-c s	= real. scalar factor for B.
+c s = real. scalar factor for B.
 c 
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format with entries sorted
+c ib  =  Matrix B in compressed sparse row format with entries sorted
 c        ascendly in each row   
 c
-c nzmax	= integer. The  length of the arrays c and jc.
+c nzmax = integer. The  length of the arrays c and jc.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -807,10 +778,10 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row sparse format
+c ic  = resulting matrix C in compressed sparse row sparse format
 c         with entries sorted ascendly in each row. 
-c	    
-c ierr	= integer. serving as error message. 
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return,
 c         ierr .gt. 0 means that amub stopped while computing the
 c         i-th row  of C with i=ierr, because the number 
@@ -887,18 +858,18 @@ c-----------------------------------------------------------------------
       subroutine zapmbt (nrow,ncol,job,a,ja,ia,b,jb,ib,
      *     c,jc,ic,nzmax,iw,ierr)
 
-      complex*16 a(*), b(*), c(*) 
+      complex(kind(1.0d0)) a(*), b(*), c(*) 
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(ncol+1),ic(*),iw(*) 
 c-----------------------------------------------------------------------
 c performs the matrix sum  C = A + transp(B) or C = A - transp(B) 
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and transp(B)
+c nrow  = integer. The row dimension of A and transp(B)
 c ncol  = integer. The column dimension of A. Also the row 
 c                  dimension of B. 
 c
-c job	= integer. if job = -1, apmbt will compute C= A - transp(B)
+c job = integer. if job = -1, apmbt will compute C= A - transp(B)
 c         (structure + values) 
 c         if (job .eq. 1)  it will compute C=A+transp(A) 
 c         (structure+ values) 
@@ -911,9 +882,9 @@ c ia    = Matrix A in compressed sparse row format.
 c
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format.
+c ib  =  Matrix B in compressed sparse row format.
 c
-c nzmax	= integer. The  length of the arrays c, jc, and ic.
+c nzmax = integer. The  length of the arrays c, jc, and ic.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -921,9 +892,9 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row format.
-c	    
-c ierr	= integer. serving as error message. 
+c ic  = resulting matrix C in compressed sparse row format.
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return.
 c         ierr = -1 means that nzmax was .lt. either the number of
 c         nonzero elements of A or the number of nonzero elements in B.
@@ -933,7 +904,7 @@ c         of elements in C exceeds nzmax.
 c
 c work arrays:
 c------------
-c iw	= integer work array of length at least max(ncol,nrow) 
+c iw  = integer work array of length at least max(ncol,nrow) 
 c
 c Notes:
 c------- It is important to note that here all of three arrays c, ic, 
@@ -966,7 +937,7 @@ c
 c----------------------------------------------------------------------- 
       if (job .eq. -1) then
          do 2 k=1,len
-	    c(k) = -c(k)
+      c(k) = -c(k)
  2       continue
       endif
 c
@@ -996,7 +967,7 @@ c     else do addition.
             endif
  300     continue
          do 301 k=ic(ii), ic(ii+1)-1
-	    iw(jc(k)) = 0
+      iw(jc(k)) = 0
  301     continue
  500  continue
 c     
@@ -1024,14 +995,14 @@ c-----------------------------------------------------------------------
       subroutine zaplsbt(nrow,ncol,a,ja,ia,s,b,jb,ib,
      *     c,jc,ic,nzmax,iw,ierr)
 
-      complex*16 a(*), b(*), c(*), s
+      complex(kind(1.0d0)) a(*), b(*), c(*), s
       integer ja(*),jb(*),jc(*),ia(nrow+1),ib(ncol+1),ic(*),iw(*)
 c-----------------------------------------------------------------------
 c performs the matrix sum  C = A + s * transp(B).
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A and transp(B)
+c nrow  = integer. The row dimension of A and transp(B)
 c ncol  = integer. The column dimension of A. Also the row 
 c                  dimension of B. 
 c
@@ -1039,14 +1010,14 @@ c a,
 c ja,
 c ia    = Matrix A in compressed sparse row format.
 c
-c s	= real. scalar factor for B.
+c s = real. scalar factor for B.
 c
 c 
 c b, 
 c jb, 
-c ib	=  Matrix B in compressed sparse row format.
+c ib  =  Matrix B in compressed sparse row format.
 c
-c nzmax	= integer. The  length of the arrays c, jc, and ic.
+c nzmax = integer. The  length of the arrays c, jc, and ic.
 c         amub will stop if the result matrix C  has a number 
 c         of elements that exceeds exceeds nzmax. See ierr.
 c 
@@ -1054,9 +1025,9 @@ c on return:
 c----------
 c c, 
 c jc, 
-c ic	= resulting matrix C in compressed sparse row format.
-c	    
-c ierr	= integer. serving as error message. 
+c ic  = resulting matrix C in compressed sparse row format.
+c     
+c ierr  = integer. serving as error message. 
 c         ierr = 0 means normal return.
 c         ierr = -1 means that nzmax was .lt. either the number of
 c         nonzero elements of A or the number of nonzero elements in B.
@@ -1066,7 +1037,7 @@ c         of elements in C exceeds nzmax.
 c
 c work arrays:
 c------------
-c iw	= integer work array of length at least max(nrow,ncol) 
+c iw  = integer work array of length at least max(nrow,ncol) 
 c
 c Notes:
 c------- It is important to note that here all of three arrays c, ic, 
@@ -1093,7 +1064,8 @@ c
       ipos = 1
       call zcsrcsc (ncol,ljob,ipos,b,jb,ib,c,jc,ic) 
       do 2 k=1,len
- 2       c(k) = c(k)*s
+         c(k) = c(k)*s
+ 2    continue
 c     
 c     main loop. add rows from ii = 1 to nrow.
 c     
@@ -1147,14 +1119,14 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine zdiamua (nrow,job, a, ja, ia, diag, b, jb, ib)
 
-      complex*16 a(*), b(*), diag(nrow), scal
+      complex(kind(1.0d0)) a(*), b(*), diag(nrow), scal
       integer ja(*),jb(*), ia(nrow+1),ib(nrow+1) 
 c-----------------------------------------------------------------------
 c performs the matrix by matrix product B = Diag * A  (in place) 
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A
+c nrow  = integer. The row dimension of A
 c
 c job   = integer. job indicator. Job=0 means get array b only
 c         job = 1 means get b, and the integer arrays ib, jb.
@@ -1170,8 +1142,8 @@ c----------
 c
 c b, 
 c jb, 
-c ib	= resulting matrix B in compressed sparse row sparse format.
-c	    
+c ib  = resulting matrix B in compressed sparse row sparse format.
+c     
 c Notes:
 c-------
 c 1)        The column dimension of A is not needed. 
@@ -1205,14 +1177,14 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine zamudia (nrow,job, a, ja, ia, diag, b, jb, ib)
 
-      complex*16 a(*), b(*), diag(nrow) 
+      complex(kind(1.0d0)) a(*), b(*), diag(nrow) 
       integer ja(*),jb(*), ia(nrow+1),ib(nrow+1) 
 c-----------------------------------------------------------------------
 c performs the matrix by matrix product B = A * Diag  (in place) 
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A
+c nrow  = integer. The row dimension of A
 c
 c job   = integer. job indicator. Job=0 means get array b only
 c         job = 1 means get b, and the integer arrays ib, jb.
@@ -1228,8 +1200,8 @@ c----------
 c
 c b, 
 c jb, 
-c ib	= resulting matrix B in compressed sparse row sparse format.
-c	    
+c ib  = resulting matrix B in compressed sparse row sparse format.
+c     
 c Notes:
 c-------
 c 1)        The column dimension of A is not needed. 
@@ -1260,14 +1232,14 @@ c-----------end-of-amudiag----------------------------------------------
       end 
 c----------------------------------------------------------------------- 
       subroutine zaplsca (nrow, a, ja, ia, scal,iw) 
-      complex*16 a(*), scal
+      complex(kind(1.0d0)) a(*), scal
       integer ja(*), ia(nrow+1),iw(*)
 c-----------------------------------------------------------------------
 c Adds a scalar to the diagonal entries of a sparse matrix A :=A + s I 
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A
+c nrow  = integer. The row dimension of A
 c
 c a,
 c ja,
@@ -1280,8 +1252,8 @@ c----------
 c
 c a, 
 c ja, 
-c ia	= matrix A with diagonal elements shifted (or created).
-c	    
+c ia  = matrix A with diagonal elements shifted (or created).
+c     
 c iw    = integer work array of length n. On return iw will
 c         contain  the positions of the diagonal entries in the 
 c         output matrix. (i.e., a(iw(k)), ja(iw(k)), k=1,...n,
@@ -1357,14 +1329,14 @@ c----------end-of-aplsca------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine zapldia (nrow, job, a, ja, ia, diag, b, jb, ib, iw) 
-      complex*16 a(*), b(*), diag(nrow) 
+      complex(kind(1.0d0)) a(*), b(*), diag(nrow) 
       integer ja(*),jb(*), ia(nrow+1),ib(nrow+1), iw(*)
 c-----------------------------------------------------------------------
 c Adds a diagonal matrix to a general sparse matrix:  B = A + Diag 
 c-----------------------------------------------------------------------
 c on entry:
 c ---------
-c nrow	= integer. The row dimension of A
+c nrow  = integer. The row dimension of A
 c
 c job   = integer. job indicator. Job=0 means get array b only
 c         (i.e. assume that a has already been copied into array b,
@@ -1387,7 +1359,7 @@ c----------
 c
 c b, 
 c jb, 
-c ib	= resulting matrix B in compressed sparse row sparse format.
+c ib  = resulting matrix B in compressed sparse row sparse format.
 c
 c
 c iw    = integer work array of length n. On return iw will

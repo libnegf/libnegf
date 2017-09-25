@@ -25,10 +25,10 @@ CCOMP = -fopenmp
 C2F_FUNCNAMES = -DAdd_
 
 # Preprocessor (leave empty, if the compiler has a built in preprocessor)
-CPP = cpp -traditional
+FPP = fypp 
 
 # Options for preprocessing
-CPPOPT = -DDEBUG=$(DEBUG)
+FPPOPT = -DDEBUG=$(DEBUG)
 
 # Linker
 LN = $(FC90)  

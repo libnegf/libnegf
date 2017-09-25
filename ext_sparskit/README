@@ -1,4 +1,22 @@
 -----------------------------------------------------------------------
+                 S P A R S K I T   F O R    lib N E G F
+----------------------------------------------------------------------- 
+
+This is a derivative work of the original SPARSKIT library (see below)
+for the libNEGF code during the years 2007-2010 done by A. Pecchia and 
+G. Penazzi.  We  chosed  this  library  because  of  the  many formats
+supported and handy routines provided to extract matrix sub-blocks. 
+We explored iterative solvers  like  GMRES in order to  obtain  matrix 
+inversions for the Green's  functions, but this  way  proved not to be 
+numerically stable and direct solvers have been preferred.
+The library is still used for the manipulation of CSR matrices in order 
+to convert formats and extract sub-blocks or perform matrix algebra.
+The library has been generalized to DOUBLE COMPLEX arithmetics in
+FORMATS, UNARY, INFO, ORDERINGS, BLASSM.  
+To the contrary no solvers in ITSOL have been generalized.     
+
+
+-----------------------------------------------------------------------
                    S P A R S K I T   V E R S I O N  2.
 ----------------------------------------------------------------------- 
 

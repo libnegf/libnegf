@@ -19,22 +19,6 @@
 !!--------------------------------------------------------------------------!
 
 
-#ifdef __PARDISO
-#  undef __LAPACK
-#  undef __SUPERLU
-#endif
-#ifdef __LAPACK
-#  undef __PARDISO
-#  undef __SUPERLU
-#endif
-#ifdef __SUPERLU
-#  undef __PARDISO
-#  undef __LAPACK
-#endif
-
-
-
-
 MODULE iterative_dns
 
   USE ln_precision

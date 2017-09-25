@@ -26,7 +26,7 @@ module libnegf
  use ln_allocation
  use lib_param
  use globals, only : LST
- use mpi_globals, only : id, numprocs, id0, negf_mpi_init
+ use mpi_globals
  use input_output
  use ln_structure
  use rcm_module
@@ -40,8 +40,17 @@ module libnegf
  implicit none
  private
 
- public :: Tnegf, z_CSR
- public :: id0, negf_mpi_init
+ public :: log_deallocatep
+ public :: z_CSR, destroy   !from matdef
+ public :: HAR, eovh, pi, unit, convertcurrent, set_drop     ! from ln_constants
+ public :: Tnegf
+ public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing 
+ public :: set_elph_s_dephasing, destroy_elph_model
+
+ public :: id0 
+#:if defined("MPI") 
+ public :: negf_mpi_init !from mpi_globals
+#:endif
 
  !Input and work flow procedures
  public :: lnParams
@@ -763,10 +772,8 @@ contains
   !-------------------------------------------------------------------- 
   subroutine negf_version(negf)
     type(Tnegf) :: negf
-    !character(3), parameter :: SVNVER= __SVNREVISION 
-    !character(3),parameter :: MODIF= __MODIFIED 
-    character(3), parameter :: GITVER= __GITREVISION 
-    character(10),parameter :: DATE= __COMPDATE 
+    character(3), parameter :: GITVER= "${_GITREVISION}$" 
+    character(10),parameter :: DATE= "${_COMPDATE}$" 
  
     write(*,'(a21,a20,2x,a10)') '(libnegf) version: 1.',TRIM(GITVER), & 
                                          TRIM(DATE) 

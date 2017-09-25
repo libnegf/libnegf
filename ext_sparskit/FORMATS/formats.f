@@ -54,7 +54,7 @@ c cooell  : converts coordinate to Ellpack/Itpack format               c
 c dcsort  : sorting routine used by crsjad                             c
 c----------------------------------------------------------------------c
       subroutine csrdns(nrow,ncol,a,ja,ia,dns,ndns,ierr) 
-      real*8 dns(ndns,*),a(*)
+      double precision dns(ndns,*),a(*)
       integer ja(*),ia(*)
 c-----------------------------------------------------------------------
 c Compressed Sparse Row    to    Dense 
@@ -65,14 +65,14 @@ c
 c On entry:
 c---------- 
 c
-c nrow	= row-dimension of a
-c ncol	= column dimension of a
+c nrow  = row-dimension of a
+c ncol  = column dimension of a
 c a, 
 c ja, 
 c ia    = input matrix in compressed sparse row format. 
 c         (a=value array, ja=column array, ia=pointer array)
 c dns   = array where to store dense matrix
-c ndns	= first dimension of array dns 
+c ndns  = first dimension of array dns 
 c
 c on return: 
 c----------- 
@@ -87,19 +87,19 @@ c-----------------------------------------------------------------------
       ierr = 0
       do 1 i=1, nrow
          do 2 j=1,ncol
-	    dns(i,j) = 0.0d0
+      dns(i,j) = 0.0d0
  2       continue
  1    continue
 c     
       do 4 i=1,nrow
          do 3 k=ia(i),ia(i+1)-1
             j = ja(k) 
-	    if (j .gt. ncol) then
+      if (j .gt. ncol) then
                ierr = i
                return
-	    endif
-	    dns(i,j) = a(k)
- 3       continue	   
+      endif
+      dns(i,j) = a(k)
+ 3       continue    
  4    continue
       return
 c---- end of csrdns ----------------------------------------------------
@@ -107,10 +107,10 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine dnscsr(nrow,ncol,nzmax,dns,ndns,a,ja,ia,ierr)
-      real*8 dns(ndns,*),a(*)
+      double precision dns(ndns,*),a(*)
       integer ia(*),ja(*)
 c-----------------------------------------------------------------------
-c Dense		to    Compressed Row Sparse 
+c Dense   to    Compressed Row Sparse 
 c----------------------------------------------------------------------- 
 c
 c converts a densely stored matrix into a row orientied
@@ -122,19 +122,19 @@ c-----------------------------------------------------------------------
 c on entry:
 c---------
 c
-c nrow	= row-dimension of a
-c ncol	= column dimension of a
+c nrow  = row-dimension of a
+c ncol  = column dimension of a
 c nzmax = maximum number of nonzero elements allowed. This
 c         should be set to be the lengths of the arrays a and ja.
 c dns   = input nrow x ncol (dense) matrix.
-c ndns	= first dimension of dns. 
+c ndns  = first dimension of dns. 
 c
 c on return:
 c---------- 
 c 
 c a, ja, ia = value, column, pointer  arrays for output matrix 
 c
-c ierr	= integer error indicator: 
+c ierr  = integer error indicator: 
 c         ierr .eq. 0 means normal retur
 c         ierr .eq. i means that the the code stopped while
 c         processing row number i, because there was no space left in
@@ -153,7 +153,7 @@ c-----------------------------------------------------------------------
             ja(next) = j
             a(next) = dns(i,j)
             next = next+1
- 3       continue	   
+ 3       continue    
          ia(i+1) = next
  4    continue
       return
@@ -163,7 +163,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine coocsr(nrow,nnz,a,ir,jc,ao,jao,iao)
 c----------------------------------------------------------------------- 
-      real*8 a(*),ao(*),x
+      double precision a(*),ao(*),x
       integer ir(*),jc(*),jao(*),iao(*)
 c-----------------------------------------------------------------------
 c  Coordinate     to   Compressed Sparse Row 
@@ -173,23 +173,23 @@ c  a, ir, jc into a row general sparse ao, jao, iao format.
 c
 c on entry:
 c--------- 
-c nrow	= dimension of the matrix 
-c nnz	= number of nonzero elements in matrix
+c nrow  = dimension of the matrix 
+c nnz = number of nonzero elements in matrix
 c a,
 c ir, 
 c jc    = matrix in coordinate format. a(k), ir(k), jc(k) store the nnz
 c         nonzero elements of the matrix with a(k) = actual real value of
-c 	  the elements, ir(k) = its row number and jc(k) = its column 
-c	  number. The order of the elements is arbitrary. 
+c     the elements, ir(k) = its row number and jc(k) = its column 
+c   number. The order of the elements is arbitrary. 
 c
 c on return:
 c----------- 
-c ir 	is destroyed
+c ir  is destroyed
 c
 c ao, jao, iao = matrix in general sparse matrix format with ao 
-c 	continung the real values, jao containing the column indices, 
-c	and iao being the pointer to the beginning of the row, 
-c	in arrays ao, jao.
+c   continung the real values, jao containing the column indices, 
+c and iao being the pointer to the beginning of the row, 
+c in arrays ao, jao.
 c
 c Notes:
 c------ This routine is NOT in place.  See coicsr
@@ -231,7 +231,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine coicsr (n,nnz,job,a,ja,ia,iwk)
       integer ia(nnz),ja(nnz),iwk(n+1) 
-      real*8 a(*)
+      double precision a(*)
 c------------------------------------------------------------------------
 c IN-PLACE coo-csr conversion routine.
 c------------------------------------------------------------------------
@@ -241,23 +241,23 @@ c a,ja,ia of the result are overwritten onto the original arrays.
 c------------------------------------------------------------------------
 c on entry:
 c--------- 
-c n	= integer. row dimension of A.
-c nnz	= integer. number of nonzero elements in A.
+c n = integer. row dimension of A.
+c nnz = integer. number of nonzero elements in A.
 c job   = integer. Job indicator. when job=1, the real values in a are
 c         filled. Otherwise a is not touched and the structure of the
 c         array only (i.e. ja, ia)  is obtained.
-c a	= real array of size nnz (number of nonzero elements in A)
+c a = real array of size nnz (number of nonzero elements in A)
 c         containing the nonzero elements 
-c ja	= integer array of length nnz containing the column positions
-c 	  of the corresponding elements in a.
-c ia	= integer array of length nnz containing the row positions
-c 	  of the corresponding elements in a.
-c iwk	= integer work array of length n+1 
+c ja  = integer array of length nnz containing the column positions
+c     of the corresponding elements in a.
+c ia  = integer array of length nnz containing the row positions
+c     of the corresponding elements in a.
+c iwk = integer work array of length n+1 
 c on return:
 c----------
 c a
 c ja 
-c ia	= contains the compressed sparse row data structure for the 
+c ia  = contains the compressed sparse row data structure for the 
 c         resulting matrix.
 c Note: 
 c-------
@@ -267,7 +267,7 @@ c         if you want them sorted.
 c----------------------------------------------------------------------c
 c  Coded by Y. Saad, Sep. 26 1989                                      c
 c----------------------------------------------------------------------c
-      real*8 t,tnext
+      double precision t,tnext
       logical values
 c----------------------------------------------------------------------- 
       values = (job .eq. 1) 
@@ -294,7 +294,7 @@ c
       j = ja(init)
       ia(init) = -1
 c------------------------------------------------------------------------
- 6    k = k+1 		
+ 6    k = k+1     
 c     current row number is i.  determine  where to go. 
       ipos = iwk(i)
 c     save the chased element. 
@@ -317,7 +317,7 @@ c     determine  next element to be chased,
  65   init = init+1
       if (init .gt. nnz) goto 70
       if (ia(init) .lt. 0) goto 65
-c     restart chasing --	
+c     restart chasing --  
       goto 5
  70   do 80 i=1,n 
          ia(i+1) = iwk(i)
@@ -330,7 +330,7 @@ c------------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine csrcoo (nrow,job,nzmax,a,ja,ia,nnz,ao,ir,jc,ierr)
 c-----------------------------------------------------------------------
-      real*8 a(*),ao(*) 
+      double precision a(*),ao(*) 
       integer ir(*),jc(*),ja(*),ia(nrow+1) 
 c----------------------------------------------------------------------- 
 c  Compressed Sparse Row      to      Coordinate 
@@ -340,7 +340,7 @@ c  a, ir, jc into a row general sparse ao, jao, iao format.
 c
 c on entry: 
 c---------
-c nrow	= dimension of the matrix.
+c nrow  = dimension of the matrix.
 c job   = integer serving as a job indicator. 
 c         if job = 1 fill in only the array ir, ignore jc, and ao.
 c         if job = 2 fill in ir, and jc but not ao 
@@ -350,7 +350,7 @@ c         ao and jc are the same as a, ja. So when job = 3, a and ja are
 c         simply copied into ao, jc.  When job=2, only jc and ir are
 c         returned. With job=1 only the array ir is returned. Moreover,
 c         the algorithm is in place:
-c	     call csrcoo (nrow,1,nzmax,a,ja,ia,nnz,a,ia,ja,ierr) 
+c      call csrcoo (nrow,1,nzmax,a,ja,ia,nnz,a,ia,ja,ierr) 
 c         will write the output matrix in coordinate format on a, ja,ia.
 c
 c a,
@@ -406,7 +406,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine csrssr (nrow,a,ja,ia,nzmax,ao,jao,iao,ierr)
-      real*8 a(*), ao(*), t
+      double precision a(*), ao(*), t
       integer ia(*), ja(*), iao(*), jao(*)
 c-----------------------------------------------------------------------
 c Compressed Sparse Row     to     Symmetric Sparse Row
@@ -486,7 +486,7 @@ c     ..
 c     .. Array Arguments ..
       integer            ia(nrow+1), iao(nrow+1), indu(nrow),
      &                   iwk(nrow+1), ja(*), jao(nzmax)
-      real*8             a(*), ao(nzmax)
+      double precision             a(*), ao(nzmax)
 c     ..
 c-----------------------------------------------------------------------
 c     Symmetric Sparse Row to Compressed Sparse Row format
@@ -552,7 +552,7 @@ c
 c-----------------------------------------------------------------------
 c     .. Local Scalars ..
       integer            i, ipos, j, k, kfirst, klast, ko, kosav, nnz
-      real*8             tmp
+      double precision             tmp
 c     ..
 c     .. Executable Statements ..
       ierr = 0
@@ -749,7 +749,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine xssrcsr (nrow,a,ja,ia,nzmax,ao,jao,iao,indu,ierr)
       integer ia(nrow+1),iao(nrow+1),ja(*),jao(nzmax),indu(nrow+1)
-      real*8 a(*),ao(nzmax)
+      double precision a(*),ao(nzmax)
 c-----------------------------------------------------------------------
 c Symmetric Sparse Row   to    (regular) Compressed Sparse Row
 c----------------------------------------------------------------------- 
@@ -764,16 +764,16 @@ c the elements of the lower part followed by those of the upper part.
 c----------------------------------------------------------------------- 
 c on entry:
 c--------- 
-c	
+c 
 c nrow  = row dimension of inout matrix
 c a, 
 c ia, 
 c ja    = matrix in compressed sparse row format. This is assumed to be
 c         a lower triangular matrix. 
 c
-c nzmax	= size of arrays ao and jao. ssrcsr will abort if the storage 
-c	   provided in a, ja is not sufficient to store A. See ierr. 
-c	
+c nzmax = size of arrays ao and jao. ssrcsr will abort if the storage 
+c    provided in a, ja is not sufficient to store A. See ierr. 
+c 
 c on return:
 c----------
 c ao, iao, 
@@ -833,7 +833,7 @@ c
          do 5 k = kfirst, klast
             ao(ko) = a(k)
             jao(ko) = ja(k)
-	    ko = ko+1
+      ko = ko+1
  5       continue
          indu(i) = ko 
  6    continue
@@ -862,9 +862,9 @@ c-----------------------------------------------------------------------
       subroutine csrell (nrow,a,ja,ia,maxcol,coef,jcoef,ncoef,
      *                   ndiag,ierr)
       integer ia(nrow+1), ja(*), jcoef(ncoef,1)  
-      real*8 a(*), coef(ncoef,1)
+      double precision a(*), coef(ncoef,1)
 c----------------------------------------------------------------------- 
-c Compressed Sparse Row	    to    Ellpack - Itpack format 
+c Compressed Sparse Row     to    Ellpack - Itpack format 
 c----------------------------------------------------------------------- 
 c this subroutine converts  matrix stored in the general a, ja, ia 
 c format into the coef, jcoef itpack format.
@@ -872,7 +872,7 @@ c
 c----------------------------------------------------------------------- 
 c on entry:
 c---------- 
-c nrow 	  = row dimension of the matrix A.
+c nrow    = row dimension of the matrix A.
 c
 c a, 
 c ia, 
@@ -884,14 +884,14 @@ c maxcol = integer equal to the number of columns available in coef.
 c
 c on return: 
 c----------
-c coef	= real array containing the values of the matrix A in 
+c coef  = real array containing the values of the matrix A in 
 c         itpack-ellpack format.
 c jcoef = integer array containing the column indices of coef(i,j) 
 c         in A.
 c ndiag = number of active 'diagonals' found. 
 c
-c ierr 	= error message. 0 = correct return. If ierr .ne. 0 on
-c	  return this means that the number of diagonals found
+c ierr  = error message. 0 = correct return. If ierr .ne. 0 on
+c   return this means that the number of diagonals found
 c         (ndiag) exceeds maxcol.
 c
 c----------------------------------------------------------------------- 
@@ -934,7 +934,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine ellcsr(nrow,coef,jcoef,ncoef,ndiag,a,ja,ia,nzmax,ierr)
       integer ia(nrow+1), ja(*), jcoef(ncoef,1) 
-      real*8 a(*), coef(ncoef,1)
+      double precision a(*), coef(ncoef,1)
 c----------------------------------------------------------------------- 
 c  Ellpack - Itpack format  to  Compressed Sparse Row
 c----------------------------------------------------------------------- 
@@ -947,8 +947,8 @@ c-----------------------------------------------------------------------
 c on entry:
 c---------- 
 c
-c nrow 	= row dimension of the matrix A.
-c coef	= array containing the values of the matrix A in ellpack format.
+c nrow  = row dimension of the matrix A.
+c coef  = array containing the values of the matrix A in ellpack format.
 c jcoef = integer arraycontains the column indices of coef(i,j) in A.
 c ncoef = first dimension of arrays coef, and jcoef.
 c ndiag = number of active columns in coef, jcoef.
@@ -960,10 +960,10 @@ c----------
 c a, ia, 
 c    ja = matrix in a, ia, ja format where. 
 c 
-c nzmax	= size of arrays a and ja. ellcsr will abort if the storage 
-c	   provided in a, ja is not sufficient to store A. See ierr. 
+c nzmax = size of arrays a and ja. ellcsr will abort if the storage 
+c    provided in a, ja is not sufficient to store A. See ierr. 
 c
-c ierr 	= integer. serves are output error message. 
+c ierr  = integer. serves are output error message. 
 c         ierr = 0 means normal return. 
 c         ierr = 1 means that there is not enough space in
 c         a and ja to store output matrix.
@@ -985,17 +985,17 @@ c------- copy elements row by row.--------------------------------------
                a(kpos) = coef(i,k)
                ja(kpos) = jcoef(i,k)
                kpos = kpos+1
-	    endif
+      endif
  5       continue
          ia(i+1) = kpos
- 6    continue	
+ 6    continue  
       return
 c--- end of ellcsr ----------------------------------------------------- 
 c----------------------------------------------------------------------- 
       end
 c-----------------------------------------------------------------------
       subroutine csrmsr (n,a,ja,ia,ao,jao,wk,iwk)
-      real*8 a(*),ao(*),wk(n)
+      double precision a(*),ao(*),wk(n)
       integer ia(n+1),ja(*),jao(*),iwk(n+1)
 c----------------------------------------------------------------------- 
 c Compressed Sparse Row   to      Modified - Sparse Row 
@@ -1021,26 +1021,26 @@ c
 c on entry :
 c---------
 c a, ja, ia = matrix in csr format. note that the 
-c	     algorithm is in place: ao, jao can be the same
+c      algorithm is in place: ao, jao can be the same
 c            as a, ja, in which case it will be overwritten on it
 c            upon return.
-c	 
+c  
 c on return :
 c-----------
 c
 c ao, jao  = sparse matrix in modified sparse row storage format:
-c	   +  ao(1:n) contains the diagonal of the matrix. 
-c	   +  ao(n+2:nnz) contains the nondiagonal elements of the
+c    +  ao(1:n) contains the diagonal of the matrix. 
+c    +  ao(n+2:nnz) contains the nondiagonal elements of the
 c             matrix, stored rowwise.
-c	   +  jao(n+2:nnz) : their column indices
-c	   +  jao(1:n+1) contains the pointer array for the nondiagonal
+c    +  jao(n+2:nnz) : their column indices
+c    +  jao(1:n+1) contains the pointer array for the nondiagonal
 c             elements in ao(n+1:nnz) and jao(n+2:nnz).
 c             i.e., for i .le. n+1 jao(i) points to beginning of row i 
-c	      in arrays ao, jao.
-c	       here nnz = number of nonzero elements+1 
+c       in arrays ao, jao.
+c        here nnz = number of nonzero elements+1 
 c work arrays:
 c------------
-c wk	= real work array of length n
+c wk  = real work array of length n
 c iwk   = integer work array of length n+1
 c
 c notes: 
@@ -1096,13 +1096,13 @@ c
          ao(i) = wk(i) 
          jao(i+1) = jao(i)+iwk(i+1)
  600  continue
-      return	
+      return  
 c------------ end of subroutine csrmsr ---------------------------------
 c----------------------------------------------------------------------- 
       end
 c-----------------------------------------------------------------------
       subroutine msrcsr (n,a,ja,ao,jao,iao,wk,iwk)
-      real*8 a(*),ao(*),wk(n)
+      double precision a(*),ao(*),wk(n)
       integer ja(*),jao(*),iao(n+1),iwk(n+1)
 c----------------------------------------------------------------------- 
 c       Modified - Sparse Row  to   Compressed Sparse Row   
@@ -1182,7 +1182,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine csrcsc (n,job,ipos,a,ja,ia,ao,jao,iao)
       integer ia(n+1),iao(n+1),ja(*),jao(*)
-      real*8  a(*),ao(*)
+      double precision  a(*),ao(*)
 c-----------------------------------------------------------------------
 c Compressed Sparse Row     to      Compressed Sparse Column
 c
@@ -1193,8 +1193,8 @@ c this subroutine transposes a matrix stored in a, ja, ia format.
 c ---------------
 c on entry:
 c----------
-c n	= dimension of A.
-c job	= integer to indicate whether to fill the values (job.eq.1) of the
+c n = dimension of A.
+c job = integer to indicate whether to fill the values (job.eq.1) of the
 c         matrix ao or only the pattern., i.e.,ia, and ja (job .ne.1)
 c
 c ipos  = starting position in ao, jao of the transposed matrix.
@@ -1202,21 +1202,21 @@ c         the iao array takes this into account (thus iao(1) is set to ipos.)
 c         Note: this may be useful if one needs to append the data structure
 c         of the transpose to that of A. In this case use for example
 c                call csrcsc (n,1,ia(n+1),a,ja,ia,a,ja,ia(n+2)) 
-c	  for any other normal usage, enter ipos=1.
-c a	= real array of length nnz (nnz=number of nonzero elements in input 
+c   for any other normal usage, enter ipos=1.
+c a = real array of length nnz (nnz=number of nonzero elements in input 
 c         matrix) containing the nonzero elements.
-c ja	= integer array of length nnz containing the column positions
-c 	  of the corresponding elements in a.
-c ia	= integer of size n+1. ia(k) contains the position in a, ja of
-c	  the beginning of the k-th row.
+c ja  = integer array of length nnz containing the column positions
+c     of the corresponding elements in a.
+c ia  = integer of size n+1. ia(k) contains the position in a, ja of
+c   the beginning of the k-th row.
 c
 c on return:
 c ---------- 
 c output arguments:
-c ao	= real array of size nzz containing the "a" part of the transpose
-c jao	= integer array of size nnz containing the column indices.
-c iao	= integer array of size n+1 containing the "ia" index array of
-c	  the transpose. 
+c ao  = real array of size nzz containing the "a" part of the transpose
+c jao = integer array of size nnz containing the column indices.
+c iao = integer array of size n+1 containing the "ia" index array of
+c   the transpose. 
 c
 c----------------------------------------------------------------------- 
       call csrcsc2 (n,n,job,ipos,a,ja,ia,ao,jao,iao)
@@ -1224,7 +1224,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine csrcsc2 (n,n2,job,ipos,a,ja,ia,ao,jao,iao)
       integer ia(n+1),iao(n2+1),ja(*),jao(*)
-      real*8  a(*),ao(*)
+      double precision  a(*),ao(*)
 c-----------------------------------------------------------------------
 c Compressed Sparse Row     to      Compressed Sparse Column
 c
@@ -1238,9 +1238,9 @@ c this subroutine transposes a matrix stored in a, ja, ia format.
 c ---------------
 c on entry:
 c----------
-c n	= number of rows of CSR matrix.
+c n = number of rows of CSR matrix.
 c n2    = number of columns of CSC matrix.
-c job	= integer to indicate whether to fill the values (job.eq.1) of the
+c job = integer to indicate whether to fill the values (job.eq.1) of the
 c         matrix ao or only the pattern., i.e.,ia, and ja (job .ne.1)
 c
 c ipos  = starting position in ao, jao of the transposed matrix.
@@ -1248,21 +1248,21 @@ c         the iao array takes this into account (thus iao(1) is set to ipos.)
 c         Note: this may be useful if one needs to append the data structure
 c         of the transpose to that of A. In this case use for example
 c                call csrcsc2 (n,n,1,ia(n+1),a,ja,ia,a,ja,ia(n+2)) 
-c	  for any other normal usage, enter ipos=1.
-c a	= real array of length nnz (nnz=number of nonzero elements in input 
+c   for any other normal usage, enter ipos=1.
+c a = real array of length nnz (nnz=number of nonzero elements in input 
 c         matrix) containing the nonzero elements.
-c ja	= integer array of length nnz containing the column positions
-c 	  of the corresponding elements in a.
-c ia	= integer of size n+1. ia(k) contains the position in a, ja of
-c	  the beginning of the k-th row.
+c ja  = integer array of length nnz containing the column positions
+c     of the corresponding elements in a.
+c ia  = integer of size n+1. ia(k) contains the position in a, ja of
+c   the beginning of the k-th row.
 c
 c on return:
 c ---------- 
 c output arguments:
-c ao	= real array of size nzz containing the "a" part of the transpose
-c jao	= integer array of size nnz containing the column indices.
-c iao	= integer array of size n+1 containing the "ia" index array of
-c	  the transpose. 
+c ao  = real array of size nzz containing the "a" part of the transpose
+c jao = integer array of size nnz containing the column indices.
+c iao = integer array of size n+1 containing the "ia" index array of
+c   the transpose. 
 c
 c----------------------------------------------------------------------- 
 c----------------- compute lengths of rows of transp(A) ----------------
@@ -1300,7 +1300,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine csrlnk (n,a,ja,ia,link) 
-      real*8 a(*) 
+      double precision a(*) 
       integer n, ja(*), ia(n+1), link(*)
 c----------------------------------------------------------------------- 
 c      Compressed Sparse Row         to    Linked storage format. 
@@ -1319,12 +1319,12 @@ c-----------------------------------------------------------------------
 c
 c on entry:
 c----------
-c n	= integer equal to the dimension of A.	
+c n = integer equal to the dimension of A.  
 c         
-c a	= real array of size nna containing the nonzero elements
-c ja	= integer array of size	nnz containing the column positions
-c 	  of the corresponding elements in a.
-c ia	= integer of size n+1 containing the pointers to the beginning 
+c a = real array of size nna containing the nonzero elements
+c ja  = integer array of size nnz containing the column positions
+c     of the corresponding elements in a.
+c ia  = integer of size n+1 containing the pointers to the beginning 
 c         of each row. ia(k) contains the position in a, ja of the 
 c         beginning of the k-th row.
 c
@@ -1336,7 +1336,7 @@ c
 c a     = nonzero elements.
 c ja    = column positions. 
 c ia    = ia(i) points to the first element of row i in linked structure.
-c link	= integer array of size containing the linked list information.
+c link  = integer array of size containing the linked list information.
 c         link(k) points to the next element of the row after element 
 c         a(k), ja(k). if link(k) = 0, then there is no next element,
 c         i.e., a(k), jcol(k) is the last element of the current row.
@@ -1375,7 +1375,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine lnkcsr (n, a, jcol, istart, link, ao, jao, iao) 
-      real*8 a(*), ao(*) 
+      double precision a(*), ao(*) 
       integer n, jcol(*), istart(n), link(*), jao(*), iao(*) 
 c----------------------------------------------------------------------- 
 c     Linked list storage format   to      Compressed Sparse Row  format
@@ -1388,16 +1388,16 @@ c-----------------------------------------------------------------------
 c
 c on entry:
 c----------
-c n	= integer equal to the dimension of A.	
+c n = integer equal to the dimension of A.  
 c         
-c a	= real array of size nna containing the nonzero elements
-c jcol	= integer array of size	nnz containing the column positions
-c 	  of the corresponding elements in a.
+c a = real array of size nna containing the nonzero elements
+c jcol  = integer array of size nnz containing the column positions
+c     of the corresponding elements in a.
 c istart= integer array of size n poiting to the beginning of the rows.
 c         istart(i) contains the position of the first element of 
 c         row i in data structure. (a, jcol, link).
 c         if a row is empty istart(i) must be zero.
-c link	= integer array of size nnz containing the links in the linked 
+c link  = integer array of size nnz containing the links in the linked 
 c         list data structure. link(k) points to the next element 
 c         of the row after element ao(k), jcol(k). if link(k) = 0, 
 c         then there is no next element, i.e., ao(k), jcol(k) is 
@@ -1409,8 +1409,8 @@ c ao, jao, iao = matrix stored in csr format:
 c
 c ao    = real array containing the values of the nonzero elements of 
 c         the matrix stored row-wise. 
-c jao	= integer array of size nnz containing the column indices.
-c iao	= integer array of size n+1 containing the pointers array to the 
+c jao = integer array of size nnz containing the column indices.
+c iao = integer array of size n+1 containing the pointers array to the 
 c         beginning of each row. iao(i) is the address in ao,jao of
 c         first element of row i.
 c
@@ -1446,7 +1446,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine csrdia (n,idiag,job,a,ja,ia,ndiag,
      *                   diag,ioff,ao,jao,iao,ind)
-      real*8 diag(ndiag,idiag), a(*), ao(*)
+      double precision diag(ndiag,idiag), a(*), ao(*)
       integer ia(*), ind(*), ja(*), jao(*), iao(*), ioff(*)
 c----------------------------------------------------------------------- 
 c Compressed sparse row     to    diagonal format
@@ -1463,12 +1463,12 @@ c extracts them.
 c----------------------------------------------------------------------- 
 c on entry:
 c---------- 
-c n	= dimension of the matrix a.
+c n = dimension of the matrix a.
 c idiag = integer equal to the number of diagonals to be extracted. 
 c         Note: on return idiag may be modified.
-c a, ja, 			
+c a, ja,      
 c    ia = matrix stored in a, ja, ia, format
-c job	= integer. serves as a job indicator.  Job is better thought 
+c job = integer. serves as a job indicator.  Job is better thought 
 c         of as a two-digit number job=xy. If the first (x) digit
 c         is one on entry then the diagonals to be extracted are 
 c         internally determined. In this case csrdia exctracts the
@@ -1504,7 +1504,7 @@ c diag  = real array of size (ndiag x idiag) containing the diagonals
 c         of A on return
 c          
 c ioff  = integer array of length idiag, containing the offsets of the
-c   	  diagonals to be extracted.
+c       diagonals to be extracted.
 c ao, jao
 c  iao  = remainder of the matrix in a, ja, ia format.
 c work arrays:
@@ -1586,7 +1586,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine diacsr (n,job,idiag,diag,ndiag,ioff,a,ja,ia)
-      real*8 diag(ndiag,idiag), a(*), t
+      double precision diag(ndiag,idiag), a(*), t
       integer ia(*), ja(*), ioff(*)
 c----------------------------------------------------------------------- 
 c    diagonal format     to     compressed sparse row     
@@ -1598,8 +1598,8 @@ c the rest of the matrix is put in a the output matrix ao, jao, iao
 c----------------------------------------------------------------------- 
 c on entry:
 c---------- 
-c n	= integer. dimension of the matrix a.
-c job	= integer. job indicator with the following meaning.
+c n = integer. dimension of the matrix a.
+c job = integer. job indicator with the following meaning.
 c         if (job .eq. 0) then check for each entry in diag
 c         whether this entry is zero. If it is then do not include
 c         in the output matrix. Note that the test is a test for
@@ -1616,12 +1616,12 @@ c
 c ndiag = integer equal to the first dimension of array diag.
 c
 c ioff  = integer array of length idiag, containing the offsets of the
-c   	  diagonals to be extracted.
+c       diagonals to be extracted.
 c
 c on return:
 c----------- 
 c a, 
-c ja, 			
+c ja,       
 c ia    = matrix stored in a, ja, ia, format
 c
 c Note:
@@ -1650,7 +1650,7 @@ c-----------------------------------------------------------------------
       subroutine bsrcsr (job, n, m, na, a, ja, ia, ao, jao, iao)
       implicit none
       integer job, n, m, na, ia(*), ja(*), jao(*), iao(n+1)
-      real*8 a(na,*), ao(*)
+      double precision a(na,*), ao(*)
 c-----------------------------------------------------------------------
 c             Block Sparse Row  to Compressed Sparse Row.
 c----------------------------------------------------------------------- 
@@ -1671,20 +1671,20 @@ c on entry:
 c----------
 c job   = if job.eq.0 on entry, values are not copied (pattern only)
 c
-c n	= the block row dimension of the matrix.
+c n = the block row dimension of the matrix.
 c
 c m     = the dimension of each block. Thus, the actual row dimension 
 c         of A is n x m.  
 c
-c na	= first dimension of array a as declared in calling program.
+c na  = first dimension of array a as declared in calling program.
 c         This should be .ge. m**2.
 c
-c a	= real array containing the real entries of the matrix. Recall
+c a = real array containing the real entries of the matrix. Recall
 c         that each entry is in fact an m x m block. These entries 
 c         are stored column-wise in locations a(1:m*m,k) for each k-th
 c         entry. See details below.
 c 
-c ja	= integer array of length n. ja(k) contains the column index 
+c ja  = integer array of length n. ja(k) contains the column index 
 c         of the leading element, i.e., the element (1,1) of the block
 c         that is held in the column a(*,k) of the value array. 
 c
@@ -1746,7 +1746,7 @@ c
 c     
       val = (job.ne.0)
       no = n * m 
-      irow = 1	
+      irow = 1  
       krow = 1
       iao(irow) = 1      
 c-----------------------------------------------------------------------
@@ -1767,7 +1767,7 @@ c
                   if (val) ao(krow) = a(ij,k) 
                   jao(krow) = jstart+j
                   krow = krow+1
- 22            continue	    
+ 22            continue     
  21         continue
             irow = irow+1 
             iao(irow) = krow
@@ -1781,7 +1781,7 @@ c-----------------------------------------------------------------------
       subroutine csrbsr (job,nrow,m,na,a,ja,ia,ao,jao,iao,iw,ierr)
       implicit none
       integer job,ierr,nrow,m,na,ia(nrow+1),ja(*),jao(na),iao(*),iw(*)
-      real*8 a(*),ao(na,*)
+      double precision a(*),ao(na,*)
 c-----------------------------------------------------------------------
 c     Compressed Sparse Row  to    Block Sparse Row
 c-----------------------------------------------------------------------
@@ -1809,11 +1809,11 @@ c          job = -1 -> iao(1) will return the number of nonzero blocks,
 c            in the output matrix. In this case jao(1:nr) is used as 
 c            workspace, ao is untouched, iao is untouched except iao(1)
 c
-c nrow	= integer, the actual row dimension of the matrix.
+c nrow  = integer, the actual row dimension of the matrix.
 c 
 c m     = integer equal to the dimension of each block. m should be > 0. 
 c 
-c na	= first dimension of array ao as declared in calling program.
+c na  = first dimension of array ao as declared in calling program.
 c         na should be .ge. m*m. 
 c
 c a, ja, 
@@ -1946,7 +1946,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine csrbnd (n,a,ja,ia,job,abd,nabd,lowd,ml,mu,ierr)
-      real*8 a(*),abd(nabd,n)
+      double precision a(*),abd(nabd,n)
       integer ia(n+1),ja(*)
 c----------------------------------------------------------------------- 
 c   Compressed Sparse Row  to  Banded (Linpack ) format.
@@ -1957,13 +1957,13 @@ c banded format,the Linpack conventions are assumed (see below).
 c----------------------------------------------------------------------- 
 c on entry:
 c----------
-c n	= integer,the actual row dimension of the matrix.
+c n = integer,the actual row dimension of the matrix.
 c
 c a,
 c ja,
 c ia    = input matrix stored in compressed sparse row format.
 c
-c job	= integer. if job=1 then the values of the lower bandwith ml 
+c job = integer. if job=1 then the values of the lower bandwith ml 
 c         and the upper bandwidth mu are determined internally. 
 c         otherwise it is assumed that the values of ml and mu 
 c         are the correct bandwidths on input. See ml and mu below.
@@ -1979,13 +1979,13 @@ c         will be chosen. Alternative: call routine getbwd from unary
 c         first to detrermione ml and mu then define lowd accordingly.
 c         (Note: the banded solvers in linpack use lowd=2*ml+mu+1. )
 c
-c ml	= integer. equal to the bandwidth of the strict lower part of A
-c mu	= integer. equal to the bandwidth of the strict upper part of A
+c ml  = integer. equal to the bandwidth of the strict lower part of A
+c mu  = integer. equal to the bandwidth of the strict upper part of A
 c         thus the total bandwidth of A is ml+mu+1.
 c         if ml+mu+1 is found to be larger than lowd then an error 
 c         flag is raised (unless lowd = 0). see ierr.
 c
-c note:   ml and mu are assumed to have	 the correct bandwidth values
+c note:   ml and mu are assumed to have  the correct bandwidth values
 c         as defined above if job is set to zero on entry.
 c
 c on return:
@@ -1998,8 +1998,8 @@ c         of the j-th column of  the original matrix comprised in the
 c         band ( i in (j-ml,j+mu) ) with the lowest diagonal at
 c         the bottom row (row lowd). See details below for this format.
 c
-c ml	= integer. equal to the bandwidth of the strict lower part of A
-c mu	= integer. equal to the bandwidth of the strict upper part of A
+c ml  = integer. equal to the bandwidth of the strict lower part of A
+c mu  = integer. equal to the bandwidth of the strict upper part of A
 c         if job=1 on entry then these two values are internally computed.
 c
 c lowd  = integer. row number in abd where the lowest diagonal 
@@ -2069,10 +2069,10 @@ c------------
       do 15  i=1,m
          ii = lowd -i+1
          do 10 j=1,n
-	    abd(ii,j) = 0.0d0
+      abd(ii,j) = 0.0d0
  10      continue
  15   continue
-c---------------------------------------------------------------------	   
+c---------------------------------------------------------------------     
       mdiag = lowd-ml
       do 30 i=1,n
          do 20 k=ia(i),ia(i+1)-1
@@ -2086,14 +2086,14 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine bndcsr (n,abd,nabd,lowd,ml,mu,a,ja,ia,len,ierr)
-      real*8 a(*),abd(nabd,*), t
+      double precision a(*),abd(nabd,*), t
       integer ia(n+1),ja(*)
 c----------------------------------------------------------------------- 
 c Banded (Linpack ) format   to    Compressed Sparse Row  format.
 c----------------------------------------------------------------------- 
 c on entry:
 c----------
-c n	= integer,the actual row dimension of the matrix.
+c n = integer,the actual row dimension of the matrix.
 c
 c nabd  = first dimension of array abd.
 c
@@ -2108,8 +2108,8 @@ c         the lowest diagonal (leftmost) of A is located.
 c         lowd should be s.t.  ( 1  .le.  lowd  .le. nabd).
 c         The subroutines dgbco, ... of linpack use lowd=2*ml+mu+1.
 c
-c ml	= integer. equal to the bandwidth of the strict lower part of A
-c mu	= integer. equal to the bandwidth of the strict upper part of A
+c ml  = integer. equal to the bandwidth of the strict lower part of A
+c mu  = integer. equal to the bandwidth of the strict upper part of A
 c         thus the total bandwidth of A is ml+mu+1.
 c         if ml+mu+1 is found to be larger than nabd then an error 
 c         message is set. see ierr.
@@ -2130,7 +2130,7 @@ c
 c ierr  = integer. used for error message output. 
 c         ierr .eq. 0 :means normal return
 c         ierr .eq. -1 : means invalid value for lowd. 
-c	  ierr .gt. 0 : means that there was not enough storage in a and ja
+c   ierr .gt. 0 : means that there was not enough storage in a and ja
 c         for storing the ourput matrix. The process ran out of space 
 c         (as indicated by len) while trying to fill row number ierr. 
 c         This should give an idea of much more storage might be required. 
@@ -2177,7 +2177,7 @@ c-----------------------------------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine csrssk (n,imod,a,ja,ia,asky,isky,nzmax,ierr)
-      real*8 a(*),asky(nzmax) 
+      double precision a(*),asky(nzmax) 
       integer n, imod, nzmax, ierr, ia(n+1), isky(n+1), ja(*)
 c----------------------------------------------------------------------- 
 c      Compressed Sparse Row         to     Symmetric Skyline Format 
@@ -2197,7 +2197,7 @@ c-----------------------------------------------------------------------
 c
 c on entry:
 c----------
-c n	= integer equal to the dimension of A.	
+c n = integer equal to the dimension of A.  
 c imod  = integer indicating the variant of skyline format wanted:
 c         imod = 0 means the pointer isky points to the `zeroth' 
 c         element of the row, i.e., to the position of the diagonal
@@ -2206,11 +2206,11 @@ c         imod = 1 means that itpr points to the beginning of the row.
 c         imod = 2 means that isky points to the end of the row (diagonal
 c                  element) 
 c         
-c a	= real array of size nna containing the nonzero elements
-c ja	= integer array of size	nnz containing the column positions
-c 	  of the corresponding elements in a.
-c ia	= integer of size n+1. ia(k) contains the position in a, ja of
-c	  the beginning of the k-th row.
+c a = real array of size nna containing the nonzero elements
+c ja  = integer array of size nnz containing the column positions
+c     of the corresponding elements in a.
+c ia  = integer of size n+1. ia(k) contains the position in a, ja of
+c   the beginning of the k-th row.
 c nzmax = integer. must be set to the number of available locations
 c         in the output array asky. 
 c
@@ -2222,7 +2222,7 @@ c         format. asky contains the sequence of active rows from
 c         i=1, to n, an active row being the row of elemnts of 
 c         the matrix contained between the leftmost nonzero element 
 c         and the diagonal element. 
-c isky	= integer array of size n+1 containing the pointer array to 
+c isky  = integer array of size n+1 containing the pointer array to 
 c         each row. The meaning of isky depends on the input value of
 c         imod (see above). 
 c ierr  =  integer.  Error message. If the length of the 
@@ -2290,7 +2290,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine sskssr (n,imod,asky,isky,ao,jao,iao,nzmax,ierr)
-      real*8 asky(*),ao(nzmax) 
+      double precision asky(*),ao(nzmax) 
       integer n, imod,nzmax,ierr, isky(n+1),iao(n+1),jao(nzmax) 
 c----------------------------------------------------------------------- 
 c     Symmetric Skyline Format  to  Symmetric Sparse Row format.
@@ -2310,7 +2310,7 @@ c-----------------------------------------------------------------------
 c
 c on entry:
 c----------
-c n	= integer equal to the dimension of A.	
+c n = integer equal to the dimension of A.  
 c imod  = integer indicating the variant of skyline format used:
 c         imod = 0 means the pointer iao points to the `zeroth' 
 c         element of the row, i.e., to the position of the diagonal
@@ -2322,7 +2322,7 @@ c asky  = real array containing the values of the matrix. asky contains
 c         the sequence of active rows from i=1, to n, an active row 
 c         being the row of elemnts of the matrix contained between the 
 c         leftmost nonzero element and the diagonal element. 
-c isky 	= integer array of size n+1 containing the pointer array to 
+c isky  = integer array of size n+1 containing the pointer array to 
 c         each row. isky (k) contains the address of the beginning of the
 c         k-th active row in the array asky. 
 c nzmax = integer. equal to the number of available locations in the 
@@ -2330,11 +2330,11 @@ c         output array ao.
 c
 c on return:
 c ---------- 
-c ao	= real array of size nna containing the nonzero elements
-c jao	= integer array of size	nnz containing the column positions
-c 	  of the corresponding elements in a.
-c iao	= integer of size n+1. iao(k) contains the position in a, ja of
-c	  the beginning of the k-th row.
+c ao  = real array of size nna containing the nonzero elements
+c jao = integer array of size nnz containing the column positions
+c     of the corresponding elements in a.
+c iao = integer of size n+1. iao(k) contains the position in a, ja of
+c   the beginning of the k-th row.
 c ierr  = integer. Serving as error message. If the length of the 
 c         output arrays ao, jao exceeds nzmax then ierr returns 
 c         the row number where the algorithm stopped: rows
@@ -2404,7 +2404,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine csrjad (nrow, a, ja, ia, idiag, iperm, ao, jao, iao) 
       integer ja(*), jao(*), ia(nrow+1), iperm(nrow), iao(nrow) 
-      real*8 a(*), ao(*)
+      double precision a(*), ao(*)
 c-----------------------------------------------------------------------
 c    Compressed Sparse Row  to   JAgged Diagonal storage. 
 c----------------------------------------------------------------------- 
@@ -2423,7 +2423,7 @@ c SIAM J. on  Stat. Scient. Comput., volume 10, pp. 1200-1232 (1989).]
 c----------------------------------------------------------------------- 
 c on entry:
 c---------- 
-c nrow 	  = row dimension of the matrix A.
+c nrow    = row dimension of the matrix A.
 c
 c a, 
 c ia, 
@@ -2502,7 +2502,7 @@ c-----------------------------------------------------------------------
 c----------------------------------------------------------------------- 
       subroutine jadcsr (nrow, idiag, a, ja, ia, iperm, ao, jao, iao) 
       integer ja(*), jao(*), ia(idiag+1), iperm(nrow), iao(nrow+1) 
-      real*8 a(*), ao(*)
+      double precision a(*), ao(*)
 c-----------------------------------------------------------------------
 c     Jagged Diagonal Storage   to     Compressed Sparse Row  
 c----------------------------------------------------------------------- 
@@ -2511,7 +2511,7 @@ c to the compressed sparse row format.
 c----------------------------------------------------------------------- 
 c on entry:
 c---------- 
-c nrow 	  = integer. the row dimension of the matrix A.
+c nrow    = integer. the row dimension of the matrix A.
 c 
 c idiag   = integer. The  number of jagged diagonals in the data
 c           structure a, ja, ia.
@@ -2581,7 +2581,7 @@ c-----------------------------------------------------------------------
       implicit none
       integer job,n,nnz,lda,ncmax,nc,ierr
       integer ja(nnz),ia(nnz),jao(lda,ncmax)
-      real*8  a(nnz),ao(lda,ncmax)
+      double precision  a(nnz),ao(lda,ncmax)
 c-----------------------------------------------------------------------
 c     COOrdinate format to ELLpack format
 c-----------------------------------------------------------------------
@@ -2602,7 +2602,7 @@ c
 c     NOTE: the last column of JAO is used as work space!!
 c-----------------------------------------------------------------------
       integer i,j,k,ip
-      real*8  zero
+      double precision  zero
       logical copyval
       parameter (zero=0.0D0)
 c     .. first executable statement ..
@@ -2767,7 +2767,7 @@ C             IERR =  1   -  The array AC has a zero column. (Warning)
 C             IERR =  2   -  The array AC has a zero row.    (Warning)
 C
 C---------------------------------------------------------------------
-      real*8 a(nnz), ac(nac,ner)
+      double precision a(nnz), ac(nac,ner)
       integer ja(nnz), ia(nnz), jac(nac,ner), ierr, ncmax, icount
 c
 c- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -2849,7 +2849,7 @@ c------------- end of xcooell -------------------------------------------
       end
 c----------------------------------------------------------------------- 
       subroutine csruss (nrow,a,ja,ia,diag,al,jal,ial,au,jau,iau) 
-      real*8 a(*),al(*),diag(*),au(*) 
+      double precision a(*),al(*),diag(*),au(*) 
       integer nrow,ja(*),ia(nrow+1),jal(*),ial(nrow+1),jau(*),
      *     iau(nrow+1)
 c-----------------------------------------------------------------------
@@ -2941,7 +2941,7 @@ c-----------------------------------------------------------------------
       end 
 c-----------------------------------------------------------------------
       subroutine usscsr (nrow,a,ja,ia,diag,al,jal,ial,au,jau,iau) 
-      real*8 a(*),al(*),diag(*),au(*) 
+      double precision a(*),al(*),diag(*),au(*) 
       integer ja(*),ia(nrow+1),jal(*),ial(nrow+1),jau(*),iau(nrow+1)
 c-----------------------------------------------------------------------
 c Unsymmetric Sparse Skyline   format   to Compressed Sparse Row 
@@ -3030,9 +3030,9 @@ c
 c----------end-of-usscsr------------------------------------------------
       end 
 c----------------------------------------------------------------------- 
-      subroutine csrsss (nrow,a,ja,ia,sorted,diag,al,jal,ial,au)
-      real*8 a(*),al(*),diag(*),au(*) 
-      integer ja(*),ia(nrow+1),jal(*),ial(nrow+1)
+      subroutine csrsss (nrow,a,ja,ia,sorted,diag,al,jal,ial,au,iwork)
+      double precision a(*),al(*),diag(*),au(*) 
+      integer ja(*),ia(nrow+1),jal(*),ial(nrow+1), iwork(*)
       logical sorted 
 c-----------------------------------------------------------------------
 c Compressed Sparse Row     to     Symmetric Sparse Skyline   format 
@@ -3061,6 +3061,7 @@ c diag  = array containing the diagonal entries of A
 c al,jal,ial = matrix in csr format storing the strict lower 
 c              trangular part of A.
 c au    = values of the strict upper trangular part of A, column wise.
+c iwork = working array of the size of nnz of a
 c----------------------------------------------------------------------- 
 c 
 c     extract lower part and diagonal.
@@ -3087,8 +3088,7 @@ c
 c sort if not sorted
 c 
       if (.not. sorted) then
-c%%%%%---- incompatible arg list! 
-         call csort (nrow, al, jal, ial, au, .true.) 
+         call csort (nrow, al, jal, ial, iwork, .true.) 
       endif
 c
 c copy u
@@ -3118,7 +3118,7 @@ c-----------------------------------------------------------------------
       end 
 c
       subroutine ssscsr (nrow,a,ja,ia,diag,al,jal,ial,au) 
-      real*8 a(*),al(*),diag(*),au(*) 
+      double precision a(*),al(*),diag(*),au(*) 
       integer ja(*),ia(nrow+1),jal(*),ial(nrow+1) 
 c-----------------------------------------------------------------------
 c Unsymmetric Sparse Skyline   format   to Compressed Sparse Row 
@@ -3210,7 +3210,7 @@ c-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       integer n, ia(n+1), ja(*), nr, nc, ib(*), jb(nkmax-1), kb(nkmax)
       integer kvstr(*), kvstc(*), job, iwk(*), nkmax, nzmax, ierr
-      real*8  a(*), b(nzmax)
+      double precision  a(*), b(nzmax)
 c-----------------------------------------------------------------------
 c     Converts compressed sparse row to variable block row format.
 c-----------------------------------------------------------------------
@@ -3255,6 +3255,7 @@ c               If job=2, then kvstr and kvstc contain the same info.
 c
 c     Work space:
 c----------------
+c     iwk(1:2*nnz) = working array for csort
 c     iwk(1:ncol) = inverse kvstc array.  If job=1,2 then we also need:
 c     iwk(ncol+1:ncol+nr) = used to help determine sparsity of each block row.
 c     The workspace is not assumed to be initialized to zero, nor is it
@@ -3308,7 +3309,7 @@ c-----------------------------------------------------------------------
 c-----sort matrix by column indices
       call csorted(n, ia, ja, sorted)
       if (.not. sorted) then
-         call csort (n, a, ja, ia, b, .true.)
+         call csort (n, a, ja, ia, iwk, .true.)
       endif
       if (job .eq. 1 .or. job .eq. 2) then
 c--------need to zero workspace; first find ncol
@@ -3468,7 +3469,6 @@ c--------------endloop on scalar columns
                enddo
 c-----------endloop on block columns
             enddo
- 2020       continue
          enddo
       enddo
       return
@@ -3481,7 +3481,7 @@ c----------------------------------------------------------------------c
 c-----------------------------------------------------------------------
       integer ia(*), ja(*), nr, ib(nr+1), jb(*), kb(*)
       integer kvstr(nr+1), kvstc(*), nzmax, ierr
-      real*8  a(*), b(nzmax)
+      double precision  a(*), b(nzmax)
 c-----------------------------------------------------------------------
 c     Converts variable block row to compressed sparse row format.
 c-----------------------------------------------------------------------

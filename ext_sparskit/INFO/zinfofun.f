@@ -1,30 +1,3 @@
-!!--------------------------------------------------------------------------!
-!! ComplexSPARSKIT                                                          ! 
-!!                                                                          !
-!! ComplexSPARSKIT is derived from the original LGLP library SPARSKIT:      !
-!! http://www-users.cs.umn.edu/~saad/software/SPARSKIT/index.html           ! 
-!! Copyright (C) 2005, the Regents of the University of Minnesota           !
-!!                                                                          !
-!! The original library has been modified starting from 2006                !
-!! to offer floating complex support. All the additional and                !
-!! modified code has been written by:                                       !
-!!                                                                          !
-!! Alessandro Pecchia, Gabriele Penazzi                                     !  
-!! Copyright (C) 2006                                                       !
-!!                                                                          !
-!! and is released under LGPL 3.0                                           !  
-!!                                                                          ! 
-!! ComplexSPARSKIT is free software: you can redistribute it and/or modify  !
-!! it under the terms of the GNU Lesse General Public License as published  !
-!! by the Free Software Foundation, either version 3 of the License, or     !
-!! (at your option) any later version.                                      !
-!!                                                                          !
-!!  You should have received a copy of the GNU Lesser General Public        !
-!!  License along with ComplexSPARSKIT.  If not, see                        !
-!!  <http://www.gnu.org/licenses/>.                                         ! 
-!!--------------------------------------------------------------------------!
-
-
 c----------------------------------------------------------------------c
 c                          S P A R S K I T                             c
 c----------------------------------------------------------------------c
@@ -64,7 +37,7 @@ c----------------------------------------------------------------------c
       implicit none 
       integer n, ml, mu, iband
       integer ja(*), ia(n+1)
-      real*8 bndav
+      double precision bndav
 c-----------------------------------------------------------------------
 c this routine computes the lower, upper, maximum, and average 
 c bandwidths.     revised -- July 12, 2001  -- bug fix -- YS. 
@@ -182,8 +155,8 @@ c-----------------------------------------------------------------------
       subroutine zdiag_domi(n,sym,valued,a, ja,ia,ao,jao, iao, 
      *     ddomc, ddomr)
       implicit none 
-      complex*16 a(*), ao(*) 
-      real*8 ddomc, ddomr
+      complex(kind(1.0d0)) a(*), ao(*) 
+      double precision ddomc, ddomr
       integer n, ja(*), ia(n+1), jao(*), iao(n+1)
       logical sym, valued
 c-----------------------------------------------------------------
@@ -220,7 +193,7 @@ c     ddomr = percentage of weakly diagonally dominant rows
 c-------------------------------------------------------------------
 c     locals
       integer i, j0, j1, k, j 
-      real*8 aii, dsumr, dsumc 
+      double precision aii, dsumr, dsumc 
 c     number of diagonally dominant columns
 c     real arithmetic used to avoid problems.. YS. 03/27/01 
       ddomc = 0.0  
@@ -262,8 +235,8 @@ c-----------------------------------------------------------------------
       subroutine zfrobnorm(n,sym,a,ja,ia,Fnorm)
       implicit none 
       integer n 
-      complex*16 a(*)
-      real*8 Fnorm
+      complex(kind(1.0d0)) a(*)
+      double precision Fnorm
       integer ja(*),ia(n+1)
       logical sym
 c--------------------------------------------------------------------------
@@ -287,7 +260,7 @@ c on return
 c-----------
 c Fnorm  = Frobenius norm of A.
 c--------------------------------------------------------------------------
-      real*8 Fdiag
+      double precision Fdiag
       integer i, k 
       Fdiag = 0.d0
       Fnorm = 0.d0
@@ -339,8 +312,8 @@ c ao,jao,iao = transpose of A just as a, ja, ia contains
 c              information of A.
 c-----------------------------------------------------------------------
       implicit none
-      complex*16 a(*),ao(*) 
-      real*8 fas,fan,av, Fnorm, st
+      complex(kind(1.0d0)) a(*),ao(*) 
+      double precision fas,fan,av, Fnorm, st
       integer n, ja(*), ia(n+1), jao(*), iao(n+1),imatch
       logical sym
       integer k1,k2,k1max,k2max,j1,j2,nnz,i
@@ -398,7 +371,8 @@ c-----------------------------------------------------------------------
       subroutine zdistaij(n,nnz,sym,ja,ia,dist, std)
 
       implicit none
-      real*8  dist, std
+      double precision  dist, std
+      integer n, nnz
       integer ja(*), ia(n+1)
 c-----------------------------------------------------------------------
 c     this routine computes the average distance of a(i,j) from diag and
@@ -422,7 +396,7 @@ c-----------------------------------------------------------------------
 c
 c distance of an element from diagonal.
 c
-      integer j0,j1,i,j,k,n,nnz
+      integer j0,j1,i,j,k
       logical sym
 
       dist   = 0.0
@@ -574,7 +548,7 @@ c----------------------------------------------------------------------
 c-----------------------------------------------------------------------      
       subroutine  zn_imp_diag(n,nnz,dist, ipar1,ndiag,ioff,dcount)
       implicit none
-      real*8  dcount(*)
+      double precision  dcount(*)
       integer n,nnz, dist(*), ndiag, ioff(*), ipar1
 c-----------------------------------------------------------------------
 c     this routine computes the most important diagonals.
@@ -673,7 +647,7 @@ c     indiag = nonzero diagonal element indicator
 c-----------------------------------------------------------------------
       subroutine zavnz_col(n,ja,ia,iao, ndiag, av, st)
       implicit none
-      real*8 av, st
+      double precision av, st
       integer n,  ndiag, ja(*), ia(n+1), iao(n+1)
 c---------------------------------------------------------------------
 c     this routine computes average number of nonzero elements/column and

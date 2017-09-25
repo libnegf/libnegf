@@ -67,7 +67,7 @@ c              and on the new (output) ordering.
 c     lpw    = integer array of length N corresponding to the
 c              permutation of the unknowns. We allow LPW to be a vector 
 c              different from the identity on input.
-c     amat   = real*8 values of the matrix given by the structure IA, JA.
+c     amat   = double precision values of the matrix given by the structure IA, JA.
 c     ja     = integer array of length NNZERO (= IA(N+1)-IA(1)) corresponding
 c              to the column indices of nonzero elements of the matrix, stored
 c              rowwise. It is modified only if the matrix has more
@@ -90,15 +90,15 @@ C     Laura C. Dutto - email: dutto@cerca.umontreal.ca
 c                      July 1992 - Update: March 1994
 C-----------------------------------------------------------------------
       integer izs(nw), lpw(n), nsbloc(0:nblcmx), ia(n+1), ja(*)
-      real*8 amat(*), tmp
+      double precision amat(*), dizs(nw)
       logical impr
-      character*6 chsubr
+      character(6) chsubr
 C-----------------------------------------------------------------------
       ier    = 0
       impr   = iout.gt.0.and.iout.le.99
       ntb    = ia(n+1) - 1
       mxccex = max(nblcmx,20)
-c.....The matrix AMAT is a real*8 vector
+c.....The matrix AMAT is a double precision vector
       ireal  = 2
 c
 c.....MXPTBL: maximal number of vertices by block
@@ -143,15 +143,16 @@ c..........We copy IA and JA on IAT and JAT respectively
            call ccnicopy(n+1, ia, izs(iiat))
            call ccnicopy(ntb, ja, izs(ijat))
            if(job .eq. 1) call dcopy(ntb, amat, 1, izs(iamat), 1)
-           call dperm(n, izs(iamat), izs(ijat), izs(iiat), amat,
+           dizs(1:nw) = izs(1:nw)
+           call dperm(n, dizs(iamat), izs(ijat), izs(iiat), amat,
      *                ja, ia, izs(ilpw), izs(ilpw), job)
            ipos = 1
 c..........We sort columns inside JA.
-           call csrcsc(n, job, ipos, amat, ja, ia, tmp, 
+           dizs(1:nw) = izs(1:nw)
+           call csrcsc(n, job, ipos, amat, ja, ia, dizs(iamat),
      *                 izs(ijat), izs(iiat))
-           izs(iamat) = aint(tmp)
-c..........(n,job,ipos,a,ja,ia,ao,jao,iao)
-           call csrcsc(n, job, ipos, tmp, izs(ijat), izs(iiat),
+           dizs(1:nw) = izs(1:nw)
+           call csrcsc(n, job, ipos, dizs(iamat), izs(ijat), izs(iiat),
      *                 amat, ja, ia)
       endif
 c.....We modify the ordering of unknowns in LPW
@@ -479,7 +480,7 @@ C-----------------------------------------------------------------------
       dimension lpw(n), kpw(mxptbl*nbloc), ia(n+1), ja(*),
      *          lccnex((mxccex+1)*nbloc), nsbloc(0:nbloc), mark(n)
       logical impr
-      character chsubr*6
+      character(6) chsubr
 C-----------------------------------------------------------------------
       ier  = 0
       impr = iout.gt.0.and.iout.le.99

@@ -90,9 +90,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
-#         ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog
-#         endif
+#:endif
        endif
     endif
   end subroutine allocate_pl
@@ -118,9 +118,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_pi
@@ -144,9 +144,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#	          ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
 
@@ -171,9 +171,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef  MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_pd
@@ -196,9 +196,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#	          ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
 
@@ -223,9 +223,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_pz
@@ -249,9 +249,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_i
@@ -274,9 +274,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef  MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_d
@@ -299,9 +299,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_z
@@ -325,9 +325,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#	          ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_i2
@@ -350,9 +350,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG	
+#:if defined("MEMLOG")	
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_d2
@@ -375,9 +375,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_z2
@@ -400,9 +400,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_c2
@@ -425,9 +425,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_c3
@@ -453,9 +453,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#	          ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_i3
@@ -478,9 +478,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG	
+#:if defined("MEMLOG")	
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_d3
@@ -503,9 +503,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_z3
@@ -528,9 +528,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG	
+#:if defined("MEMLOG")	
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_d4
@@ -555,9 +555,9 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem 
           endif
-#		  ifdef MEMLOG
+#:if defined("MEMLOG")
           call writeMemLog  
-#		  endif
+#:endif
        endif
     endif
   end subroutine allocate_l
@@ -571,9 +571,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#       ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog
-#       endif
+#:endif
     else
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
@@ -587,9 +587,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -601,9 +601,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -615,9 +615,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*dp    
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
 
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
@@ -630,9 +630,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -644,9 +644,9 @@ contains
     if (associated(array)) then
        alloc_mem= alloc_mem - size(array)*2*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -658,9 +658,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -672,9 +672,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -686,9 +686,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*dp   
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
 
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
@@ -701,9 +701,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*2*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -716,9 +716,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -730,9 +730,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -744,9 +744,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*2*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -758,9 +758,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*2*sp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -772,9 +772,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*2*sp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -787,9 +787,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*4
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -801,9 +801,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -815,9 +815,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*2*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif
@@ -829,9 +829,9 @@ contains
     if (allocated(array)) then
        alloc_mem= alloc_mem - size(array)*dp
        deallocate(array)
-#		ifdef MEMLOG
+#:if defined("MEMLOG")
        call writeMemLog  
-#		endif
+#:endif
     else 
        write(*,*) 'Warning in deallocation: array is not allocated' 
     endif

@@ -37,7 +37,7 @@ c----------------------------------------------------------------------c
       implicit none 
       integer n, ml, mu, iband
       integer ja(*), ia(n+1)
-      real*8 bndav
+      double precision bndav
 c-----------------------------------------------------------------------
 c this routine computes the lower, upper, maximum, and average 
 c bandwidths.     revised -- July 12, 2001  -- bug fix -- YS. 
@@ -155,7 +155,7 @@ c-----------------------------------------------------------------------
       subroutine diag_domi(n,sym,valued,a, ja,ia,ao,jao, iao, 
      *     ddomc, ddomr)
       implicit none 
-      real*8 a(*), ao(*), ddomc, ddomr
+      double precision a(*), ao(*), ddomc, ddomr
       integer n, ja(*), ia(n+1), jao(*), iao(n+1)
       logical sym, valued
 c-----------------------------------------------------------------
@@ -192,7 +192,7 @@ c     ddomr = percentage of weakly diagonally dominant rows
 c-------------------------------------------------------------------
 c     locals
       integer i, j0, j1, k, j 
-      real*8 aii, dsumr, dsumc 
+      double precision aii, dsumr, dsumc 
 c     number of diagonally dominant columns
 c     real arithmetic used to avoid problems.. YS. 03/27/01 
       ddomc = 0.0  
@@ -234,7 +234,7 @@ c-----------------------------------------------------------------------
       subroutine frobnorm(n,sym,a,ja,ia,Fnorm)
       implicit none 
       integer n 
-      real*8 a(*),Fnorm
+      double precision a(*),Fnorm
       integer ja(*),ia(n+1)
       logical sym
 c--------------------------------------------------------------------------
@@ -258,7 +258,7 @@ c on return
 c-----------
 c Fnorm  = Frobenius norm of A.
 c--------------------------------------------------------------------------
-      real*8 Fdiag
+      double precision Fdiag
       integer i, k 
       Fdiag = 0.0
       Fnorm = 0.0
@@ -309,8 +309,8 @@ c av     = relative symmetry match (symmetry = 1)
 c ao,jao,iao = transpose of A just as a, ja, ia contains 
 c              information of A.
 c-----------------------------------------------------------------------
-      implicit real*8 (a-h, o-z)
-      real*8 a(*),ao(*),fas,fan,av, Fnorm, st
+      implicit double precision (a-h, o-z)
+      double precision a(*),ao(*),fas,fan,av, Fnorm, st
       integer n, ja(*), ia(n+1), jao(*), iao(n+1),imatch
       logical sym
 c-----------------------------------------------------------------------
@@ -365,8 +365,8 @@ c
 c------end-of-ansym-----------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine distaij(n,nnz,sym,ja,ia,dist, std)
-      implicit real*8 (a-h, o-z)
-      real*8  dist, std
+      implicit double precision (a-h, o-z)
+      double precision  dist, std
       integer ja(*), ia(n+1)
 c-----------------------------------------------------------------------
 c     this routine computes the average distance of a(i,j) from diag and
@@ -411,7 +411,7 @@ c
       end
 c-----------------------------------------------------------------------
       subroutine skyline(n,sym,ja,ia,jao,iao,nsky)
-      implicit real*8 (a-h, o-z)
+      implicit double precision (a-h, o-z)
       integer n, ja(*), ia(n+1), jao(*), iao(n+1)
       integer nskyl, nskyu, nsky
       logical sym
@@ -459,7 +459,7 @@ c nskyl = skyline storage for lower part
       end
 c-----------------------------------------------------------------------
       subroutine distdiag(nrow,ncol,ja,ia,dist)
-      implicit real*8 (a-h, o-z)
+      implicit double precision (a-h, o-z)
       integer nrow,ncol,ja(*), ia(nrow+1),dist(*)
 c----------------------------------------------------------------------
 c this routine computes the numbers of elements in each diagonal. 
@@ -496,7 +496,7 @@ c----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine bandpart(n,ja,ia,dist,nper,band)
-      implicit real*8 (a-h, o-z)
+      implicit double precision (a-h, o-z)
       integer n,ja(*), ia(n+1),dist(*)
       integer nper,band
 c-------------------------------------------------------------------------
@@ -532,8 +532,8 @@ c----------------------------------------------------------------------
       end 
 c-----------------------------------------------------------------------      
       subroutine  n_imp_diag(n,nnz,dist, ipar1,ndiag,ioff,dcount)
-      implicit real*8 (a-h, o-z)
-      real*8  dcount(*)
+      implicit double precision (a-h, o-z)
+      double precision  dcount(*)
       integer n,nnz, dist(*), ndiag, ioff(*), ipar1
 c-----------------------------------------------------------------------
 c     this routine computes the most important diagonals.
@@ -587,7 +587,7 @@ c-----------------------------------------------------------------------
       end
 c-----------------------------------------------------------------------
       subroutine nonz_lud(n,ja,ia,nlower, nupper, ndiag)
-      implicit real*8 (a-h, o-z)
+      implicit double precision (a-h, o-z)
       integer n,  ja(*), ia(n+1)
       integer nlower, nupper, ndiag
 c-----------------------------------------------------------------------
@@ -627,8 +627,8 @@ c     indiag = nonzero diagonal element indicator
       end
 c-----------------------------------------------------------------------
       subroutine avnz_col(n,ja,ia,iao, ndiag, av, st)
-      implicit real*8 (a-h, o-z)
-      real*8 av, st
+      implicit double precision (a-h, o-z)
+      double precision av, st
       integer n,  ja(*), ia(n+1), iao(n+1)
 c---------------------------------------------------------------------
 c     this routine computes average number of nonzero elements/column and
