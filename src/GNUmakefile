@@ -75,6 +75,7 @@ libnegf.o:    ln_precision.o lib_param.o input_output.o ln_allocation.o ln_struc
 libnegf.o:    rcm_module.o integrations.o ln_extract.o
 integrations.o: sparsekit_drv.o inversions.o iterative_dns.o iterative_ph.o
 integrations.o: energy_mesh.o distributions.o contselfenergy.o	
+distributions.o: ln_precision.o
 population.o:    ln_precision.o mat_def.o 
 transform.o:     ln_precision.o mkl_dfti.o
 energy_mesh.o:   ln_precision.o
@@ -85,6 +86,7 @@ elphdd.o : 	ln_precision.o globals.o mat_def.o ln_structure.o interactions.o spa
 elphdb.o : 	ln_precision.o globals.o mat_def.o ln_structure.o interactions.o sparsekit_drv.o
 elphds.o : 	ln_precision.o globals.o mat_def.o ln_structure.o interactions.o sparsekit_drv.o
 load.o : mat_def.o 
+outmatrix.o: ln_precision.o
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep
