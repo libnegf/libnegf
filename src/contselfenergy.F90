@@ -36,16 +36,21 @@ module ContSelfEnergy
  use clock
  use mpi_globals
  use complexbands
-
+#:if defined("MPI") 
+ use libmpifx_module, only : mpifx_reduceip
+#:endif
  implicit none
  private
  
  integer, PARAMETER :: VBT=70                                      !DAR 99 -> 70
 
-  public :: surface_green !surface_green_2 
+  public :: surface_green  
   public :: SelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
+  public :: create_SGF_SE
+  public :: read_SGF_SE
+  public :: write_SGF_SE
 
   interface SelfEnergy
      module procedure SelfEnergy_csr    
@@ -163,14 +168,6 @@ contains
        
        if(flag.ge.1) then
           
-          !if (flag.eq.3) then
-          !   ! ok only for real energies
-          !   call log_allocate(Co,n5,n5)
-          !   Co=conjg(transpose(SC%val))
-          !   call decimation2(E,GS,HC%val,SC%val,Co,n5,n1,n2,ncyc)
-          !   call log_deallocate(Co)
-          !else
-
           call log_allocate(Ao,npl,npl)
           call log_allocate(Bo,npl,npl)
           call log_allocate(Co,npl,npl)
@@ -287,10 +284,8 @@ contains
     if (err /= 0) STOP 'no space for allocation in decimation'
 
     Ao_s=Ao;
-      !write(*,*)                                                          !debug
-    do i1=1,300
-      !write(*,*) 'decimation:',i1                                         !debug
-      !call zinv(inAo,Ao,n)
+
+    do i1 = 1, 300
       call compGreen(inAo,Ao,n)
 
       call ZGEMM('N','N',n,n,n, alfa, inAo, n, Bo, n,  beta, inAoXBo, n)
@@ -304,7 +299,7 @@ contains
       call ZGEMM('N','N',n,n,n,  alfa, Bo, n, inAoXBo, n, beta, B1, n)
       call ZGEMM('N','N',n,n,n,  alfa, Co, n, inAoXCo, n, beta, C1, n) 
 
-      if((maxval(abs(Co)).le.(1.D-9)).and.(maxval(abs(C1)).le.(1.D-9))) then
+      if((maxval(abs(Co)).le.SGFACC).and.(maxval(abs(C1)).le.SGFACC)) then
         ncyc=i1
         exit;
       endif
@@ -315,8 +310,6 @@ contains
       Co=C1
 
     end do
-    !write(*,*) 'decimation: final inv'
-    !call zinv(Gamma,A1_s,n)
     call compGreen(Gamma,A1_s,n)
 
     GS%val(n1:n2,n1:n2) = Gamma(1:n,1:n)
@@ -435,21 +428,6 @@ contains
        !------------------------------------------------------------------------
        !DAR end
        !------------------------------------------------------------------------
-          
-          !debug begin
-          !print *, 'GS',i,'IndexEnergy=',pnegf%tranas%e%IndexEnergy
-          !do j1=1,GS(i)%ncol
-          !   print *, GS(i)%val(j1,1:GS(i)%ncol)
-          !end do
-          !print *, 'pnegf%HMC(i)'
-          !do j1=1,pnegf%HMC(i)%ncol
-          !   print *, pnegf%HMC(i)%val(j1,1:pnegf%HMC(i)%ncol)
-          !end do
-          !print *, 'pnegf%SMC(i)'
-          !do j1=1,pnegf%SMC(i)%ncol
-          !   print *, pnegf%SMC(i)%val(j1,1:pnegf%SMC(i)%ncol)
-          !end do        
-          !debug end
      
        avncyc = avncyc + ncyc
 
@@ -462,21 +440,6 @@ contains
        call destroy(TpMt)
 
        call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
-
-          !debug begin
-          !print *, 'Tlc'
-          !do j1=1,Tlc(i)%ncol
-          !   print *, Tlc(i)%val(j1,1:Tlc(i)%ncol)
-          !end do
-          !print *, 'Tcl'
-          !do j1=1,Tcl(i)%ncol
-          !   print *, Tcl(i)%val(j1,1:Tcl(i)%ncol)
-          !end do
-          !print *, 'SE'
-          !do j1=1,SelfEneR(i)%ncol
-          !   print *, SelfEneR(i)%val(j1,1:SelfEneR(i)%ncol)
-          !end do
-          !debug end
 
     enddo
 
@@ -636,6 +599,124 @@ contains
     deallocate(TT1,TT2)
 
   end subroutine sgf_complx
+
+  ! ------------------------------------------------------------------------------------------ 
+  ! READ WRITE SELF-ENERGIES OR SURFACE G.F. (written by DAR) 
+  ! ------------------------------------------------------------------------------------------ 
+  subroutine create_SGF_SE(negf)
+    type(Tnegf) :: negf
+
+    integer :: icont, npl, ngs
+
+    do icont=1,negf%str%num_conts
+      if (negf%tranas%cont(icont)%tReadSelfEnergy .or. &
+         negf%tranas%cont(icont)%tWriteSelfEnergy.or.negf%tManyBody) then
+         npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)- &
+            &negf%str%mat_PL_start(negf%str%cblk(icont))
+         allocate(negf%tranas%cont(icont)%SelfEnergy(npl,npl,size(negf%en_grid)))
+      end if
+    
+      if(negf%tranas%cont(icont)%tReadSurfaceGF.or.negf%tranas%cont(icont)%tWriteSurfaceGF) then
+         ngs=(negf%str%mat_C_end(icont)+ 1- negf%str%mat_B_Start(icont))/2
+         allocate(negf%tranas%cont(icont)%SurfaceGF(ngs,ngs,size(negf%en_grid)))
+      end if
+    end do
+
+  end subroutine create_SGF_SE
+
+  subroutine read_SGF_SE(negf)
+    type(Tnegf) :: negf
+
+    integer :: icont,ncont,i,Nstep
+    integer :: npl,ngs
+    real(dp) :: Ec_check
+
+    ncont = negf%str%num_conts
+    Nstep = size(negf%en_grid)
+
+    do icont=1,ncont
+
+       if(negf%tranas%cont(icont)%tReadSelfEnergy) then
+          open(14,file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf', &
+              & form="unformatted", action="read")
+          do i = 1, Nstep
+             read(14) Ec_check,negf%tranas%cont(icont)%SelfEnergy(:,:,i)
+             if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
+                write(*,*) 'Self-Energy file is not consistent. The program is terminated.'
+                stop
+             end if
+          end do
+          close(14)
+          if (id0) write(*,"('    The retarded contact self-energy is red from the file ',A)") &
+               trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
+       else
+          negf%tCalcSelfEnergies = .true.
+       end if
+
+       if(negf%tranas%cont(icont)%tReadSurfaceGF) then
+          open(14,file=trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf', &
+              & form="unformatted", action="read")
+          do i = 1, Nstep
+             read(14) Ec_check,negf%tranas%cont(icont)%SurfaceGF(:,:,i)
+             if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
+                write(*,*)'SurfaceGF is not consistent. The program is terminated.'
+                stop
+             end if
+          end do
+          close(14)
+          if (id0) write(*,"('    The retarded contact Surface GF is red from the file ',A)") &
+               trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf'
+       end if
+
+    end do
+
+  end subroutine read_SGF_SE
+      
+  subroutine write_SGF_SE(negf)
+    type(Tnegf) :: negf
+
+    integer :: icont, npl, ngs, i
+
+    do icont=1,negf%str%num_conts
+      if (negf%tranas%cont(icont)%tWriteSelfEnergy) then
+        ! note: reduce just on node 0 (writing node)                
+#:if defined("MPI") 
+        call mpifx_reduceip(negf%mpicomm, negf%tranas%cont(icont)%SelfEnergy, MPI_SUM)
+#:endif        
+        if (id0) then
+          open(14,form="unformatted",file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf' &
+               ,action="write")
+          do i = 1, size(negf%en_grid)
+             write(14)real(negf%en_grid(i)%Ec),negf%tranas%cont(icont)%SelfEnergy(:,:,i)
+          end do
+          close(14)
+          write(*,"('    The retarded contact self-energy is written into the file ',A)") &
+               trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
+        end if
+      end if
+    end do
+    
+    
+    do icont=1,negf%str%num_conts
+      if (negf%tranas%cont(icont)%tWriteSurfaceGF) then
+        ! note: reduce just on node 0 (writing node)              
+#:if defined("MPI") 
+        call mpifx_reduceip(negf%mpicomm, negf%tranas%cont(icont)%SurfaceGF, MPI_SUM)
+#:endif        
+        if (id0) then
+          open(14,form="unformatted",file=trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf' &
+               ,action="write")
+          do i = 1, size(negf%en_grid)
+             write(14)real(negf%en_grid(i)%Ec),negf%tranas%cont(icont)%SurfaceGF(:,:,i)
+          end do
+          close(14)
+          write(*,"('    The retarded contact self-energy is written into the file ',A)") &
+               trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf'
+        end if
+      end if
+    end do
+
+  end subroutine write_SGF_SE
 
 end module ContSelfEnergy
 

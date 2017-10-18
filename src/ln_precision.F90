@@ -24,7 +24,7 @@ module ln_precision
   private
 
   public :: sp, dp
-  public :: EPS, EPS10, EPS12, EPS15
+  public :: EPS, EPS10, EPS12, EPS15, SGFACC
   public :: get_machine_prec
   public :: set_drop
   
@@ -32,9 +32,10 @@ module ln_precision
   integer, parameter :: dp = selected_real_kind(14,100)
 
   real(dp) :: EPS
-  real(dp), parameter :: EPS10=1.d-10
-  real(dp), parameter :: EPS12=1.d-12
-  real(dp), parameter :: EPS15=1.d-15
+  real(dp), parameter :: EPS10=1e-10_dp
+  real(dp), parameter :: EPS12=1e-12_dp
+  real(dp), parameter :: EPS15=1e-15_dp
+  real(dp), parameter :: SGFACC=EPS10*10.0_dp
 
   
 contains 

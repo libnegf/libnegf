@@ -55,7 +55,7 @@ interface compGreen
 end interface
 
 interface inverse
-   module procedure zinv, rinv
+   module procedure cinv, zinv, rinv
 end interface
 
 
@@ -743,7 +743,6 @@ END SUBROUTINE zINV_PARDISO
 !---------- INTERFACE FOR LAPACK INVERSION (Complex MATRICES) -------------
 subroutine zINV_LAPACK(A_csr, INV)
 
-
   type(z_CSR) :: A_csr
   integer :: ndim
   complex(kind=dp), DIMENSION(:,:) :: INV
@@ -766,6 +765,43 @@ subroutine zINV_LAPACK(A_csr, INV)
 
 end subroutine zINV_LAPACK
 
+
+! --------------------------------------------------------------------------
+! Single precision inversion routine
+subroutine cinv(inA,A,n)
+  implicit none
+  complex, dimension(:,:) :: inA, A
+  integer :: n
+
+  INTEGER :: ipiv(n),info, lwork, NB
+  integer, external :: ilaenv
+  complex(dp), dimension(:), allocatable  :: work
+ 
+  lwork = n*ilaenv(1,'cgetri','',n,-1,-1,-1)
+  call log_allocate(work,lwork)
+  
+  inA=A
+  call cgetrf( n, n, inA, n, ipiv, info )
+
+  if (info.ne.0)  then
+     write(*,*)
+     write(*,*) 'ERROR in INVERSION (cinv) part 1',info
+     stop
+  end if
+
+  call cgetri( n, inA, n, ipiv, work, lwork, info )
+
+  if (info.ne.0)  then
+     write(*,*)
+     write(*,*) 'ERROR in INVERSION (cinv) part 2',info
+     stop
+  end if
+
+  call log_deallocate(work)
+  
+end subroutine cinv  
+
+
 ! --------------------------------------------------------------------------
 subroutine zinv(inA,A,n)
    
@@ -778,7 +814,7 @@ subroutine zinv(inA,A,n)
   integer, external :: ilaenv
   complex(dp), dimension(:), allocatable  :: work
   
-  lwork = n*ilaenv(1,'zgetri','',N,-1,-1,-1)
+  lwork = n*ilaenv(1,'zgetri','',n,-1,-1,-1)
 
   call log_allocate(work,lwork)
 

@@ -224,7 +224,7 @@ module outmatrix
       if (fmt) then
         do j = 1, ndim 
           do i = 1, ndim
-            if(abs(dble(A(i,j))).gt.acc.or.abs(aimag(A(i,j))).gt.acc) then
+            if(abs(dble(A(i,j))).gt.acc.or.abs(dimag(A(i,j))).gt.acc) then
               write(lunit,'(2i8,(f20.10,f20.10))') i, j, A(i,j)
             endif
           enddo
@@ -232,7 +232,7 @@ module outmatrix
       else
         do j = 1, ndim 
           do i = 1, ndim
-            if(abs(dble(A(i,j))).gt.acc.or.abs(aimag(A(i,j))).gt.acc) then
+            if(abs(dble(A(i,j))).gt.acc.or.abs(dimag(A(i,j))).gt.acc) then
                     write(lunit) i, j, A(i,j)
             endif
           enddo

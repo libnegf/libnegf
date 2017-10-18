@@ -34,21 +34,23 @@ module libnegf
  use ln_extract
  use sparsekit_drv
  use integrations
-
  use iso_c_binding
-
+#:if defined("MPI")
+ use libmpifx_module, only : mpifx_comm
+#:endif
  implicit none
  private
 
  public :: log_deallocatep
- public :: z_CSR, destroy   !from matdef
+ public :: r_CSR, z_CSR, r_DNS, z_DNS, create, destroy   !from matdef
  public :: HAR, eovh, pi, unit, convertcurrent, set_drop     ! from ln_constants
  public :: Tnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing 
  public :: set_elph_s_dephasing, destroy_elph_model
 
- public :: id0 
-#:if defined("MPI") 
+ public :: id, id0 
+#:if defined("MPI")
+ public :: set_mpi_comm
  public :: negf_mpi_init !from mpi_globals
 #:endif
 
@@ -150,8 +152,10 @@ module libnegf
    real(c_double) :: contact_dos(MAXNCONT) 
    !> Logical value: is the contact WB?
    logical(c_bool)  :: fictcont(MAXNCONT)
-   !> Electronic temperature for each contact
-   real(c_double) :: kbt(MAXNCONT) 
+   !> Electronic temperature for each contact (Density Matrix)
+   real(c_double) :: kbT_dm(MAXNCONT) 
+   !> Electronic temperature for each contact (Transmission)
+   real(c_double) :: kbT_t(MAXNCONT) 
    !! Contour integral
    !> Number of points for n 
    integer(c_int) :: np_n(2)
@@ -489,7 +493,8 @@ contains
     params%mu = negf%mu
     params%contact_dos = negf%contact_dos
     params%FictCont = negf%FictCont
-    params%kbT = negf%kbT
+    params%kbT_dm = negf%kbT_dm
+    params%kbT_t = negf%kbT_t
     params%Np_n = negf%Np_n
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
@@ -529,7 +534,8 @@ contains
     negf%mu = params%mu
     negf%contact_dos = params%contact_dos
     negf%FictCont = params%FictCont
-    negf%kbT = params%kbT
+    negf%kbT_dm = params%kbT_dm
+    negf%kbT_t = params%kbT_t
     negf%Np_n = params%Np_n
     negf%Np_real = params%Np_real
     negf%n_kt = params%n_kt
@@ -627,13 +633,12 @@ contains
   end subroutine set_ldos_indexes
   ! -------------------------------------------------------------------
 
-  !subroutine set_mpi_comm(negf, mpicomm)
-  ! type(Tnegf) :: negf
-  ! type(mpifx_comm) :: mpicomm
-  !
-  ! negf%mpicomm = mpicomm
-  !
-  !end subroutine
+  subroutine set_mpi_comm(negf, mpicomm)
+    type(Tnegf) :: negf
+    type(mpifx_comm) :: mpicomm
+  
+    negf%mpicomm = mpicomm
+  end subroutine
   
   ! -------------------------------------------------------------------   
   subroutine set_convfactor(negf, eneconv)
@@ -735,9 +740,9 @@ contains
     read(101,*)  tmp, negf%DeltaEc, negf%DeltaEv
     read(101,*)  tmp, negf%Emin, negf%Emax, negf%Estep
     if (ncont.gt.0) then
-      read(101,*) tmp, negf%kbT(1:ncont)
+      read(101,*) tmp, negf%kbT_dm(1:ncont)
     else
-      read(101,*) tmp, negf%kbT(1)
+      read(101,*) tmp, negf%kbT_dm(1)
     endif
     read(101,*)  tmp, negf%wght
     read(101,*)  tmp, negf%Np_n(1:2)

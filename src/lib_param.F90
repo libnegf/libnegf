@@ -33,8 +33,9 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create 
   use elphdb, only : ElPhonDephB, ElPhonDephB_create
   use elphds, only : ElPhonDephS, ElPhonDephS_create
-  !use libmpifx_module, only : mpifx_comm
-
+#:if defined("MPI")  
+  use libmpifx_module, only : mpifx_comm
+#:endif
   implicit none
   private
 
@@ -116,7 +117,9 @@ module lib_param
    !! Input parameters: set by library user
    !! General
    integer :: verbose
-   !type(mpifx_comm) :: mpicomm
+#:if defined("MPI")  
+   type(mpifx_comm) :: mpicomm
+#:endif   
    integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
    character(len=LST) :: scratch_path    ! Folder for scratch work
    character(len=LST) :: out_path        ! Folder for output data
@@ -136,7 +139,8 @@ module lib_param
    real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential (dft calculation)   
    real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
    logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
-   real(dp) :: kbT(MAXNCONT)         ! Electronic temperature
+   real(dp) :: kbT_dm(MAXNCONT) ! Electronic temperature
+   real(dp) :: kbT_t(MAXNCONT)    ! Electronic temperature
 
    !! Contour integral
    integer :: Np_n(2)            ! Number of points for n 
@@ -212,27 +216,19 @@ module lib_param
    !! Output variables: these are filled by internal subroutines to stor
    !! library output
    real(dp), dimension(:,:), pointer :: tunn_mat => null()
-   real(dp), dimension(:,:), pointer :: tunn_mat_bp => null()               !DAR
+   !$real(dp), dimension(:,:), pointer :: tunn_mat_bp => null()               !DAR
    real(dp), dimension(:,:), pointer :: ldos_mat => null()
    real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
    !DAR begin - in Tnegf
    !----------------------------------------------------------------------------
    logical :: tNoGeometry = .false.
-   logical :: tWriteDFTB = .false.
-   logical :: tReadDFTB = .false.
    logical :: tOrthonormal = .false.
    logical :: tOrthonormalDevice = .false.
-   logical :: tModel = .false.
-   logical :: tRead_negf_in = .false.
    logical :: tTrans = .false.
    logical :: tCalcSelfEnergies = .true.
    integer :: NumStates       
    character(len=LST) :: FileName
-   real(kind=dp), dimension(:,:), allocatable :: H_dev
-   real(kind=dp), dimension(:,:), allocatable :: S_dev
-   real(kind=dp), dimension(:,:), allocatable :: H_all
-   real(kind=dp), dimension(:,:), allocatable :: S_all
    logical :: tManyBody = .false.
    logical :: tElastic = .true.
    logical :: tDephasingVE = .false.
@@ -357,7 +353,8 @@ contains
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%kbT = 0.d0         ! electronic temperature
+     negf%kbT_dm = 0.d0         ! electronic temperature
+     negf%kbT_t = 0.d0         ! electronic temperature
      negf%g_spin = 2.d0      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n 
@@ -433,7 +430,8 @@ contains
      write(io,*) 'Emin= ',negf%Emin
      write(io,*) 'Emax= ',negf%Emax
      write(io,*) 'Estep= ',negf%Estep
-     write(io,*) 'T= ',negf%kbT
+     write(io,*) 'Density Matrix T= ',negf%kbT_dm
+     write(io,*) 'Transmission T= ',negf%kbT_t
      write(io,*) 'g_spin= ',negf%g_spin 
      write(io,*) 'delta= ',negf%delta
      write(io,*) 'dos_delta= ',negf%dos_delta
