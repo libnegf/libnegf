@@ -42,7 +42,7 @@ module outmatrix
       complex(kind=dp) :: gs(n,n)
       integer :: i1,i2,length
       character :: kk(2), line(2)
-      character, allocatable :: STR(:)
+      character(20) :: STR
 
       n1=n
       k1=k
@@ -54,17 +54,10 @@ module outmatrix
         k1=n1
       endif
 
-      write (UNIT=line,FMT='(I2)') k1
-      read (UNIT=line,FMT='(A2)') kk
-
-      length= LEN('('//kk//'(ES10.2,ES9.2))')
-      allocate(STR(length))
-      STR='('//kk//'(ES10.2,ES9.2))'
+      write(STR,'("(",I2,"(ES10.2,ES9.2))")') k1
 
       write (UNIT=*,FMT=STR) ((gs(i1,i2),i2=1,k1),i1=1,k1)  
       print *," "
-
-      deallocate(STR)
 
     end subroutine printmat
     !--------------------------------------------------
@@ -73,8 +66,8 @@ module outmatrix
       integer :: n,k,n1,k1
       complex(kind=dp) :: gs(n,n)
       integer :: i1,i2,iu,length
-      character :: kk(3), line(3),FRM(*)
-      character, allocatable :: STR(:)
+      character :: FRM(*)
+      character(20) :: STR
 
       n1=n
       k1=k
@@ -85,23 +78,16 @@ module outmatrix
       if (k1.gt.150) then 
         k1=150 
       endif
+      
       if (k1.gt.0.and.k1.le.99) then
-        write (UNIT=line,FMT='(I2)') k1
-        read (UNIT=line,FMT='(A2)') kk
+        write(STR,'("(",I2,"(ES10.2,ES9.2))")') k1
       endif
       if (k1.gt.99.and.k1.le.150) then 
-        write (UNIT=line,FMT='(I3)') k1
-        read (UNIT=line,FMT='(A3)') kk
+        write(STR,'("(",I3,"(ES10.2,ES9.2))")') k1
       endif
-
-      length= LEN('('//kk//'(ES10.2,ES9.2))')
-      allocate(STR(length))
-      STR='('//kk//'(ES10.2,ES9.2))'
 
       write (iu,STR) ((gs(i1,i2),i2=1,k1),i1=1,k1)  
       write (iu,*) " "
-
-      deallocate(STR)
 
     end subroutine printmat_fc
     !--------------------------------------------------
@@ -110,8 +96,8 @@ module outmatrix
       integer :: n,k,n1,k1
       real(kind=dp) :: gs(n,n)
       integer :: i1,i2,iu,length
-      character :: kk(3), line(3),FRM(*)
-      character, allocatable :: STR(:)
+      character :: FRM(*)
+      character(20) :: STR
 
       k1=k
       n1=n
@@ -124,23 +110,15 @@ module outmatrix
       endif
 
       if (k1.gt.0.and.k1.le.99) then
-        write (UNIT=line,FMT='(I2)') k1
-        read (UNIT=line,FMT='(A2)') kk
+        write(STR,'("(",I2,"(ES10.2))")') k1
       endif
       if (k1.gt.99.and.k1.le.150) then 
-        write (UNIT=line,FMT='(I3)') k1
-        read (UNIT=line,FMT='(A3)') kk
+        write(STR,'("(",I3,"(ES10.2))")') k1
       endif
-
-      length= LEN('('//kk//'(ES10.2)')
-      allocate(STR(length))
-      STR='('//kk//'(ES10.2))'
 
       !write (6,'(/,a,a,a)') 'format:',STR,'!' 
       write (iu,FMT=STR) ((gs(i1,i2),i2=1,k1),i1=1,k1)  
       write (iu,*) " "
-
-      deallocate(STR)
 
     end subroutine printmat_fr
 

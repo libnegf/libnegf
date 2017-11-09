@@ -2,8 +2,12 @@
 
 vpath % $(SRCDIR)
 
+ifeq ($(strip $(OBJDIR)),)
+  OBJDIR:="."	
+endif
+
 AR = ar -rc 
-TARGET = libsparskit.a
+TARGET = $(OBJDIR)/libsparskit.a
 
 SOURCES = \
     BLASSM/blassm.f \

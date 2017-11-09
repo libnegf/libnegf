@@ -917,7 +917,7 @@ contains
     nrow = negf%rho%nrow
     rowpnt = negf%rho%rowpnt
     colind = negf%rho%colind
-    nzval = negf%rho%nzval
+    nzval = real(negf%rho%nzval)
   end subroutine get_DM
 
   !-------------------------------------------------------------------- 

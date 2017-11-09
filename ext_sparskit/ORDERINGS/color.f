@@ -364,27 +364,28 @@ c
 c
 c     initialize arrays
 c
-      do 1 j=1,n
+      do j=1,n
          iord(j) = j
          riord(j) = j
          iw(j) = 0 
- 1    continue
+      end do
 c
 c     initialize degrees of all nodes
 c
       ipos = 0
-      do 100 imat =1,nummat
-         do 15 j=1,n
+      do imat =1,nummat
+         do j=1,n
             iw(j) = iw(j) + ia(ipos+j+1)-ia(ipos+j) 
- 15      continue
- 100     ipos = iptrm1
+         end do
+         ipos = iptrm1
+      end do
 c     
 c start by constructing a heap
 c 
-      do 2 i=n/2,1,-1 
+      do i=n/2,1,-1 
          j = i
          call FixHeap (iw,iord,riord,j,j,n) 
- 2    continue
+      end do
 c     
 c main loop -- remove nodes one by one. 
 c 
@@ -403,7 +404,7 @@ c
 c     scan all neighbors of accepted node -- move them to back -- 
 c     
       ipos = 0
-      do 101 imat =1,nummat      
+      do imat =1,nummat      
          do 5 k=ia(ipos+nod),ia(ipos+nod+1)-1
             jold = ja(k)
             jnew = riord(jold)
@@ -412,34 +413,34 @@ c
             call HeapInsert (iw,iord,riord,jnew,ichild,jnew) 
             call moveback (iw,iord,riord,last) 
             last = last -1 
- 5       continue 
+ 5       continue            
          ipos = iptrm1
- 101  continue
+      end do
 c
 c update the degree of each edge
 c 
-         do 6 k=last+1,lastlast-1
+      do k=last+1,lastlast-1
             jold = iord(k) 
 c     
 c     scan the neighbors of current node
 c     
          ipos = 0
-         do 102 imat =1,nummat
+         do imat =1,nummat
             do 61 i=ia(ipos+jold),ia(ipos+jold+1)-1 
                jo = ja(i) 
                jn = riord(jo) 
 c
 c     consider this node only if it has not been moved          
 c     
-               if (jn .gt. last) goto 61
+               if (jn .gt. last) goto 61 
 c     update degree of this neighbor 
                iw(jn) = iw(jn)-1
 c     and fix the heap accordingly
                call HeapInsert (iw,iord,riord,jn,ichild,jn)
  61         continue
             ipos = iptrm1
- 102     continue
- 6    continue
+         end do
+      end do
 c
 c     stopping test -- end main "while"loop 
 c
@@ -522,23 +523,24 @@ c
 c
 c     initialize arrays
 c
-      do 1 j=1,n
+      do j=1,n
          riord(j) = j
          iord(j) = j
          iw(j) = 0 
- 1    continue
+      end do
 c
 c     initialize degrees of all nodes
 c
       nnz = 0
       ipos = 0
-      do 100 imat =1,nummat
-         do 15 j=1,n
+      do imat =1,nummat
+         do j=1,n
             ideg = ia(ipos+j+1)-ia(ipos+j) 
             iw(j) = iw(j) + ideg 
             nnz = nnz + ideg
- 15      continue
- 100     ipos = iptrm1
+         end do
+         ipos = iptrm1
+      end do
 c
 c     number of edges
 c     
@@ -546,10 +548,10 @@ c
 c     
 c start by constructing a Max heap
 c 
-      do 2 i=n/2,1,-1 
+      do i=n/2,1,-1 
          j = i
          call FixHeapM (iw,riord,iord,j,j,n) 
- 2    continue
+      end do
       nset = n
 c----------------------------------------------------------------------     
 c main loop -- remove nodes one by one. 

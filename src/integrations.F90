@@ -203,7 +203,7 @@ contains
        diag = - aimag(diag)/pi
 
        do i1 = 1, size(negf%LDOS)
-           negf%ldos_mat(i, i1) = sum(diag(negf%LDOS(i1)%indexes))
+           negf%ldos_mat(i, i1) = real(sum(diag(negf%LDOS(i1)%indexes)))
        enddo
         
        call destroy(Gr)
@@ -1837,7 +1837,7 @@ contains
                           & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
-  end subroutine electron_current_meir_wingreen		  
+  end subroutine electron_current_meir_wingreen
   !DAR end
   
   !-----------------------------------------------------------------------
@@ -2372,7 +2372,7 @@ contains
     ! Partial Sum_j[G_ij S_ji]
     do ii=1, nrow 
       do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
-        dd = DensMat%nzval(ka)
+        dd = real(DensMat%nzval(ka))
         jj = DensMat%colind(ka)
         
         do kb=negf%S%rowpnt(jj),negf%S%rowpnt(jj+1)-1

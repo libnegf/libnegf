@@ -383,23 +383,26 @@ c------------------------------------------------------------------------
          return
       endif
 c------------------------------------------------------------------------
-      goto (3,2,1) job
- 1    do 10 k=1,nnz
-         ao(k) = a(k)
- 10   continue
- 2    do 11 k=1,nnz
-         jc(k) = ja(k)
- 11   continue
 c
 c     copy backward to allow for in-place processing. 
 c
- 3    do 13 i=nrow,1,-1
+      do i=nrow,1,-1
          k1 = ia(i+1)-1
          k2 = ia(i)
-         do 12 k=k1,k2,-1
+         do k=k1,k2,-1
             ir(k) = i
- 12      continue
- 13   continue
+         end do
+      end do
+      if (job >= 3) then
+        do k=1,nnz
+          ao(k) = a(k)
+        end do 
+      end if  
+      if (job >= 2) then
+        do k=1,nnz
+          jc(k) = ja(k)
+        end do  
+      end if  
       return
 c------------- end-of-csrcoo ------------------------------------------- 
 c----------------------------------------------------------------------- 
@@ -2778,11 +2781,12 @@ c
 c- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 c   Initial output arrays to zero:
 c
-      do 4 in = 1,ner
-         do 4 innz =1,n
+      do in = 1,ner
+         do innz =1,n
             jac(innz,in) = n
             ac(innz,in) = 0.0d0
- 4    continue
+         end do
+      end do
 c     
 c- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 c

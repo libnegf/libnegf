@@ -830,7 +830,7 @@ CONTAINS
         call prealloc_mult(Tmp2,GreenA,Tmp1)
         call destroy(Tmp2)
 
-        Trans(nn,mm) = Trans(nn,mm) + trace(Tmp1)
+        Trans(nn,mm) = Trans(nn,mm) + real(trace(Tmp1))
 
         call destroy(Tmp1)
 
@@ -2757,8 +2757,8 @@ CONTAINS
     if (Wq.eq.0) then
       i1 = pnegf%iE
       i2 = pnegf%iE
-      E1 = pnegf%Epnt
-      E2 = pnegf%Epnt
+      E1 = real(pnegf%Epnt)
+      E2 = real(pnegf%Epnt)
       return
     endif
 
@@ -2916,7 +2916,7 @@ CONTAINS
     Wmax = maxval(Wq)
     dE = Epnt(2)-Epnt(1)
     ! ENERGY-INTERVAL FOR SELF-ENERGIES:
-    i_start = aint(Wmax/dE) + 1
+    i_start = int(aint(Wmax/dE) + 1)
     i_stop =  (n - i_start) 
     i_start = i_start + 1
 
@@ -3571,7 +3571,7 @@ CONTAINS
         !***
         !Calcolo del contributo sulla proria regione
         !***          
-        frmdiff=cmplx(frm(ref)-frm(k))
+        frmdiff = cmplx(frm(ref)-frm(k),0.d0,dp)
 
         CALL zspectral(gsurfR(k),gsurfR(k),0,work1)
 

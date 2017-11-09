@@ -360,8 +360,8 @@ c--------------
       else
          write (ptrfmt,100) nperli,len
       endif
- 100  format(1h(,i2,1HI,i2,1h))
- 101  format(1h(,i2,1HI,i2,1h))
+ 100  format('(',i2,'I',i2,')')
+ 101  format('(',i2,'I',i2,')')
 c----------------------------
 c compute ROW index format
 c----------------------------
@@ -384,34 +384,43 @@ c
          nperli = 80/len
 c    
          if (len .le. 9 ) then
-           write(valfmt,'(1h(,i2,1hF,i1,1h.,i1,1h))') nperli,len,ifmt
+           write(valfmt,102) nperli,len,ifmt
          elseif (ifmt .le. 9) then
-           write(valfmt,'(1h(,i2,1hF,i2,1h.,i1,1h))') nperli,len,ifmt
+           write(valfmt,103) nperli,len,ifmt
          else 
-           write(valfmt,'(1h(,i2,1hF,i2,1h.,i2,1h))') nperli,len,ifmt
+           write(valfmt,104) nperli,len,ifmt
          endif
+ 102     format('(',i2,'F',i1,'.',i1,')')
+ 103     format('(',i2,'F',i2,'.',i1,')')
+ 104     format('(',i2,'F',i2,'.',i2,')')
       else
          len = ifmt + 6
          nperli = 80/len
 c----+----------------------------------------------------------------------+
          if (nperli .le. 9) then
            if (len .le. 9 ) then
-             write(valfmt,'(1h(,i1,1hD,i1,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt,105) nperli,len,ifmt
            elseif (ifmt .le. 9) then
-             write(valfmt,'(1h(,i1,1hD,i2,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt,106) nperli,len,ifmt
            else 
-             write(valfmt,'(1h(,i1,1hD,i2,1h.,i2,1h))') nperli,len,ifmt
+             write(valfmt,107) nperli,len,ifmt
            endif
          else 
            if (len .le. 9 ) then
-             write(valfmt,'(1h(,i2,1hD,i1,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt,108) nperli,len,ifmt
            elseif (ifmt .le. 9) then
-             write(valfmt,'(1h(,i2,1hD,i2,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt,109) nperli,len,ifmt
            else 
-             write(valfmt,'(1h(,i2,1hD,i2,1h.,i2,1h))') nperli,len,ifmt
+             write(valfmt,110) nperli,len,ifmt
            endif
          endif
       endif       
+ 105     format('(',i1,'D',i1,'.',i1,')')
+ 106     format('(',i1,'D',i2,'.',i1,')')
+ 107     format('(',i1,'D',i2,'.',i2,')')
+ 108     format('(',i2,'D',i1,'.',i1,')')
+ 109     format('(',i2,'D',i2,'.',i1,')')
+ 110     format('(',i2,'D',i2,'.',i2,')')
       valcrd = (nnz-1)/nperli+1
       nrhs   = job -2
       if (nrhs .ge. 1) then
@@ -536,15 +545,15 @@ c across a line
 c
 c formats :
 c
- 100  format (1h ,34(1h-),' row',i6,1x,34(1h-) )
- 101  format(' col:',8(i5,6h     : ))
- 102  format(' val:',8(D9.2,2h :) )
- 200  format (1h ,30(1h-),' row',i3,1x,30(1h-),/
+ 100  format (' ',34('-'),' row',i6,1x,34('-') )
+ 101  format(' col:',8(i5,'     :'))
+ 102  format(' val:',8(D9.2,' :') )
+ 200  format (' ',30('-'),' row',i3,1x,30('-'),/
      *     3('  columns :    values  * ') )
 c-------------xiiiiiihhhhhhddddddddd-*-
- 201  format(3(1h ,i6,6h   :  ,D9.2,3h * ) )
- 202  format(6(1h ,i5,6h  *    ) ) 
- 203  format (1h ,30(1h-),' row',i3,1x,30(1h-),/
+ 201  format(3(' ',i6,'   :  ',D9.2,' * ') )
+ 202  format(6(' ',i5,'  *   ') ) 
+ 203  format(' ',30('-'),' row',i3,1x,30('-'),/
      *     3('  column  :  column   *') )
       return
 c-----------------------------------------------------------------------
@@ -937,7 +946,7 @@ c
          endif
       end do  
 c-----------------------------------------------------------------------
- 128  format(7h"." at ,f6.3,1h,,f6.3,8h ljust  )
+ 128  format('"." at ',f6.3,',',f6.3,' ljust  ')
       write (iounit, 129)
  129  format('.PE')
 c     quit if caption not desired. 
@@ -1288,8 +1297,8 @@ c--------------
       else
         write (ptrfmt,101) nperli,len
       endif
- 100  format(1h(,i2,1HI,i2,1h))
- 101  format(1h(,i2,1HI,i2,1h))
+ 100  format('(',i2,'I',i2,')')
+ 101  format('(',i2,'I',i2,')')
 c----------------------------
 c     compute ROW index format
 c----------------------------
@@ -1306,34 +1315,43 @@ c----+----------------------------------------------------------------------+
          nperli = 80/len
 c     
          if (len .le. 9 ) then
-           write(valfmt,'(1h(,i2,1hF,i1,1h.,i1,1h))') nperli,len,ifmt
+           write(valfmt,102) nperli,len,ifmt
          elseif (ifmt .le. 9) then
-           write(valfmt,'(1h(,i2,1hF,i2,1h.,i1,1h))') nperli,len,ifmt
+           write(valfmt,103) nperli,len,ifmt
          else 
-           write(valfmt,'(1h(,i2,1hF,i2,1h.,i2,1h))') nperli,len,ifmt
+           write(valfmt,104) nperli,len,ifmt
          endif
+ 102     format('(',i2,'F',i1,'.',i1,')')
+ 103     format('(',i2,'F',i2,'.',i1,')')
+ 104     format('(',i2,'F',i2,'.',i2,')')
 c     
       else
          len = ifmt + 7
          nperli = 80/len
          if (nperli .le. 9) then
            if (len .le. 9 ) then
-             write(valfmt,'(1h(,i1,1hD,i1,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt, 105) nperli,len,ifmt
            elseif (ifmt .le. 9) then
-             write(valfmt,'(1h(,i1,1hD,i2,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt, 106) nperli,len,ifmt
            else 
-             write(valfmt,'(1h(,i1,1hD,i2,1h.,i2,1h))') nperli,len,ifmt
+             write(valfmt, 107) nperli,len,ifmt
            endif
          else 
            if (len .le. 9 ) then
-             write(valfmt,'(1h(,i2,1hD,i1,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt, 108) nperli,len,ifmt
            elseif (ifmt .le. 9) then
-             write(valfmt,'(1h(,i2,1hD,i2,1h.,i1,1h))') nperli,len,ifmt
+             write(valfmt, 109) nperli,len,ifmt
            else 
-             write(valfmt,'(1h(,i2,1hD,i2,1h.,i2,1h))') nperli,len,ifmt
+             write(valfmt, 110) nperli,len,ifmt
            endif
          endif
       endif       
+ 105     format('(',i1,'D',i1,'.',i1,')')
+ 106     format('(',i1,'D',i2,'.',i1,')')
+ 107     format('(',i1,'D',i2,'.',i2,')')
+ 108     format('(',i2,'D',i1,'.',i1,')')
+ 109     format('(',i2,'D',i2,'.',i1,')')
+ 110     format('(',i2,'D',i2,'.',i2,')')
 c----+----------------------------------------------------------------------+
 c     
 c     output the data

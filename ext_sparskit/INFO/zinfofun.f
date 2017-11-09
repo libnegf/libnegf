@@ -267,9 +267,9 @@ c--------------------------------------------------------------------------
       do i =1,n
          do k = ia(i), ia(i+1)-1
             if (ja(k) .eq. i) then
-               Fdiag = Fdiag + conjg(a(k))*a(k)
+               Fdiag = Fdiag + abs(a(k))**2
             else
-               Fnorm = Fnorm + conjg(a(k))*a(k)
+               Fnorm = Fnorm + abs(a(k))**2
             endif
          enddo 
       enddo 
@@ -727,7 +727,7 @@ c
 c-----------------------------------------------------------------------
 c-----local variables
       integer n, nb, nnz, nnzb, i, j, neq, max, num
-      character*101 tmpst
+      character(101) tmpst
       integer bsiz(10), freq(10)
 c-----------------------------------------------------------------------
       n = kvstr(nr+1)-1
@@ -778,8 +778,7 @@ c-----print information about blocksizes
       write (iout,111) tmpst
       write (iout, 96)
 c-----------------------------------------------------------------------
- 99    format (2x,38(2h *))
- 96    format (6x,' *',65(1h-),'*')
+ 96    format (6x,' *',65('-'),'*')
  100   format(
      * 6x,' *  Number of rows                                   = ',
      * i10,'  *'/

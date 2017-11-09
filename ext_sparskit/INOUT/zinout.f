@@ -395,8 +395,8 @@ c--------------
       else
          write (ptrfmt,100) nperli,len
       endif
- 100  format(1h(,i2,1HI,i1,1h) )
- 101  format(1h(,i2,1HI,i2,1h) )
+ 100  format('(',i2,'I',i1,')')
+ 101  format('(',i2,'I',i2,')')
 c----------------------------
 c compute ROW index format
 c----------------------------
@@ -426,9 +426,9 @@ c
             write(valfmt,104) nperli,len,ifmt
          endif
 c     
- 102     format(1h(,i2,1hF,i1,1h.,i1,1h) )
- 103     format(1h(,i2,1hF,i2,1h.,i1,1h) )
- 104     format(1h(,i2,1hF,i2,1h.,i2,1h) )
+ 102     format('(',i2,'F',i1,'.',i1,')')
+ 103     format('(',i2,'F',i2,'.',i1,')')
+ 104     format('(',i2,'F',i2,'.',i2,')')
 C
       else
          len = ifmt + 6
@@ -452,12 +452,12 @@ c     try to minimize the blanks in the format strings.
             endif
          endif
 c-----------
- 105     format(1h(,i1,1hD,i1,1h.,i1,1h) )
- 106     format(1h(,i1,1hD,i2,1h.,i1,1h) )
- 107     format(1h(,i1,1hD,i2,1h.,i2,1h) )
- 108     format(1h(,i2,1hD,i1,1h.,i1,1h) )
- 109     format(1h(,i2,1hD,i2,1h.,i1,1h) )
- 110     format(1h(,i2,1hD,i2,1h.,i2,1h) )
+ 105     format('(',i1,'D',i1,'.',i1,')')
+ 106     format('(',i1,'D',i2,'.',i1,')')
+ 107     format('(',i1,'D',i2,'.',i2,')')
+ 108     format('(',i2,'D',i1,'.',i1,')')
+ 109     format('(',i2,'D',i2,'.',i1,')')
+ 110     format('(',i2,'D',i2,'.',i2,')')
 c     
       endif       
       valcrd = (nnz-1)/nperli+1
@@ -587,15 +587,15 @@ c
 c
 c formats :
 c
- 100  format (1h ,34(1h-),' row',i6,1x,34(1h-) )
- 101  format(' col:',8(i5,6h     : ))
- 102  format(' val:',4(1h(,D9.2,D10.2,2h) ))
- 200  format (1h ,30(1h-),' row',i3,1x,30(1h-),/
+ 100  format(' ',34('-'),' row',i6,1x,34('-'))
+ 101  format(' col:',8(i5,'     : '))
+ 102  format(' val:',4('(',D9.2,D10.2,') '))
+ 200  format (' ',30('-'),' row',i3,1x,30('-'),/
      *     3('  columns :    values  * ') )
 c-------------xiiiiiihhhhhhddddddddd-*-
- 201  format(2(1h ,i6,6h   :  ,1h(,D9.2,D10.2,2h) ))
- 202  format(6(1h ,i5,6h  *    ) ) 
- 203  format (1h ,30(1h-),' row',i3,1x,30(1h-),/
+ 201  format(2(' ',i6,'   :  ','(',D9.2,D10.2,') '))
+ 202  format(6(' ',i5,'  *   ')) 
+ 203  format (' ',30('-'),' row',i3,1x,30('-'),/
      *     3('  column  :  column   *') )
       return
 c-----------------------------------------------------------------------
@@ -977,7 +977,7 @@ c
          endif
       end do  
 c-----------------------------------------------------------------------
- 128  format(7h"." at ,f6.3,1h,,f6.3,8h ljust  )
+ 128  format('"." at ',f6.3,',',f6.3,' ljust  ')
       write (iounit, 129)
  129  format('.PE')
 c     quit if caption not desired. 
@@ -1045,7 +1045,7 @@ c
             endif 
          end do  
       end do  
- 103  format (2i6,2x,1h(,e22.14,1h,,e22.14,1h))
+ 103  format (2i6,2x,'(',e22.14,',',e22.14,')')
 c-----------------------------------------------------------------------
       end
 c-----end-of-smms--------------------------------------------------------
@@ -1331,8 +1331,8 @@ c--------------
       else
          write (ptrfmt,100) nperli,len
       endif
- 100  format(1h(,i2,1HI,i1,1h) )
- 101  format(1h(,i2,1HI,i2,1h) )
+ 100  format('(',i2,'I',i1,')')
+ 101  format('(',i2,'I',i2,')')
 c----------------------------
 c     compute ROW index format
 c----------------------------
@@ -1357,9 +1357,9 @@ c
             write(valfmt,104) nperli,len,ifmt
          endif
 c     
- 102   format(1h(,i2,6h(1h(,F,i1,1h.,i1,6h,1h,,F,i1,1h.,i1,5h,2h) ,2h)))
- 103   format(1h(,i2,6h(1h(,F,i2,1h.,i1,6h,1h,,F,i2,1h.,i1,5h,2h) ,2h)))
- 104   format(1h(,i2,6h(1h(,F,i2,1h.,i2,6h,1h,,F,i2,1h.,i2,5h,2h) ,2h))) 
+ 102   format('(',i2,'(1h(,F',i1,'.',i1,',1h,,F',i1,'.',i1,',2h) ','))')
+ 103   format('(',i2,'(1h(,F',i2,'.',i1,',1h,,F',i2,'.',i1,',2h) ','))')
+ 104   format('(',i2,'(1h(,F',i2,'.',i2,',1h,,F',i2,'.',i2,',2h) ','))')
 C     
       else
          len = ifmt + 7
@@ -1383,12 +1383,12 @@ C
             endif
          endif
 c-----------
- 105   format(1h(,i1,6h(1h(,D,i1,1h.,i1,6h,1h,,D,i1,1h.,i1,5h,2h) ,2h)))
- 106   format(1h(,i1,6h(1h(,D,i2,1h.,i1,6h,1h,,D,i2,1h.,i1,5h,2h) ,2h)))
- 107   format(1h(,i1,6h(1h(,D,i2,1h.,i2,6h,1h,,D,i2,1h.,i2,5h,2h) ,2h)))
- 108   format(1h(,i2,6h(1h(,D,i1,1h.,i1,6h,1h,,D,i1,1h.,i1,5h,2h) ,2h)))
- 109   format(1h(,i2,6h(1h(,D,i2,1h.,i1,6h,1h,,D,i2,1h.,i1,5h,2h) ,2h)))
- 110   format(1h(,i2,6h(1h(,D,i2,1h.,i2,6h,1h,,D,i2,1h.,i2,5h,2h) ,2h)))
+ 105   format('(',i1,'1h(,D',i1,'.',i1,',1h,,D',i1,'.',i1,',2h) ','))')
+ 106   format('(',i1,'1h(,D',i2,'.',i1,',1h,,D',i2,'.',i1,',2h) ','))')
+ 107   format('(',i1,'1h(,D',i2,'.',i2,',1h,,D',i2,'.',i2,',2h) ','))')
+ 108   format('(',i2,'1h(,D',i1,'.',i1,',1h,,D',i1,'.',i1,',2h) ','))')
+ 109   format('(',i2,'1h(,D',i2,'.',i1,',1h,,D',i2,'.',i1,',2h) ','))')
+ 110   format('(',i2,'1h(,D',i2,'.',i2,',1h,,D',i2,'.',i2,',2h) ','))')
 c     
       endif       
 c     

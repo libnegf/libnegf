@@ -25,7 +25,7 @@ c zcperm  : permutes the columns of a matrix (B = A Q)                  c
 c zdperm  : permutes both the rows and columns of a matrix (B = P A Q ) c
 c zdperm1 : general extractiob routine (extracts arbitrary rows)        c
 c zdperm2 : general submatrix permutation/extraction routine            c
-c zdmperm : symmetric permutation of row and column (B=PAP') in MSR fmt c
+c zdmperm : symmetric permutation of row and column (B=PAP-1) in MSR fmt c
 c zdvperm : permutes a real vector (in-place)                           c
 c zivperm : permutes an integer vector (in-place)                       c
 c zretmx  : returns the max absolute value in each row of the matrix    c
@@ -172,39 +172,42 @@ c local variables
       integer index,row,k,k1,k2 
 c
       index = 1
-      do 10 row= 1,n
+      do row= 1,n
          k1 = ia(row)
          k2 = ia(row+1) - 1
          ib(row) = index
-         goto (100,200,300) job
- 100     norm = 1.0d0
-         goto 400
- 200     norm = 0.0d0
-         do 22 k = k1,k2
-            norm = norm + abs(a(k))**2
- 22      continue
-         norm = sqrt(norm)
-         goto 400
- 300     norm = 0.0d0
-         do 23 k = k1,k2
-            if(abs(a(k)) .gt. norm) then
+         select case (job) 
+         case(1) 
+           norm = 1.0d0
+         case(2)
+           norm = 0.0d0
+           do k = k1,k2
+             norm = norm + abs(a(k))**2
+           end do
+           norm = sqrt(norm)
+         case(3)
+           norm = 0.0d0
+           do k = k1,k2
+             if( abs(a(k))  .gt. norm) then
                norm = abs(a(k))
-            endif
- 23      continue
- 400     loctol = drptol * norm
-         do 30 k = k1,k2
-            if( abs(a(k)) .gt. loctol)then 
-               if (index .gt. len) then
-               ierr = row 
-               return
-            endif
-            b(index) =  a(k)
-            jb(index) = ja(k)
-            index = index + 1
-         endif
- 30   continue
- 10   continue
-      ib(n+1) = index
+             endif
+           end do
+         end select
+
+         loctol = drptol * norm
+         do k = k1,k2
+           if( abs(a(k)) .gt. loctol)then 
+              if (index .gt. len) then
+                ierr = row 
+                return
+              endif
+              b(index) =  a(k)
+              jb(index) = ja(k)
+              index = index + 1
+           endif
+         end do
+      end do
+
       return
 c--------------------end-of-filter -------------------------------------
 c-----------------------------------------------------------------------
@@ -263,36 +266,38 @@ c
       integer index,row,k,k1,k2 
 c
       index = n+2
-      do 10 row= 1,n
+      do row= 1,n
          k1 = ja(row)
          k2 = ja(row+1) - 1
          jb(row) = index
-         goto (100,200,300) job
- 100     norm = 1.0d0
-         goto 400
- 200     norm = abs(a(row))**2 
-         do 22 k = k1,k2
-            norm = norm + abs(a(k))**2
- 22      continue
-         norm = sqrt(norm)
-         goto 400
- 300     norm = abs(a(row)) 
-         do 23 k = k1,k2
-            norm = max(abs(a(k)),norm) 
- 23      continue
- 400     loctol = drop * norm
-         do 30 k = k1,k2
-            if( abs(a(k)) .gt. loctol)then 
-               if (index .gt. len) then
-                  ierr = row 
-                  return
-               endif
-               b(index) =  a(k)
-               jb(index) = ja(k)
-               index = index + 1
-            endif
- 30      continue
- 10   continue
+         select case (job) 
+         case(1) 
+           norm = 1.0d0
+         case(2)
+           norm = abs(a(row))**2 
+           do k = k1,k2
+             norm = norm + abs(a(k))**2
+           end do
+           norm = sqrt(norm)
+         case(3)
+           norm = abs(a(row))
+           do k = k1,k2
+               norm = max(abs(a(k)),norm)
+           end do
+         end select
+         loctol = drptol * norm
+         do k = k1,k2
+           if( abs(a(k)) .gt. loctol)then 
+              if (index .gt. len) then
+                ierr = row 
+                return
+              endif
+              b(index) =  a(k)
+              jb(index) = ja(k)
+              index = index + 1
+           endif
+         end do
+      end do
       jb(n+1) = index
       return
 c--------------------end-of-filterm-------------------------------------
@@ -1967,33 +1972,36 @@ c (no scaling)..
 c----------------------------------------------------------------------c
 c           Y. Saad, Sep. 21 1989                                      c
 c----------------------------------------------------------------------c
-      goto (12,11,10) job+1
- 10   do j=1,n
-         k1= ia(j)
-         k2 = ia(j+1)-1
-         t = 0.0d0
-         do k = k1,k2
-            t = t+abs(a(k))**2
-         end do
-         diag(j) = sqrt(t)
-      end do
-      goto 12
- 11   continue
-      call zretmx (n,a,ja,ia,diag)
-c------
- 12   do 1 j=1,n
-         if (diag(j) .ne. 0.0d0) then 
-            diag(j) = 1.0d0/diag(j)
-         else 
-            diag(j) = 1.0d0
-         endif
- 1    continue
-      do 2 i=1,n
-         t = diag(i)
-         do 21 k=ia(i),ia(i+1) -1
-            a(k) = a(k)*t
- 21      continue
- 2    continue
+      select case(job)
+      case(1)
+        call zretmx(n,a,ja,ia,diag)
+      case(2)
+        do j=1,n
+           k1= ia(j)
+           k2 = ia(j+1)-1
+           t = 0.0d0
+           do k = k1,k2
+              t = t+abs(a(k))**2
+           end do
+           diag(j) = sqrt(t)
+        end do
+      end select
+      if (job >= 0) then
+        do j=1,n
+           if (diag(j) .ne. 0.0d0) then 
+              diag(j) = 1.0d0/diag(j)
+           else 
+              diag(j) = 1.0d0
+           endif
+        end do
+        do i=1,n
+           t = diag(i)
+           do k=ia(i),ia(i+1) -1
+              a(k) = a(k)*t
+           end do
+        end do
+      end if
+
       return 
 c--------end of dscaldg -----------------------------------------------
 c-----------------------------------------------------------------------

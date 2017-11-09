@@ -373,11 +373,12 @@ c
 c     initialize degrees of all nodes
 c
       ipos = 0
-      do 100 imat =1,nummat
-         do 15 j=1,n
+      do imat =1,nummat
+         do j=1,n
             iw(j) = iw(j) + ia(ipos+j+1)-ia(ipos+j) 
- 15      continue
- 100     ipos = iptrm1
+         end do
+         ipos = iptrm1
+      end do
 c     
 c start by constructing a heap
 c 
@@ -532,13 +533,14 @@ c     initialize degrees of all nodes
 c
       nnz = 0
       ipos = 0
-      do 100 imat =1,nummat
-         do 15 j=1,n
+      do imat =1,nummat
+         do j=1,n
             ideg = ia(ipos+j+1)-ia(ipos+j) 
             iw(j) = iw(j) + ideg 
             nnz = nnz + ideg
- 15      continue
- 100     ipos = iptrm1
+         end do
+         ipos = iptrm1
+      end do
 c
 c     number of edges
 c     

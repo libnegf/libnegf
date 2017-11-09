@@ -12,9 +12,11 @@ libnegf: ext_sparskit
 	$(MAKE) -C libnegf -f $(SRCDIR)/src/GNUmakefile \
 	  ARCH="$(ARCH)" MPI="$(MPI)" INELASTIC="$(INELASTIC)" \
 	  FPP="$(FPP)" FPPOPT="$(FPPOPT)" SRCDIR="$(SRCDIR)/src" \
-	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" INCLUDES="$(INCLUDES)" 
+	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" INCLUDES="$(INCLUDES)" \
+	  OBJDIR="$(OBJDIR)" 
 
 ext_sparskit:
 	mkdir -p sparskit
 	$(MAKE) -C sparskit -f $(SRCDIR)/ext_sparskit/GNUmakefile \
-	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" SRCDIR="$(SRCDIR)/ext_sparskit"
+	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" SRCDIR="$(SRCDIR)/ext_sparskit" \
+	  OBJDIR="$(OBJDIR)"

@@ -1,10 +1,14 @@
 
 vpath % $(SRCDIR)
 
+ifeq ($(strip $(OBJDIR)),)
+  OBJDIR:="."	
+endif
+
 ifeq ($(strip $(ARCH)),) 
-  TARGET = libnegf.a
+  TARGET = $(OBJDIR)/libnegf.a
 else
-  TARGET = libnegf-$(ARCH).a
+  TARGET = $(OBJDIR)/libnegf-$(ARCH).a
 endif 
 
 SOURCES = clock.F90  ln_extract.F90 \
@@ -23,13 +27,23 @@ endif
 
 OBJS = $(SOURCES:.F90=.o)
 
-FPPFLAGS = $(FPPOPT) 
+FPPFLAGS = $(FPPOPT)
+#if MPI=Y and -DMPI is not already present adds it to FPPFLAGS
+ifeq ($(strip $(MPI)),Y)
+  ifneq (,$(findstring -DMPI,$(FPPFLAGS)))
+  else
+     FPPFLAGS += -DMPI
+  endif
+endif  
+
 #FPPFLAGS += -D_GITREVISION='"$(shell git describe)"'
 FPPFLAGS += -D_GITREVISION='"000"'
 FPPFLAGS += -D_COMPDATE='"$(shell date +'%F')"'
 
 .SUFFIXES :
 .SUFFIXES : .F90 .o
+
+.PRECIOUS : %.f90
 
 %.f90: %.F90
 	$(FPP) $(FPPFLAGS) $< $@

@@ -669,7 +669,7 @@ CONTAINS
 
    do i = 1, A%ncol
      do k = 1, A%nrow
-       if(abs(M%val(k,i)).eq.0.0_dp) A%val(k,i)=cmplx(0.0_dp,0.0_dp)
+       if(abs(M%val(k,i)).eq.0.0_dp) A%val(k,i)=(0.0_dp,0.0_dp)
      enddo
    enddo
 

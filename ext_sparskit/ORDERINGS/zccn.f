@@ -373,7 +373,6 @@ c
  320  format(' ***CCONEX*** THE ALLOWED NUMBER OF CONNECTED COMPONENTS',
      *       ' IS NOT ENOUGH.'/13X,' NECESSARY NUMBER = ',I4,
      *       5x,' ALLOWED NUMBER = ',I4)
- 323  format(' ***CCONEX*** ERROR IN ',A6,'. IER = ',I8)
  340  format(/' ***CCONEX*** THE LAST CONNECTED COMPONENT WILL',
      *       ' HAVE THE DIAGONAL VERTICES.')
       end

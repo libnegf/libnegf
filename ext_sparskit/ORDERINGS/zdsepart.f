@@ -401,7 +401,7 @@ c
 c     on return
 c     ---------
 c     mask   = on return mask is restored to its initial state. 
-c     riord  = `reverse permutation array'. Contains the labels of the nodes
+c     riord  = `reverse permutation array. Contains the labels of the nodes
 c     constituting all the levels found, from the first level to
 c     the last. 
 c     levels = pointer array for the level structure. If lev is a level
@@ -434,7 +434,6 @@ c
          mask(riord(j)) = 0 
  12   continue
 c-----------------------------------------------------------------------
- 13   continue 
 c     
  1    nlev = nlev+1
       levels(nlev) = istart + 1
@@ -458,7 +457,7 @@ c
          endif
       endif
 c----------------------------------------------------------------------- 
- 3    levels(nlev+1) = iend+1 
+      levels(nlev+1) = iend+1 
       do j=1, iend
          mask(riord(j)) = maskval 
       enddo
@@ -474,7 +473,7 @@ c     span all nodes of previous mask
 c-------------------------------------------------------------
       nod = iend
       do 25 ir = istart+1,iend 
-         i = riord(ir)		
+         i = riord(ir)
          do 24 k=ia(i),ia(i+1)-1
             j = ja(k)
             if (mask(j) .eq. maskval) then

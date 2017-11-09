@@ -49,7 +49,7 @@ contains
 
    write(6,FMT='(A'//str_mess//','//str_dots//'("."))',ADVANCE='NO') message 
 
-   call flush(6)
+   flush(6)
 
    cpos=54
 
