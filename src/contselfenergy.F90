@@ -51,6 +51,7 @@ module ContSelfEnergy
   public :: create_SGF_SE
   public :: read_SGF_SE
   public :: write_SGF_SE
+  public :: sgf_complx
 
   interface SelfEnergy
      module procedure SelfEnergy_csr    
@@ -179,8 +180,6 @@ contains
 
           call decimation2(E,GS,Ao,Bo,Co,npl,n1,n2,ncyc)
 
-          !call sgf_complx(E,Ao,Bo,Co,npl,GS)
-
           call log_deallocate(Ao)
           call log_deallocate(Bo)
           call log_deallocate(Co)
@@ -239,22 +238,22 @@ contains
 
   end subroutine surface_green
   !---------------------------------------------------------------------------------------
-  subroutine savedensity(g,n,E,icon,dens)
-
-    implicit none
-
-    integer :: n
-    complex(kind=dp) :: g(n,n)
-    integer :: i,icon
-    complex(kind=dp) :: E,dens
-
-    dens=(0.D0,0.D0)
-    do i=1,n
-      dens = dens + g(i,i) 
-    enddo
-    dens = (-2.D0/pi)*dens
-
-  endsubroutine savedensity
+  !subroutine savedensity(g,n,E,icon,dens)
+  !
+  !  implicit none
+  !
+  !  integer :: n
+  !  complex(kind=dp) :: g(n,n)
+  !  integer :: i,icon
+  !  complex(kind=dp) :: E,dens
+  !
+  !  dens=(0.D0,0.D0)
+  !  do i=1,n
+  !    dens = dens + g(i,i) 
+  !  enddo
+  !  dens = (-2.D0/pi)*dens
+  !
+  !endsubroutine savedensity
 
   !--------------------------------------------------------------------
   subroutine decimation2(E,GS,Ao,Bo,Co,n,n1,n2,ncyc)

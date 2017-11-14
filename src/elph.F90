@@ -31,7 +31,7 @@ module elph
 
   public :: Telph
   public :: init_elph_1, destroy_elph, init_elph_2, init_elph_3
-
+  public :: init_elph !? check this one
 
   !> This type contains information describing different electron phonon 
   !! models: input parameters, temporary data and output quantities

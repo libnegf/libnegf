@@ -215,23 +215,23 @@ contains
 
   end subroutine load_quartic
 
-  subroutine find_block(ii, PL_start, PL_end, bb, kk)
-    integer, intent(in) :: ii
-    integer, intent(inout) :: bb 
-    integer, intent(out) :: kk
-    integer, dimension(:), intent(in) :: PL_start, PL_end
-
-    integer :: j
-
-    do j = 1, size(PL_end)
-      if (ii > PL_start(j) .and. ii < PL_end(j)) then
-        bb = j
-        kk = ii - PL_start(j) + 1  
-        exit
-      end if  
-    end do
-
-  end subroutine find_block
+  !subroutine find_block(ii, PL_start, PL_end, bb, kk)
+  !  integer, intent(in) :: ii
+  !  integer, intent(inout) :: bb 
+  !  integer, intent(out) :: kk
+  !  integer, dimension(:), intent(in) :: PL_start, PL_end
+  !
+  !  integer :: j
+  !
+  !  do j = 1, size(PL_end)
+  !    if (ii > PL_start(j) .and. ii < PL_end(j)) then
+  !      bb = j
+  !      kk = ii - PL_start(j) + 1  
+  !      exit
+  !    end if  
+  !  end do
+  !
+  !end subroutine find_block
 
 
   !  phph%T3(1,1,kk)%MAT(ii,jj)

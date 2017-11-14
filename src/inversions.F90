@@ -48,6 +48,7 @@ public :: zINV_PARDISO
 
 public :: compGreen ! wrapper to different type of computations
 public :: inverse, block2Green, block3Green
+public :: zlin
 
 interface compGreen
   module procedure compGreen_dns

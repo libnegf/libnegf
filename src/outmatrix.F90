@@ -123,19 +123,19 @@ module outmatrix
     end subroutine printmat_fr
 
     !--------------------------------------------------
-    subroutine printvect(A,n,lo,hi)
-
-      integer :: n,lo,hi
-      complex(kind=dp) :: A(n)
-      integer :: i
-
-      if (hi.gt.n.and.lo.lt.1) return
-
-      do i=lo,hi;  print '(I3,ES17.9)', i,abs(A(i)); 
-      enddo
-      print *," ";
-      
-    end subroutine printvect
+    !subroutine printvect(A,n,lo,hi)
+    ! 
+    !  integer :: n,lo,hi
+    !  complex(kind=dp) :: A(n)
+    !  integer :: i
+    !
+    !  if (hi.gt.n.and.lo.lt.1) return
+    !
+    !  do i=lo,hi;  print '(I3,ES17.9)', i,abs(A(i)); 
+    !  enddo
+    !  print *," ";
+    !  
+    !end subroutine printvect
     !--------------------------------------------------
 
     subroutine  outmat(ndim,mat,lunit,format)

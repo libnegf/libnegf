@@ -41,6 +41,8 @@ MODULE sparsekit_drv
   public :: zdagger, zspectral
   public :: zmask_realloc
 
+  public :: nnz
+  
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
   private :: rcoocsr_st, rcsrcoo_st, rcsrdns_st, zdnscsr_st, zdnscsc_st, zcooxcsr_st
   private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st 
@@ -48,6 +50,7 @@ MODULE sparsekit_drv
   private :: rclone_st, zclone_st
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs 
+  private :: nnz_sum, nnz_sum1, nnz_mult
 
   external :: zcsort, csort, amask, zamask,  getelm, zgetelm
   !public :: rprint_csrdns
@@ -93,9 +96,10 @@ MODULE sparsekit_drv
 ! !zconcatm_csr(A,s,B,row,col)   :: concat in place at coord (row,col)
 ! !zcsort_st(A)                  :: sort complex matrix A in CSR format
 ! !zmask(A,B,C)                  :: mask A with B and output on C
-  !nnz=nnz_sum(A,B,nnz)          :: computes nnz of C = A * B
-  !nnz=nnz_mult(A,B,nnz)         :: computes nnz of C = A + B
-  !nnz=nnz_sum1(A,B,C_nnz)       :: sorted version of nnz_sum
+  !nnz=nnz(A,'+*',B) 
+  !nnz=nnz_sum(A,B)              :: computes nnz of C = A * B
+  !nnz=nnz_mult(A,B)             :: computes nnz of C = A + B
+  !nnz=nnz_sum1(A,B)             :: sorted version of nnz_sum
   !nnz=zcheck_nnz(A,r1,r2,c1,c2,sor):: checks nnz values of a sub-matrix in a csr
   !nnz=zchkdrp(A,drop)           :: drops values < drop from a dense matrix 
 
@@ -130,6 +134,7 @@ MODULE sparsekit_drv
   interface coo2csr  
      module procedure rcoocsr_st
      module procedure zcoocsr_st
+     module procedure zcooxcsr_st
   end interface
   interface csr2coo  
      module procedure rcsrcoo_st
@@ -916,6 +921,7 @@ CONTAINS
 
        call zcsort(sp%nrow,sp%nzval,sp%colind,sp%rowpnt,iwork,values)
 
+       sp%sorted = .true.
        deallocate(iwork)
 
     else
@@ -1452,11 +1458,30 @@ CONTAINS
     call log_deallocate(iw)  
 
   end subroutine zcplsamub_st
+
+  function nnz(A_csr,op,B_csr) result(C_nnz)
+    type(z_CSR) :: A_csr, B_csr
+    character(1) :: op
+    integer :: C_nnz
+
+
+    select case(op)
+    case('+')
+      if (A_csr%sorted .and. B_csr%sorted) then
+        C_nnz = nnz_sum1(A_csr, B_csr)
+      else    
+        C_nnz = nnz_sum(A_csr, B_csr)
+      end if  
+    case('*')  
+      C_nnz = nnz_mult(A_csr, B_csr)  
+    end select  
+
+  end function nnz  
+
   !***************************************************************************************
   !Subroutine per l'allocazione del prodotto sparso A x B
   !Verifica quanti elementi non nulli si avranno dal prodotto di due matrici sparse CSR  
   !***************************************************************************************
-
   function nnz_mult(A_csr,B_csr) result (C_nnz)
 
     !************************************************************************************
@@ -1510,7 +1535,6 @@ CONTAINS
   !Subroutine per l'allocazione della somma sparsa A+B
   !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR  
   !***************************************************************************************
-
   function nnz_sum(A_csr,B_csr) result(C_nnz)
 
     !************************************************************************************
@@ -1550,7 +1574,7 @@ CONTAINS
 
     if (ierr.ne.0) call error_msg('(nnz_sum)',OUTOFBOUND)
 
-    C_nnz=C_csr%rowpnt(A_csr%nrow+1)-1
+    C_nnz = C_csr%rowpnt(A_csr%nrow+1)-1
 
     call log_deallocate(C_csr%nzval)
     call log_deallocate(C_csr%colind)
@@ -1564,8 +1588,6 @@ CONTAINS
   !Subroutine per l'allocazione della somma sparsa A+B (VERSIONE SORTED)
   !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR  
   !************************************************************************************
-
-
   function nnz_sum1(A_csr,B_csr) result(C_nnz)
 
     !***********************************************************************************
@@ -1622,7 +1644,7 @@ CONTAINS
   !                                                                                |
   !*********************************************************************************
 
-  function zcheck_nnz(A_csr, i1, i2, j1, j2, sorted) result(nnz)
+  function zcheck_nnz(A_csr, i1, i2, j1, j2) result(nnz)
 
     !*********************************************************************************
     !                                                                                |
@@ -1632,7 +1654,6 @@ CONTAINS
     !i2: ending row                                                                  |
     !j1: starting column                                                             |
     !j2: ending column                                                               |
-    !sorted: if working with sorted matrix put sorted=1 (faster)                     |
     !                                                                                |
     !Output:                                                                         |
     !nzval: non zero values found in submatrix specified by i1,i2,j1,j2              |
@@ -1665,9 +1686,7 @@ CONTAINS
                    if (A_csr%colind(j).le.j2) then
                       nnz=nnz+1
                    else 
-                      if (sorted.eq.1) then 
-                         exit 
-                      endif
+                      if (A_csr%sorted) exit 
                    endif
                 else
                    cycle
@@ -2481,7 +2500,7 @@ CONTAINS
        STOP 'ERROR (zextract): bad indeces specification';
     ENDIF
 
-    nnz = zcheck_nnz(A_csr, i1, i2, j1, j2, 0);
+    nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
 
     IF (nnz.NE.0) THEN
        CALL create(A_sub,(i2-i1+1),(j2-j1+1),nnz)
@@ -2911,53 +2930,34 @@ CONTAINS
   
   !------------------------------------------------------------------------
 
-  subroutine zcooxcsr_st(A,B)
+  subroutine zcooxcsr_st(coo,sp)
 
-  implicit none
+    implicit none
+ 
+    type(z_EXT_COO) :: coo
+    type(z_CSR) :: sp
+ 
+    integer :: n,nnz,nnz_p
+    
+    if ((coo%nrow.ne.sp%nrow).or.(coo%ncol.ne.sp%ncol)) then
+        call error_msg('(zcooxcsr_st)',MISMATCH) 
+    endif
 
-  type(z_EXT_COO) :: A
-  type(z_CSR) :: B
+    nnz=coo%nnz
+    ! First count primitive non-zero values
+    nnz_p=0
+    do n=1,nnz
+      if(coo%first(n)) nnz_p=nnz_p+1
+    enddo
+ 
+    !Allocate matrix B
+    call create(sp,coo%nrow,coo%ncol,nnz_p)
+ 
+    call zcooxcsr(coo%nrow,coo%nnz,coo%nzval,coo%index_i,coo%index_j,coo%first, &
+        sp%nzval,sp%colind,sp%rowpnt)
+    
+  end subroutine zcooxcsr_st
 
-  integer :: n,nnz,nnz_p
-  
-  nnz=A%nnz
-  ! First count primitive non-zero values
-  nnz_p=0
-  do n=1,nnz
-    if(A%first(n)) nnz_p=nnz_p+1
-  enddo
-
-  !Allocate matrix B
-  call create(B,A%nrow,A%ncol,nnz_p)
-
-  call zcooxcsr(A%nrow,A%nnz,A%nzval,A%index_i,A%index_j,A%first, &
-      B%nzval,B%colind,B%rowpnt)
-  
-!!$  ! Copy primitives of A into B 
-!!$  do n=1,nnz_p
-!!$    if(A%first(n)) then 
-!!$      B%index_i(n)=A%index_i(n)
-!!$      B%index_j(n)=A%index_j(n)
-!!$      B%nzval(n)=A%nzval(n)
-!!$    endif
-!!$  enddo
-!!$   
-!!$  ! Add non-primitives of A to primitives of B.  
-!!$  do n=1,nnz
-!!$    if (.not.A%first(n)) then
-!!$      do m=1,nnz_p
-!!$        
-!!$        if(A%index_i(n).eq.B%index_i(m).AND.A%index_j(n).eq.B%index_j(m)) then
-!!$          
-!!$          B%nzval(m)=B%nzval(m)+A%nzval(n)
-!!$          
-!!$        endif
-!!$        
-!!$      enddo
-!!$    endif
-!!$  enddo
-
-end subroutine zcooxcsr_st
   !------------------------------------------------------------------------
   !-----------------------------------------------------------------------
   !  Extended Coordinate   to   Compressed Sparse Row 
@@ -3052,6 +3052,7 @@ end subroutine zcooxcsr_st
     return
     
   end subroutine zcooxcsr
+
   !------------- end of coocsr ------------------------------------------- 
   !----------------------------------------------------------------------- 
   subroutine getdiag_csr(A_csr,D_vec)

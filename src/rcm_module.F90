@@ -63,6 +63,7 @@ module rcm_module
   implicit none
   private
 
+  public  ::  genrcm
 !!$  private ::  adj_bandwidth
 !!$  private ::  adj_contains_ij
 !!$  private ::  adj_insert_ij
@@ -78,7 +79,6 @@ module rcm_module
 !!$  private ::  degree
 !!$  private ::  dmat_print_some
 !!$  private ::  dmat_transpose_print_some 
-     public  ::  genrcm
 !!$  private ::  graph_01_adj
 !!$  private ::  graph_01_size
 !!$  private ::  graph_01_label    
