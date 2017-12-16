@@ -442,10 +442,10 @@ contains
   subroutine init_structure(negf, ncont, contend, surfend, npl, plend, cblk)
      type(Tnegf) :: negf
      integer, intent(in) :: ncont
-     integer, intent(in), allocatable :: contend(:), surfend(:)
+     integer, intent(in) :: contend(:), surfend(:)
      integer, intent(in) :: npl
-     integer, intent(in), allocatable :: plend(:)
-     integer, intent(in), allocatable :: cblk(:)
+     integer, intent(in) :: plend(:)
+     integer, intent(in) :: cblk(:)
 
      integer, allocatable :: plend_tmp(:)
      integer :: npl_tmp
@@ -463,11 +463,10 @@ contains
      if (npl .eq. 0) then
        call log_allocate(plend_tmp, MAXNUMPLs)  
        call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)   
+       call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk, negf%str)    
      else 
-       plend_tmp = plend
-       npl_tmp = npl
+       call create_Tstruct(ncont, npl, plend, contend, surfend, cblk, negf%str)    
      end if
-    call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk, negf%str)    
 
   end subroutine init_structure
 
