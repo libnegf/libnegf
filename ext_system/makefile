@@ -1,6 +1,11 @@
-FC = gfortran-4.8.1
-CC = gcc-4.8.1
+
+vpath % $(SRCDIR)
+
+FC = $(FXX)
+CC = gcc
 OBJS = system_calls.o sys_calls.o
+
+all: lib
 
 test: $(OBJS) test.f90
 	$(FC) -o test test.f90 system_calls.o sys_calls.o -lc
@@ -12,7 +17,7 @@ sys_calls.o: sys_calls.C
 	$(CC) -c $<
 
 lib: $(OBJS)
-	ar -r libsyscalls.a $(OBJS)
+	ar -r $(OBJDIR)/libsyscalls.a $(OBJS)
 
 clean:
 	rm -f $(OBJS) *.mod test *.a

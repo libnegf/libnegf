@@ -6,7 +6,7 @@ program test
 
   folder = "testfolder"
 
-  call create_directory(folder)
+  call create_directory(trim(folder))
 
   open(101, file= trim(folder)//'/afile')
   write(101, *) 'test', 101

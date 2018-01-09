@@ -3716,17 +3716,17 @@ CONTAINS
     Type(z_CSR) :: S           
     Complex(dp) :: Ec
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR
-    !Type(z_DNS) :: SelfEner_d 
-    Real(dp), Dimension(:) :: tun_mat
+    Integer :: ni(MAXNCONT)
+    Integer :: nf(MAXNCONT)
+    Integer :: size_ni 
     Type(z_CSR) :: ESH_tot
     Type(TStruct_Info) :: str
+    Real(dp), Dimension(:) :: tun_mat
 
     ! Local variables
     Type(z_DNS), Dimension(:,:), allocatable :: ESH
     Real(dp) :: tun
-    Integer :: ni(MAXNCONT)
-    Integer :: nf(MAXNCONT)
-    Integer :: nbl,ncont,size_ni
+    Integer :: nbl,ncont
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
 
     nbl = str%num_PLs
@@ -4003,7 +4003,7 @@ CONTAINS
   !Subroutine for transmission and dos calculation    !
   !---------------------------------------------------!  
 
-  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,nLdoS,LDOS,size_ni,str,TUN_MAT,LEDOS)
+  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,size_ni,nLdoS,LDOS,str,TUN_MAT,LEDOS)
 
     implicit none
 
@@ -4028,7 +4028,7 @@ CONTAINS
     Complex(dp) :: zc
     Integer :: nbl,ncont, ierr
     Integer :: nit, nft, icpl
-    Integer :: iLdoS, i2, i
+    Integer :: iLDOS, i2, i
     Character(1) :: Im
    
 
@@ -4106,11 +4106,11 @@ CONTAINS
     if (nLdoS.gt.0) then
       call log_allocate(diag, Grm%nrow)
       call getdiag(Grm,diag)
-      do iLdoS=1,nLDOS
+      do iLDOS=1,nLDOS
         do i = 1, size(LdoS(iLDOS)%indexes)
           i2 = LdoS(iLDOS)%indexes(i)
           if (i2 .le. str%central_dim) then
-            LEdoS(iLDOS) = LEDOS(iLDOS) + diag(i2)  
+            LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)  
           end if
         end do
       end do

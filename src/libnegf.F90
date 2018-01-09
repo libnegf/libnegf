@@ -35,6 +35,7 @@ module libnegf
  use sparsekit_drv
  use integrations
  use iso_c_binding
+ use system_calls 
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
@@ -58,7 +59,7 @@ module libnegf
  public :: lnParams
  public :: init_negf, destroy_negf
  public :: init_structure
- public :: get_params, set_params
+ public :: get_params, set_params, set_scratch, set_outpath, create_scratch
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes
 
  public :: set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
@@ -199,7 +200,7 @@ contains
     negf%form%formatted = .true.
     negf%isSid = .false.
     negf%form%type = "PETSc" 
-    negf%form%fmt = "F" 
+    negf%form%fmt = "F"
 
   end subroutine init_negf
 
@@ -559,6 +560,39 @@ contains
     call set_ref_cont(negf)
 
   end subroutine set_params
+
+
+  !----------------------------------------------------------
+  subroutine set_scratch(negf, scratchpath)
+    type(Tnegf) :: negf
+    character(*), intent(in) :: scratchpath
+
+    if (len(scratchpath)>LST) then
+       print*, "ERROR: scratch string longer than",LST
+       stop
+    end if   
+    negf%scratch_path = trim(scratchpath)//'/GS/'
+
+  end subroutine set_scratch
+  !----------------------------------------------------------
+
+  !----------------------------------------------------------
+  subroutine set_outpath(negf, outpath)
+    type(Tnegf) :: negf
+    character(LST), intent(in) :: outpath
+
+    negf%out_path = trim(outpath)//'/'
+
+  end subroutine set_outpath
+  !----------------------------------------------------------
+  
+  subroutine create_scratch(negf)
+    type(Tnegf) :: negf
+  
+    call create_directory(trim(negf%scratch_path))
+        
+  end subroutine create_scratch      
+
 
   !--------------------------------------------------------------------
   ! LDOS methods: you can set N index intervals OR N separate index 
@@ -1049,7 +1083,6 @@ contains
   !-------------------------------------------------------------------------------
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
-
 
     call extract_device(negf)
     call extract_cont(negf)

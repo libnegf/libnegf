@@ -5,9 +5,9 @@
 
 all: libnegf
 
-.PHONY:  ext_sparskit 
+.PHONY:  ext_sparskit ext_system 
 
-libnegf: ext_sparskit 
+libnegf: ext_sparskit ext_system
 	mkdir -p libnegf
 	$(MAKE) -C libnegf -f $(SRCDIR)/src/GNUmakefile \
 	  ARCH="$(ARCH)" MPI="$(MPI)" INELASTIC="$(INELASTIC)" \
@@ -20,3 +20,9 @@ ext_sparskit:
 	$(MAKE) -C sparskit -f $(SRCDIR)/ext_sparskit/GNUmakefile \
 	  FXX="$(FXX)" FXXOPT="$(FXXOPT)" SRCDIR="$(SRCDIR)/ext_sparskit" \
 	  OBJDIR="$(OBJDIR)"
+
+ext_system:
+	mkdir -p ext_system
+	$(MAKE) -C ext_system -f $(SRCDIR)/ext_system/makefile \
+	   FXX="$(FXX)" SRCDIR="$(SRCDIR)/ext_system" 
+

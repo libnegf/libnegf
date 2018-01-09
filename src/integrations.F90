@@ -1307,9 +1307,9 @@ contains
     endif
 
     !-------------------------------------------------------
-    call create_SGF_SE(negf)
-    call read_SGF_SE(negf)                                            
-    
+    !call create_SGF_SE(negf)
+    !call read_SGF_SE(negf)                                            
+   
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
@@ -1341,31 +1341,20 @@ contains
           end if
        end do
        !DAR end
-            
-       !debug begin         
-       !print *, 'SE1'
-       !do j1=1,SelfEneR(1)%ncol
-       !   print *, SelfEneR(1)%val(j1,1:SelfEneR(1)%ncol)
-       !end do
-       !print *, 'SE2'
-       !do j1=1,SelfEneR(1)%ncol
-       !   print *, SelfEneR(2)%val(j1,1:SelfEneR(1)%ncol)
-       !end do
-       !debug end
 
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
           call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
                              & negf%str,TUN_MAT)
-
+          
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
-                           & negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
+          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,size_ni, &
+                           & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
@@ -1948,8 +1937,8 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,negf%nLDOS, &
-                           & negf%LDOS,size_ni,negf%str,TUN_MAT,LEDOS)
+          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,size_ni, &
+                           & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
