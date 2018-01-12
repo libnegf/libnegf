@@ -141,9 +141,9 @@ contains
     GS%val=(0.D0,0.D0)
 
     !.......... Ficticious contact ....................
-    if(pnegf%FictCont(i)) then
+    if(pnegf%cont(i)%FictCont) then
 
-       dens=pi*pnegf%contact_DOS(i)
+       dens=pi*pnegf%cont(i)%contact_DOS
        nfc=nfc+1
        do i1 = 1,ngs 
           GS%val(i1,i1)=-j*dens
@@ -340,6 +340,7 @@ contains
     ncont = pnegf%str%num_conts
     avncyc = 0
 
+    STOP 'Internal error: HMC has been changed to dns format'
     ! -----------------------------------------------------------------------
     !  Calculation of contact self-energies
     ! -----------------------------------------------------------------------
@@ -350,7 +351,7 @@ contains
     do i= 1,ncont
        pnegf%activecont=i
 
-       call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS_d)
+       call surface_green(Ec,pnegf%cont(i)%HC,pnegf%cont(i)%SC,pnegf,ncyc,GS_d)
 
        l = nzdrop(GS_d,EPS)
        
@@ -362,7 +363,6 @@ contains
 
        avncyc = avncyc + ncyc
 
-       STOP 'Internal error: HMC has been changed to dns format'
        !call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),Ec,Tlc(i))
 
        !call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),conjg(Ec),TpMt)
@@ -410,19 +410,19 @@ contains
        !------------------------------------------------------------------------
        !DAR begin
        !------------------------------------------------------------------------
-       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tReadSelfEnergy) cycle                       
+       if(pnegf%tTrans.and.pnegf%cont(i)%tReadSelfEnergy) cycle                       
        
-       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tReadSurfaceGF) then
+       if(pnegf%tTrans.and.pnegf%cont(i)%tReadSurfaceGF) then
           ngs=(pnegf%str%mat_C_end(i)+ 1- pnegf%str%mat_B_Start(i))/2 
-          GS(i)%val=pnegf%tranas%cont(i)%SurfaceGF(:,:,pnegf%tranas%e%IndexEnergy)
+          GS(i)%val=pnegf%cont(i)%SurfaceGF(:,:,pnegf%trans%el%IndexEnergy)
           GS(i)%nrow=ngs
           GS(i)%ncol=ngs
        else                                                                        
-          call surface_green(Ec,pnegf%HC(i),pnegf%SC(i),pnegf,ncyc,GS(i))
+          call surface_green(Ec,pnegf%cont(i)%HC,pnegf%cont(i)%SC,pnegf,ncyc,GS(i))
        end if
 
-       if(pnegf%tTrans.and.pnegf%tranas%cont(i)%tWriteSurfaceGF) &                          
-            pnegf%tranas%cont(i)%SurfaceGF(:,:,pnegf%tranas%e%IndexEnergy)=GS(i)%val
+       if(pnegf%tTrans.and.pnegf%cont(i)%tWriteSurfaceGF) &                          
+            pnegf%cont(i)%SurfaceGF(:,:,pnegf%trans%el%IndexEnergy)=GS(i)%val
 
        !------------------------------------------------------------------------
        !DAR end
@@ -430,9 +430,9 @@ contains
      
        avncyc = avncyc + ncyc
 
-       call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),Ec,Tlc(i))
+       call prealloc_sum(pnegf%cont(i)%HMC,pnegf%cont(i)%SMC,(-1.d0, 0.d0),Ec,Tlc(i))
 
-       call prealloc_sum(pnegf%HMC(i),pnegf%SMC(i),(-1.d0, 0.d0),conjg(Ec),TpMt)
+       call prealloc_sum(pnegf%cont(i)%HMC,pnegf%cont(i)%SMC,(-1.d0, 0.d0),conjg(Ec),TpMt)
 
        call zdagger(TpMt,Tcl(i))
        
@@ -608,16 +608,16 @@ contains
     integer :: icont, npl, ngs
 
     do icont=1,negf%str%num_conts
-      if (negf%tranas%cont(icont)%tReadSelfEnergy .or. &
-         negf%tranas%cont(icont)%tWriteSelfEnergy.or.negf%tManyBody) then
+      if (negf%cont(icont)%tReadSelfEnergy .or. &
+         negf%cont(icont)%tWriteSelfEnergy.or.negf%tManyBody) then
          npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)- &
             &negf%str%mat_PL_start(negf%str%cblk(icont))
-         allocate(negf%tranas%cont(icont)%SelfEnergy(npl,npl,size(negf%en_grid)))
+         allocate(negf%cont(icont)%SelfEnergy(npl,npl,size(negf%en_grid)))
       end if
     
-      if(negf%tranas%cont(icont)%tReadSurfaceGF.or.negf%tranas%cont(icont)%tWriteSurfaceGF) then
+      if(negf%cont(icont)%tReadSurfaceGF.or.negf%cont(icont)%tWriteSurfaceGF) then
          ngs=(negf%str%mat_C_end(icont)+ 1- negf%str%mat_B_Start(icont))/2
-         allocate(negf%tranas%cont(icont)%SurfaceGF(ngs,ngs,size(negf%en_grid)))
+         allocate(negf%cont(icont)%SurfaceGF(ngs,ngs,size(negf%en_grid)))
       end if
     end do
 
@@ -635,11 +635,11 @@ contains
 
     do icont=1,ncont
 
-       if(negf%tranas%cont(icont)%tReadSelfEnergy) then
-          open(14,file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf', &
+       if(negf%cont(icont)%tReadSelfEnergy) then
+          open(14,file=trim(negf%cont(icont)%name)//'-SelfEnergy.mgf', &
               & form="unformatted", action="read")
           do i = 1, Nstep
-             read(14) Ec_check,negf%tranas%cont(icont)%SelfEnergy(:,:,i)
+             read(14) Ec_check,negf%cont(icont)%SelfEnergy(:,:,i)
              if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
                 write(*,*) 'Self-Energy file is not consistent. The program is terminated.'
                 stop
@@ -647,16 +647,16 @@ contains
           end do
           close(14)
           if (id0) write(*,"('    The retarded contact self-energy is red from the file ',A)") &
-               trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
+               trim(negf%cont(icont)%name)//'-SelfEnergy.mgf'
        else
           negf%tCalcSelfEnergies = .true.
        end if
 
-       if(negf%tranas%cont(icont)%tReadSurfaceGF) then
-          open(14,file=trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf', &
+       if(negf%cont(icont)%tReadSurfaceGF) then
+          open(14,file=trim(negf%cont(icont)%name)//'-SurfaceGF.mgf', &
               & form="unformatted", action="read")
           do i = 1, Nstep
-             read(14) Ec_check,negf%tranas%cont(icont)%SurfaceGF(:,:,i)
+             read(14) Ec_check,negf%cont(icont)%SurfaceGF(:,:,i)
              if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
                 write(*,*)'SurfaceGF is not consistent. The program is terminated.'
                 stop
@@ -664,7 +664,7 @@ contains
           end do
           close(14)
           if (id0) write(*,"('    The retarded contact Surface GF is red from the file ',A)") &
-               trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf'
+               trim(negf%cont(icont)%name)//'-SurfaceGF.mgf'
        end if
 
     end do
@@ -677,40 +677,40 @@ contains
     integer :: icont, npl, ngs, i
 
     do icont=1,negf%str%num_conts
-      if (negf%tranas%cont(icont)%tWriteSelfEnergy) then
+      if (negf%cont(icont)%tWriteSelfEnergy) then
         ! note: reduce just on node 0 (writing node)                
 #:if defined("MPI") 
-        call mpifx_reduceip(negf%mpicomm, negf%tranas%cont(icont)%SelfEnergy, MPI_SUM)
+        call mpifx_reduceip(negf%mpicomm, negf%cont(icont)%SelfEnergy, MPI_SUM)
 #:endif        
         if (id0) then
-          open(14,form="unformatted",file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf' &
+          open(14,form="unformatted",file=trim(negf%cont(icont)%name)//'-SelfEnergy.mgf' &
                ,action="write")
           do i = 1, size(negf%en_grid)
-             write(14)real(negf%en_grid(i)%Ec),negf%tranas%cont(icont)%SelfEnergy(:,:,i)
+             write(14)real(negf%en_grid(i)%Ec),negf%cont(icont)%SelfEnergy(:,:,i)
           end do
           close(14)
           write(*,"('    The retarded contact self-energy is written into the file ',A)") &
-               trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
+               trim(negf%cont(icont)%name)//'-SelfEnergy.mgf'
         end if
       end if
     end do
     
     
     do icont=1,negf%str%num_conts
-      if (negf%tranas%cont(icont)%tWriteSurfaceGF) then
+      if (negf%cont(icont)%tWriteSurfaceGF) then
         ! note: reduce just on node 0 (writing node)              
 #:if defined("MPI") 
-        call mpifx_reduceip(negf%mpicomm, negf%tranas%cont(icont)%SurfaceGF, MPI_SUM)
+        call mpifx_reduceip(negf%mpicomm, negf%cont(icont)%SurfaceGF, MPI_SUM)
 #:endif        
         if (id0) then
-          open(14,form="unformatted",file=trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf' &
+          open(14,form="unformatted",file=trim(negf%cont(icont)%name)//'-SurfaceGF.mgf' &
                ,action="write")
           do i = 1, size(negf%en_grid)
-             write(14)real(negf%en_grid(i)%Ec),negf%tranas%cont(icont)%SurfaceGF(:,:,i)
+             write(14)real(negf%en_grid(i)%Ec),negf%cont(icont)%SurfaceGF(:,:,i)
           end do
           close(14)
           write(*,"('    The retarded contact self-energy is written into the file ',A)") &
-               trim(negf%tranas%cont(icont)%name)//'-SurfaceGF.mgf'
+               trim(negf%cont(icont)%name)//'-SurfaceGF.mgf'
         end if
       end if
     end do

@@ -70,9 +70,9 @@ contains
 
     do i=1,ncont
        !write(*,*) '(ext_HC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
-       call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%HC(i))       
+       call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%cont(i)%HC)       
        !write(*,*) '(ext_SC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
-       call extract(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%SC(i))
+       call extract(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%cont(i)%SC)
     enddo
 
     do i=1,ncont
@@ -82,9 +82,9 @@ contains
        j1 = cstart(i); 
        j2 = j1+(ncdim(i)+surfdim(i))/2-1 !Note this is Surf+1PL
        !print*, 'block HMC:',i1,i2,j1,j2
-       call extract(negf%H,i1,i2,j1,j2,negf%HMC(i))         
+       call extract(negf%H,i1,i2,j1,j2,negf%cont(i)%HMC)         
        !print*, 'block SMC:',i1,i2,j1,j2
-       call extract(negf%S,i1,i2,j1,j2,negf%SMC(i)) 
+       call extract(negf%S,i1,i2,j1,j2,negf%cont(i)%SMC) 
 
     enddo
 

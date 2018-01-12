@@ -84,29 +84,39 @@ module lib_param
   end type Tdephasing
 
   type Tcontact
-     character(132) :: name
-     logical :: tWriteSelfEnergy = .false.
-     logical :: tReadSelfEnergy = .false.
-     complex(kind=dp), dimension(:,:,:), allocatable :: SelfEnergy ! Electrode Self-Energy
-     logical :: tWriteSurfaceGF = .false.
-     logical :: tReadSurfaceGF = .false.
-     complex(kind=dp), dimension(:,:,:), allocatable :: SurfaceGF ! Electrode Surface Green Function
+    character(132) :: name
+    logical :: tWriteSelfEnergy = .false.
+    logical :: tReadSelfEnergy = .false.
+    logical :: tWriteSurfaceGF = .false.
+    logical :: tReadSurfaceGF = .false.
+    complex(dp), dimension(:,:,:), allocatable :: SelfEnergy ! Electrode Self-Energy
+    complex(dp), dimension(:,:,:), allocatable :: SurfaceGF  ! Electrode Surface Green Function
+    real(dp) :: mu_n        ! Electrochemical potential (el)
+    real(dp) :: mu_p        ! Electrochemical potential (hl)
+    real(dp) :: mu          ! Electrochemical Potential (dft calculation)   
+    real(dp) :: contact_DOS ! Ficticious contact DOS
+    logical  :: FictCont    ! Ficticious contact 
+    real(dp) :: kbT_dm      ! Electronic temperature
+    real(dp) :: kbT_t       ! Electronic temperature
+    type(z_DNS) :: HC       ! Contact Hamiltonian
+    type(z_DNS) :: SC       ! Contact Overlap 
+    type(z_DNS) :: HMC      ! Device-Contact Hamiltonian
+    type(z_DNS) :: SMC      ! Device-Contact Overlap
   end type Tcontact
 
   type Telectrons
-     integer :: IndexEnergy
+    integer :: IndexEnergy
   end type Telectrons
 
   type Toutput
-     logical :: tWriteDOS = .false.
-     logical :: tDOSwithS = .false.
+    logical :: tWriteDOS = .false.
+    logical :: tDOSwithS = .false.
   end type Toutput
 
-  type Ttranas
-     type(Telectrons) :: e
-     type(Tcontact), dimension(:), allocatable :: cont
-     type(Toutput) :: out 
-  end type Ttranas
+  type Ttransport
+    type(Telectrons) :: el
+    type(Toutput) :: out 
+  end type Ttransport
 
   !-----------------------------------------------------------------------------
   !DAR - end
@@ -134,13 +144,7 @@ module lib_param
    character(1) :: DorE              ! Density or En.Density
 
    !! Contacts info
-   real(dp) :: mu_n(MAXNCONT)    ! electrochemical potential (el)
-   real(dp) :: mu_p(MAXNCONT)    ! electrochemical potential (hl)
-   real(dp) :: mu(MAXNCONT)          ! Electrochemical Potential (dft calculation)   
-   real(dp) :: contact_DOS(MAXNCONT) ! Ficticious contact DOS
-   logical  :: FictCont(MAXNCONT)    ! Ficticious contact 
-   real(dp) :: kbT_dm(MAXNCONT) ! Electronic temperature
-   real(dp) :: kbT_t(MAXNCONT)    ! Electronic temperature
+   type(Tcontact), dimension(:), allocatable :: cont
 
    !! Contour integral
    integer :: Np_n(2)            ! Number of points for n 
@@ -158,8 +162,8 @@ module lib_param
 
    !! Emitter and collector for transmission or Meir-Wingreen 
    !! (only emitter in this case)
-   integer :: ni(MAXNCONT)       ! ni: emitter contact list 
-   integer :: nf(MAXNCONT)       ! nf: collector contact list
+   integer, allocatable :: ni(:) ! ni: emitter contact list 
+   integer, allocatable :: nf(:) ! nf: collector contact list
 
 
    integer  :: nldos                 ! Number of LDOS intervals
@@ -170,8 +174,8 @@ module lib_param
    real(dp) :: DeltaEv           ! safe guard energy above Ev
 
    !! Runtime variables: used internally by the library
-   type(format) :: form              ! Form of file-Hamiltonian
-   logical  :: dumpHS                ! Used for debug
+   type(format) :: form          ! Form of file-Hamiltonian
+   logical  :: dumpHS            ! Used for debug
    real(dp) :: muref             ! reference elec.chem potential
    real(dp) :: E                 ! Holding variable 
    real(dp) :: dos               ! Holding variable
@@ -181,16 +185,16 @@ module lib_param
    integer :: outer              ! flag switching computation of     
                                  ! the Device/Contact DM
                                  ! 0 none; 1 upper block; 2 all
-
+   
+   real(dp) :: mu                !    chem potential used without contacts
+   real(dp) :: mu_n              ! el chem potential used without contacts
+   real(dp) :: mu_p              ! hl chem potential used without contacts
+   real(dp) :: kbT               ! temperature used without contacts
 
    !! Note: H,S are partitioned immediately after input, therefore they are 
    !! built runtime from input variable
    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
    type(z_CSR), pointer :: S => null()
-   type(z_DNS) :: HC(MAXNCONT)
-   type(z_DNS) :: SC(MAXNCONT)
-   type(z_DNS) :: HMC(MAXNCONT)
-   type(z_DNS) :: SMC(MAXNCONT)
    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
    logical    :: isSid           ! True if overlap S == Id
@@ -198,7 +202,7 @@ module lib_param
    logical    :: intDM           ! tells DM is internally allocated
 
    type(TStruct_Info) :: str     ! system structure
-   integer :: iE                 ! Energy point (integer point)
+   integer :: iE                 ! Energy point (index or the point)
    complex(dp) :: Epnt           ! Energy point (complex)
    integer :: local_en_points    ! Local number of energy points
    type(TEnGrid), dimension(:), allocatable :: en_grid
@@ -220,9 +224,7 @@ module lib_param
    real(dp), dimension(:,:), pointer :: ldos_mat => null()
    real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
 
-   !DAR begin - in Tnegf
-   !----------------------------------------------------------------------------
-   logical :: tNoGeometry = .false.
+   !logical :: tNoGeometry = .false.
    logical :: tOrthonormal = .false.
    logical :: tOrthonormalDevice = .false.
    logical :: tTrans = .false.
@@ -237,10 +239,8 @@ module lib_param
    integer :: MaxIter = 1000
    logical :: tWrite_ldos = .false.
    logical :: tWrite_negf_params = .false.
-   type(Ttranas) :: tranas
+   type(Ttransport) :: trans
    type(Tdephasing) :: deph
-   !----------------------------------------------------------------------------
-   !DAR end
 
  end type Tnegf
 
@@ -325,16 +325,10 @@ contains
      negf%DorE = 'D'           ! Density or En.Density
 
      negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
-     negf%FictCont = .false.   ! Ficticious contact 
-
-     negf%mu = 0.d0            ! Potenziale elettrochimico
-     negf%contact_DOS = 0.d0   ! Ficticious contact DOS
-
+     
      negf%wght = 1.d0
      negf%kpoint = 1
 
-     negf%mu_n = 0.d0
-     negf%mu_p = 0.d0
      negf%Ec = 0.d0
      negf%Ev = 0.d0
      negf%DeltaEc = 0.d0
@@ -353,8 +347,6 @@ contains
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%kbT_dm = 0.d0         ! electronic temperature
-     negf%kbT_t = 0.d0         ! electronic temperature
      negf%g_spin = 2.d0      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n 
@@ -363,9 +355,9 @@ contains
      negf%n_poles = 3        ! Numero di poli 
      negf%iteration = 1      ! Iterazione (SCC)
      negf%activecont = 0     ! contact selfenergy
-     negf%ni = 0             ! ni
+     allocate(negf%ni(1))
+     allocate(negf%nf(1))
      negf%ni(1) = 1
-     negf%nf = 0             ! nf
      negf%nf(1) = 2          !
      negf%min_or_max = 1     ! Set reference cont to max(mu)  
      negf%refcont = 1        ! call set_ref_cont()
@@ -396,6 +388,8 @@ contains
    subroutine print_all_vars(negf,io)
      type(Tnegf) :: negf    
      integer :: io
+      
+     integer :: ii
 
      call print_Tstruct(negf%str)
 
@@ -405,15 +399,23 @@ contains
      write(io,*) 'output= "'//trim(negf%out_path)//'"'
 
      write(io,*) 'isSid= ',negf%isSid
-
-     write(io,*) 'Contact Parameters:'
      write(io,*) 'mu= ', negf%mu
-     write(io,*) 'WideBand= ', negf%FictCont
-     write(io,*) 'DOS= ', negf%contact_DOS
-
-     write(io,*) 'Contour Parameters:'
      write(io,*) 'mu_n= ', negf%mu_n
      write(io,*) 'mu_p= ', negf%mu_p
+     write(io,*) 'T= ',negf%kbT
+
+     do ii = 1, negf%str%num_conts
+       write(io,*) 'Contact Parameters for ',trim(negf%cont(ii)%name)
+       write(io,*) 'mu= ', negf%cont(ii)%mu
+       write(io,*) 'WideBand= ', negf%cont(ii)%FictCont
+       write(io,*) 'DOS= ', negf%cont(ii)%contact_DOS
+       write(io,*) 'mu_n= ', negf%cont(ii)%mu_n
+       write(io,*) 'mu_p= ', negf%cont(ii)%mu_p
+       write(io,*) 'Density Matrix T= ',negf%cont(ii)%kbT_dm
+       write(io,*) 'Transmission T= ',negf%cont(ii)%kbT_t
+     end do
+
+     write(io,*) 'Contour Parameters:'
      write(io,*) 'Ec= ', negf%Ec 
      write(io,*) 'Ev= ', negf%Ev
      write(io,*) 'DEc= ', negf%DeltaEc 
@@ -430,8 +432,6 @@ contains
      write(io,*) 'Emin= ',negf%Emin
      write(io,*) 'Emax= ',negf%Emax
      write(io,*) 'Estep= ',negf%Estep
-     write(io,*) 'Density Matrix T= ',negf%kbT_dm
-     write(io,*) 'Transmission T= ',negf%kbT_t
      write(io,*) 'g_spin= ',negf%g_spin 
      write(io,*) 'delta= ',negf%delta
      write(io,*) 'dos_delta= ',negf%dos_delta

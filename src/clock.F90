@@ -67,14 +67,24 @@ contains
  end subroutine set_clock
 
 
- subroutine write_clock
+ subroutine write_clock(message)
+   character(*), optional :: message
+
+   integer :: l_mess
+   character(2) :: str_mess, str_dots
 
    if (nclks.gt.0) then
+      call SYSTEM_CLOCK(t2(nclks),cr,cm) 
       if (sus(nclks)) then
          write(6,FMT='(54("."))',ADVANCE='NO')  
          sus(nclks)=.false.
       endif   
-      call SYSTEM_CLOCK(t2(nclks),cr,cm) 
+      if (present(message)) then
+        l_mess=len(message)
+        write(str_mess,'(I2)') l_mess
+        write(str_dots,'(I2)') 54-l_mess
+        write(6,FMT='(A'//str_mess//','//str_dots//'("."))',ADVANCE='NO') message 
+      end if
       write(6,*) (t2(nclks)-t1(nclks))*1.0/cr,"sec"
       nclks=nclks-1
       cpos=0

@@ -247,9 +247,12 @@ contains
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
 
-    kbT = negf%kbT_dm(negf%refcont)
+    if (negf%str%num_conts > 0) then
+      kbT = negf%cont(negf%refcont)%kbT_dm
+    else
+      kbT = negf%kbT
+    end if  
     muref = negf%muref
-    
     Omega = negf%n_kt * kbT
 
     if (negf%n_poles.eq.0) then
@@ -413,7 +416,11 @@ contains
     complex(dp) :: z1,z2,z_diff, zt
     complex(dp) :: Ec, ff
 
-    kbT = negf%kbT_dm(negf%refcont)
+    if (negf%str%num_conts > 0) then
+      kbT = negf%cont(negf%refcont)%kbT_dm
+    else
+      kbT = negf%kbT
+    end if  
     muref = negf%muref
     Omega = negf%n_kt * kbT
 
@@ -571,13 +578,23 @@ contains
      real(dp) :: muref, mumin, kbT, nkT, alpha
      complex(dp) :: z1,z2,z_diff, zt
      complex(dp) :: Ec, ff, Pc
-     
-     kbT = negf%kbT_dm(negf%refcont)
+    
+     if (negf%str%num_conts > 0) then
+       kbT = negf%cont(negf%refcont)%kbT_dm
+     else
+       kbT = negf%kbT
+     end if  
+    print*,'(contour int) refcont =',negf%refcont 
+    print*,'(contour int) kbT =',kbT 
      muref = negf%muref
+    print*,'(contour int) muref =',muref
      nkT = negf%n_kt * kbT
+    print*,'(contour int) n =',negf%n_kt
      Lambda = 2.d0* negf%n_poles * KbT * pi
      mumin = muref - nkT
+    print*,'(contour int) Ec =',negf%Ec
      Elow = negf%Ec
+    print*,'(contour int) n_poles =',negf%n_poles
     
      Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
      !! destroy previously defined grids, if any
@@ -703,7 +720,6 @@ contains
   subroutine contour_int(negf)
      type(Tnegf) :: negf
 
-     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
      type(z_CSR) :: GreenR, TmpMt 
      integer :: i, i1, ncont, Ntot, outer
      real(dp) :: ncyc
@@ -722,7 +738,6 @@ contains
         call write_point(negf%verbose,negf%en_grid(i), Ntot) 
         if (negf%en_grid(i)%cpu .ne. id) cycle
 
-    
         Ec = negf%en_grid(i)%Ec 
         zt = negf%en_grid(i)%wght
         negf%iE = negf%en_grid(i)%pt
@@ -740,7 +755,7 @@ contains
         call destroy(GreenR)
     
      enddo
-  
+ print*,'GreenR=',maxval(abs(TmpMt%nzval)) 
      if(negf%DorE.eq.'D') then
         call zspectral(TmpMt,TmpMt,0,negf%rho)
      endif
@@ -775,14 +790,14 @@ contains
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
     ! Omega considers maximum kT so interval is always large enough
-    Omega = negf%n_kt * maxval(negf%kbT_dm) 
+    Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm) 
     
     if (ncont.gt.0) then 
-       mumin=minval(negf%mu(1:ncont))
-       mumax=maxval(negf%mu(1:ncont))
+       mumin=minval(negf%cont(:)%mu)
+       mumax=maxval(negf%cont(:)%mu)
     else
-       mumin=negf%mu(1)
-       mumax=negf%mu(1)
+       mumin=negf%muref
+       mumax=negf%muref
     endif  
 
     Ntot = negf%Np_real(1)
@@ -837,7 +852,6 @@ contains
   subroutine real_axis_int(negf)
     type(Tnegf) :: negf
 
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     type(z_CSR) :: Gn, TmpMt 
 
     integer :: ref, Npoints
@@ -871,7 +885,7 @@ contains
        negf%iE = negf%en_grid(i)%pt
 
        do j1 = 1,ncont
-          frm_f(j1)=fermi(Er,negf%mu(j1),negf%kbT_dm(j1))
+          frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
        enddo
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
@@ -932,16 +946,16 @@ contains
     
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
-    kbT = maxval(negf%kbT_dm)
+    kbT = maxval(negf%cont(:)%kbT_dm)
     Omega = negf%n_kt * kbT 
     muref = negf%muref
     
     if (ncont.gt.0) then 
-       mumin=minval(negf%mu_n(1:ncont))
-       mumax=maxval(negf%mu_n(1:ncont))
+       mumin=minval(negf%cont(:)%mu_n)
+       mumax=maxval(negf%cont(:)%mu_n)
     else
-       mumin=negf%mu_n(1)
-       mumax=negf%mu_n(1)
+       mumin=negf%muref
+       mumax=negf%muref
     endif  
 
     Ntot = negf%Np_real(1)
@@ -993,16 +1007,16 @@ contains
     
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
-    kbT = maxval(negf%kbT_dm) 
+    kbT = maxval(negf%cont(:)%kbT_dm) 
     Omega = negf%n_kt * kbT
     muref = negf%muref
     
     if (ncont.gt.0) then 
-       mumin=minval(negf%mu_p(1:ncont))
-       mumax=maxval(negf%mu_p(1:ncont))
+       mumin=minval(negf%cont(:)%mu_p)
+       mumax=maxval(negf%cont(:)%mu_p)
     else
-       mumin=negf%mu_p(1)
-       mumax=negf%mu_p(1)
+       mumin=negf%muref
+       mumax=negf%muref
     endif  
 
     Ntot = negf%Np_real(1)
@@ -1227,7 +1241,7 @@ contains
 
     Integer :: i, icont, icpl      ! dummy counters
     Integer :: ncont               ! number of contacts
-    Integer :: size_ni, size_nf    ! emitter-collector contacts
+    Integer :: size_ni             ! emitter-collector contacts
     
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
@@ -1265,28 +1279,7 @@ contains
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
-    
-    !Extract emitter-collector contacts -------------------
-    !Tunneling set-up
-    do i=1,size(negf%ni)
-       if (negf%ni(i).eq.0) then
-          size_ni=i-1
-          exit
-       endif
-    enddo
-    
-    do i=1,size(negf%nf)
-       if (negf%nf(i).eq.0) then
-          size_nf=i-1
-          exit
-       endif
-    enddo
-
-    !check size_ni .ne. size_nf
-    if (size_ni.ne.size_nf) then 
-       size_ni=min(size_ni,size_nf)
-       size_nf=min(size_ni,size_nf)
-    endif
+    size_ni = size(negf%ni)
 
     !-------------------------------------------------------
     
@@ -1308,8 +1301,8 @@ contains
 
     !-------------------------------------------------------
     !call create_SGF_SE(negf)
-    !call read_SGF_SE(negf)                                            
-   
+    !call read_SGF_SE(negf)  
+
     !Loop on energy points: tunneling 
     do i = 1, Nstep
       
@@ -1318,9 +1311,8 @@ contains
       
        Ec = negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
+       negf%trans%el%IndexEnergy = i !! DAR 
 
-       !DAR begin - Compute Self-Energies
-       negf%tranas%e%IndexEnergy=i
        if(negf%tCalcSelfEnergies) then                                                       
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
           negf%tTrans=.true.
@@ -1330,14 +1322,14 @@ contains
        end if                                                           
        
        do icont=1,ncont
-          if(negf%tranas%cont(icont)%tReadSelfEnergy) then
-             SelfEneR(icont)%val=negf%tranas%cont(icont)%SelfEnergy(:,:,i)
+          if(negf%cont(icont)%tReadSelfEnergy) then
+             SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,i)
              npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
              SelfEneR(icont)%nrow=npl
              SelfEneR(icont)%ncol=npl
           end if
-          if(negf%tranas%cont(icont)%tWriteSelfEnergy) then
-             negf%tranas%cont(icont)%SelfEnergy(:,:,i)=SelfEneR(icont)%val
+          if(negf%cont(icont)%tWriteSelfEnergy) then
+             negf%cont(icont)%SelfEnergy(:,:,i)=SelfEneR(icont)%val
           end if
        end do
        !DAR end
@@ -1345,7 +1337,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1353,7 +1345,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,size_ni, &
+          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1416,15 +1408,7 @@ contains
     write(*,*)   
     write(*,"('>>> The Meir-Wingreen transport is started.')")
     end if
-    !DAR end
-
-    ! Only take non-zero contacts
-    do ii=1,size(negf%ni)
-       if (negf%ni(ii).eq.0) then
-          size_ni=ii-1
-          exit
-       endif
-    enddo
+    size_ni = size(negf%ni)
     ! Don't need outer blocks
     outer = 0
 
@@ -1452,14 +1436,12 @@ contains
       if (negf%en_grid(ii)%cpu /= id) cycle
       Ec = negf%en_grid(ii)%Ec
       negf%iE = negf%en_grid(ii)%pt
+      negf%trans%el%IndexEnergy=ii  !DAR
 
       do j1 = 1,ncont
-         frm(j1)=fermi(real(Ec),negf%mu(j1),negf%kbT_t(j1))
-         !print *,'real(Ec)',real(Ec),'negf%mu(j1)',negf%mu(j1),'negf%kbT_t(j1)',negf%kbT_t(j1),'frm(j1)',frm(j1)
+         frm(j1)=fermi(real(Ec),negf%cont(j1)%mu,negf%cont(j1)%kbT_t)
       enddo
 
-      !DAR begin
-      negf%tranas%e%IndexEnergy=ii
       if(negf%tCalcSelfEnergies) then                                                       
          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')      
          negf%tTrans=.true.
@@ -1469,14 +1451,14 @@ contains
       end if                                                           
        
        do icont=1,ncont
-          if(negf%tranas%cont(icont)%tReadSelfEnergy) then           
-             SelfEneR(icont)%val=negf%tranas%cont(icont)%SelfEnergy(:,:,ii)
+          if(negf%cont(icont)%tReadSelfEnergy) then           
+             SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,ii)
              npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
              SelfEneR(icont)%nrow=npl
              SelfEneR(icont)%ncol=npl
           end if
-          if(negf%tranas%cont(icont)%tWriteSelfEnergy) then
-             negf%tranas%cont(icont)%SelfEnergy(:,:,ii)=SelfEneR(icont)%val
+          if(negf%cont(icont)%tWriteSelfEnergy) then
+             negf%cont(icont)%SelfEnergy(:,:,ii)=SelfEneR(icont)%val
           end if
        end do
        !DAR end
@@ -1781,7 +1763,7 @@ contains
   subroutine electron_current(negf)
     type(Tnegf) :: negf
     
-    integer :: size_ni, ii
+    integer :: size_ni, ii, ni, nf
     real(dp) :: mu1, mu2
 
     size_ni = size(negf%tunn_mat,2)
@@ -1796,10 +1778,10 @@ contains
 
     negf%currents=0.d0
     do ii=1,size_ni
-       mu1=negf%mu(negf%ni(ii))
-       mu2=negf%mu(negf%nf(ii))
+       ni = negf%ni(ii); nf = negf%nf(ii)
+       mu1=negf%cont(ni)%mu; mu2=negf%cont(nf)%mu
        negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
-                          & negf%kbT_t(negf%ni(ii)), negf%kbT_t(negf%nf(ii)), &
+                          & negf%cont(ni)%kbT_t, negf%cont(nf)%kbT_t, &
                           & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
@@ -1820,8 +1802,8 @@ contains
 
     negf%currents=0.d0
     do ii=1,size_ni
-       mu1=negf%mu(negf%ni(ii))
-       mu2=negf%mu(negf%nf(ii))
+       mu1=negf%cont(negf%ni(ii))%mu 
+       mu2=negf%cont(negf%nf(ii))%mu
        negf%currents(ii)= integrate_el_meir_wingreen(negf%tunn_mat(:,ii), mu1, mu2, &
                           & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
@@ -1846,7 +1828,7 @@ contains
 
     Integer :: i, icont, icpl      ! dummy counters
     Integer :: ncont               ! number of contacts
-    Integer :: size_ni, size_nf    ! emitter-collector contacts
+    Integer :: size_ni             ! emitter-collector contacts
     
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
@@ -1869,28 +1851,8 @@ contains
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
+    size_ni = size(negf%ni) 
     
-    !Extract emitter-collector contacts -------------------
-    !Tunneling set-up
-    do i=1,size(negf%ni)
-       if (negf%ni(i).eq.0) then
-          size_ni=i-1
-          exit
-       endif
-    enddo
-    
-    do i=1,size(negf%nf)
-       if (negf%nf(i).eq.0) then
-          size_nf=i-1
-          exit
-       endif
-    enddo
-
-    !check size_ni .ne. size_nf
-    if (size_ni.ne.size_nf) then 
-       size_ni=min(size_ni,size_nf)
-       size_nf=min(size_ni,size_nf)
-    endif
     !-------------------------------------------------------
     
     call log_allocate(TUN_MAT,size_ni)
@@ -1929,7 +1891,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf,size_ni, &
+          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1937,7 +1899,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS') 
           LEDOS(:) = 0.d0
           
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf,size_ni, &
+          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
           
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1965,7 +1927,7 @@ contains
   subroutine phonon_current(negf)
     type(Tnegf) :: negf
     
-    integer :: size_ni, ii
+    integer :: size_ni, ii, ni, nf
 
     size_ni = size(negf%tunn_mat,2)
 
@@ -1973,9 +1935,9 @@ contains
     negf%currents=0.d0
 
     do ii=1,size_ni
-       
+       ni = negf%ni(ii); nf = negf%nf(ii)
        negf%currents(ii)= integrate_ph(negf%tunn_mat(:,ii),  &
-                            & negf%kbT_t(negf%ni(ii)), negf%kbT_t(negf%nf(ii)), &
+                            & negf%cont(ni)%kbT_t, negf%cont(nf)%kbT_t, &
                             & negf%Emin, negf%Emax, negf%Estep)
     enddo
         

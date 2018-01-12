@@ -39,6 +39,7 @@ module libnegf
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
+ use clock
  implicit none
  private
 
@@ -48,6 +49,7 @@ module libnegf
  public :: Tnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing 
  public :: set_elph_s_dephasing, destroy_elph_model
+ public :: set_clock, write_clock
 
  public :: id, id0 
 #:if defined("MPI")
@@ -58,7 +60,7 @@ module libnegf
  !Input and work flow procedures
  public :: lnParams
  public :: init_negf, destroy_negf
- public :: init_structure
+ public :: init_contacts, init_structure
  public :: get_params, set_params, set_scratch, set_outpath, create_scratch
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes
 
@@ -471,6 +473,28 @@ contains
 
   end subroutine init_structure
 
+  subroutine init_contacts(negf, ncont)
+    type(Tnegf) :: negf    
+    integer, intent(in) :: ncont
+
+    integer :: ii, nc
+
+    ! If ncont == 0 we allocate at least one contact to hold the system el-chem potential
+    ! This makes the code easier when computing the Green's function
+    nc = ncont
+    allocate(negf%cont(nc))
+    do ii = 1, nc
+      negf%cont(ii)%FictCont = .false.   ! Ficticious contact 
+      negf%cont(ii)%mu = 0.d0            ! Potenziale elettrochimico
+      negf%cont(ii)%contact_DOS = 0.d0   ! Ficticious contact DOS
+      negf%cont(ii)%mu_n = 0.d0
+      negf%cont(ii)%mu_p = 0.d0
+      negf%cont(ii)%kbT_dm = 0.d0        ! electronic temperature
+      negf%cont(ii)%kbT_t = 0.d0         ! electronic temperature
+    end do
+
+  end subroutine init_contacts
+
   !!-------------------------------------------------------------------
   !! Get/Set parameters container
   !!-------------------------------------------------------------------
@@ -481,6 +505,8 @@ contains
     type(Tnegf) :: negf
     type(lnParams), intent(out) :: params
 
+    integer :: nn 
+
     params%verbose = negf%verbose
     params%ReadoldSGF = negf%ReadoldSGF
     !params%scratch_path = negf%scratch_path
@@ -488,13 +514,27 @@ contains
     params%g_spin = negf%g_spin
     params%delta = negf%delta
     params%dos_delta = negf%dos_delta
-    params%mu_n = negf%mu_n
-    params%mu_p = negf%mu_p
-    params%mu = negf%mu
-    params%contact_dos = negf%contact_dos
-    params%FictCont = negf%FictCont
-    params%kbT_dm = negf%kbT_dm
-    params%kbT_t = negf%kbT_t
+    nn = size(negf%cont)
+    params%mu_n(1:nn) = negf%cont(1:nn)%mu_n
+    params%mu_p(1:nn) = negf%cont(1:nn)%mu_p
+    params%mu(1:nn) = negf%cont(1:nn)%mu
+    params%contact_dos(1:nn) = negf%cont(1:nn)%contact_dos
+    params%FictCont(1:nn) = negf%cont(1:nn)%FictCont
+    params%kbT_dm(1:nn) = negf%cont(1:nn)%kbT_dm
+    params%kbT_t(1:nn) = negf%cont(1:nn)%kbT_t
+    params%mu_n(nn+1:MAXNCONT) = 0.0_dp
+    params%mu_p(nn+1:MAXNCONT) = 0.0_dp 
+    params%mu(nn+1:MAXNCONT) = 0.0_dp
+    params%contact_dos(nn+1:MAXNCONT) = 0.0_dp 
+    params%FictCont(nn+1:MAXNCONT) = .false. 
+    params%kbT_dm(nn+1:MAXNCONT) = 0.0_dp 
+    params%kbT_t(nn+1:MAXNCONT) = 0.0_dp
+    if (nn == 0) then
+      params%mu_n(1) = negf%mu_n
+      params%mu_p(1) = negf%mu_p
+      params%mu(1) = negf%mu
+      params%kbT_dm(1) = negf%kbT
+    end if  
     params%Np_n = negf%Np_n
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
@@ -504,8 +544,9 @@ contains
     params%Emin = negf%Emin
     params%Emax = negf%Emax
     params%Estep = negf%Estep
-    params%ni = negf%ni
-    params%nf = negf%nf    
+    nn = size(negf%ni)
+    params%ni=0; params%ni(1:nn) = negf%ni(1:nn)
+    params%nf=0; params%nf(1:nn) = negf%nf(1:nn)    
     params%eneconv = negf%eneconv
     params%spin = negf%spin
     params%wght = negf%wght
@@ -522,6 +563,8 @@ contains
     type(Tnegf) :: negf
     type(lnParams), intent(in) :: params
 
+    integer :: nn 
+
     negf%verbose = params%verbose
     negf%ReadoldSGF = params%ReadoldSGF
     !negf%scratch_path = params%scratch_path
@@ -529,13 +572,20 @@ contains
     negf%g_spin = params%g_spin
     negf%delta = params%delta
     negf%dos_delta = params%dos_delta
-    negf%mu_n = params%mu_n
-    negf%mu_p = params%mu_p
-    negf%mu = params%mu
-    negf%contact_dos = params%contact_dos
-    negf%FictCont = params%FictCont
-    negf%kbT_dm = params%kbT_dm
-    negf%kbT_t = params%kbT_t
+    nn = size(negf%cont)
+    negf%cont(1:nn)%mu_n        = params%mu_n(1:nn)        
+    negf%cont(1:nn)%mu_p        = params%mu_p(1:nn)       
+    negf%cont(1:nn)%mu          = params%mu(1:nn)         
+    negf%cont(1:nn)%contact_dos = params%contact_dos(1:nn)
+    negf%cont(1:nn)%FictCont    = params%FictCont(1:nn)   
+    negf%cont(1:nn)%kbT_dm      = params%kbT_dm(1:nn)     
+    negf%cont(1:nn)%kbT_t       = params%kbT_t(1:nn)
+    if (nn == 0) then    
+      negf%mu   = params%mu(1)
+      negf%mu_n = params%mu_n(1)
+      negf%mu_p = params%mu_p(1)
+      negf%kbT = params%kbT_dm(1)
+    end if  
     negf%Np_n = params%Np_n
     negf%Np_real = params%Np_real
     negf%n_kt = params%n_kt
@@ -545,8 +595,14 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
-    negf%ni = params%ni
-    negf%nf = params%nf
+    if (allocated(negf%ni)) deallocate(negf%ni)
+    nn = count(params%ni .ne. 0)
+    allocate(negf%ni(nn))
+    negf%ni(1:nn) = params%ni(1:nn)
+    if (allocated(negf%nf)) deallocate(negf%nf)
+    nn = count(params%nf .ne. 0)
+    allocate(negf%nf(nn))
+    negf%nf(1:nn) = params%nf(1:nn)
     negf%eneconv = params%eneconv
     negf%spin = params%spin
     negf%wght = params%wght
@@ -688,8 +744,8 @@ contains
     integer :: cont
     real(dp) :: DOS
  
-    negf%FictCont(cont) = .true. 
-    negf%contact_DOS(cont) = DOS
+    negf%cont(cont)%FictCont = .true. 
+    negf%cont(cont)%contact_DOS = DOS
 
   end subroutine set_fictcont
   
@@ -773,9 +829,9 @@ contains
     read(101,*)  tmp, negf%DeltaEc, negf%DeltaEv
     read(101,*)  tmp, negf%Emin, negf%Emax, negf%Estep
     if (ncont.gt.0) then
-      read(101,*) tmp, negf%kbT_dm(1:ncont)
+      read(101,*) tmp, negf%cont(1:ncont)%kbT_dm
     else
-      read(101,*) tmp, negf%kbT_dm(1)
+      read(101,*) tmp, negf%kbT
     endif
     read(101,*)  tmp, negf%wght
     read(101,*)  tmp, negf%Np_n(1:2)
@@ -795,11 +851,16 @@ contains
         negf%LDOS(ii)%indexes(jj) = ist + jj - 1
       end do  
     end do
-    read(101,*) tmp, negf%mu_n(1:ncont)    ! Will be the Electrochemical potential
-    read(101,*) tmp, negf%mu_p(1:ncont)    ! hole potentials
+    if (ncont.gt.0) then
+      read(101,*) tmp, negf%cont(1:ncont)%mu_n  ! Will be the Electrochemical potential
+      read(101,*) tmp, negf%cont(1:ncont)%mu_p  ! hole potentials
+    else  
+      read(101,*) tmp, negf%mu_n                ! Will be the Electrochemical potential
+      read(101,*) tmp, negf%mu_p                ! hole potentials
+    end if  
     !! Internally a different mu is used for dft-like integrations
     !! we define it as equal to mu_n in negf.in
-    negf%mu(1:ncont) = negf%mu_n(1:ncont)
+    negf%cont(1:ncont)%mu = negf%cont(1:ncont)%mu_n
 
     close(101)
 
@@ -844,7 +905,6 @@ contains
   subroutine destroy_negf(negf)
     type(Tnegf) :: negf   
 
-    call destroy_matrices(negf)
     call destroy_HS(negf)
     call kill_Tstruct(negf%str) 
     if (allocated(negf%LDOS)) call destroy_ldos(negf%ldos)
@@ -853,6 +913,8 @@ contains
     if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)    
     if (associated(negf%currents)) call log_deallocatep(negf%currents)    
     call destroy_DM(negf)
+    call destroy_matrices(negf)
+    !if (allocated(negf%cont)) deallocate(negf%cont)
 
   end subroutine destroy_negf
 
@@ -996,11 +1058,11 @@ contains
     type(Tnegf) :: negf   
     integer :: i
 
-    do i=1,negf%str%num_conts
-       if (allocated(negf%HC(i)%val)) call destroy(negf%HC(i))
-       if (allocated(negf%SC(i)%val)) call destroy(negf%SC(i))
-       if (allocated(negf%HMC(i)%val)) call destroy(negf%HMC(i))
-       if (allocated(negf%SMC(i)%val)) call destroy(negf%SMC(i))
+    do i = 1, size(negf%cont)
+       if (allocated(negf%cont(i)%HC%val)) call destroy(negf%cont(i)%HC)
+       if (allocated(negf%cont(i)%SC%val)) call destroy(negf%cont(i)%SC)
+       if (allocated(negf%cont(i)%HMC%val)) call destroy(negf%cont(i)%HMC)
+       if (allocated(negf%cont(i)%SMC%val)) call destroy(negf%cont(i)%SMC)
     enddo
 
   end subroutine destroy_matrices
@@ -1145,10 +1207,8 @@ contains
 
     call create_DM(negf)
 
-    negf%refcont = 1
-
     if (particle == 1) then
-      negf%muref = negf%mu_n(negf%refcont)
+      negf%muref = negf%mu_n
 
       if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
          call contour_int_n_def(negf)
@@ -1158,7 +1218,7 @@ contains
          negf%refcont = negf%str%num_conts+1
       endif
     else ! particle == -1
-      negf%muref = negf%mu_p(negf%refcont)
+      negf%muref = negf%mu_p
 
       if (negf%Np_p(1)+negf%Np_p(2)+negf%n_poles.gt.0) then
          call contour_int_p_def(negf)
@@ -1437,16 +1497,16 @@ contains
 
     if (ncont > 0) then
       if (negf%min_or_max .eq. 0) then
-         negf%muref = minval(negf%mu(1:ncont))
-         nc_vec = minloc(negf%mu(1:ncont))  
+         negf%muref = minval(negf%cont(1:ncont)%mu)
+         nc_vec = minloc(negf%cont(1:ncont)%mu)  
       else
-         negf%muref = maxval(negf%mu(1:ncont))
-         nc_vec = maxloc(negf%mu(1:ncont))
+         negf%muref = maxval(negf%cont(1:ncont)%mu)
+         nc_vec = maxloc(negf%cont(1:ncont)%mu)
       endif
       negf%refcont = nc_vec(1)
     else
-      negf%muref = negf%mu(1)
-      negf%refcont = 1  
+      negf%muref = negf%mu    
+      negf%refcont = 0  
     endif
      
   end subroutine set_ref_cont

@@ -613,7 +613,7 @@ CONTAINS
     Real(dp), Dimension(:), allocatable :: tun_mat
     real(dp) :: E
     real(dp), dimension(:) :: frm
-    integer :: out, size_ni
+    integer :: out
     complex(dp) :: tmp
 
     !Work
@@ -732,9 +732,6 @@ CONTAINS
     ! I probably need the next set_Gn in interaction for current conservation here
 
     do i=1,size(ni)       
-      if (ni(i) .eq. 0) then
-        cycle
-      end if    
       lead = ni(i)
       lead_blk = pnegf%str%cblk(lead)
       !print *, 'debug: lead=',lead,' lead_blk=',lead_blk
@@ -3708,7 +3705,7 @@ CONTAINS
 
   !---------------------------------------------------
 
-  SUBROUTINE tunneling_dns(H,S,Ec,SelfEneR,ni,nf,size_ni,str,tun_mat)
+  SUBROUTINE tunneling_dns(H,S,Ec,SelfEneR,ni,nf,str,tun_mat)
 
     implicit none
 
@@ -3716,9 +3713,8 @@ CONTAINS
     Type(z_CSR) :: S           
     Complex(dp) :: Ec
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR
-    Integer :: ni(MAXNCONT)
-    Integer :: nf(MAXNCONT)
-    Integer :: size_ni 
+    Integer :: ni(:)
+    Integer :: nf(:)
     Type(z_CSR) :: ESH_tot
     Type(TStruct_Info) :: str
     Real(dp), Dimension(:) :: tun_mat
@@ -3777,7 +3773,7 @@ CONTAINS
     tun_mat(1) = tun 
 
     ! When more contacts are present sometimes we can re-use previous Gr 
-    do icpl = 2, size_ni
+    do icpl = 2, size(ni)
 
       nit=ni(icpl)
       nft=nf(icpl)
@@ -4003,7 +3999,7 @@ CONTAINS
   !Subroutine for transmission and dos calculation    !
   !---------------------------------------------------!  
 
-  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,size_ni,nLdoS,LDOS,str,TUN_MAT,LEDOS)
+  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,nLdoS,LDOS,str,TUN_MAT,LEDOS)
 
     implicit none
 
@@ -4011,10 +4007,10 @@ CONTAINS
     Type(z_CSR), intent(in) :: S           
     Complex(dp), intent(in) :: Ec
     Type(z_DNS), Dimension(MAXNCONT), intent(in) :: SelfEneR, Gs
-    Integer, intent(in) :: ni(MAXNCONT)
-    Integer, intent(in) :: nf(MAXNCONT)
+    Integer, intent(in) :: ni(:)
+    Integer, intent(in) :: nf(:)
     Type(TStruct_Info), intent(in) :: str
-    integer, intent(in)  :: nLdos, size_ni
+    integer, intent(in)  :: nLdos
     type(intarray), dimension(:), intent(in) :: LdoS      
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
     Real(dp), Dimension(:), intent(inout) :: LEdoS
@@ -4058,7 +4054,7 @@ CONTAINS
     call Make_Gr_mem_dns(ESH,2,nbl)
 
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
-    do icpl=1,size_ni
+    do icpl=1,size(ni)
 
       nit=ni(icpl)
       nft=nf(icpl)
