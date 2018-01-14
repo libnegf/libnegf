@@ -145,27 +145,29 @@ contains
   end subroutine kill_TStruct
 
   ! --------------------------------------------------------  
-  subroutine print_Tstruct(str)
+  subroutine print_Tstruct(str,io)
     type(Tstruct_Info) :: str
+    integer, intent(in) :: io
+
     integer :: i
 
-    write(*,*) 'Hamiltonian Structure:'
-    write(*,*) 'num contacts:',str%num_conts 
-    write(*,*) 'num layers:',str%num_Pls
+    write(io,*) 'Hamiltonian Structure:'
+    write(io,*) 'num contacts:',str%num_conts 
+    write(io,*) 'num layers:',str%num_Pls
     
     do i=1,str%num_PLs
-       write(*,*) 'PL:',i, str%mat_PL_start(i), str%mat_PL_end(i)
+       write(io,*) 'PL:',i, str%mat_PL_start(i), str%mat_PL_end(i)
     enddo
 
-    write(*,*) 'central dim:',str%central_dim
+    write(io,*) 'central dim:',str%central_dim
 
     do i=1,str%num_conts
-      write(*,*) 'S: ',i, str%mat_B_start(i), str%mat_C_start(i)-1      
-      write(*,*) 'C: ',i, str%mat_C_start(i), str%mat_C_end(i)
-      write(*,*) 'cont dim:',str%mat_C_end(i)-str%mat_C_start(i)+1
+      write(io,*) 'S: ',i, str%mat_B_start(i), str%mat_C_start(i)-1      
+      write(io,*) 'C: ',i, str%mat_C_start(i), str%mat_C_end(i)
+      write(io,*) 'cont dim:',str%mat_C_end(i)-str%mat_C_start(i)+1
     enddo  
-    write(*,*) 'cblk: ',str%cblk 
-    write(*,*) 'total dim:',str%total_dim
+    write(io,*) 'cblk: ',str%cblk 
+    write(io,*) 'total dim:',str%total_dim
 
   end subroutine print_Tstruct
 

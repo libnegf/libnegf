@@ -387,11 +387,11 @@ contains
 
    subroutine print_all_vars(negf,io)
      type(Tnegf) :: negf    
-     integer :: io
+     integer, intent(in) :: io
       
      integer :: ii
 
-     call print_Tstruct(negf%str)
+     call print_Tstruct(negf%str,io)
 
      write(io,*) 'verbose=',negf%verbose
 
@@ -450,8 +450,6 @@ contains
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'iter= ', negf%iteration
      write(io,*) 'activecont= ', negf%activecont 
-
-
   end subroutine print_all_vars
 
 end module lib_param

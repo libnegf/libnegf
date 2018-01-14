@@ -584,17 +584,11 @@ contains
      else
        kbT = negf%kbT
      end if  
-    print*,'(contour int) refcont =',negf%refcont 
-    print*,'(contour int) kbT =',kbT 
      muref = negf%muref
-    print*,'(contour int) muref =',muref
      nkT = negf%n_kt * kbT
-    print*,'(contour int) n =',negf%n_kt
      Lambda = 2.d0* negf%n_poles * KbT * pi
      mumin = muref - nkT
-    print*,'(contour int) Ec =',negf%Ec
      Elow = negf%Ec
-    print*,'(contour int) n_poles =',negf%n_poles
     
      Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
      !! destroy previously defined grids, if any
@@ -755,7 +749,7 @@ contains
         call destroy(GreenR)
     
      enddo
- print*,'GreenR=',maxval(abs(TmpMt%nzval)) 
+     
      if(negf%DorE.eq.'D') then
         call zspectral(TmpMt,TmpMt,0,negf%rho)
      endif
