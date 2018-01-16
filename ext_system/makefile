@@ -11,10 +11,10 @@ test: $(OBJS) test.f90
 	$(FC) -o test test.f90 system_calls.o sys_calls.o -lc
 
 system_calls.o: system_calls.f90
-	$(FC) -c $<
+	$(FC) $(FXXOPT) -c $<
 
 sys_calls.o: sys_calls.C
-	$(CC) -c $<
+	$(CC) $(CCOPT) -c $<
 
 lib: $(OBJS)
 	ar -r $(OBJDIR)/libsyscalls.a $(OBJS)
