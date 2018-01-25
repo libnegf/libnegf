@@ -127,7 +127,8 @@ contains
     integer, intent(in) :: Npoints
 
      if (id0 .and. verbose.gt.30) then
-       write(6,'(a,a,i0,a,i0)') message,', CPU ',id,' points ',Npoints
+       write(6,'(a,a,i0,a,a,i0,a)') message,': ',Npoints,' points ', &
+            & ' parallelized on ',numprocs,' processes'
      end if
 
   end subroutine write_info
@@ -1242,16 +1243,6 @@ contains
     
     Logical :: do_LEDOS            ! performs or not LDOS
 
-    !DAR begin - tunneling_and_dos - variables
-    integer :: j1,k1
-    integer :: ngs, npl            ! Dimension of Surface GF, PL            
-    real(dp) :: Ec_check                                                           
-                                                     
-    if (id0.and.negf%verbose.gt.VBT) then                                          
-    write(*,"('>>> The Landauer transport (transmission [and DOS]) is started.')")   
-    write(*,*)                                                                     
-    end if
-    !DAR end    
     
     ! Get out immediately if Emax<Emin 
     if (negf%Emax.le.negf%Emin) then
@@ -1294,8 +1285,7 @@ contains
     endif
 
     !-------------------------------------------------------
-    !call create_SGF_SE(negf)
-    !call read_SGF_SE(negf)  
+    call write_info(negf%verbose,'TUNNELING CALCULATION',Nstep)
 
     !Loop on energy points: tunneling 
     do i = 1, Nstep
@@ -1315,18 +1305,17 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call write_clock
        end if                                                           
        
-       do icont=1,ncont
-          if(negf%cont(icont)%tReadSelfEnergy) then
-             SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,i)
-             npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
-             SelfEneR(icont)%nrow=npl
-             SelfEneR(icont)%ncol=npl
-          end if
-          if(negf%cont(icont)%tWriteSelfEnergy) then
-             negf%cont(icont)%SelfEnergy(:,:,i)=SelfEneR(icont)%val
-          end if
-       end do
-       !DAR end
+       !do icont=1,ncont
+       !   if(negf%cont(icont)%tReadSelfEnergy) then
+       !      SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,i)
+       !      npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
+       !      SelfEneR(icont)%nrow=npl
+       !      SelfEneR(icont)%ncol=npl
+       !   end if
+       !   if(negf%cont(icont)%tWriteSelfEnergy) then
+       !      negf%cont(icont)%SelfEnergy(:,:,i)=SelfEneR(icont)%val
+       !   end if
+       !end do
 
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
@@ -1358,13 +1347,6 @@ contains
     call log_deallocate(TUN_MAT)
     if(do_LEDOS) call log_deallocate(LEDOS)
 
-    !DAR begin
-    if (id0.and.negf%verbose.gt.VBT) then                                           
-    write(*,*)                                                                      
-    write(*,"('>>> The Landauer transport (transmission [and DOS]) is finished.')")  
-    end if
-    !DAR end - tunneling_and_dos
-  
   end subroutine tunneling_and_dos
 
   !---------------------------------------------------------------------------
@@ -1471,7 +1453,7 @@ contains
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
 
                if (scba_error .lt. negf%inter%scba_tol) then 
-                  write(*,*) "SCBA exit succesfully after ",scba_iter, " iterations"
+                  !write(*,*) "SCBA exit succesfully after ",scba_iter, " iterations"
                   call destroy(Gn)
                   exit
                end if
@@ -1483,7 +1465,7 @@ contains
 
          enddo
          if (scba_error .gt. negf%inter%scba_tol) then
-            write(*,*) "WARNING : SCBA exit with error ",scba_error, &
+            if (id0) write(*,*) "WARNING : SCBA exit with error ",scba_error, &
                  & " above reference tolerance ",negf%inter%scba_tol, " at energy ", Ec
          end if
          call destroy(Gn_previous)

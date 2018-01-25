@@ -9,6 +9,10 @@ module system_calls
  
  logical, parameter :: verbose = .false.
 
+ integer, parameter :: INT_EEXIST = 1
+ integer, parameter :: INT_ENODIR = 2
+ integer, parameter :: INT_EPERM = 3
+
  interface
    subroutine makedir(dirname, error) bind(C, name="makedir")
      use iso_c_binding, only: c_char, c_int 
@@ -44,24 +48,27 @@ module system_calls
    integer :: ios
 
 
-   open(9834, file=trim(dirname)//'/test', iostat=ios)
-   if (ios == 0) then 
-     if (verbose) print*,'folder '//trim(dirname)//' already exists'
-     close(9834)
-     call remove_file(trim(dirname)//'/test')
-     return
-   end if   
+   !open(9834, file=trim(dirname)//'/test', iostat=ios)
+   !if (ios == 0) then 
+   !  if (verbose) print*,'folder '//trim(dirname)//' already exists'
+   !  close(9834)
+   !  call remove_file(trim(dirname)//'/test')
+   !  return
+   !end if   
 
    call makedir(f_to_c_string(dirname), err) 
 
    if (err == 0) then
      if (verbose) print*,'Folder "'//trim(dirname)//'" created'
    else
-     print*,'error: could not create folder. errno=',err
      if (present(error)) then
-       error = err
-     else    
-       stop
+       select case (error) 
+       case(INT_EEXIST)
+       case(INT_ENODIR)      
+         print*,'Folder name error "'//trim(dirname)//'"' 
+       case(INT_EPERM)   
+         print*,'Permission denied in mkdir "'//trim(dirname)//'"'  
+       end select
      endif  
    end if
 

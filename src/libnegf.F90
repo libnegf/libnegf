@@ -50,6 +50,7 @@ module libnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing 
  public :: set_elph_s_dephasing, destroy_elph_model
  public :: set_clock, write_clock
+ public :: writeMemInfo, writePeakInfo
 
  public :: id, id0 
 #:if defined("MPI")
