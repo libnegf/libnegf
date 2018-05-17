@@ -3764,15 +3764,18 @@ CONTAINS
     call Make_Gr_mem_dns(ESH,1)
     if (nt.gt.1) call Make_Gr_mem_dns(ESH,2,nt)
 
-    if (ncont.eq.2) then
+    select case(ncont)
+    case(1)
+      tun = 0.0_dp
+    case(2)
       call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-    else
-      call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-    endif
+    case default
+      call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
+    end select
 
     tun_mat(1) = tun 
 
-    ! When more contacts are present sometimes we can re-use previous Gr 
+    ! When more contacts are present sometimes we can re-use previous GF
     do icpl = 2, size(ni)
 
       nit=ni(icpl)
@@ -3790,7 +3793,11 @@ CONTAINS
         nt = nt1
       endif
 
-      call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun) 
+      if (ncont > 1) then
+        call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
+      else
+        tun = 0.0_dp
+      end if
 
       tun_mat(icpl) = tun 
 
@@ -4059,11 +4066,14 @@ CONTAINS
       nit=ni(icpl)
       nft=nf(icpl)
 
-      if (ncont.eq.2) then
+      select case(ncont)
+      case(1)
+        tun = 0.0_dp
+      case(2)
         call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun) 
-      else
+      case default
         call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
-      endif
+      end select
 
       TUN_MAT(icpl) = tun 
 

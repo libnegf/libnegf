@@ -1753,6 +1753,11 @@ contains
     call log_allocatep(negf%currents,size_ni)
 
     negf%currents=0.d0
+
+    if (size(negf%cont) < 2) then
+      return
+    end if
+
     do ii=1,size_ni
        ni = negf%ni(ii); nf = negf%nf(ii)
        mu1=negf%cont(ni)%mu; mu2=negf%cont(nf)%mu
