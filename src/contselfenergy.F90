@@ -410,9 +410,9 @@ contains
        !------------------------------------------------------------------------
        !DAR begin
        !------------------------------------------------------------------------
-       if(pnegf%tTrans.and.pnegf%cont(i)%tReadSelfEnergy) cycle                       
+       if (pnegf%tTrans.and.pnegf%cont(i)%tReadSelfEnergy) cycle                       
        
-       if(pnegf%tTrans.and.pnegf%cont(i)%tReadSurfaceGF) then
+       if (pnegf%tTrans.and.pnegf%cont(i)%tReadSurfaceGF) then
           ngs=(pnegf%str%mat_C_end(i)+ 1- pnegf%str%mat_B_Start(i))/2 
           GS(i)%val=pnegf%cont(i)%SurfaceGF(:,:,pnegf%trans%el%IndexEnergy)
           GS(i)%nrow=ngs
@@ -421,12 +421,9 @@ contains
           call surface_green(Ec,pnegf%cont(i)%HC,pnegf%cont(i)%SC,pnegf,ncyc,GS(i))
        end if
 
-       if(pnegf%tTrans.and.pnegf%cont(i)%tWriteSurfaceGF) &                          
-            pnegf%cont(i)%SurfaceGF(:,:,pnegf%trans%el%IndexEnergy)=GS(i)%val
-
-       !------------------------------------------------------------------------
-       !DAR end
-       !------------------------------------------------------------------------
+       if (pnegf%tTrans.and.pnegf%cont(i)%tWriteSurfaceGF) then                
+          pnegf%cont(i)%SurfaceGF(:,:,pnegf%trans%el%IndexEnergy)=GS(i)%val
+       end if
      
        avncyc = avncyc + ncyc
 

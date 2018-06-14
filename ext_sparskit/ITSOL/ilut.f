@@ -1842,7 +1842,7 @@ c-----------------------------------------------------------------------
         ju0 = n+2
         jlu(1) = ju0
 c
-c initialize work vector to zero's
+c initialize work vector to zero
 c
 	do 31 i=1, n
            iw(i) = 0

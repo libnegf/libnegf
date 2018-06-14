@@ -64,7 +64,7 @@ module integrations
  public :: phonon_tunneling   ! computes T(E) for phonons
  public :: phonon_current     ! computes heat currents
  public :: thermal_conductance ! computes thermal conductance
- !public :: phonon_phonon      ! computes thermal conductance
+ !public :: phonon_phonon      ! computes phonon-phonon interactions 
 
  public :: integrate_el       ! integration of tunneling (el)
  public :: integrate_el_meir_wingreen                                       !DAR
@@ -1305,18 +1305,6 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call write_clock
        end if                                                           
        
-       !do icont=1,ncont
-       !   if(negf%cont(icont)%tReadSelfEnergy) then
-       !      SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,i)
-       !      npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
-       !      SelfEneR(icont)%nrow=npl
-       !      SelfEneR(icont)%ncol=npl
-       !   end if
-       !   if(negf%cont(icont)%tWriteSelfEnergy) then
-       !      negf%cont(icont)%SelfEnergy(:,:,i)=SelfEneR(icont)%val
-       !   end if
-       !end do
-
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ') 
 
@@ -1393,12 +1381,6 @@ contains
     call log_allocate(tun_mat,size_ni)
     call log_allocatep(negf%tunn_mat,Nstep,size_ni)
     negf%tunn_mat = 0.0_dp
-    !#!DAR begin - log_allocatep negf%tunn_mat_bp
-    !#if(negf%tZeroCurrent) then
-    !#   call log_allocatep(negf%tunn_mat_bp,Nstep,size_ni)
-    !#   negf%tunn_mat_bp = 0.0_dp
-    !#end if
-    !#!DAR end
     call log_allocate(frm,ncont)
 
     call create_SGF_SE(negf)
@@ -1407,7 +1389,7 @@ contains
     !! Loop on energy points
     do ii = 1, Nstep
 
-      call write_point(negf%verbose,negf%en_grid(ii), size(negf%en_grid))
+      call write_point(negf%verbose, negf%en_grid(ii), size(negf%en_grid))
 
       if (negf%en_grid(ii)%cpu /= id) cycle
       Ec = negf%en_grid(ii)%Ec
@@ -1415,29 +1397,29 @@ contains
       negf%trans%el%IndexEnergy=ii  !DAR
 
       do j1 = 1,ncont
-         frm(j1)=fermi(real(Ec),negf%cont(j1)%mu,negf%cont(j1)%kbT_t)
+         frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
       enddo
 
       if(negf%tCalcSelfEnergies) then                                                       
          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')      
          negf%tTrans=.true.
-         call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+         call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
          negf%tTrans=.false.
          if (id0.and.negf%verbose.gt.VBT) call write_clock
       end if                                                           
-       
-       do icont=1,ncont
-          if(negf%cont(icont)%tReadSelfEnergy) then           
-             SelfEneR(icont)%val=negf%cont(icont)%SelfEnergy(:,:,ii)
-             npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
-             SelfEneR(icont)%nrow=npl
-             SelfEneR(icont)%ncol=npl
-          end if
-          if(negf%cont(icont)%tWriteSelfEnergy) then
-             negf%cont(icont)%SelfEnergy(:,:,ii)=SelfEneR(icont)%val
-          end if
-       end do
-       !DAR end
+      
+      do icont=1,ncont
+         if (negf%cont(icont)%tReadSelfEnergy) then           
+            SelfEneR(icont)%val = negf%cont(icont)%SelfEnergy(:,:,ii)
+            npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
+            SelfEneR(icont)%nrow = npl
+            SelfEneR(icont)%ncol = npl
+         end if
+         if (negf%cont(icont)%tWriteSelfEnergy) then
+            negf%cont(icont)%SelfEnergy(:,:,ii) = SelfEneR(icont)%val
+         end if
+      end do
+      !DAR end
 
       ! Calculate the SCBA green before the meir wingreen       
       !! If elph model, then get inside a SCBA cycle. Otherwise Gn is calculated
@@ -1464,20 +1446,18 @@ contains
             call destroy(Gn)
 
          enddo
-         if (scba_error .gt. negf%inter%scba_tol) then
-            if (id0) write(*,*) "WARNING : SCBA exit with error ",scba_error, &
-                 & " above reference tolerance ",negf%inter%scba_tol, " at energy ", Ec
+         if (id0 .and. scba_error > negf%inter%scba_tol) then
+            write(*,*) "WARNING: SCBA exit with error ",scba_error
+            write(*,*) "Above reference tolerance of ",negf%inter%scba_tol
+            write(*,*) "At energy point: ", Ec
          end if
          call destroy(Gn_previous)
       endif
 
-      call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,&
-           & negf%ni, tun_mat)
+      call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,tun_mat)
       
       negf%tunn_mat(ii,:) = tun_mat(:) * negf%wght
 
-      if(negf%tZeroCurrent) call transmission_BP_corrected(negf,SelfEneR)
-      
       if (id0.and.negf%verbose.gt.VBT) call write_clock
       do icont=1,ncont
         call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1486,12 +1466,10 @@ contains
     enddo
     call log_deallocate(tun_mat)
 
-    !DAR begin
     if (id0.and.negf%verbose.gt.VBT) then                                   
     write(*,*)                                                              
     write(*,"('>>> The Meir-Wingreen transport is finished.')")             
     end if                                                                  
-    !DAR end - meir_wingreen
     
   end subroutine meir_wingreen
 
@@ -1674,7 +1652,7 @@ contains
   !  on a single energy point on real axis.
   !  It groups calculation of leads, scba loop if any and deallocations of
   !  working arrays. If the calculation does not contain el-ph interactions,
-  !  only the contribution of non-reference contacts are included. If the 
+  !  only the contribution of non-reference contacts are included. If it 
   !  includes el-ph, all the leads need to be taken into account (needed because
   !  the real axis integral could extend beyond the region where the reference
   !  contact Fermi function is zero

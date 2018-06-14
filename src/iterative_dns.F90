@@ -71,16 +71,16 @@ MODULE iterative_dns
 
   logical, parameter :: debug=.false. 
 
-  type(z_DNS), dimension(:), ALLOCATABLE :: gsmr
-  type(z_DNS), dimension(:), ALLOCATABLE :: gsml
-  type(z_DNS), dimension(:,:), ALLOCATABLE :: Gr
+  type(z_DNS), dimension(:), allocatable :: gsmr
+  type(z_DNS), dimension(:), allocatable :: gsml
+  type(z_DNS), dimension(:,:), allocatable :: Gr
 
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: GGn
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: GGp
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: GGr
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: Sgn
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: Sgp
-  type(z_DNS), dimension(:,:,:), ALLOCATABLE, SAVE :: Sgr
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: GGn
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: GGp
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: GGr
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: Sgn
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: Sgp
+  type(z_DNS), dimension(:,:,:), allocatable, SAVE :: Sgr
   logical, parameter :: memory = .true.
 
 CONTAINS
@@ -92,12 +92,12 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_eq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,A,outer)
+  SUBROUTINE calls_eq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,A,outer)
 
     !****************************************************************************
     !
     !Input
-    !pnegf:    negf data container
+    !negf:    negf data container
     !E:        Energy point
     !SelfEneR: matrices array containing contacts Self Energy
     !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
@@ -117,7 +117,7 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(Tnegf), intent(inout) :: pnegf
+    type(Tnegf), intent(inout) :: negf
     complex(dp), intent(in) :: E
     type(z_DNS), dimension(:), intent(in) :: SelfEneR
     type(z_DNS), dimension(:), intent(in) :: Tlc, Tcl, gsurfR
@@ -125,20 +125,20 @@ CONTAINS
     integer, intent(in) :: outer
 
     !Work
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: ESH
+    type(z_DNS), dimension(:,:), allocatable :: ESH
     type(z_CSR) :: ESH_tot, Ain
-    integer :: i,ierr, nbl, ncont,ii,n                                !DAR +ii,n
-    integer, dimension(:), POINTER :: cblk, indblk
+    integer :: i,ierr, nbl, ncont,ii,n    
+    integer, dimension(:), pointer :: cblk, indblk
 
     !print *, 'debug: calls_eq_mem_dns is started'
 
-    nbl = pnegf%str%num_PLs
-    ncont = pnegf%str%num_conts
-    cblk => pnegf%str%cblk
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    cblk => negf%str%cblk
+    indblk => negf%str%mat_PL_start
 
     ! Take CSR H,S and build ES-H in dense blocks
-    CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),E,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -151,15 +151,15 @@ CONTAINS
     end do
 
     !! Add interaction self energy contribution, if any
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
     !DAR begin - Add BP self energy if any
-    if (pnegf%tDephasingBP) then
+    if (negf%tDephasingBP) then
     do n=1,nbl
-       associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
+       associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
        forall(ii = 1:pl_end - pl_start + 1) 
           ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-               &(0.0_dp,0.5_dp)*pnegf%deph%bp%coupling(pl_start + ii - 1)  
+               &(0.0_dp,0.5_dp)*negf%deph%bp%coupling(pl_start + ii - 1)  
        end forall
        end associate
     end do
@@ -183,26 +183,26 @@ CONTAINS
 
 
     ! SAVE ON FILES/MEMORY (for elph).........................
-    if (pnegf%elph%numselmodes.gt.0 .and. pnegf%elph%model .eq. -1) then
+    if (negf%elph%numselmodes.gt.0 .and. negf%elph%model .eq. -1) then
       ! save diagonal blocks of Gn = -i G<
       do i = 1, nbl
         !print*,'G_r ',minval(abs(Gr(i,i)%val)), maxval(abs(Gr(i,i)%val))
-        call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
+        call write_blkmat(Gr(i,i),negf%scratch_path,'G_r_',i,i,negf%iE)
       end do
     endif
     !..........................................................
     !! Deliver Gr to interaction models if any
-    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
     !-----------------------------------------------------------
 
-    call blk2csr(Gr,pnegf%str,pnegf%S,A)
+    call blk2csr(Gr,negf%str,negf%S,A)
 
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,pnegf%str,.FALSE.,A)   
+      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.FALSE.,A)   
     CASE(2)
-      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,pnegf%str,.TRUE.,A) 
+      CALL Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.TRUE.,A) 
     end SELECT
 
     !Distruzione dell'array Gr
@@ -225,12 +225,12 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_mem_dns(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
+  SUBROUTINE calls_neq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
 
     !****************************************************************************
     !
     !Input
-    !pnegf:    negf data container
+    !negf:    negf data container
     !E:        Energy point
     !SelfEneR: matrices array containing contacts Self Energy
     !Tlc:      matrices array containing contacts-device interaction blocks (ES-H)
@@ -250,7 +250,7 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(Tnegf), intent(inout) :: pnegf
+    type(Tnegf), intent(inout) :: negf
     type(z_CSR), intent(inout)  :: Glout
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
@@ -261,29 +261,29 @@ CONTAINS
     integer :: ref
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
-    integer, dimension(:), POINTER :: cblk, indblk
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: ESH
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Gn
+    integer, dimension(:), pointer :: cblk, indblk
+    type(z_DNS), dimension(:,:), allocatable :: ESH
+    type(z_DNS), dimension(:,:), allocatable :: Gn
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
 
     !print *, 'debug: calls_neq_mem_dns is started'
 
-    if (pnegf%elph%model .ne. 0) then
+    if (negf%elph%model .ne. 0) then
       !TOdo: output logfile
       write(*,*) "Warning: calls_neq_mem is not compatible with el-ph models"
     endif
 
-    nbl = pnegf%str%num_PLs
-    ncont = pnegf%str%num_conts
-    indblk => pnegf%str%mat_PL_start
-    cblk => pnegf%str%cblk
-    ref = pnegf%refcont
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    indblk => negf%str%mat_PL_start
+    cblk => negf%str%cblk
+    ref = negf%refcont
 
     Ec=cmplx(E,0.d0,dp)
 
     ! Take CSR H,S and build ES-H in dense blocks
-    CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -344,17 +344,17 @@ CONTAINS
 
     call init_blkmat(Gn,ESH)
 
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    call blk2csr(Gn,pnegf%str,pnegf%S,Glout)
+    call blk2csr(Gn,negf%str,negf%S,Glout)
 
     !Calcolo degli outer blocks 
     SELECT CASE (out)
     CASE(0)
     CASE(1)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
     CASE(2)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
     end SELECT
 
     CALL destroy_blk(Gn)
@@ -381,7 +381,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  SUBROUTINE calls_neq_elph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)
+  SUBROUTINE calls_neq_elph(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
 
     !****************************************************************************
     !
@@ -402,37 +402,37 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(Tnegf), intent(inout) :: pnegf
+    type(Tnegf), intent(inout) :: negf
     type(z_CSR) :: Glout
     type(z_DNS), dimension(:) :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp) :: E
     real(dp), dimension(:) :: frm
-    integer :: out
+    integer :: outblocks
 
     !Work
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl,lbl,ii,n                              !DAR +ii,n
     integer :: ref, iter
-    integer, dimension(:), POINTER :: cblk, indblk
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: ESH, Gn, Gp
+    integer, dimension(:), pointer :: cblk, indblk
+    type(z_DNS), dimension(:,:), allocatable :: ESH, Gn, Gp
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
     real(dp), dimension(:), allocatable :: cfrm
 
     !print *, 'debug: calls_neq_elph is started'
 
-    nbl = pnegf%str%num_PLs
-    ncont = pnegf%str%num_conts
-    indblk => pnegf%str%mat_PL_start
-    cblk => pnegf%str%cblk
-    ref = pnegf%refcont
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    indblk => negf%str%mat_PL_start
+    cblk => negf%str%cblk
+    ref = negf%refcont
     iter=0
-    if (allocated(pnegf%inter)) iter = pnegf%inter%scba_iter
+    if (allocated(negf%inter)) iter = negf%inter%scba_iter
 
     Ec=cmplx(E,0.d0,dp)
 
     !Costruiamo la matrice sparsa ESH
-    CALL prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -444,15 +444,15 @@ CONTAINS
     end do
 
     !! Add interaction self energy if any
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
     !DAR begin - Add BP self energy if any
-    if (pnegf%tDephasingBP) then
+    if (negf%tDephasingBP) then
     do n=1,nbl
-       associate(pl_start=>pnegf%str%mat_PL_start(n),pl_end=>pnegf%str%mat_PL_end(n))
+       associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
        forall(ii = 1:pl_end - pl_start + 1) 
           ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-               (0.0_dp,0.5_dp)*pnegf%deph%bp%coupling(pl_start + ii - 1)  
+               (0.0_dp,0.5_dp)*negf%deph%bp%coupling(pl_start + ii - 1)  
        end forall
        end associate
     end do
@@ -483,7 +483,7 @@ CONTAINS
     CALL Make_Gr_mem_dns(ESH,1)
     CALL Make_Gr_mem_dns(ESH,2,nbl)
     !! Update el-ph retarded self energy if any
-    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
     !--------------------------------------------------------
     !With el-ph we need all columns
     do i=1,nbl
@@ -498,81 +498,38 @@ CONTAINS
 
     !Calcolo degli outer blocks 
     !if (debug) write(*,*) 'Compute Outer_G_n' 
-    SELECT CASE (out)
-    CASE(0)
-    CASE(1)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.false.,Glout)
-    CASE(2)
-      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,pnegf%str,frm,ref,.true.,Glout)
+    SELECT CASE (outblocks)
+    CASE(0)  ! No outer blocks
+    CASE(1)  ! Upper diagonal outer blocks
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
+    CASE(2)  ! Upper and Lower diagonal outer blocks
+      CALL Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
     end SELECT
 
     !Calcolo della G_n nel device
-    !if (debug) write(*,*) 'Compute G_n' 
     !Allocazione degli array di sparse
     ALLOCATE(Gn(nbl,nbl),stat=ierr)
     if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
 
     call init_blkmat(Gn,ESH)
 
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    if (allocated(pnegf%inter)) call Make_Gn_ph(pnegf,ESH,iter,Gn)
+    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn)
 
     !! Pass Gr to interaction model
-    if (allocated(pnegf%inter)) call pnegf%inter%set_Gn(Gn, pnegf%iE)
-    !-----------------------------------------------------
-    !! Skip this, old implementation
-    !print*
-    ! save diagonal blocks of G_n
-    ! do i = 1, nbl
-    !   !print*,'(G_n) G_n',minval(abs(Gn(i,i)%val)), maxval(abs(Gn(i,i)%val))
-    !   call write_blkmat(Gn(i,i),pnegf%scratch_path,'G_n_',i,i,pnegf%iE)
-    !   !print*,'(G_r) G_r',minval(abs(Gn(i,i)%val)),maxval(abs(Gr(i,i)%val))
-    !   call write_blkmat(Gr(i,i),pnegf%scratch_path,'G_r_',i,i,pnegf%iE)
-    ! end do
+    if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
 
-    ! the following destroys Gn
-    call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
+    call blk2csr(Gn,negf%str,negf%S,Gl)
     DEALLOCATE(Gn)
 
-    !! Computation of G_p for Sigma_p
-!!$ if (pnegf%elph%check) then
-!!$    allocate(cfrm(10))
-!!$    cfrm = 1.0_dp - frm
-!!$    cfrm(ref) = 0.0_dp
-!!$ 
-!!$    ALLOCATE(Gp(nbl,nbl),stat=ierr)
-!!$ 
-!!$    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gp(nbl,nbl)'
-!!$    call init_blkmat(Gp,ESH)
-!!$    
-!!$    CALL Make_Gn_mem_dns(ESH,SelfEneR,cfrm,ref,pnegf%str,Gp)
-
-!!$    deallocate(cfrm)
-!!$    
-!!$    call Make_Gp_ph(pnegf,ESH,iter,Gp)
-!!$    
-!!$   !  save diagonal blocks of G_p
-!!$   do i = 1, nbl
-!!$     !print*
-!!$     !print*,'(G_p) G_p',minval(abs(Gn(i,i)%val)),maxval(abs(Gn(i,i)%val))
-!!$     call write_blkmat(Gp(i,i),pnegf%scratch_path,'G_p_',i,i,pnegf%iE)
-!!$   end do
-!!$    
-!!$   call destroy_blk(Gp)
-!!$   DEALLOCATE(Gp)
-!!$ endif
-    !! ------------------------------------------------------------------------
-
-    !Distruzione dell'array Gr
     CALL destroy_blk(Gr)
     DEALLOCATE(Gr)
 
     CALL destroy_ESH(ESH)
     DEALLOCATE(ESH)
 
-    !Concatenazione di Gl in Glout
-    SELECT CASE(out)
+    SELECT CASE(outblocks)
     CASE(0)
       call clone(Gl,Glout)
     CASE(1:2)
@@ -580,8 +537,6 @@ CONTAINS
     end SELECT
 
     call destroy(Gl)
-
-    !print *, 'debug: calls_neq_elph is finished'
 
   end SUBROUTINE calls_neq_elph
 
@@ -603,50 +558,41 @@ CONTAINS
   !  If i=ref it reduces to
   !  Iop = \Gamma_{i}[-G^{n,l\neq ref}  - G^{n,l\neq ref}_{\phi}]
   !---------------------------------------------------------------------
-  subroutine iterative_meir_wingreen(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,ni,tun_mat)
+  subroutine iterative_meir_wingreen(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,tun_mat)
     implicit none
 
     !In/Out
-    type(Tnegf), intent(inout) :: pnegf
-    integer, dimension(:) :: ni
-    type(z_DNS), dimension(:) :: SelfEneR, gsurfR, Tlc, Tcl
-    Real(dp), Dimension(:), allocatable :: tun_mat
+    type(Tnegf), intent(inout) :: negf
     real(dp) :: E
+    type(z_DNS), dimension(:) :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), dimension(:) :: frm
-    integer :: out
-    complex(dp) :: tmp
+    real(dp), dimension(:) :: tun_mat
 
     !Work
-    complex(dp) :: Ec
+    complex(dp) :: Ec, tmp
     integer :: i,ierr,ncont,nbl,lbl,ii,n                              !DAR +ii,n
     integer :: pl_start, pl_end
     integer :: ref, iter, lead, lead_blk, ref_blk
-    integer, dimension(:), POINTER :: cblk, indblk
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: ESH, Gn, Gp
+    integer, dimension(:), pointer :: cblk, indblk
+    type(z_DNS), dimension(:,:), allocatable :: ESH, Gn, Gp
     type(z_DNS) :: work1, work2, work3, Gamma, A
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
     real(dp), dimension(:), allocatable :: cfrm
 
-    if (id0.and.pnegf%verbose.gt.80) print *, 'iterative_meir_wingreen is started'
     
-    nbl = pnegf%str%num_PLs
-    ncont = pnegf%str%num_conts
-    indblk => pnegf%str%mat_PL_start
-    cblk => pnegf%str%cblk
-    ref = pnegf%refcont
-    ref_blk = pnegf%str%cblk(ref)
+    nbl = negf%str%num_PLs
+    ncont = negf%str%num_conts
+    indblk => negf%str%mat_PL_start
+    cblk => negf%str%cblk
+    ref = negf%refcont
+    ref_blk = negf%str%cblk(ref)
     iter = 0
-    if (allocated(pnegf%inter)) iter = pnegf%inter%scba_iter
-
-    !print *, 'debug: nbl=',nbl,' ncont=',ncont
-    !print *, 'debug: indblk=',indblk
-    !print *, 'debug: cblk=',cblk
-    !print *, 'debug: ref=',ref,' ref_blk=',ref_blk,' iter=',iter
+    if (allocated(negf%inter)) iter = negf%inter%scba_iter
 
     Ec=cmplx(E,0.d0,dp)
    
-    call prealloc_sum(pnegf%H,pnegf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    call prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -659,26 +605,22 @@ CONTAINS
     end do
 
     !! Add el-ph self energy if any
-    if (allocated(pnegf%inter)) call pnegf%inter%add_sigma_r(ESH)
+    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
-    !DAR begin - Add BP self energy if any
-    if (pnegf%tDephasingBP) then
+    if (negf%tDephasingBP) then
       do n=1,nbl
-        pl_start=pnegf%str%mat_PL_start(n)
-        pl_end=pnegf%str%mat_PL_end(n)
+        pl_start=negf%str%mat_PL_start(n)
+        pl_end=negf%str%mat_PL_end(n)
         do ii = 1, pl_end - pl_start + 1 
           ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-                (0.d0,1.d0)*0.5_dp*pnegf%deph%bp%coupling(pl_start + ii - 1)  
+                (0.d0,1.d0)*0.5_dp*negf%deph%bp%coupling(pl_start + ii - 1)  
         end do
       end do
     end if
-    !DAR end
     
-    !Allocazione delle gsmr
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
 
-    !Chiamata di Make_gsmr_mem
     CALL Make_gsmr_mem_dns(ESH,nbl,2)
 
     !Chiamata di Make_gsml_mem solo per i blocchi 1..lbl dove  
@@ -688,10 +630,6 @@ CONTAINS
     if ( ncont.gt.1 ) then
       CALL Make_gsml_mem_dns(ESH,1,lbl)    
     endif
-    !if (debug) write(*,*) '----------------------------------------------------'
-    !if (debug) call writeMemInfo(6)
-    !if (debug) call writePeakInfo(6)
-    !if (debug) write(*,*) '----------------------------------------------------'
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -699,7 +637,7 @@ CONTAINS
     CALL Make_Gr_mem_dns(ESH,2,nbl)
 
     !! Give Gr to interaction model if any
-    if (allocated(pnegf%inter)) call pnegf%inter%set_Gr(Gr, pnegf%iE)
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
     !---------------------------------------------------
     !With el-ph we need all columns
     do i=1,nbl
@@ -714,9 +652,6 @@ CONTAINS
 
     !! Never calculate outer blocks
 
-    !Calcolo della G_n nel device
-    !if (debug) write(*,*) 'Compute G_n' 
-    !Allocazione degli array di sparse
     ALLOCATE(Gn(nbl,nbl),stat=ierr)
     if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
 
@@ -725,15 +660,15 @@ CONTAINS
     !! TEMPORARY AND INEFFICIENT: CALCULATE THE FULL GN WHEN A BLOCK 
     !! (THE CONTACT ONE) IS ENOUGH
     !! WE HAVE Gn WITHOUT REFERENCE CONTACT?? (usual neq contributions)
-    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,pnegf%str,Gn)
+    CALL Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    if (allocated(pnegf%inter)) call Make_Gn_ph(pnegf,ESH,iter,Gn)           !DAR
+    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn)           !DAR
 
     ! I probably need the next set_Gn in interaction for current conservation here
 
-    do i=1,size(ni)       
-      lead = ni(i)
-      lead_blk = pnegf%str%cblk(lead)
+    do i=1,size(negf%ni)       
+      lead = negf%ni(i)
+      lead_blk = negf%str%cblk(lead)
       !print *, 'debug: lead=',lead,' lead_blk=',lead_blk
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gamma)
       if (lead.eq.ref) then
@@ -741,8 +676,7 @@ CONTAINS
         tun_mat(i) = - real(trace(work1))                      !DAR "-" is added
         call destroy(work1)
       else       
-        !call zspectral(Gr(ref, ref), Gr(ref, ref), 0, A)                   !DAR
-        call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)!DAR
+        call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
         tmp = frm(lead)-frm(ref)
         call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.d0, 0.d0), work1)
         call destroy(A)
@@ -754,9 +688,13 @@ CONTAINS
       call destroy(Gamma)
     end do
     !Convert to output CSR format.
-    call blk2csr(Gn,pnegf%str,pnegf%S,Gl)
+    call blk2csr(Gn,negf%str,negf%S,Gl)
     DEALLOCATE(Gn)
     
+    if (negf%tZeroCurrent) then
+      call transmission_BP_corrected(negf,SelfEneR,tun_mat)
+    end if
+
     !Distruzione dell'array Gr
     CALL destroy_blk(Gr)
     DEALLOCATE(Gr)
@@ -764,124 +702,137 @@ CONTAINS
     CALL destroy_ESH(ESH)
     DEALLOCATE(ESH)
 
-    if (id0.and.pnegf%verbose.gt.80) print *, 'iterative_meir_wingreen is finished'
-
   end subroutine iterative_meir_wingreen
 
   !------------------------------------------------------------------------------!  
-  !DAR begin - transmission_BP_corrected
+  ! Transmission_BP_corrected
+  !
+  ! The routine implements the current-probes, i.e. it assumes that the BPs are
+  ! elastic dephasing sources that fullfill current conservation at any energy
+  ! For a nice discussion see papers by D. Ryndyk and
+  ! M. Kilgour, D. Segal, The J. of Chem Phys 144, 124107 (2016) 
+  !
+  ! LIMITATIONS:
+  !
+  ! This routine is limited to 2 contacts 
+  ! It uses dense matrices and assumes there is only 1 PL in the device  
   !------------------------------------------------------------------------------!  
 
-  subroutine transmission_BP_corrected(negf,SelfEner)
+  subroutine transmission_BP_corrected(negf,SelfEneR,tun_mat)
   
     type(Tnegf), intent(inout) :: negf
     type(z_DNS), dimension(:) :: SelfEneR
+    real(dp), dimension(:) :: tun_mat
 
-    integer :: nn,mm,k,l,m,n,ii,jj
-    integer :: NumLevels, pl_start1, pl_end1, pl_start2, pl_end2
-    real(dp) :: Transmission
+    integer :: nn, mm, cont, ni, nf
+    integer :: NumOrbs, ncont
+    integer, allocatable ::  pls(:), ple(:)
     real(dp), allocatable  :: Trans(:,:), W(:,:), GG(:,:), R(:)
     type(z_DNS) :: Gam1, Gam2, GreenR, GreenA, Tmp1, Tmp2
       
       
-    if (id0.and.negf%verbose.gt.80) print *, 'transmission_BP_corrected is started'
-    
-    NumLevels=negf%str%central_dim
-      
-    allocate(Trans(0:NumLevels+1,0:NumLevels+1))
+    NumOrbs=negf%str%central_dim
+    ncont = negf%str%num_conts    
+
+    allocate(Trans(NumOrbs+ncont,NumOrbs+ncont))
     Trans=0.0_dp
    
-    call create(Gam1, NumLevels, NumLevels)
-    Gam1%val = 0.0_dp
-    call create(Gam2, NumLevels, NumLevels)
-    Gam2%val = 0.0_dp
+    call create(Gam1, NumOrbs, NumOrbs)
+    call create(Gam2, NumOrbs, NumOrbs)
 
     call blk2dns(Gr,negf%str,GreenR) 
     call zdagger(GreenR, GreenA) 
     
-    do nn = 0, NumLevels+1
+    allocate(pls(ncont))
+    allocate(ple(ncont))
 
-      if (nn.eq.0) then
-        Gam1%val(:,:) = -2.0_dp*aimag(SelfEneR(1)%val(:,:))
-      else if (nn.eq.NumLevels+1) then
-        Gam1%val(:,:) = -2.0_dp*aimag(SelfEneR(2)%val(:,:))      
+    do nn = 1, ncont
+      pls(nn) = negf%str%mat_PL_start(negf%str%cblk(nn))
+      ple(nn) = negf%str%mat_PL_end(negf%str%cblk(nn))
+    end do
+
+    do nn = 1, NumOrbs+ncont
+
+      if (nn > NumOrbs) then
+         cont = nn - NumOrbs   
+         call zspectral(SelfEneR(cont),SelfEneR(cont),0,Tmp1)
+         Gam1%val(pls(cont):ple(cont),pls(cont):ple(cont)) = Tmp1%val
+         call destroy(Tmp1) 
       else
-        Gam1%val(nn,nn)=negf%deph%bp%coupling(nn)
+         Gam1%val = 0.0_dp
+         Gam1%val(nn,nn)=negf%deph%bp%coupling(nn)
       end if
        
-      do mm = 0, NumLevels+1
+      do mm = 1, NumOrbs+ncont
 
-        if (mm.eq.0) then
-           Gam2%val(:,:) = -2.0_dp*aimag(SelfEneR(1)%val(:,:))
-        else if (mm.eq.NumLevels+1) then
-           Gam2%val(:,:) = -2.0_dp*aimag(SelfEneR(2)%val(:,:))       
+        if (mm > NumOrbs) then
+           cont = mm - NumOrbs   
+           call zspectral(SelfEneR(cont),SelfEneR(cont),0,Tmp2)
+           Gam2%val(pls(cont):ple(cont),pls(cont):ple(cont)) = Tmp2%val
+           call destroy(Tmp2) 
         else
+           Gam2%val = 0.0_dp
            Gam2%val(mm,mm)=negf%deph%bp%coupling(mm)
         end if
       
-        ! Alex: The inefficient quadruple loop has been substituted with
-        !       M*M multiplications exploting parallelism
+        ! Compute coherent transmission: Tr[Gam1 Gr Gam2 Ga]
+        ! The inefficient quadruple loop has been substituted with
+        ! M*M multiplications exploting OMP parallelism
         call prealloc_mult(Gam1,GreenR,Tmp1)
         call prealloc_mult(Tmp1,Gam2,Tmp2)
         call destroy(Tmp1)
         call prealloc_mult(Tmp2,GreenA,Tmp1)
         call destroy(Tmp2)
 
-        Trans(nn,mm) = Trans(nn,mm) + real(trace(Tmp1))
+        Trans(nn,mm) = real(trace(Tmp1))
 
         call destroy(Tmp1)
 
-        if (id0.and.negf%verbose.gt.90) then 
-              write(*,"('    T(',I0,',',I0,') is calculated')") nn,mm
-        end if      
       end do
     end do
 
     call destroy(Gam1, Gam2, GreenR, GreenA)
-    
-    allocate(W(NumLevels,NumLevels), R(0:NumLevels+1))
+    deallocate(pls, ple)
+
+    allocate(W(NumOrbs,NumOrbs))
+    allocate(R(NumOrbs+ncont))
   
-    do n = 0, NumLevels+1
-       R(n) = 1.0_dp
-       do m= 0, NumLevels+1
-          if (m.ne.n) R(n) = R(n)-Trans(m,n)
+    do nn = 1, NumOrbs+ncont
+       R(nn) = 1.0_dp
+       do mm= 1, NumOrbs+ncont
+          if (mm.ne.nn) then
+             R(nn) = R(nn)-Trans(mm,nn)
+          end if   
        end do
-       !write(*,"('R(',I0,',',I0,')=',F12.6)")n,i,R(n,i)
-       if (id0.and.negf%verbose.gt.90) write(*,"('    R(',I0,') is calculated')")n
     end do
     
-    do n = 1, NumLevels
-      do m = 1, NumLevels   
-        W(n,m) = -Trans(n,m)   
+    do nn = 1, NumOrbs
+      do mm = 1, NumOrbs   
+         W(nn,mm) = -Trans(nn,mm)   
       end do
-      W(n,n) = W(n,n)+1-R(n)+Trans(n,n)
+      W(nn,nn) = 1.0_dp - R(nn)
     end do
-    if (id0.and.negf%verbose.gt.90) write(*,"('    W is calculated')")
 
     deallocate(R)  
-    allocate(GG(NumLevels,NumLevels))
+    allocate(GG(NumOrbs,NumOrbs))
 
-    call inverse(GG,W,NumLevels) 
+    call inverse(GG,W,NumOrbs) 
 
     deallocate(W) 
 
-    if (id0.and.negf%verbose.gt.90) write(*,"('    W is inverted')")
-      
-    Transmission=Trans(0,NumLevels+1)
-    do n=1,NumLevels
-      do m=1,NumLevels
-        Transmission = Transmission + Trans(0,n)*GG(n,m)*Trans(m,NumLevels+1)
-      end do
+    allocate(R(NumOrbs))
+
+    do nn = 1, size(negf%ni)
+      ni = negf%ni(nn)
+      nf = negf%nf(nn)
+      R =  matmul(Trans(NumOrbs+ni,:),GG)
+      tun_mat(nn) = Trans(NumOrbs+ni,NumOrbs+nf) + dot_product(R, Trans(:,NumOrbs+nf))   
     end do
-    
-    if (id0.and.negf%verbose.gt.90) print *, 'Transmission(',negf%iE,')=',Transmission
-    
-    negf%tunn_mat(negf%iE,1)=Transmission
-    
+
+
     deallocate(Trans,GG)
+    deallocate(R)
     
-    if (id0.and.negf%verbose.gt.80) print *, 'transmission_BP_corrected is finished'
-   
   end subroutine transmission_BP_corrected
   
   !------------------------------------------------------------------------------!
@@ -1029,15 +980,15 @@ CONTAINS
   !  Reloads the retarded elph self-energy and add it to ES-H
   !
   !***********************************************************************
-  subroutine add_elph_sigma_r(pnegf, ESH, elph)
-    type(Tnegf), intent(in) :: pnegf
+  subroutine add_elph_sigma_r(negf, ESH, elph)
+    type(Tnegf), intent(in) :: negf
     type(Telph), intent(in) :: elph
     type(z_DNS), dimension(:,:), intent(inout) :: ESH
     
     type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_r, sigma_blk
     integer :: n, nbl, nrow, ierr, ii, jj, nblk, norbs, indstart, indend
 
-    nbl = pnegf%str%num_PLs
+    nbl = negf%str%num_PLs
 
     ! At first loop we should add no
     if (elph%scba_iter .eq. 0 .or. elph%model .eq. 0) then
@@ -1056,7 +1007,7 @@ CONTAINS
       stop "Deprecated"
     ! Old Alex one
     case(-1)
-      nbl = pnegf%str%num_PLs
+      nbl = negf%str%num_PLs
       allocate(Sigma_ph_r(nbl,nbl),stat=ierr)
       if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
       
@@ -1065,9 +1016,9 @@ CONTAINS
         call create(Sigma_ph_r(n,n), nrow, nrow)
         Sigma_ph_r(n,n)%val = (0.0_dp, 0.0_dp)
         if (elph%scba_iter .gt. 0) then
-          call read_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+          call read_blkmat(Sigma_ph_r(n,n),negf%scratch_path,'Sigma_ph_r_',n,n,negf%iE)
         else
-          call write_blkmat(Sigma_ph_r(n,n),pnegf%scratch_path,'Sigma_ph_r_',n,n,pnegf%iE)
+          call write_blkmat(Sigma_ph_r(n,n),negf%scratch_path,'Sigma_ph_r_',n,n,negf%iE)
         end if
         ESH(n,n)%val = ESH(n,n)%val - Sigma_ph_r(n,n)%val
         call destroy(Sigma_ph_r(n,n))
@@ -1157,7 +1108,7 @@ CONTAINS
     integer, intent(in) :: sbl,ebl                 ! start block, end block
 
     !Work
-    !type(z_DNS), dimension(:,:), ALLOCATABLE :: INV
+    !type(z_DNS), dimension(:,:), allocatable :: INV
     type(z_DNS) :: work1, work2
     integer :: nrow, M, N
     integer :: i, nbl
@@ -1516,7 +1467,7 @@ CONTAINS
 
     !In/Out
     integer :: nbl
-    integer, dimension(:), POINTER :: indblk
+    integer, dimension(:), pointer :: indblk
     type(z_CSR) :: A, P, GrCsr
 
     !Work
@@ -1646,7 +1597,7 @@ CONTAINS
     type(z_DNS) :: work1,Ga
     integer :: i,j,cb
     integer :: ncont, nbl
-    integer, dimension(:), POINTER :: cblk
+    integer, dimension(:), pointer :: cblk
     complex(dp) :: frmdiff
 
     ncont = struct%num_conts    
@@ -1752,7 +1703,7 @@ CONTAINS
     type(z_DNS) :: work1,Ga
     integer :: i,j,cb
     integer :: ncont, nbl
-    integer, dimension(:), POINTER :: cblk
+    integer, dimension(:), pointer :: cblk
     complex(dp) :: frmdiff
 
     ncont = struct%num_conts    
@@ -1837,60 +1788,33 @@ CONTAINS
   ! Writing on memory
   !
   !****************************************************************************
-  SUBROUTINE Make_Gn_ph(pnegf,ESH,iter,Gn)
+  SUBROUTINE Make_Gn_ph(negf,ESH,iter,Gn)
 
-    type(Tnegf), intent(in) :: pnegf
+    type(Tnegf), intent(in) :: negf
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     type(z_DNS), dimension(:,:), intent(inout) :: Gn
     integer, intent(in) :: iter
 
-    integer, dimension(:), POINTER :: indblk
-    Type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_ph_n, sigma_blk
+    integer, dimension(:), pointer :: indblk
+    Type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_n, sigma_blk
     Type(z_DNS) :: Ga, work1, work2, sigma_tmp
     integer :: n, k, nbl, nrow, ierr, ii, jj, norbs, nblk, indstart, indend
 
-    !print *, 'debug: subroutine make_Gn_ph is started'
-    
     !! If this is the first scba cycle, there's nothing to do
-    if (pnegf%inter%scba_iter .eq. 0) then
+    if (negf%inter%scba_iter .eq. 0) then
       return
     endif
-    nbl = pnegf%str%num_PLs
+    nbl = negf%str%num_PLs
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
     if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
     ! The block sigma n is made available from el-ph model
     ! Note: the elph models could not keep a copy and calculate it 
     ! on the fly. You have to rely on the local copy
-    if (allocated(pnegf%inter)) then
-      call pnegf%inter%get_sigma_n(Sigma_ph_n, pnegf%ie)
+    if (allocated(negf%inter)) then
+      call negf%inter%get_sigma_n(Sigma_ph_n, negf%ie)
     end if
 
-    !! Make the sigma_ph_n available.
-    !! The exact way depends on the el-ph model
-    !! I could do it on the fly to save some memory
-    select case(pnegf%elph%model)
-    case (0)
-      continue
-    case (1)
-      stop
-    case (2)
-      stop "Deprecated"
-    case(3)
-      stop "Deprecated"
-
-    case default
-      write(*,*) 'Not yet implemented'
-      stop 0
-
-      !! old alex implementation, not active
-      if (iter .gt. 0) then
-        call read_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
-      else 
-        call write_blkmat(Sigma_ph_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
-      endif
-      !! old alex implementation, not active
-    end select
 
     !! Calculate the diagonal and off diagonal (if needed) blocks of Gn
     !! in the assumption of diagonal self energy
@@ -1934,17 +1858,12 @@ CONTAINS
         call destroy(work1,work2,Ga)
       endif
     end do
-    !print *, 'debug: End Gn calculation'
-    !! End Gn calculation
-
 
     do n = 1, nbl
       CALL destroy(Sigma_ph_n(n,n))
     end do
 
     DEALLOCATE(Sigma_ph_n)
-
-    !print *, 'debug: subroutine make_Gn_ph is finished'
 
   end SUBROUTINE Make_Gn_ph
 
@@ -1954,17 +1873,17 @@ CONTAINS
   ! Writing on memory
   !
   !****************************************************************************
-!!$  SUBROUTINE Make_Gp_ph(pnegf,ESH,iter,Gp)
+!!$  SUBROUTINE Make_Gp_ph(negf,ESH,iter,Gp)
 !!$
-!!$    type(Tnegf) :: pnegf
+!!$    type(Tnegf) :: negf
 !!$    type(z_DNS), dimension(:,:) :: ESH, Gp
 !!$    integer :: iter
 !!$
-!!$    Type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_ph_p
+!!$    Type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_p
 !!$    Type(z_DNS) :: Ga, work1, work2 
 !!$    integer :: n, k, nbl, nrow, ierr
 !!$
-!!$    nbl = pnegf%str%num_PLs
+!!$    nbl = negf%str%num_PLs
 !!$    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
 !!$    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 !!$
@@ -1977,9 +1896,9 @@ CONTAINS
 !!$
 !!$      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
 !!$      if (iter .gt. 0) then
-!!$         call read_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+!!$         call read_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
 !!$      else 
-!!$         call write_blkmat(Sigma_ph_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+!!$         call write_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
 !!$      endif
 !!$    
 !!$    end do
@@ -2018,6 +1937,7 @@ CONTAINS
     nbl = str%num_PLs
     nrows = str%central_dim
     call create(Gdns,nrows,nrows)
+print*,'nbl=',nbl, nrows
 
     do n = 1, nbl 
       do m= 1, nbl 
@@ -2025,6 +1945,8 @@ CONTAINS
          pl_end1 = str%mat_PL_end(n)
          pl_start2 = str%mat_PL_start(m) 
          pl_end2 = str%mat_PL_end(m)
+ print*,pl_start1, pl_end1, pl_start2, pl_end2
+
          do ii = 1, pl_end1 - pl_start1 + 1
            do jj = 1, pl_end2 - pl_start2 + 1
                Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = G(n,m)%val(ii,jj)
@@ -2049,7 +1971,7 @@ CONTAINS
     type(z_CSR) :: Gcsr
     type(z_CSR) :: P, G_sp
 
-    integer, dimension(:), POINTER :: indblk, cblk
+    integer, dimension(:), pointer :: indblk, cblk
     integer :: nbl, oldx, row, col, iy, ix, x, y, ii, jj, nrows
 
     nbl = struct%num_PLs
@@ -2126,37 +2048,37 @@ CONTAINS
   ! ******************************************************************************
   ! Computes Sigma_ph_n and save it file
   ! ******************************************************************************
-  SUBROUTINE Sigma_ph_n(pnegf,Epnt)
+  SUBROUTINE Sigma_ph_n(negf,Epnt)
 
-    type(Tnegf) :: pnegf
+    type(Tnegf) :: negf
     real(dp), dimension(:),allocatable :: Epnt
 
     !Local variables
     type(z_DNS) :: work1,work2
     type(z_DNS) :: Mq_mat
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_n, G_n_interP, G_n_interN
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_n, G_n_interP, G_n_interN
 
-    real(dp), dimension(:), POINTER :: Wq
-    real(dp), dimension(:), POINTER :: Nq
-    real(dp), dimension(:), POINTER :: Mq
-    logical, dimension(:), POINTER :: selmodes
+    real(dp), dimension(:), pointer :: Wq
+    real(dp), dimension(:), pointer :: Nq
+    real(dp), dimension(:), pointer :: Mq
+    logical, dimension(:), pointer :: selmodes
 
     integer :: i, m, iE, i1,i2
     integer :: nummodes, numselmodes, nbl
     integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
-    selmodes => pnegf%elph%selmodes
-    Wq => pnegf%elph%Wq
-    Mq => pnegf%elph%Mq
-    Nq => pnegf%elph%Nq
-    numselmodes = pnegf%elph%numselmodes
-    nummodes = pnegf%elph%nummodes
+    selmodes => negf%elph%selmodes
+    Wq => negf%elph%Wq
+    Mq => negf%elph%Mq
+    Nq => negf%elph%Nq
+    numselmodes = negf%elph%numselmodes
+    nummodes = negf%elph%nummodes
 
-    iE = pnegf%iE
+    iE = negf%iE
 
     allocate(G_n_interP(nbl,nbl))
     allocate(G_n_interN(nbl,nbl))
@@ -2174,19 +2096,19 @@ CONTAINS
 
       if (.not.selmodes(m)) cycle
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
+      call search_points(negf,Wq(m),Epnt,i1,i2,E1,E2)
 
-      En = real(pnegf%Epnt)+Wq(m)
+      En = real(negf%Epnt)+Wq(m)
 
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_n_', G_n_interP)
 
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
+      call search_points(negf,-Wq(m),Epnt,i1,i2,E1,E2)
 
-      En = real(pnegf%Epnt)-Wq(m)
+      En = real(negf%Epnt)-Wq(m)
 
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_n_', G_n_interN)
 
 
@@ -2227,7 +2149,7 @@ CONTAINS
     !
 
     do i = 1, nbl
-      call write_blkmat(Sigma_n(i,i),pnegf%scratch_path,'Sigma_ph_n_',i,i,iE)
+      call write_blkmat(Sigma_n(i,i),negf%scratch_path,'Sigma_ph_n_',i,i,iE)
       call destroy(Sigma_n(i,i))
       call destroy(G_n_interN(i,i))
       call destroy(G_n_interP(i,i))
@@ -2241,37 +2163,37 @@ CONTAINS
   ! ******************************************************************************
   ! Computes Sigma_ph> and save it file
   ! ******************************************************************************
-  SUBROUTINE Sigma_ph_p(pnegf,Epnt)
+  SUBROUTINE Sigma_ph_p(negf,Epnt)
 
-    type(Tnegf) :: pnegf
+    type(Tnegf) :: negf
     real(dp), dimension(:),allocatable :: Epnt
 
     !Local variables
     type(z_DNS) :: work1,work2
     type(z_DNS) :: Mq_mat
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_p, G_p_interP, G_p_interN
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_p, G_p_interP, G_p_interN
 
-    real(dp), dimension(:), POINTER :: Wq
-    real(dp), dimension(:), POINTER :: Nq
-    real(dp), dimension(:), POINTER :: Mq
-    logical, dimension(:), POINTER :: selmodes
+    real(dp), dimension(:), pointer :: Wq
+    real(dp), dimension(:), pointer :: Nq
+    real(dp), dimension(:), pointer :: Mq
+    logical, dimension(:), pointer :: selmodes
 
     integer :: i, m, iE, i1,i2
     integer :: nummodes, numselmodes, nbl
     integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
-    selmodes => pnegf%elph%selmodes
-    Wq => pnegf%elph%Wq
-    Mq => pnegf%elph%Mq
-    Nq => pnegf%elph%Nq
-    numselmodes = pnegf%elph%numselmodes
-    nummodes = pnegf%elph%nummodes
+    selmodes => negf%elph%selmodes
+    Wq => negf%elph%Wq
+    Mq => negf%elph%Mq
+    Nq => negf%elph%Nq
+    numselmodes = negf%elph%numselmodes
+    nummodes = negf%elph%nummodes
 
-    iE = pnegf%iE
+    iE = negf%iE
 
     allocate(G_p_interP(nbl,nbl))
     allocate(G_p_interN(nbl,nbl))
@@ -2289,17 +2211,17 @@ CONTAINS
 
       if (.not.selmodes(m)) cycle
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
+      call search_points(negf,Wq(m),Epnt,i1,i2,E1,E2)
 
-      En = real(pnegf%Epnt)+Wq(m)
+      En = real(negf%Epnt)+Wq(m)
 
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_p_', G_p_interP)
 
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
-      En = real(pnegf%Epnt)-Wq(m)
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call search_points(negf,-Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(negf%Epnt)-Wq(m)
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_p_', G_p_interN)
 
       do i = 1, nbl
@@ -2343,7 +2265,7 @@ CONTAINS
     !
 
     do i = 1, nbl
-      call write_blkmat(Sigma_p(i,i),pnegf%scratch_path,'Sigma_ph_p_',i,i,iE)
+      call write_blkmat(Sigma_p(i,i),negf%scratch_path,'Sigma_ph_p_',i,i,iE)
       call destroy(Sigma_p(i,i))
       call destroy(G_p_interN(i,i))
       call destroy(G_p_interP(i,i))
@@ -2354,38 +2276,38 @@ CONTAINS
   end SUBROUTINE Sigma_ph_p
 
   !--------------------------------------------------------------------------------
-  SUBROUTINE Sigma_ph_r(pnegf,Epnt)
+  SUBROUTINE Sigma_ph_r(negf,Epnt)
 
-    type(Tnegf) :: pnegf
+    type(Tnegf) :: negf
     real(dp), dimension(:),allocatable :: Epnt
 
     !Local variables
     type(z_DNS) :: work1,work2
     type(z_DNS) :: Mq_mat
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_r, G_r_interP, G_r_interN
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: G_n_interP, G_n_interN
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_r, G_r_interP, G_r_interN
+    type(z_DNS), dimension(:,:), allocatable :: G_n_interP, G_n_interN
 
-    real(dp), dimension(:), POINTER :: Wq
-    real(dp), dimension(:), POINTER :: Nq
-    real(dp), dimension(:), POINTER :: Mq
-    logical, dimension(:), POINTER :: selmodes
+    real(dp), dimension(:), pointer :: Wq
+    real(dp), dimension(:), pointer :: Nq
+    real(dp), dimension(:), pointer :: Mq
+    logical, dimension(:), pointer :: selmodes
     integer :: i, m, iE, i1, i2
     integer :: nummodes, numselmodes, nbl
     integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
 
-    selmodes => pnegf%elph%selmodes
-    Mq => pnegf%elph%Mq
-    Wq => pnegf%elph%Wq
-    Nq => pnegf%elph%Nq
-    nummodes = pnegf%elph%nummodes
-    numselmodes = pnegf%elph%numselmodes
+    selmodes => negf%elph%selmodes
+    Mq => negf%elph%Mq
+    Wq => negf%elph%Wq
+    Nq => negf%elph%Nq
+    nummodes = negf%elph%nummodes
+    numselmodes = negf%elph%numselmodes
 
-    iE=pnegf%iE
+    iE=negf%iE
 
     allocate(G_r_interP(nbl,nbl))
     allocate(G_r_interN(nbl,nbl))
@@ -2405,7 +2327,7 @@ CONTAINS
       call create(G_n_interP(i,i), m, m)
       call create(G_n_interN(i,i), m, m)
       !call create(G_r(i,i), m, m)
-      !call read_blkmat(G_r(i,i),pnegf%scratch_path,'G_r_',i,i,iE)
+      !call read_blkmat(G_r(i,i),negf%scratch_path,'G_r_',i,i,iE)
     end do
 
     do m = 1 , nummodes
@@ -2413,19 +2335,19 @@ CONTAINS
       if (.not.selmodes(m)) cycle
 
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,Wq(m),Epnt,i1,i2,E1,E2)
-      En = real(pnegf%Epnt)+Wq(m)
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call search_points(negf,Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(negf%Epnt)+Wq(m)
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_n_', G_n_interP)
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_r_', G_r_interP)
 
       ! INTERPOLATION OF GREEN'S FUNCTIONS BETWEEN GRID POINTS
-      call search_points(pnegf,-Wq(m),Epnt,i1,i2,E1,E2)
-      En = real(pnegf%Epnt)-Wq(m)
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call search_points(negf,-Wq(m),Epnt,i1,i2,E1,E2)
+      En = real(negf%Epnt)-Wq(m)
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_n_', G_n_interN)
-      call interpolation(i1, i2, E1, E2, En, pnegf%scratch_path, &
+      call interpolation(i1, i2, E1, E2, En, negf%scratch_path, &
           'G_r_', G_r_interN)
 
       do i = 1, nbl
@@ -2442,7 +2364,7 @@ CONTAINS
 
         work1%val = (0.d0,0.d0)
 
-        if (pnegf%elph%selfene_gr) then
+        if (negf%elph%selfene_gr) then
           !print*,'SelfEneR_Gr'    
           ! Via I: should be exact for E >> Ef_max
           work1%val = (Nq(m)+1.0_dp)*G_r_interN(i,i)%val + Nq(m)*G_r_interP(i,i)%val
@@ -2452,14 +2374,14 @@ CONTAINS
           !work1%val = Nq(m)*(G_r_interP(i,i)%val + G_r_interN(i,i)%val) + G_r(i,i)%val
         endif
 
-        if (pnegf%elph%selfene_gless) then
+        if (negf%elph%selfene_gless) then
           !print*,'SelfEneR_G<'    
           ! should be 1/2 [G<- - G<+] == i/2 [Gn- - Gn+]    
           work1%val = work1%val + &
               (0.0_dp,0.5_dp) * (G_n_interN(i,i)%val - G_n_interP(i,i)%val)
         endif
 
-        if (pnegf%elph%selfene_gless .or. pnegf%elph%selfene_gr) then
+        if (negf%elph%selfene_gless .or. negf%elph%selfene_gr) then
 
           call create_id(Mq_mat,i1,Mq(m))
 
@@ -2499,7 +2421,7 @@ CONTAINS
     do i = 1, nbl
       !print*          
       !print*,'(sigma_r) Sigma_ph_r',maxval(abs(Sigma_r(i,i)%val)), iE
-      call write_blkmat(Sigma_r(i,i),pnegf%scratch_path,'Sigma_ph_r_',i,i,iE)
+      call write_blkmat(Sigma_r(i,i),negf%scratch_path,'Sigma_ph_r_',i,i,iE)
       call destroy(Sigma_r(i,i))
       call destroy(G_r_interP(i,i))
       call destroy(G_r_interN(i,i))
@@ -2513,35 +2435,35 @@ CONTAINS
 
   end SUBROUTINE Sigma_ph_r
 
-  SUBROUTINE Sigma_ph_r_z(pnegf,z)
+  SUBROUTINE Sigma_ph_r_z(negf,z)
 
-    type(Tnegf) :: pnegf
+    type(Tnegf) :: negf
     complex(dp), intent(in) :: z
 
     !Local variables
     type(z_DNS) :: work1,work2
     type(z_DNS) :: Mq_mat
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_r, G_r
-    real(dp), dimension(:), POINTER :: Wq
-    real(dp), dimension(:), POINTER :: Nq
-    real(dp), dimension(:), POINTER :: Mq
-    logical, dimension(:), POINTER :: selmodes
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_r, G_r
+    real(dp), dimension(:), pointer :: Wq
+    real(dp), dimension(:), pointer :: Nq
+    real(dp), dimension(:), pointer :: Mq
+    logical, dimension(:), pointer :: selmodes
     integer :: i, m, iE,i1
     integer :: nummodes, numselmodes, nbl
     integer, dimension(:), pointer :: indblk
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
 
-    selmodes => pnegf%elph%selmodes
-    Mq => pnegf%elph%Mq
-    Wq => pnegf%elph%Wq
-    Nq => pnegf%elph%Nq
-    nummodes = pnegf%elph%nummodes
-    numselmodes = pnegf%elph%numselmodes
+    selmodes => negf%elph%selmodes
+    Mq => negf%elph%Mq
+    Wq => negf%elph%Wq
+    Nq => negf%elph%Nq
+    nummodes = negf%elph%nummodes
+    numselmodes = negf%elph%numselmodes
 
-    iE=pnegf%iE
+    iE=negf%iE
 
     allocate(Sigma_r(nbl,nbl))
     allocate(G_r(nbl,nbl))
@@ -2559,11 +2481,11 @@ CONTAINS
 
       do i = 1, nbl
 
-        call read_blkmat(G_r(i,i),pnegf%scratch_path,'G_r_',i,i,iE)
+        call read_blkmat(G_r(i,i),negf%scratch_path,'G_r_',i,i,iE)
 
         i1 = Sigma_r(i,i)%nrow
 
-        if (pnegf%elph%selfene_gr) then
+        if (negf%elph%selfene_gr) then
 
           call create(work1,i1,i1)
 
@@ -2594,27 +2516,27 @@ CONTAINS
     end do
 
     do i = 1, nbl
-      !print*,'(sigma_r) Sigma_ph_r', pnegf%iE, maxval(abs(Sigma_r(i,i)%val))
-      call write_blkmat(Sigma_r(i,i),pnegf%scratch_path,'Sigma_ph_r_',i,i,iE)
+      !print*,'(sigma_r) Sigma_ph_r', negf%iE, maxval(abs(Sigma_r(i,i)%val))
+      call write_blkmat(Sigma_r(i,i),negf%scratch_path,'Sigma_ph_r_',i,i,iE)
       call destroy(Sigma_r(i,i))
       call destroy(G_r(i,i))
     end do
 
   end SUBROUTINE Sigma_ph_r_z
   ! ----------------------------------------------------------
-  SUBROUTINE check_Gl_Gr(pnegf)
-    type(Tnegf) :: pnegf
+  SUBROUTINE check_Gl_Gr(negf)
+    type(Tnegf) :: negf
     real(dp), dimension(:),allocatable :: Epnt
     integer :: ioffset
 
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: G_r, G_p, G_n
+    type(z_DNS), dimension(:,:), allocatable :: G_r, G_p, G_n
     type(z_DNS) :: A, T 
     integer :: nbl, n, sizebl, i_start, i_stop, psize, maxpos(2)
     real(dp) :: Wmax, maxdev, tmp, maxG
     integer, dimension(:), pointer :: indblk
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
     allocate(G_n(nbl,nbl))
     allocate(G_p(nbl,nbl))
@@ -2629,9 +2551,9 @@ CONTAINS
       call create(G_r(n,n),sizebl,sizebl)
       call create(G_n(n,n),sizebl,sizebl)
       call create(G_p(n,n),sizebl,sizebl)
-      call read_blkmat(G_r(n,n), pnegf%scratch_path, 'G_r_',n,n, pnegf%iE)
-      call read_blkmat(G_n(n,n),pnegf%scratch_path,'G_n_',n,n,pnegf%iE)
-      call read_blkmat(G_p(n,n),pnegf%scratch_path,'G_p_',n,n,pnegf%iE)
+      call read_blkmat(G_r(n,n), negf%scratch_path, 'G_r_',n,n, negf%iE)
+      call read_blkmat(G_n(n,n),negf%scratch_path,'G_n_',n,n,negf%iE)
+      call read_blkmat(G_p(n,n),negf%scratch_path,'G_p_',n,n,negf%iE)
 
       call zspectral(G_r(n,n),G_r(n,n),0,A)
 
@@ -2662,24 +2584,24 @@ CONTAINS
 
     end do
 
-    print*,'CHECK Gn+Gp=Gr-Ga',pnegf%iE, maxG, maxdev
+    print*,'CHECK Gn+Gp=Gr-Ga',negf%iE, maxG, maxdev
 
     deallocate(G_n, G_p, G_r)
 
   end SUBROUTINE check_Gl_Gr
 
   ! ----------------------------------------------------------
-  SUBROUTINE check_sigma_ph_r(pnegf)
-    type(Tnegf) :: pnegf
+  SUBROUTINE check_sigma_ph_r(negf)
+    type(Tnegf) :: negf
 
-    type(z_DNS), dimension(:,:), ALLOCATABLE :: Sigma_r, Sigma_p, Sigma_n
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_r, Sigma_p, Sigma_n
     type(z_DNS) :: Gam, T 
     integer :: nbl, n, sizebl, psize, maxpos(2)
     real(dp) :: maxdev, tmp, maxG
     integer, dimension(:), pointer :: indblk
 
-    nbl = pnegf%str%num_PLs
-    indblk => pnegf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+    indblk => negf%str%mat_PL_start
 
     allocate(Sigma_n(nbl,nbl))
     allocate(Sigma_p(nbl,nbl))
@@ -2694,9 +2616,9 @@ CONTAINS
       call create(Sigma_r(n,n),sizebl,sizebl)
       call create(Sigma_n(n,n),sizebl,sizebl)
       call create(Sigma_p(n,n),sizebl,sizebl)
-      call read_blkmat(Sigma_r(n,n), pnegf%scratch_path, 'Sigma_ph_r_',n,n, pnegf%iE)
-      call read_blkmat(Sigma_n(n,n),pnegf%scratch_path,'Sigma_ph_n_',n,n,pnegf%iE)
-      call read_blkmat(Sigma_p(n,n),pnegf%scratch_path,'Sigma_ph_p_',n,n,pnegf%iE)
+      call read_blkmat(Sigma_r(n,n), negf%scratch_path, 'Sigma_ph_r_',n,n, negf%iE)
+      call read_blkmat(Sigma_n(n,n),negf%scratch_path,'Sigma_ph_n_',n,n,negf%iE)
+      call read_blkmat(Sigma_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
 
       call zspectral(Sigma_r(n,n),Sigma_r(n,n),0,Gam)
 
@@ -2727,7 +2649,7 @@ CONTAINS
 
     end do
 
-    print*,'CHECK Sigma_ph_r',pnegf%iE, maxG, maxdev
+    print*,'CHECK Sigma_ph_r',negf%iE, maxG, maxdev
 
     deallocate(Sigma_n, Sigma_p, Sigma_r)
 
@@ -2739,9 +2661,9 @@ CONTAINS
   ! Search points for interpolations. 
   ! Wq has a sign (+/- Wq)
   !
-  SUBROUTINE search_points(pnegf, Wq, Epnt, i1, i2, E1, E2)
+  SUBROUTINE search_points(negf, Wq, Epnt, i1, i2, E1, E2)
     use energy_mesh, only : elem 
-    type(TNegf) :: pnegf
+    type(TNegf) :: negf
     real(dp) :: Wq                
     real(dp), dimension(:), allocatable :: Epnt
     integer, intent(out) :: i1,i2 
@@ -2752,19 +2674,19 @@ CONTAINS
     real(dp) :: En
 
     if (Wq.eq.0) then
-      i1 = pnegf%iE
-      i2 = pnegf%iE
-      E1 = real(pnegf%Epnt)
-      E2 = real(pnegf%Epnt)
+      i1 = negf%iE
+      i2 = negf%iE
+      E1 = real(negf%Epnt)
+      E2 = real(negf%Epnt)
       return
     endif
 
     if (allocated(Epnt)) then
       ! Remove offset such that search can work on Epnt(1..N)      
-      iE = pnegf%iE - pnegf%Np_n(1) - pnegf%Np_n(2) - pnegf%n_poles
-      En = real(pnegf%Epnt) + Wq !Wq carry the right sign      
+      iE = negf%iE - negf%Np_n(1) - negf%Np_n(2) - negf%n_poles
+      En = real(negf%Epnt) + Wq !Wq carry the right sign      
       !print*
-      !print*,'iE', iE, real(pnegf%Epnt) + Wq 
+      !print*,'iE', iE, real(negf%Epnt) + Wq 
 
       if (sign(1.0_dp,Wq) .gt. 0) then
         i2 = iE + 1
@@ -2790,21 +2712,21 @@ CONTAINS
       E1 = Epnt(i1)
       E2 = Epnt(i2)
       ! add back the offset to the point
-      i1 = i1 + pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles
-      i2 = i2 + pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles
+      i1 = i1 + negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+      i2 = i2 + negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
 
     else  
 
-      !if (.not.allocated(pnegf%emesh%pactive)) STOP 'emesh not initialized'
+      !if (.not.allocated(negf%emesh%pactive)) STOP 'emesh not initialized'
 
-      En = real(pnegf%Epnt) + Wq       
+      En = real(negf%Epnt) + Wq       
 
       if (sign(1.0_dp,Wq) .gt. 0) then
-        istart = pnegf%emesh%iactive
-        iend = pnegf%emesh%maxind
+        istart = negf%emesh%iactive
+        iend = negf%emesh%maxind
 
         elloop1: do iel = istart, iend
-          pel => pnegf%emesh%pactive(iel)%pelem
+          pel => negf%emesh%pactive(iel)%pelem
           do ip = 1, 3
             if (pel%pnt(ip) .gt. En) then
               exit elloop1 
@@ -2816,11 +2738,11 @@ CONTAINS
         E1 = pel%pnt(ip-1)
         E2 = pel%pnt(ip)
       else
-        istart = pnegf%emesh%iactive
+        istart = negf%emesh%iactive
         iend = 1
 
         elloop2: do iel = istart, iend, -1
-          pel => pnegf%emesh%pactive(iel)%pelem
+          pel => negf%emesh%pactive(iel)%pelem
           do ip = 3, 1, -1
             if (pel%pnt(ip) .lt. En) then
               exit elloop2 
@@ -2885,27 +2807,27 @@ CONTAINS
   !ADD Hilbert-transform part to Sigma_ph_r  
   !Need to set back FFT transforms
   !********************************************************************
-  SUBROUTINE complete_sigma_ph_r(pnegf, Epnt, ioffset)
+  SUBROUTINE complete_sigma_ph_r(negf, Epnt, ioffset)
 
-    type(Tnegf) :: pnegf
+    type(Tnegf) :: negf
     real(dp), dimension(:) :: Epnt
     integer :: ioffset
 
     ! Locals
     integer :: i,j,n,m, iE, bl, sizebl,i_start,i_stop, ierr, nummodes
-    real(dp), dimension(:), POINTER :: Wq
-    real(dp), dimension(:), POINTER :: Mq
+    real(dp), dimension(:), pointer :: Wq
+    real(dp), dimension(:), pointer :: Mq
     real(dp) :: Wmax, dE, tmp
 
     character(4) :: ofblki
     complex(dp), dimension(:), allocatable :: temp1 
     type(z_DNS), dimension(:), allocatable :: Gn_E, Sigma_r_E
     !type(z_DNS) :: work1, work2, work3, Mq_mat 
-    logical, dimension(:), POINTER :: selmodes
+    logical, dimension(:), pointer :: selmodes
 
-    Mq => pnegf%elph%Mq
-    Wq => pnegf%elph%Wq
-    selmodes => pnegf%elph%selmodes
+    Mq => negf%elph%Mq
+    Wq => negf%elph%Wq
+    selmodes => negf%elph%selmodes
 
     n = size(Epnt)
     nummodes = size(Wq)
@@ -2935,22 +2857,22 @@ CONTAINS
     print*,'HILBERT TRANSFORM interval:',i_start,i_stop
 
     ! LOOP ON blocks
-    do bl = 1, pnegf%str%num_PLs
+    do bl = 1, negf%str%num_PLs
 
-      sizebl =  pnegf%str%mat_PL_start(bl+1) - pnegf%str%mat_PL_start(bl)
+      sizebl =  negf%str%mat_PL_start(bl+1) - negf%str%mat_PL_start(bl)
       if (bl.le.9999) write(ofblki,'(i4.4)') bl 
       if (bl.gt.9999) stop 'ERROR: too many blks (> 9999)'
 
       ! LOAD ALL G< FROM FILES and store in Gn_E(iE)
       do iE = 1, n
         call create(Gn_E(iE),sizebl,sizebl)
-        call read_blkmat(Gn_E(iE), pnegf%scratch_path, 'G_n_', bl, bl,iE+ioffset)
+        call read_blkmat(Gn_E(iE), negf%scratch_path, 'G_n_', bl, bl,iE+ioffset)
       end do
 
       ! LOAD ALL Sigma_r in the right interval
       do iE = i_start, i_stop
         call create(Sigma_r_E(iE),sizebl,sizebl)
-        call read_blkmat(Sigma_r_E(iE), pnegf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
+        call read_blkmat(Sigma_r_E(iE), negf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
       end do
 
       do m = 1, nummodes 
@@ -2976,7 +2898,7 @@ CONTAINS
             !          do iE = 1, n
             !             if (iE.le.99999) write(ofpnt,'(i5.5)') iE+ioffset
             !             filename = 'G_n_'//trim(ofblki)//'_'//trim(ofblki)//'_'//trim(ofpnt)//'.dat'
-            !             open(100,file=trim(pnegf%scratch_path)//trim(filename), access='DIRECT', recl=4)
+            !             open(100,file=trim(negf%scratch_path)//trim(filename), access='DIRECT', recl=4)
             !             READ(100, rec = k)  temp1(iE)
             !             close(100)
             !          end do
@@ -3003,7 +2925,7 @@ CONTAINS
             !          do iE = i_start+1, i_stop
             !             if (iE.le.99999) write(ofpnt,'(i5.5)') iE+ioffset
             !             filename = 'Sigma_ph_r_'//trim(ofblki)//'_'//trim(ofblki)//'_'//trim(ofpnt)//'.dat'
-            !             open(100,file=trim(pnegf%scratch_path)//trim(filename), access='DIRECT', recl=4)
+            !             open(100,file=trim(negf%scratch_path)//trim(filename), access='DIRECT', recl=4)
             !             READ (100, rec = k) temp2 
             !             temp2 = temp2 - (0.0_dp, 0.5_dp)* temp1(iE)   
             !             WRITE (100, rec = k) temp2
@@ -3016,7 +2938,7 @@ CONTAINS
       end do !Loop on modes 
 
       do iE = i_start, i_stop
-        call write_blkmat(Sigma_r_E(iE), pnegf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
+        call write_blkmat(Sigma_r_E(iE), negf%scratch_path, 'Sigma_ph_r_', bl, bl, iE+ioffset)
       end do
 
       do iE = 1, n
@@ -3296,7 +3218,7 @@ CONTAINS
   !    type(z_CSR) :: Asub, Grlc, Grcl
   !    integer :: i,cb,i1,j1
   !    integer :: ncont,nrow_tot,nbl
-  !    integer, dimension(:), POINTER :: indblk, cblk
+  !    integer, dimension(:), pointer :: indblk, cblk
 
   !    ncont = struct%num_conts
   !    nbl = struct%num_PLs
@@ -3408,7 +3330,7 @@ CONTAINS
     type(z_CSR) :: GrCSR, TCSR
     integer :: i,cb,nrow_tot,i1,j1
     integer :: ncont, nbl
-    integer, dimension(:), POINTER :: indblk, cblk
+    integer, dimension(:), pointer :: indblk, cblk
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
@@ -3530,7 +3452,7 @@ CONTAINS
     type(z_CSR) :: GlCSR, TCSR
     integer :: j,k,cb,cbj,i1,j1,nrow_tot
     integer :: ncont, nbl
-    integer, dimension(:), POINTER :: indblk, cblk
+    integer, dimension(:), pointer :: indblk, cblk
     complex(dp) :: frmdiff
 
 
@@ -3722,12 +3644,11 @@ CONTAINS
     ! Local variables
     Type(z_DNS), Dimension(:,:), allocatable :: ESH
     Real(dp) :: tun
-    Integer :: nbl,ncont
+    Integer :: nbl,ncont,ibl
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
 
     nbl = str%num_PLs
     ncont = str%num_conts
-
     !Calculation of ES-H and brak into blocks
     call prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)    
 
@@ -3738,18 +3659,17 @@ CONTAINS
 
     !Inclusion of the contact Self-Energies to the relevant blocks
     do i=1,ncont
-      ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR(i)%val
+      ibl = str%cblk(i)
+      ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
     end do
     call allocate_gsm_dns(gsmr,nbl)
 
     !Iterative calculation up with gsmr 
     call Make_gsmr_mem_dns(ESH,nbl,2)
 
-
     !Computation of transmission(s) between contacts ni(:) -> nf(:)  
     nit=ni(1)
     nft=nf(1)
-
     !Arrange contacts in a way that the order between first and second is always the
     !same (always ct1 < ct2), so nt is the largest contact block 
 
@@ -4211,8 +4131,8 @@ end MODULE iterative_dns
 
 !Work
 !    integer :: i,nrow,nrow_prev,i1,j1,ierr,nrow_tot,nbl
-!    type(z_CSR), dimension(:,:), ALLOCATABLE :: Asub
-!    integer, dimension(:), POINTER :: indblk
+!    type(z_CSR), dimension(:,:), allocatable :: Asub
+!    integer, dimension(:), pointer :: indblk
 
 !    nbl = struct%num_PLs
 !    indblk => struct%mat_PL_start

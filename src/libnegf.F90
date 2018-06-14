@@ -1286,10 +1286,10 @@ contains
        negf%readOldSGF = 1
     end if
 
-    if ((.not.allocated(negf%inter)).and.(.not.negf%tDephasingBP)) then
-       call compute_landauer(negf);
-    else
+    if ( allocated(negf%inter) .or. negf%tDephasingBP) then
        call compute_meir_wingreen(negf);
+    else
+       call compute_landauer(negf);
     endif
 
     negf%readOldSGF = flagbkup
