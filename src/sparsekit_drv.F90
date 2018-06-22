@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
@@ -24,7 +24,7 @@ MODULE sparsekit_drv
   USE ln_precision
   USE ln_allocation
   USE mat_def
- 
+
   private
 
   public :: dns2csr, csr2dns, coo2csr, csr2coo, csr2csc, csc2dns, dns2csc
@@ -42,31 +42,53 @@ MODULE sparsekit_drv
   public :: zmask_realloc
 
   public :: nnz
-  
+
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
   private :: rcoocsr_st, rcsrcoo_st, rcsrdns_st, zdnscsr_st, zdnscsc_st, zcooxcsr_st
-  private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st 
-  private :: zcooxcsr 
+  private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st
+  private :: zcooxcsr
   private :: rclone_st, zclone_st
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
-  private :: zmultcsr, zmultcsrs 
+  private :: zmultcsr, zmultcsrs
   private :: nnz_sum, nnz_sum1, nnz_mult
 
-  external :: zcsort, csort, amask, zamask,  getelm, zgetelm
+  external :: zcsort, csort, amask, zamask
   !public :: rprint_csrdns
-  
+
+  interface
+    function getelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
+      import :: dp
+      integer :: ii, jj
+      real(dp) :: aa(*)
+      integer :: ia(*), ja(*)
+      integer :: iadd
+      logical :: sorted
+      real(dp) :: res
+    end function getelm
+
+    function zgetelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
+      import :: dp
+      integer :: ii, jj
+      complex(dp) :: aa(*)
+      integer :: ia(*), ja(*)
+      integer :: iadd
+      logical :: sorted
+      complex(dp) :: res
+    end function zgetelm
+  end interface
+
 
   !*************************************************************************
   !                                                                        |
   !Subroutines di chiamata compatta di Sparsekit e altre utilities         |
   !per la gestione delle matrici sparse                                    |
-  !                                                                        | 
+  !                                                                        |
   !*************************************************************************
   ! REAL ROUTINES:
   ! -----------------------------------------------------------------------
-! !rcoocsr_st(coo,sp)           ::  converts coo to csr   
+! !rcoocsr_st(coo,sp)           ::  converts coo to csr
 ! !rcsrcoo_st(sp,coo)           ::  converts csr to coo
-! !rcsrdns_st(sp,dense)         ::  converts csr to dense 
+! !rcsrdns_st(sp,dense)         ::  converts csr to dense
   !ramub_st(A,B,C)              ::  C = A*B  (C already allocated)
 ! !rsumcsr(A,B,C)               ::  preallocates C and performs C = A + B
 ! !rsumcsrs(A,B,s,C)            ::  preallocates C and performs C = A + s B
@@ -76,11 +98,11 @@ MODULE sparsekit_drv
   !
   ! COMPLEX ROUTINES:
   ! -----------------------------------------------------------------------
-! !zclone_st(sp_in,sp_out)      ::  creates and clone the matrix sp_in       
+! !zclone_st(sp_in,sp_out)      ::  creates and clone the matrix sp_in
 ! !zdnscsr_st(dense,sp)         ::  converts dense to csr
 ! !zdnscsc_st(dense,sp)         ::  converts dense to csc
-! !zcsrdns_st(sp,dense)         ::  converts csr to dense 
-! !zcscdns_st(sp,dense)         ::  converts csc to dense 
+! !zcsrdns_st(sp,dense)         ::  converts csr to dense
+! !zcscdns_st(sp,dense)         ::  converts csc to dense
 ! !zcoocsr_st(coo,sp)           ::  converts coo to csr
 ! !zcsrcoo_st(csr,coo)          ::  converts csr to coo
 ! !zcsrcsc_st(csr,csc)          ::  converts csr into csc
@@ -96,12 +118,12 @@ MODULE sparsekit_drv
 ! !zconcatm_csr(A,s,B,row,col)   :: concat in place at coord (row,col)
 ! !zcsort_st(A)                  :: sort complex matrix A in CSR format
 ! !zmask(A,B,C)                  :: mask A with B and output on C
-  !nnz=nnz(A,'+*',B) 
+  !nnz=nnz(A,'+*',B)
   !nnz=nnz_sum(A,B)              :: computes nnz of C = A * B
   !nnz=nnz_mult(A,B)             :: computes nnz of C = A + B
   !nnz=nnz_sum1(A,B)             :: sorted version of nnz_sum
   !nnz=zcheck_nnz(A,r1,r2,c1,c2,sor):: checks nnz values of a sub-matrix in a csr
-  !nnz=zchkdrp(A,drop)           :: drops values < drop from a dense matrix 
+  !nnz=zchkdrp(A,drop)           :: drops values < drop from a dense matrix
 
   !ztransp_st(csr)              ::  compute transpose in place
   !zdagacsr(A,B)                 :: preallocates B = Hermitian conjugate of A
@@ -120,7 +142,7 @@ MODULE sparsekit_drv
   !zcplsamub_st(A,B,s,C)        ::  C = C + s * A * B  (C already allocated)
   !ziluk_st()                   ::  incomplete LU factorization
   !zspectral(G1,G2,fl,A)         :: computes A = j(Gr - Ga)
-  !zmask_realloc(G,M)            :: mask routine in place with reallocation 
+  !zmask_realloc(G,M)            :: mask routine in place with reallocation
   !                                 (G masked by M)
 
   interface dns2csr
@@ -131,12 +153,12 @@ MODULE sparsekit_drv
      module procedure rcsrdns_st
      module procedure zcsrdns_st
   end interface
-  interface coo2csr  
+  interface coo2csr
      module procedure rcoocsr_st
      module procedure zcoocsr_st
      module procedure zcooxcsr_st
   end interface
-  interface csr2coo  
+  interface csr2coo
      module procedure rcsrcoo_st
      module procedure zcsrcoo_st
   end interface
@@ -145,13 +167,13 @@ MODULE sparsekit_drv
   end interface
   interface csc2csr
      module procedure zcsccsr_st
-  end interface  
+  end interface
   interface csc2dns
      module procedure zcscdns_st
-  end interface  
+  end interface
   interface dns2csc
      module procedure zdnscsc_st
-  end interface 
+  end interface
   interface clone
      module procedure rclone_st
      module procedure zclone_st
@@ -171,9 +193,9 @@ MODULE sparsekit_drv
      module procedure rsumcsrs
      module procedure zsumcsr
      module procedure zsumcsrs
-     module procedure zsumcsrs1s2  
+     module procedure zsumcsrs1s2
      module procedure zsumdns
-     module procedure zsumdnss   
+     module procedure zsumdnss
      module procedure zsumdnss1s2
   end interface
   interface prealloc_mult
@@ -199,7 +221,7 @@ MODULE sparsekit_drv
   interface check_nnz
      module procedure zcheck_nnz
   end interface
-  interface getdiag 
+  interface getdiag
      module procedure getdiag_csr
      module procedure rgetdiag_csr
   end interface
@@ -212,23 +234,23 @@ MODULE sparsekit_drv
      module procedure zgetelm_csr
   end interface
   interface zdagger
-     module procedure zdagacsr   
-     module procedure zdagadns   
+     module procedure zdagacsr
+     module procedure zdagadns
   end interface
   interface zspectral
-     module procedure zspectral_csr   
-     module procedure zspectral_dns   
+     module procedure zspectral_csr
+     module procedure zspectral_dns
   end interface
-  !interface 
+  !interface
   !   function getelm(i1,i2,r,i4,i5,i6,l)
   !     integer, intent(in) :: i1,i2
   !     real(dp), dimension(:), intent(in) :: r
   !     integer, dimension(:), intent(in) :: i4,i5
-  !     integer, intent(out) :: i6 
+  !     integer, intent(out) :: i6
   !     logical, intent(in) :: l
   !     real(dp) :: getelm
   !   end function getelm
-  !end interface 
+  !end interface
 
   integer, parameter :: MISMATCH = 1
   integer, parameter :: CONVERR = 2
@@ -243,13 +265,13 @@ CONTAINS
   !
   SUBROUTINE rcoocsr_st(coo,sp)
 
-    !Short call for dsncsr: 
-    !convert matrix from COO to CSR format 
+    !Short call for dsncsr:
+    !convert matrix from COO to CSR format
     !Input:
     !coo: coordinate matrix to be converted
     !Output
     !sp: csr sparse matrix
-    ! 
+    !
 
     IMPLICIT NONE
 
@@ -257,14 +279,14 @@ CONTAINS
     TYPE(r_CSR) :: sp
 
     IF ((coo%nrow.NE.sp%nrow).OR.(coo%ncol.NE.sp%ncol)) then
-        call error_msg('(rcoocsr_st)',MISMATCH) 
+        call error_msg('(rcoocsr_st)',MISMATCH)
     ENDIF
 
-    IF (coo%nnz.EQ.0) THEN 
+    IF (coo%nnz.EQ.0) THEN
        sp%rowpnt=1
     ELSE
 
-       CALL coocsr(coo%nrow,sp%nnz,coo%nzval,coo%index_i,coo%index_j,sp%nzval, & 
+       CALL coocsr(coo%nrow,sp%nnz,coo%nzval,coo%index_i,coo%index_j,sp%nzval, &
             sp%colind,sp%rowpnt)
 
     ENDIF
@@ -273,13 +295,13 @@ CONTAINS
   ! -------------------------------------------------------------------------
   SUBROUTINE rcsrcoo_st(sp,coo)
 
-    !Short call for dsncsr: 
-    !convert matrix from CSR to COO format 
+    !Short call for dsncsr:
+    !convert matrix from CSR to COO format
     !Input:
     !sp: csr sparse matrix
     !Output
     !coo: coordinate matrix to be converted
-    ! 
+    !
 
     IMPLICIT NONE
 
@@ -291,7 +313,7 @@ CONTAINS
        call error_msg('(rcsrcoo_st)',MISMATCH)
     ENDIF
 
-    IF (sp%nnz.NE.0) THEN 
+    IF (sp%nnz.NE.0) THEN
 
        CALL csrcoo(coo%nrow,3,sp%nzval,sp%nzval,sp%colind,sp%rowpnt,coo%nzval, &
             coo%nzval,coo%index_i,coo%index_j,ierr)
@@ -316,7 +338,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-        call error_msg('(rcsrdns_st)',MISMATCH) 
+        call error_msg('(rcsrdns_st)',MISMATCH)
     endif
 
     dense%val(:,:)=0.d0
@@ -348,28 +370,28 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-        call error_msg('(rdnscsr_st)',MISMATCH) 
+        call error_msg('(rdnscsr_st)',MISMATCH)
     endif
 
     IF (sp%nnz.NE.0) THEN
        call dnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,dense%nrow,&
             sp%nzval,sp%colind,sp%rowpnt,ierr)
 
-       sp%nnz=sp%rowpnt(sp%nrow+1)-1       
+       sp%nnz=sp%rowpnt(sp%nrow+1)-1
 
-    ELSE 
+    ELSE
 
        sp%rowpnt=1
 
     ENDIF
 
-    if (ierr.ne.0) call error_msg('(rdnscsr_st)',CONVERR) 
+    if (ierr.ne.0) call error_msg('(rdnscsr_st)',CONVERR)
 
   END SUBROUTINE rdnscsr_st
   ! -------------------------------------------------------------------------
 
   SUBROUTINE ramub_st(A_csr,B_csr,C_csr)
-    
+
     !Short call for amub:
     !A-csr+B_csr without preallocation
     !Input:
@@ -377,14 +399,14 @@ CONTAINS
     !B_csr: CSR sparse matrix
     !Output:
     !C_csr: CSR sparse matrix (allocated externally)
-  
+
     implicit none
-    
+
     type(r_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,B_ncol
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
 
-    if(C_csr%nrow.ne.A_csr%nrow .or. C_csr%ncol.ne.B_csr%ncol) THEN 
+    if(C_csr%nrow.ne.A_csr%nrow .or. C_csr%ncol.ne.B_csr%ncol) THEN
        call error_msg('(ramub_st)',MISMATCH)
     endif
 
@@ -392,14 +414,14 @@ CONTAINS
     C_csr%ncol=B_ncol
     !Allocazione work array iw
     call log_allocate(iw,B_ncol)
-                                                                             
+
     call amub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
               C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(rmaub_st)',OUTOFBOUND)
 
-    call log_deallocate(iw)  
+    call log_deallocate(iw)
 
   end subroutine ramub_st
 
@@ -414,10 +436,10 @@ CONTAINS
     IMPLICIT NONE
 
     TYPE(r_CSR) :: A_csr,B_csr,C_csr
-    INTEGER, DIMENSION(:), ALLOCATABLE :: iw 
+    INTEGER, DIMENSION(:), ALLOCATABLE :: iw
     INTEGER :: ierr,A_ncol
 
-    IF(A_csr%nrow.NE.B_csr%nrow .or. A_csr%ncol.NE.B_csr%ncol) THEN 
+    IF(A_csr%nrow.NE.B_csr%nrow .or. A_csr%ncol.NE.B_csr%ncol) THEN
          call error_msg('(rsumcsr)',MISMATCH)
     endif
 
@@ -431,7 +453,7 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
        A_ncol = A_csr%ncol
 
@@ -492,7 +514,7 @@ CONTAINS
 
     ENDIF
 
-    DO i=1,sp_in%nrow+1       
+    DO i=1,sp_in%nrow+1
        sp_out%rowpnt(i) = sp_in%rowpnt(i)
     ENDDO
 
@@ -511,7 +533,7 @@ CONTAINS
 
     type(r_CSR) :: A_csr,B_csr,C_csr
     real(kind=dp) :: s
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
     ierr=0
@@ -529,7 +551,7 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
     C_csr%nrow=A_csr%nrow
     C_csr%ncol=A_csr%ncol
@@ -563,8 +585,8 @@ CONTAINS
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(rsumcsrs)',OUTOFBOUND)
-        
-        call log_deallocate(iw)    
+
+        call log_deallocate(iw)
 
     ENDIF
 
@@ -586,15 +608,15 @@ CONTAINS
    if (.not.A%sorted) then
      CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
      CALL csort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
-     call log_deallocate(iwork)  
+     call log_deallocate(iwork)
      A%sorted=.true.
-   endif  
+   endif
 
   end subroutine rcsort_st
 
   !*************************************************************************
   !
-  !  Subroutine per il masking delle matrici csr 
+  !  Subroutine per il masking delle matrici csr
   !  (reale mascherata da complessa)
   !  (utilizzabile anche in place)
   !
@@ -629,7 +651,7 @@ CONTAINS
 
   !*************************************************************************
   !
-  !  Subroutine per il masking delle matrici csr 
+  !  Subroutine per il masking delle matrici csr
   !  (reale mascherata da complessa)
   !  (utilizzabile anche in place)
   !
@@ -667,10 +689,10 @@ CONTAINS
   TYPE(z_DNS) :: A
 
   INTEGER :: i, k
-       
+
    if(A%nrow .ne. M%nrow .and. A%ncol.ne.M%ncol) then
-       call error_msg('(zmask_dns)',MISMATCH) 
-   endif 
+       call error_msg('(zmask_dns)',MISMATCH)
+   endif
 
    do i = 1, A%ncol
      do k = 1, A%nrow
@@ -693,12 +715,12 @@ CONTAINS
     !G:matrix to be masked and reallocated
     !M: masking matrix
     !
-    ! It differs by zamask because it acts as a masking routine in 
-    ! place, but reallocating G with the right size 
+    ! It differs by zamask because it acts as a masking routine in
+    ! place, but reallocating G with the right size
     ! (avoiding memory waste)
     !**********************************************************************
 
-    IMPLICIT NONE 
+    IMPLICIT NONE
 
     TYPE(z_CSR) :: G,M
     TYPE(z_CSR) :: work
@@ -732,7 +754,7 @@ CONTAINS
 
     ENDIF
 
-    DO i=1,sp_in%nrow+1       
+    DO i=1,sp_in%nrow+1
        sp_out%rowpnt(i) = sp_in%rowpnt(i)
     ENDDO
 
@@ -742,14 +764,14 @@ CONTAINS
   !----------------------------------------------------------------------------
   SUBROUTINE zdnscsr_st(dense,sp)
 
-    !Short call for dsncsr: 
-    !convert matrix from dense to CSR format 
+    !Short call for dsncsr:
+    !convert matrix from dense to CSR format
     !Input:
     !dense: dense matrix to be converted
     !nrow: row number of dense matrix (input)
     !Output
     !sp: csr sparse matrix
-    ! 
+    !
     !NOTE: works on square matrix
 
     IMPLICIT NONE
@@ -759,17 +781,17 @@ CONTAINS
     INTEGER :: ierr
 
     IF(dense%nrow.ne.sp%nrow) THEN
-        call error_msg('(zdnscsr_st)',MISMATCH) 
+        call error_msg('(zdnscsr_st)',MISMATCH)
     ENDIF
 
     IF (sp%nnz.NE.0) THEN
 
        call zdnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,dense%nrow,&
             sp%nzval,sp%colind,sp%rowpnt,ierr)
-       
-       sp%nnz=sp%rowpnt(sp%nrow+1)-1       
 
-    ELSE 
+       sp%nnz=sp%rowpnt(sp%nrow+1)-1
+
+    ELSE
 
        sp%rowpnt=1
 
@@ -781,13 +803,13 @@ CONTAINS
 
   SUBROUTINE zdnscsc_st(dense,sp)
 
-    !convert matrix from dense to CSR format 
+    !convert matrix from dense to CSR format
     !Input:
     !dense: dense matrix to be converted
     !nrow: row number of dense matrix (input)
     !Output
     !sp: csr sparse matrix
-    ! 
+    !
     !NOTE: works on square matrix
 
     IMPLICIT NONE
@@ -831,7 +853,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-        call error_msg('(rcsrdns_st)',MISMATCH) 
+        call error_msg('(rcsrdns_st)',MISMATCH)
     endif
 
     dense%val(:,:)=(0.d0, 0.d0)
@@ -843,11 +865,11 @@ CONTAINS
 
     ENDIF
 
-    if (ierr.ne.0) call error_msg('(zcsrdns_st)',CONVERR) 
+    if (ierr.ne.0) call error_msg('(zcsrdns_st)',CONVERR)
 
   END SUBROUTINE zcsrdns_st
 
-  !-------------------------------------------------------------------------- 
+  !--------------------------------------------------------------------------
 
   subroutine zcscdns_st(sp,dense)
 
@@ -866,7 +888,7 @@ CONTAINS
     integer :: ierr
 
     if ((dense%nrow.ne.sp%nrow).or.(dense%ncol.ne.sp%ncol)) then
-        call error_msg('(rcoocsr_st)',MISMATCH) 
+        call error_msg('(rcoocsr_st)',MISMATCH)
     endif
 
     IF (sp%nnz.NE.0) THEN
@@ -874,41 +896,41 @@ CONTAINS
        call create(sp_csr,sp%nrow,sp%ncol,sp%nnz)
 
        call zcsccsr_st(sp, sp_csr)
-       call zcsrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,& 
+       call zcsrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,&
             dense%val,dense%nrow,ierr)
        call destroy(sp_csr)
 
-    else 
+    else
 
        dense%val(:,:)=(0.d0, 0.d0)
 
     endif
 
-    if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR) 
+    if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR)
 
   end subroutine zcscdns_st
 
-  !-------------------------------------------------------------------------- 
+  !--------------------------------------------------------------------------
   subroutine zcoocsr_st(coo,sp)
 
-    !Short call for dsncsr: 
-    !convert matrix from COO to CSR format 
+    !Short call for dsncsr:
+    !convert matrix from COO to CSR format
     !Input:
     !coo: coordinate matrix to be converted
     !Output
     !sp: csr sparse matrix
-    ! 
+    !
 
     implicit none
 
     type(z_COO) :: coo
     type(z_CSR) :: sp
-    integer, ALLOCATABLE, DIMENSION(:) :: iwork 
+    integer, ALLOCATABLE, DIMENSION(:) :: iwork
     logical :: values
     integer :: ierr
 
     if ((coo%nrow.ne.sp%nrow).or.(coo%ncol.ne.sp%ncol)) then
-        call error_msg('(rcoocsr_st)',MISMATCH) 
+        call error_msg('(rcoocsr_st)',MISMATCH)
     endif
 
     if (coo%nnz.ne.0) then
@@ -933,11 +955,11 @@ CONTAINS
 
   end subroutine zcoocsr_st
   ! -------------------------------------------------------------------------
-  !-------------------------------------------------------------------------- 
+  !--------------------------------------------------------------------------
   subroutine zcsrcoo_st(csr,coo)
 
-    !Short call for zcsrcoo: 
-    !convert matrix from CSR to COO format 
+    !Short call for zcsrcoo:
+    !convert matrix from CSR to COO format
 
     implicit none
 
@@ -946,7 +968,7 @@ CONTAINS
     integer :: ierr
 
     if ((coo%nrow.ne.csr%nrow).or.(coo%ncol.ne.csr%ncol)) then
-        call error_msg('(zcsrcoo_st)',MISMATCH) 
+        call error_msg('(zcsrcoo_st)',MISMATCH)
     endif
 
     if (csr%nnz.ne.0) then
@@ -975,7 +997,7 @@ CONTAINS
     integer :: job, ipos
 
     if ((A_csr%nrow.ne.A_csc%nrow).or.(A_csr%ncol.ne.A_csc%ncol)) then
-        call error_msg('(rcsrcsc_st)',MISMATCH) 
+        call error_msg('(rcsrcsc_st)',MISMATCH)
     endif
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1011,7 +1033,7 @@ CONTAINS
     integer :: job, ipos
 
     if ((A_csr%nrow.ne.A_csc%nrow).or.(A_csr%ncol.ne.A_csc%ncol)) then
-        call error_msg('(zcsrcsc_st)',MISMATCH) 
+        call error_msg('(zcsrcsc_st)',MISMATCH)
     endif
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1054,12 +1076,12 @@ CONTAINS
              endif
        enddo
              if (flag.eq.'r') then
-                write(iofile,'(f10.5)', advance='YES') real( A%val(i,A%ncol) ) 
+                write(iofile,'(f10.5)', advance='YES') real( A%val(i,A%ncol) )
              elseif (flag.eq.'i') then
                 write(iofile,'(f10.5)', advance='YES') aimag( A%val(i,j) )
              elseif (flag.eq.'c') then
                 write(iofile,'(2E23.15)', advance='YES')      ( A%val(i,j) )
-             endif      
+             endif
     enddo
 
     call destroy(A)
@@ -1090,12 +1112,12 @@ CONTAINS
   !           endif
   !     enddo
   !           if (flag.eq.'r') then
-  !              write(iofile,'(f10.5)', advance='YES') real( A%val(i,A%ncol) ) 
+  !              write(iofile,'(f10.5)', advance='YES') real( A%val(i,A%ncol) )
   !           elseif (flag.eq.'i') then
   !              write(iofile,'(f10.5)', advance='YES') dimag( A%val(i,j) )
   !           elseif (flag.eq.'c') then
   !              write(iofile,'(E23.15)', advance='YES')      ( A%val(i,j) )
-  !           endif      
+  !           endif
   !  enddo
   !
   !  call destroy(A)
@@ -1103,17 +1125,17 @@ CONTAINS
   !end subroutine rprint_csrdns
 
 
-  
+
 
   !---------------------------------------------------------------------------
   subroutine zprint_csrcoo(iofile,A_csr,flag)
 
     type(z_CSR) :: A_csr
-    integer :: iofile 
+    integer :: iofile
     character(1) :: flag
 
     type(z_COO) :: A
-    integer :: k 
+    integer :: k
 
     call create(A,A_csr%nrow,A_csr%ncol,A_csr%nnz)
 
@@ -1124,8 +1146,8 @@ CONTAINS
     !write (iofile,*) '# matrix dimension = ', A%nrow, ' x ', A%ncol
     !write (iofile,*) '#'
 
-    do k = 1, A%nnz 
-     
+    do k = 1, A%nnz
+
        if (flag.eq.'r') then
           write(iofile,'(2i8,f20.10)') A%index_i(k), A%index_j(k), real(A%nzval(k))
        elseif (flag.eq.'i') then
@@ -1133,7 +1155,7 @@ CONTAINS
        elseif (flag.eq.'c') then
           write(iofile,'(2i8,(f20.10,f20.10))')  A%index_i(k), A%index_j(k), A%nzval(k)
        endif
-     
+
     enddo
 
     call destroy(A)
@@ -1156,8 +1178,8 @@ CONTAINS
     !Work:
     !LU_levs: integer array (of minimum lenght of LU_msr%nzval) containing
     !the level of each element in LU_msr
-    !LU_iwk: integer. Minimum lenght of LU_msr 
-    !NOTE: work arrays must be external as depend on lfil 
+    !LU_iwk: integer. Minimum lenght of LU_msr
+    !NOTE: work arrays must be external as depend on lfil
 
     implicit none
 
@@ -1166,12 +1188,12 @@ CONTAINS
     type(z_MSR) :: LU_msr
     integer, DIMENSION(LU_iwk) :: LU_levs
     integer, DIMENSION(A_csr%nrow) :: LU_ju
-    integer, DIMENSION(:), ALLOCATABLE :: jw 
-    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: w 
+    integer, DIMENSION(:), ALLOCATABLE :: jw
+    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: w
     integer :: ierr
 
     call log_allocate(jw,3*A_csr%nrow)
-    call log_allocate(w, A_csr%nrow) 
+    call log_allocate(w, A_csr%nrow)
 
     !call ziluk(A_csr%nrow, A_csr%nzval, A_csr%colind, A_csr%rowpnt, lfil, &
     !     LU_msr%nzval, LU_msr%index, LU_ju, LU_levs, LU_iwk, w, jw, ierr)
@@ -1179,29 +1201,29 @@ CONTAINS
     if (ierr.ne.0) then
        write(*,*)'ERROR: LU FACTORIZATION FAILED'
        write(*,*)'ERROR NUMBER ',ierr,' IN ILUK SUBROUTINE'
-       if (ierr.gt.0) then 
+       if (ierr.gt.0) then
          write(*,*) 'Zero pivot encountered at step number ',ierr
        endif
-       if (ierr.eq.(-1)) then 
+       if (ierr.eq.(-1)) then
          write(*,*) 'Input matrix may be wrong'
        endif
-       if (ierr.eq.(-2)) then 
+       if (ierr.eq.(-2)) then
          write(*,*) 'Matrix L overflows array al'
        endif
-       if (ierr.eq.(-3)) then 
+       if (ierr.eq.(-3)) then
          write(*,*) 'Matrix U overflows array alu'
        endif
-       if (ierr.eq.(-4)) then 
+       if (ierr.eq.(-4)) then
          write(*,*) 'Illegal value for lfil'
        endif
-       if (ierr.eq.(-5)) then 
+       if (ierr.eq.(-5)) then
          write(*,*) 'zero row encounterd in A or U'
        endif
        STOP
     endif
 
   call log_deallocate(jw)
-  call log_deallocate(w) 
+  call log_deallocate(w)
 
   end subroutine ziluk_st
 
@@ -1215,11 +1237,11 @@ CONTAINS
     !nrow: number of rows in A_csr
     !ncol: number of columns in A_csr
 
-    implicit none 
+    implicit none
 
     type(z_CSR) :: A_csr
     integer :: nrow,ncol,ierr
-    integer, DIMENSION(:), ALLOCATABLE :: iwk 
+    integer, DIMENSION(:), ALLOCATABLE :: iwk
 
     nrow=A_csr%nrow
     ncol=A_csr%ncol
@@ -1234,12 +1256,12 @@ CONTAINS
 
        call log_deallocate(iwk)
        if (ierr.ne.0) call error_msg('(ztransp_st)',CONVERR)
-  
+
     endif
 
   end subroutine ztransp_st
 !------------------------------------------------------------------------
-  
+
   subroutine ztransp2_st(A_csr,B_csr)
 
     !Short call for transp (matrix transposition)
@@ -1248,11 +1270,11 @@ CONTAINS
     !ncol: number of columns in A_csr
     !B_csr: output matrix, transposed of A
 
-    implicit none 
+    implicit none
 
     type(z_CSR) :: A_csr, B_csr
     integer :: ncol
-  
+
     ncol=A_csr%ncol
 
     call create(B_csr,ncol,A_csr%nrow,A_csr%nnz)
@@ -1264,7 +1286,7 @@ CONTAINS
     ELSE
 
     call zcsrcsc2(A_csr%nrow,ncol,1,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
-                     B_csr%nzval,B_csr%colind,B_csr%rowpnt) 
+                     B_csr%nzval,B_csr%colind,B_csr%rowpnt)
 
     ENDIF
 
@@ -1318,7 +1340,7 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr
 
     IF ((A_csr%nrow.NE.B_csr%nrow).OR.(A_csr%ncol.NE.B_csr%ncol).OR.(A_csr%nnz.NE.B_csr%nnz)) THEN
-        call error_msg('(zcopmat_st)',MISMATCH) 
+        call error_msg('(zcopmat_st)',MISMATCH)
     ENDIF
 
     IF (A_csr%nnz.NE.0) THEN
@@ -1339,21 +1361,21 @@ CONTAINS
   !Utilities varie
   !****************************************************************************
   subroutine zamub_st(A_csr,B_csr,C_csr)
-    
+
     !*****************************************************************
     !
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
+    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
     implicit none
-    
+
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,B_ncol
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
 
 
     if(C_csr%nrow.ne.A_csr%nrow .or. C_csr%ncol.ne.B_csr%ncol) THEN
@@ -1364,37 +1386,37 @@ CONTAINS
 
     B_ncol=B_csr%ncol
     call log_allocate(iw,B_ncol)
-                                                                             
+
     call zamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(zamub_st)',OUTOFBOUND)
 
-    call log_deallocate(iw)  
+    call log_deallocate(iw)
 
   end subroutine zamub_st
   !****************************************************************************
   subroutine zaplb_st(A_csr,B_csr,C_csr)
-    
+
     !*****************************************************************
     !
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
     !B_ncol: numero di colonne in A_csr e B_csr
-    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
+    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
     implicit none
-    
+
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,A_ncol
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
 
 
-    if(A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) then 
+    if(A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) then
             call error_msg('(zaplb_st)',MISMATCH)
     endif
 
@@ -1404,41 +1426,41 @@ CONTAINS
     C_csr%ncol=A_csr%ncol
 
     call log_allocate(iw,A_ncol)
-    
+
     call zaplb (A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                 B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
                 C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(zaplb_st)',OUTOFBOUND)
 
-    call log_deallocate(iw)  
+    call log_deallocate(iw)
 
   end subroutine zaplb_st
   !****************************************************************************
 
   !-------------------------------------------------------------------
   ! performs the matrix by matrix product C = C + s A B
-  !-------------------------------------------------------------------             
+  !-------------------------------------------------------------------
   subroutine zcplsamub_st(A_csr,B_csr,s,C_csr)
-    
+
     !*****************************************************************
     !
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
     !  s  : scalare
-    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
+    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
-    
+
     implicit none
-    
+
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
     integer :: ierr,B_ncol
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
-        
+    integer, DIMENSION(:), ALLOCATABLE :: iw
+
     !Allocazione work array iw
 
     B_ncol=B_csr%ncol
@@ -1448,14 +1470,14 @@ CONTAINS
      ! complex*16 a(*), b(*), c(*), s
      ! integer ja(*),jb(*),jc(*),ia(nrow+1),ib(*),ic(*),iw(ncol)
      ! integer job : 0 = no comp , 1 = comp
-                                                                
+
     call zcplsamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(zcplamub_st)',OUTOFBOUND)
 
-    call log_deallocate(iw)  
+    call log_deallocate(iw)
 
   end subroutine zcplsamub_st
 
@@ -1469,24 +1491,24 @@ CONTAINS
     case('+')
       if (A_csr%sorted .and. B_csr%sorted) then
         C_nnz = nnz_sum1(A_csr, B_csr)
-      else    
+      else
         C_nnz = nnz_sum(A_csr, B_csr)
-      end if  
-    case('*')  
-      C_nnz = nnz_mult(A_csr, B_csr)  
-    end select  
+      end if
+    case('*')
+      C_nnz = nnz_mult(A_csr, B_csr)
+    end select
 
-  end function nnz  
+  end function nnz
 
   !***************************************************************************************
   !Subroutine per l'allocazione del prodotto sparso A x B
-  !Verifica quanti elementi non nulli si avranno dal prodotto di due matrici sparse CSR  
+  !Verifica quanti elementi non nulli si avranno dal prodotto di due matrici sparse CSR
   !***************************************************************************************
   function nnz_mult(A_csr,B_csr) result (C_nnz)
 
     !************************************************************************************
     !
-    !Input: 
+    !Input:
     !A_csr: A matrix in CSR format
     !B_csr: B_matrix in csr format
     !A_ncol: number of columns of A matrix
@@ -1502,7 +1524,7 @@ CONTAINS
     integer :: A_ncol, B_ncol, C_nnz
 
     !Work Arguments
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr
 
     !Alloca le parti di C_csr di interesse
@@ -1516,7 +1538,7 @@ CONTAINS
     call log_allocate(iw,A_ncol)
 
     call zamub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
-               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, & 
+               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,A_csr%nrow*B_ncol,iw,ierr)
 
     if (ierr.ne.0) call error_msg('(nnz_mult)',OUTOFBOUND)
@@ -1528,18 +1550,18 @@ CONTAINS
     C_nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
     call log_deallocate(C_csr%rowpnt)
-    
+
   end function nnz_mult
 
   !***************************************************************************************
   !Subroutine per l'allocazione della somma sparsa A+B
-  !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR  
+  !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR
   !***************************************************************************************
   function nnz_sum(A_csr,B_csr) result(C_nnz)
 
     !************************************************************************************
     !
-    !Input: 
+    !Input:
     !A_csr: A matrix in CSR format
     !B_csr: B_matrix in csr format
     !A_ncol: number of columns of A matrix
@@ -1556,12 +1578,12 @@ CONTAINS
     integer :: A_ncol, C_nnz
 
     !Work Arguments
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr
 
     !Alloca le parti di C_csr di interesse
     A_ncol=A_csr%ncol
-   
+
     call log_allocate(C_csr%nzval,MISMATCH)
     call log_allocate(C_csr%colind,A_csr%nrow*A_ncol)
     call log_allocate(C_csr%rowpnt,A_csr%nrow+1)
@@ -1586,13 +1608,13 @@ CONTAINS
 
   !************************************************************************************
   !Subroutine per l'allocazione della somma sparsa A+B (VERSIONE SORTED)
-  !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR  
+  !Verifica quanti elementi non nulli si avranno dalla somma di due matrici sparse CSR
   !************************************************************************************
   function nnz_sum1(A_csr,B_csr) result(C_nnz)
 
     !***********************************************************************************
     !
-    !Input: 
+    !Input:
     !A_csr: A matrix in CSR format
     !B_csr: B_matrix in csr format
     !A_ncol: number of columns of A matrix
@@ -1606,9 +1628,9 @@ CONTAINS
 
     !Input/Output arguments
     type(z_CSR) :: A_csr, B_csr
-    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval 
-    integer, DIMENSION(:), ALLOCATABLE :: colind 
-    integer, DIMENSION(:), ALLOCATABLE :: rowpnt 
+    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: nzval
+    integer, DIMENSION(:), ALLOCATABLE :: colind
+    integer, DIMENSION(:), ALLOCATABLE :: rowpnt
     integer :: A_ncol, C_nnz
 
     !Work Arguments
@@ -1621,7 +1643,7 @@ CONTAINS
     call log_allocate(nzval,MISMATCH)
     call log_allocate(colind,A_csr%nrow*A_ncol)
     call log_allocate(rowpnt,A_csr%nrow+1)
-        
+
     call zaplb1 (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                  B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,&
                  rowpnt,A_csr%nrow*A_ncol,ierr)
@@ -1632,7 +1654,7 @@ CONTAINS
 
     call log_deallocate(nzval)
     call log_deallocate(colind)
-    
+
     call log_deallocate(rowpnt)
 
   end function nnz_sum1
@@ -1677,7 +1699,7 @@ CONTAINS
        do i=i1,i2
 
           if (A_csr%rowpnt(i).eq.A_csr%rowpnt(i+1)) then
-             cycle 
+             cycle
           else
 
              do j=A_csr%rowpnt(i),A_csr%rowpnt(i+1)-1
@@ -1685,8 +1707,8 @@ CONTAINS
                 if (A_csr%colind(j).ge.j1) then
                    if (A_csr%colind(j).le.j2) then
                       nnz=nnz+1
-                   else 
-                      if (A_csr%sorted) exit 
+                   else
+                      if (A_csr%sorted) exit
                    endif
                 else
                    cycle
@@ -1709,7 +1731,7 @@ CONTAINS
 
   !********************************************************************************
   !
-  !  Function for dropping quasi-zero values and checking number of non-zero 
+  !  Function for dropping quasi-zero values and checking number of non-zero
   !  values in a dense matrix
   !
   !********************************************************************************
@@ -1748,7 +1770,7 @@ CONTAINS
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
+    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -1756,12 +1778,12 @@ CONTAINS
     implicit none
 
     type(z_CSR) :: A_csr,B_csr,C_csr
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,nnz
     integer :: a_bw, b_bw, ml, mu, iband, bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-       call error_msg('(zmult_csr)',MISMATCH) 
+       call error_msg('(zmult_csr)',MISMATCH)
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0)) THEN
@@ -1782,7 +1804,7 @@ CONTAINS
        ! Bandwidth of products is two time the bandwith of factors
        nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 2
 
-       !Preliminar product on indexes only. This is used to determine the exact amount 
+       !Preliminar product on indexes only. This is used to determine the exact amount
        !of memory which needs to be allocate, avoiding a temporary unused heavy
        !complex array
        call log_allocate(C_csr%nzval,MISMATCH)
@@ -1797,7 +1819,7 @@ CONTAINS
             nnz,iw,ierr)
 
 
-       if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND) 
+       if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND)
 
        !Riallocazioni esatte di C_csr
        call log_deallocate(C_csr%colind)
@@ -1807,7 +1829,7 @@ CONTAINS
 
        call log_deallocate(C_csr%rowpnt)
 
-       if(nnz.ne.0) then 
+       if(nnz.ne.0) then
 
           call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
@@ -1816,7 +1838,7 @@ CONTAINS
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-          if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND) 
+          if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND)
 
        else
 
@@ -1825,7 +1847,7 @@ CONTAINS
 
        endif
 
-       call log_deallocate(iw)  
+       call log_deallocate(iw)
 
     ENDIF
 
@@ -1837,7 +1859,7 @@ CONTAINS
   !  con prodotto per scalare  C=s*AxB
   !
   !*****************************************************************
-  
+
   subroutine zmultcsrs(A_csr,B_csr,s,C_csr)
 
     !*****************************************************************
@@ -1845,7 +1867,7 @@ CONTAINS
     !Input:
     !A_csr: primo fattore in formato CSR
     !B_csr: secondo fattore in formato  CSR
-    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita 
+    !C_csr: risultato in formato CSR (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -1856,9 +1878,9 @@ CONTAINS
     complex(kind=dp) :: s
     integer :: ierr,nnz
     integer :: a_bw, b_bw, ml, mu, bndav
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
-        call error_msg('(zmultccsr)',MISMATCH) 
+        call error_msg('(zmultccsr)',MISMATCH)
     ENDIF
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -1867,8 +1889,8 @@ CONTAINS
        C_csr%rowpnt=1
 
     else
- 
-    
+
+
        ! G. P. preallocation for exact calculation of nonzero values.
        ! The first guess is built depending on A and B bandwidth
        ! I consider the maximum bandwidth
@@ -1880,7 +1902,7 @@ CONTAINS
        ! Bandwidth of products is two time the bandwith of factors
        nnz = max(a_bw, b_bw) * max(A_csr%nrow, B_csr%ncol) * 2
 
-       !Preliminar product on indexes only. This is used to determine the exact amount 
+       !Preliminar product on indexes only. This is used to determine the exact amount
        !of memory which needs to be allocate, avoiding a temporary unused heavy
        !complex array
        call log_allocate(C_csr%nzval,1)
@@ -1895,7 +1917,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,nnz,iw,ierr)
 
-       if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND) 
+       if (ierr.ne.0) call error_msg('(zamub)',OUTOFBOUND)
 
        !Riallocazioni esatte di C_csr
        nnz=C_csr%rowpnt(A_csr%nrow+1)-1
@@ -1904,7 +1926,7 @@ CONTAINS
        call log_deallocate(C_csr%nzval)
        call log_deallocate(C_csr%rowpnt)
 
-       if(nnz.ne.0) then 
+       if(nnz.ne.0) then
 
           call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
@@ -1913,16 +1935,16 @@ CONTAINS
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-          if (ierr.ne.0) call error_msg('(zamubs)',OUTOFBOUND) 
+          if (ierr.ne.0) call error_msg('(zamubs)',OUTOFBOUND)
 
        else
 
           call create(C_csr,A_csr%nrow,B_csr%ncol,MISMATCH)
-          C_csr%nnz=0      
+          C_csr%nnz=0
 
        endif
 
-       call log_deallocate(iw)  
+       call log_deallocate(iw)
 
     ENDIF
 
@@ -1933,7 +1955,7 @@ CONTAINS
   !  Subroutine di moltiplicazione densa compatta (DNS)
   !  con prodotto per scalare  C=s*A*B
   !
-  !*****************************************************************  
+  !*****************************************************************
   subroutine zmultdns(A_dns,B_dns,C_dns)
 
     !*****************************************************************
@@ -1941,7 +1963,7 @@ CONTAINS
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -1954,16 +1976,16 @@ CONTAINS
     complex(dp) :: beta
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       call error_msg('(zmultdns) A B',MISMATCH) 
+       call error_msg('(zmultdns) A B',MISMATCH)
     ENDIF
 
     M = A_dns%nrow
     N = B_dns%ncol
     K = A_dns%ncol
-    
+
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-         call error_msg('(zmultdns) C',MISMATCH) 
+         call error_msg('(zmultdns) C',MISMATCH)
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
@@ -1985,7 +2007,7 @@ CONTAINS
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -1999,23 +2021,23 @@ CONTAINS
     complex(dp) :: beta
 
     IF (size(A,2).NE.size(B,MISMATCH)) THEN
-       call error_msg('(zmatmul) A B',MISMATCH) 
+       call error_msg('(zmatmul) A B',MISMATCH)
     ENDIF
 
     M = size(A,MISMATCH)
     N = size(B,2)
-    K = size(A,2)   
+    K = size(A,2)
 
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-         call error_msg('(zmultdnss) C',MISMATCH) 
+         call error_msg('(zmultdnss) C',MISMATCH)
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
       CALL create(C_dns,M,N)
       beta = (0.d0,0.d0)
     ENDIF
-    
+
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
             B, K, beta, C_dns%val, M)
 
@@ -2030,7 +2052,7 @@ CONTAINS
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -2039,30 +2061,30 @@ CONTAINS
 
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
-    complex(dp) :: s 
+    complex(dp) :: s
 
     integer :: M,N,K
     complex(dp) ::  beta
 
     IF (size(A,2).NE.size(B,MISMATCH)) THEN
-       call error_msg('(zmatmuls) A B',MISMATCH) 
+       call error_msg('(zmatmuls) A B',MISMATCH)
     ENDIF
 
     M = size(A,MISMATCH)
     N = size(B,2)
     K = size(A,2)
-   
+
     !L = size(B,MISMATCH) = K)
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-       call error_msg('(zmatmuls) C',MISMATCH) 
+       call error_msg('(zmatmuls) C',MISMATCH)
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
       CALL create(C_dns,M,N)
       beta = (0.d0,0.d0)
     ENDIF
-    
+
     CALL ZGEMM('N','N', M, N, K, s, A, M, &
             B, K, beta, C_dns%val, M)
 
@@ -2077,7 +2099,7 @@ CONTAINS
   !  Subroutine di moltiplicazione densa compatta (DNS)
   !  con prodotto per scalare  C=s*A*B
   !
-  !*****************************************************************  
+  !*****************************************************************
   subroutine zmultdnss(A_dns,B_dns,s,C_dns)
 
     !*****************************************************************
@@ -2085,7 +2107,7 @@ CONTAINS
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -2098,7 +2120,7 @@ CONTAINS
     complex(dp) :: beta
 
     IF (A_dns%ncol.NE.B_dns%nrow) THEN
-       call error_msg('(zmultdnss) A B',MISMATCH) 
+       call error_msg('(zmultdnss) A B',MISMATCH)
     ENDIF
 
     M = A_dns%nrow
@@ -2107,14 +2129,14 @@ CONTAINS
 
     IF (allocated(C_dns%val)) THEN
       IF(C_dns%nrow .ne. M .or. C_dns%ncol .ne. N) THEN
-        call error_msg('(zmultdnss) C',MISMATCH) 
+        call error_msg('(zmultdnss) C',MISMATCH)
       ENDIF
       beta = (1.d0,0.d0)
     ELSE
       CALL create(C_dns,M,N)
       beta = (0.d0,0.d0)
     ENDIF
-    
+
     ! C = beta C + s A * B
     CALL ZGEMM('N','N', M, N, K, s, A_dns%val, M, &
             B_dns%val, B_dns%nrow, beta, C_dns%val, M)
@@ -2128,11 +2150,11 @@ CONTAINS
     implicit none
 
     type(z_CSR) :: A_csr,B_csr,C_csr
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) THEN 
-       call error_msg('(zsumcsr) ',MISMATCH) 
+    if(A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) THEN
+       call error_msg('(zsumcsr) ',MISMATCH)
     endif
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
@@ -2145,7 +2167,7 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
        C_csr%nrow=A_csr%nrow
        C_csr%ncol=A_csr%ncol
@@ -2165,7 +2187,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) call error_msg('()',3) 
+       if (ierr.ne.0) call error_msg('()',3)
 
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
@@ -2179,7 +2201,7 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) call error_msg('(zsmcsr)',OUTOFBOUND) 
+       if (ierr.ne.0) call error_msg('(zsmcsr)',OUTOFBOUND)
 
        call log_deallocate(iw)
 
@@ -2215,7 +2237,7 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
        C_csr%nrow=A_csr%nrow
        C_csr%ncol=A_csr%ncol
@@ -2232,7 +2254,7 @@ CONTAINS
             C_csr%rowpnt,C_csr%nnz,ierr)
 
        if (ierr.ne.0) call error_msg('(aplb1)',OUTOFBOUND)
-       
+
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
        call log_deallocate(C_csr%nzval)
@@ -2264,7 +2286,7 @@ CONTAINS
 
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
     if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
@@ -2280,7 +2302,7 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
        C_csr%nrow=A_csr%nrow
        C_csr%ncol=A_csr%ncol
@@ -2317,7 +2339,7 @@ CONTAINS
 
        if (ierr.ne.0) call error_msg('(zaplb)',OUTOFBOUND)
 
-       call log_deallocate(iw)    
+       call log_deallocate(iw)
 
     ENDIF
 
@@ -2327,7 +2349,7 @@ CONTAINS
 
   !***********************************************************************
   !
-  !  Subroutine di somma sparsa compatta con prodotto per scalare 
+  !  Subroutine di somma sparsa compatta con prodotto per scalare
   !
   !***********************************************************************
 
@@ -2337,7 +2359,7 @@ CONTAINS
 
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s1,s2
-    integer, DIMENSION(:), ALLOCATABLE :: iw 
+    integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
 
@@ -2354,11 +2376,11 @@ CONTAINS
        CALL create(C_csr,A_csr%nrow,A_csr%ncol,A_csr%nnz)
        C_csr%nzval=A_csr%nzval; C_csr%colind=A_csr%colind; C_csr%rowpnt=A_csr%rowpnt;
 
-    ELSE   
+    ELSE
 
        !Alloca le parti di C_csr di interesse
        C_csr%nrow=A_csr%nrow
-       C_csr%ncol=A_csr%ncol        
+       C_csr%ncol=A_csr%ncol
        A_ncol=A_csr%ncol
        C_csr%nnz=A_csr%nnz+B_csr%nnz
        call log_allocate(C_csr%nzval,MISMATCH)
@@ -2389,8 +2411,8 @@ CONTAINS
             C_csr%nnz,iw,ierr)
 
        if (ierr.ne.0) call error_msg('(zsumcsrs1s2)',OUTOFBOUND)
-       
-       call log_deallocate(iw)    
+
+       call log_deallocate(iw)
 
     ENDIF
 
@@ -2401,7 +2423,7 @@ CONTAINS
     !  Subroutine di somma densa
     !
     !***********************************************************************
-  
+
   subroutine zsumdns(A_dns,B_dns,C_dns)
 
     !*****************************************************************
@@ -2409,7 +2431,7 @@ CONTAINS
     !Input:
     !A_dns: primo fattore in formato DNS
     !B_dns: secondo fattore in formato  DNS
-    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita 
+    !C_dns: risultato in formato DNS (l'allocazione esatta viene eseguita
     !nella subroutine
     !
     !****************************************************************
@@ -2419,16 +2441,16 @@ CONTAINS
     type(z_DNS) :: A_dns,B_dns,C_dns
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-        call error_msg('(zsumdns)',MISMATCH) 
+        call error_msg('(zsumdns)',MISMATCH)
     ENDIF
-  
+
 
     CALL create(C_dns,A_dns%nrow,B_dns%ncol)
 
     C_dns%val = A_dns%val + B_dns%val
 
   end subroutine zsumdns
-  
+
   !***********************************************************************
   subroutine zsumdnss(A_dns,B_dns,s,C_dns)
 
@@ -2438,7 +2460,7 @@ CONTAINS
     complex(dp) :: s
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-       call error_msg('(zsumdnss)',MISMATCH) 
+       call error_msg('(zsumdnss)',MISMATCH)
     ENDIF
 
 
@@ -2457,7 +2479,7 @@ CONTAINS
     complex(dp) :: s1,s2
 
     IF (A_dns%ncol.NE.B_dns%ncol .AND. A_dns%nrow.NE.B_dns%nrow) THEN
-        call error_msg('(zsumdnss1s2)',MISMATCH) 
+        call error_msg('(zsumdnss1s2)',MISMATCH)
     ENDIF
 
 
@@ -2483,7 +2505,7 @@ CONTAINS
     !
     !Input:
     !A_csr: matrice da cui si vuole estrarre la sottomatrice (unsorted)
-    !i1,i2: righe iniziale e finale (incluse)  
+    !i1,i2: righe iniziale e finale (incluse)
     !j1,j2: colonne iniziale e finale (incluse)
     !Output:
     !A_sub: matrice estratta (allocata esatta nella subroutine)
@@ -2494,7 +2516,7 @@ CONTAINS
 
     type(z_CSR) :: A_csr,A_sub
     integer :: i1,i2,j1,j2
-    integer :: nnz 
+    integer :: nnz
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
        STOP 'ERROR (zextract): bad indeces specification';
@@ -2506,7 +2528,7 @@ CONTAINS
        CALL create(A_sub,(i2-i1+1),(j2-j1+1),nnz)
        call zsubmat_st(A_csr,i1,i2,j1,j2,A_sub)
 
-    ELSE 
+    ELSE
        CALL create(A_sub,(i2-i1+1),(j2-j1+1),MISMATCH)
        A_sub%rowpnt=1
 
@@ -2528,7 +2550,7 @@ CONTAINS
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
     A_dns%val=(0.d0,0.d0)
-    
+
     do i = i1, i2
        do k = A_csr%rowpnt(i), A_csr%rowpnt(i+1)-1
           if(A_csr%colind(k).ge.j1 .and. A_csr%colind(k).le.j2) then
@@ -2536,7 +2558,7 @@ CONTAINS
           endif
        enddo
     enddo
-    
+
   end subroutine zextract_dns
   !------------------------------------------------------------------------------
 
@@ -2558,7 +2580,7 @@ CONTAINS
     !A_csr viene opportunamente riallocata per contenere anche i nuovi valori
     !
     !Nota: non viene effettuato nessun controllo su A_csr, se A_csr e' non nulla
-    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori 
+    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori
     !gia' presenti con quelli di B_csr
     !*************************************************************************
 
@@ -2567,7 +2589,7 @@ CONTAINS
     TYPE(z_CSR) :: A_csr, B_csr,D_csr
     TYPE(z_CSR) :: C_csr
     INTEGER :: i1,j1
-    
+
     IF (A_csr%nrow.lt.(B_csr%nrow+i1-1)) THEN
         call error_msg('(zconcat)',BADINDEX)
     ENDIF
@@ -2575,18 +2597,18 @@ CONTAINS
     IF (B_csr%nnz.eq.0) RETURN
 
     !Crea una matrice C sparsa di zeri che contiene B come sottomatrice
-    !nella regione di interesse 
+    !nella regione di interesse
     CALL create(C_csr,A_csr%nrow,max(B_csr%ncol+j1-1,A_csr%ncol),B_csr%nnz)
 
     !Inizializza C_csr%rowpnt
     C_csr%rowpnt=1
     C_csr%colind=0
     !Assign B_csr elements and indexes to C_csr
-    C_csr%nzval=B_csr%nzval 
+    C_csr%nzval=B_csr%nzval
     C_csr%colind=B_csr%colind+j1-1
     C_csr%rowpnt(i1:B_csr%nrow+i1)=B_csr%rowpnt
 
-    
+
     IF ( (B_csr%nrow+i1).lt.C_csr%nrow ) THEN
        ! repeat last rowpnt for the remaining rows.
        C_csr%rowpnt((B_csr%nrow+i1+1):(C_csr%nrow+1))=C_csr%rowpnt(B_csr%nrow+i1)
@@ -2625,7 +2647,7 @@ CONTAINS
     !A_csr viene opportunamente riallocata per contenere anche i nuovi valori
     !
     !Nota: non viene effettuato nessun controllo su A_csr, se A_csr e' non nulla
-    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori 
+    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori
     !gia' presenti con quelli di B_csr
     !*************************************************************************
 
@@ -2643,7 +2665,7 @@ CONTAINS
     IF (B_csr%nnz.EQ.0) RETURN
 
     !Crea una matrice C sparsa di zeri che contiene B come sottomatrice
-    !nella regione di interesse 
+    !nella regione di interesse
     CALL create(C_csr,A_csr%nrow,max(B_csr%ncol+j1-1,A_csr%ncol),B_csr%nnz)
 
     !Inizializza C_csr%rowpnt
@@ -2652,19 +2674,19 @@ CONTAINS
 
     !Assign B_csr elements and indexes to C_csr
     do i2=1,C_csr%nnz
-       C_csr%nzval(i2)=B_csr%nzval(i2) 
+       C_csr%nzval(i2)=B_csr%nzval(i2)
        C_csr%colind(i2)=B_csr%colind(i2)+j1-1
     enddo
     do i2=1,B_csr%nrow+1
        C_csr%rowpnt(i2+i1-1)=B_csr%rowpnt(i2)
     enddo
-       
+
     IF ((i1+B_csr%nrow).lt.C_csr%nrow) THEN
        C_csr%rowpnt((B_csr%nrow+i1+1):(C_csr%nrow+1))=C_csr%rowpnt(B_csr%nrow+i1)
     ENDIF
 
     CALL zsumcsrs(A_csr,C_csr,s,D_csr)
-    
+
     !Assegna in A_csr i valori di D_csr e distrugge D_csr
     CALL destroy(C_csr)
     CALL destroy(A_csr)
@@ -2681,8 +2703,8 @@ CONTAINS
 
   !**************************************************************************
   !
-  !  SUBROUTINE per la concatenazione di matrici sparse (concatena blocchi in 
-  !  place) o per somma con prodotto per scalare di un sottoblocco all'interno 
+  !  SUBROUTINE per la concatenazione di matrici sparse (concatena blocchi in
+  !  place) o per somma con prodotto per scalare di un sottoblocco all'interno
   !  di una matrice A+sB.
   !*************************************************************************
   subroutine zrconcatm_csr(A_csr,s,B_csr,ty,i1,j1)
@@ -2697,7 +2719,7 @@ CONTAINS
     !A_csr viene opportunamente riallocata per contenere anche i nuovi valori
     !
     !Nota: non viene effettuato nessun controllo su A_csr, se A_csr e` non nulla
-    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori 
+    !nella regione di concatenazione la SUBROUTINE effettua la somma dei valori
     !gia` presenti con quelli di B_csr
     !*************************************************************************
 
@@ -2716,7 +2738,7 @@ CONTAINS
     IF (B_csr%nnz.EQ.0) RETURN
 
     !Crea una matrice C sparsa di zeri che contiene B come sottomatrice
-    !nella regione di interesse 
+    !nella regione di interesse
     CALL create(C_csr,A_csr%nrow,max(B_csr%ncol+j1-1,A_csr%ncol),B_csr%nnz)
     !Inizializza C_csr%rowpnt
     C_csr%rowpnt(1:C_csr%nrow+1)=1
@@ -2737,7 +2759,7 @@ CONTAINS
 
     do i2=1,B_csr%nrow+1
        C_csr%rowpnt(i2+i1-1)=B_csr%rowpnt(i2)
-    enddo 
+    enddo
 
     IF ((i1+B_csr%nrow).lt.C_csr%nrow) THEN
        C_csr%rowpnt((B_csr%nrow+i1+1):(C_csr%nrow+1))=C_csr%rowpnt(B_csr%nrow+i1)
@@ -2839,14 +2861,14 @@ CONTAINS
 
     !*************************************************************************
     !
-    !Input: 
+    !Input:
     !GreenR1: blocco della Green Retarded
     !GreenR2: blocco della Green Retarded corrispondente alla Green Advanced
     !         che viene calcolata all'interno della subroutine
     !GreenR2_ncol: numero di colonne di GreenR2
-    !flag: Se il flag =  1 viene deallocata GreenR2 internamente appena e` 
+    !flag: Se il flag =  1 viene deallocata GreenR2 internamente appena e`
     !      disponibile l'advanced corrispondente, altrimenti no
-    !      
+    !
     !A: Spectral Density corrispondente
     !La funzione calcola A=j*(GreenR1-dagacsr(GreenR2))
     !
@@ -2877,13 +2899,13 @@ CONTAINS
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then 
+    if (flagR.eq.1) then
        call destroy(GreenR2)
     endif
-    
+
   end subroutine zspectral_csr
 
-  ! DNS version  **********************************************************    
+  ! DNS version  **********************************************************
 
   subroutine zspectral_dns(GreenR1,GreenR2,flagR,A)
     implicit none
@@ -2891,7 +2913,7 @@ CONTAINS
     type(z_DNS) :: GreenR1, GreenR2, GreenA, A
     integer :: flagR
 
-    
+
     !Hermitiano di GreenR2 passato in GreenA
     call zdagger(GreenR2,GreenA)
 
@@ -2901,7 +2923,7 @@ CONTAINS
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then 
+    if (flagR.eq.1) then
        call destroy(GreenR2)
     endif
 
@@ -2922,25 +2944,25 @@ CONTAINS
    if (.not.A%sorted) then
      CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
      CALL zcsort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
-     call log_deallocate(iwork)  
+     call log_deallocate(iwork)
      A%sorted = .true.
    endif
 
   end subroutine zcsort_st
-  
+
   !------------------------------------------------------------------------
 
   subroutine zcooxcsr_st(coo,sp)
 
     implicit none
- 
+
     type(z_EXT_COO) :: coo
     type(z_CSR) :: sp
- 
+
     integer :: n,nnz,nnz_p
-    
+
     if ((coo%nrow.ne.sp%nrow).or.(coo%ncol.ne.sp%ncol)) then
-        call error_msg('(zcooxcsr_st)',MISMATCH) 
+        call error_msg('(zcooxcsr_st)',MISMATCH)
     endif
 
     nnz=coo%nnz
@@ -2949,56 +2971,56 @@ CONTAINS
     do n=1,nnz
       if(coo%first(n)) nnz_p=nnz_p+1
     enddo
- 
+
     !Allocate matrix B
     call create(sp,coo%nrow,coo%ncol,nnz_p)
- 
+
     call zcooxcsr(coo%nrow,coo%nnz,coo%nzval,coo%index_i,coo%index_j,coo%first, &
         sp%nzval,sp%colind,sp%rowpnt)
-    
+
   end subroutine zcooxcsr_st
 
   !------------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  !  Extended Coordinate   to   Compressed Sparse Row 
-  !----------------------------------------------------------------------- 
+  !  Extended Coordinate   to   Compressed Sparse Row
+  !-----------------------------------------------------------------------
   ! converts a matrix that is stored in coordinate format
   !  a, ir, jc into a row general sparse ao, jao, iao format.
   !
   ! on entry:
-  !--------- 
-  ! nrow	= dimension of the matrix 
+  !---------
+  ! nrow	= dimension of the matrix
   ! nnz	= number of nonzero elements in matrix
   ! a,
-  ! ir, 
+  ! ir,
   ! jc    = matrix in coordinate format. a(k), ir(k), jc(k) store the nnz
   !         nonzero elements of the matrix with a(k) = actual real value of
-  ! 	  the elements, ir(k) = its row number and jc(k) = its column 
-  !	  number. The order of the elements is arbitrary. 
+  ! 	  the elements, ir(k) = its row number and jc(k) = its column
+  !	  number. The order of the elements is arbitrary.
   ! lp    = logical flag indicating primitives.
   !
   ! on return:
-  !----------- 
+  !-----------
   ! ir 	is destroyed!
   !
-  ! ao, jao, iao = matrix in general sparse matrix format with ao 
-  ! 	continung the real values, jao containing the column indices, 
-  !	and iao being the pointer to the beginning of the row, 
+  ! ao, jao, iao = matrix in general sparse matrix format with ao
+  ! 	continung the real values, jao containing the column indices,
+  !	and iao being the pointer to the beginning of the row,
   !	in arrays ao, jao.
   !
   !Notes:
   !------ This routine is NOT in place.  See coicsr
   !------------------------------------------------------------------------
-  
+
   subroutine zcooxcsr(nrow,nnz,a,ir,jc,lp,ao,jao,iao)
-    integer :: nrow, nnz  
-    complex(8)  :: a(*),ao(*),x
+    integer :: nrow, nnz
+    complex(dp)  :: a(*),ao(*),x
     integer     :: ir(*),jc(*),jao(*),iao(*)
     logical     :: lp(*)
 
     integer :: l, k, j, k0, i, iad
-    
-    do k=1,nrow+1  
+
+    do k=1,nrow+1
       iao(k) = 0
     enddo
     ! determine row-lengths.
@@ -3018,8 +3040,8 @@ CONTAINS
         i = ir(k)
         j = jc(k)
         x = a(k)
-        
-        iad = iao(i) 
+
+        iad = iao(i)
         ao(iad) = x
         jao(iad) = j
         iao(i) = iad+1
@@ -3030,31 +3052,31 @@ CONTAINS
       iao(j+1) = iao(j)
     enddo
     iao(1) = 1
-    ! go through the structure  once more. to add non primitives    
+    ! go through the structure  once more. to add non primitives
     do k=1, nnz
-      if (.not.lp(k)) then    
+      if (.not.lp(k)) then
         i = ir(k)
         j = jc(k)
         x = a(k)
-        
+
         do l=iao(i),iao(i+1)-1
-          if (jao(l).eq.j) then 
+          if (jao(l).eq.j) then
             iad=l
             exit
           endif
         enddo
-        
+
         ao(iad) = ao(iad) + x
-        
+
       endif
     enddo
-    
+
     return
-    
+
   end subroutine zcooxcsr
 
-  !------------- end of coocsr ------------------------------------------- 
-  !----------------------------------------------------------------------- 
+  !------------- end of coocsr -------------------------------------------
+  !-----------------------------------------------------------------------
   subroutine getdiag_csr(A_csr,D_vec)
 
     !************************************************************************
@@ -3086,7 +3108,7 @@ CONTAINS
 
   end subroutine getdiag_csr
 
-  !----------------------------------------------------------------------- 
+  !-----------------------------------------------------------------------
   subroutine rgetdiag_csr(A_csr,D_vec)
 
     !************************************************************************
@@ -3116,15 +3138,15 @@ CONTAINS
 
     call log_deallocate(idiag)
 
-  end subroutine rgetdiag_csr  
+  end subroutine rgetdiag_csr
   !---------------------------------------------
-    
+
   function ztrace_csr(mat) result(trace)
     type(z_CSR) :: mat
     complex(dp) :: trace
 
     complex(kind=dp), dimension(:), allocatable :: D_vec
-    
+
     call log_allocate(D_vec,mat%nrow)
 
     call getdiag(mat,D_vec)
@@ -3140,15 +3162,15 @@ CONTAINS
   function ztrace_dns(mat) result(trace)
      type(z_DNS) :: mat
      complex(dp) :: trace
-        
+
      integer :: i
 
      trace = (0.d0,0.d0)
      do i = 1,mat%nrow
         trace = trace + mat%val(i,i)
-     end do 
+     end do
 
-  end function ztrace_dns    
+  end function ztrace_dns
 
 !---------------------------------------------
 
@@ -3156,8 +3178,8 @@ CONTAINS
     type(r_CSR) :: Grm
     integer :: i1, i2, iadd
     real(dp) :: getelm_out, getelm
-   
-    if (Grm%sorted) then 
+
+    if (Grm%sorted) then
       getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
     else
       getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
@@ -3168,8 +3190,8 @@ CONTAINS
     type(z_CSR) :: Grm
     integer :: i1, i2, iadd
     complex(dp) :: getelm_out, zgetelm
-    
-    if (Grm%sorted) then 
+
+    if (Grm%sorted) then
       getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
     else
       getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
@@ -3177,16 +3199,16 @@ CONTAINS
 
   end function zgetelm_csr
 !---------------------------------------------
-         
+
   SUBROUTINE check_if_hermitian(ham)
 
     TYPE(z_CSR) :: ham
 
     ! Local variables:
- 
+
     INTEGER :: row, p, col, file_num, count
     COMPLEX( dp ) :: matel1, matel2
-    
+
     call msort(ham)
 
     file_num = 111
@@ -3195,23 +3217,23 @@ CONTAINS
 
     count = 0
     do row = 1, ham%nrow
- 
+
        do p = ham%rowpnt(row), ham%rowpnt(row+1) - 1 !row+1,n_ham
-          
+
           col = ham%colind(p)
-          
+
           matel1 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, row, col)
           matel2 = sprs_element(ham%nzval, ham%colind, ham%rowpnt, col, row)
-          
+
           if( abs(matel1-conjg(matel2)).gt. 1.d-10 ) then
-             
+
              count = count + 1
-             write(file_num,*) row,col,matel1                
+             write(file_num,*) row,col,matel1
              write(file_num,*) col,row,matel2
              write(file_num,*)
-                          
+
           end if
-          
+
        enddo
     enddo
     if (count .ne. 0) then
@@ -3233,7 +3255,7 @@ CONTAINS
     !-------------------------------------------------
     ! OUT data
     INTEGER, DIMENSION(:) :: colind
-    INTEGER, DIMENSION(:) :: rowpnt    
+    INTEGER, DIMENSION(:) :: rowpnt
     COMPLEX (dp), DIMENSION(:) :: M
     !-------------------------------------------------
     INTEGER :: index, ibeg, iend, imid
@@ -3251,13 +3273,13 @@ CONTAINS
           index = imid
           exit
        END IF
-       
+
        IF ( colind(imid) .GT. col) then
           iend = imid - 1
        ELSE
           ibeg = imid + 1
        END IF
-       
+
     END DO
 
     IF ( index .EQ. 0 ) THEN
@@ -3265,10 +3287,10 @@ CONTAINS
     ELSE
        sprs_element = M(index)
     END IF
-    
+
   END FUNCTION sprs_element
   !-------------------------------------------------
-  
+
   subroutine error_msg(string,err)
     integer, intent(in) :: err
     character(*), intent(in) :: string
@@ -3280,20 +3302,20 @@ CONTAINS
        WRITE(*,*) 'ERROR '//trim(string)//' matrices don''t match'
     case(OUTOFBOUND)
        WRITE(*,*) 'ERROR '//trim(string)//' exceeding nnz of destination matrix'
-    case(BADINDEX)            
+    case(BADINDEX)
        WRITE(*,*) 'ERROR '//trim(string)//' bad indeces'
-    case(CONVERR) 
-       WRITE(*,*) 'ERROR '//trim(string)//' conversion error'   
-    end select 
+    case(CONVERR)
+       WRITE(*,*) 'ERROR '//trim(string)//' conversion error'
+    end select
 
   end subroutine error_msg
 
   !------------------------------------------------------------
-  !> Convert a CSR in a block dense matrix, only taking the 
+  !> Convert a CSR in a block dense matrix, only taking the
   !  diagonal and sub/over diag
   subroutine zcsr2blk_sod(Acsr,Ablk,indblk)
 
-        IMPLICIT NONE 
+        IMPLICIT NONE
 
     INTEGER :: i
     TYPE(z_CSR) :: Acsr
@@ -3318,8 +3340,6 @@ CONTAINS
 
 
   end subroutine zcsr2blk_sod
-  
+
 
 end module sparsekit_drv
-
-
