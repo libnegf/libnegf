@@ -487,8 +487,8 @@ C-----------------------------------------------------------------------
 c
       chsubr = 'CCONEX'
       newblc = 0
-C$DOACROSS if(nbloc.gt.1), LOCAL(ibloc, ik0, ik1, ins0, ntb0,
-C$&   nccnex, ilccnx, info, kpibl), REDUCTION(ier, newblc)
+C C$DOACROSS if(nbloc.gt.1), LOCAL(ibloc, ik0, ik1, ins0, ntb0,
+C C$&   nccnex, ilccnx, info, kpibl), REDUCTION(ier, newblc)
       do 100 ibloc = 1,nbloc
          ik0 = nsbloc(ibloc - 1)
          ik1 = nsbloc(ibloc)
@@ -575,7 +575,7 @@ C.......................................................................
       DIMENSION IX(n),IY(n)
 C.......................................................................
       IF(N.LE.0) RETURN
-C$DOACROSS if(n .gt. 250), local(i)
+C C$DOACROSS if(n .gt. 250), local(i)
       DO 10 I = 1,N
          IY(I) = IX(I)
    10 CONTINUE
@@ -594,7 +594,7 @@ C-----------------------------------------------------------------------
 C-----------------------------------------------------------------------
 c     Laura C. Dutto - Mars 1994
 C-----------------------------------------------------------------------
-C$DOACROSS if(n .gt. 250), local(i0)
+C C$DOACROSS if(n .gt. 250), local(i0)
       do i0 = 1, n
          lpw0(i0) = lpw1(lpw0(i0))
       enddo
@@ -612,7 +612,7 @@ c.......................................................................
 c.......................................................................
 c     Laura C. Dutto - Novembre 1993
 c.......................................................................
-C$DOACROSS if(n .gt. 200), local(i0, i1)
+C C$DOACROSS if(n .gt. 200), local(i0, i1)
       do i0 = 1, n
          i1 = lpw(i0)
          kpw(i1) = i0
@@ -631,7 +631,7 @@ c
 c.......................................................................
 c     Laura C. Dutto - Novembre 1993
 c.......................................................................
-C$DOACROSS if(n .gt. 250), local(i)
+C C$DOACROSS if(n .gt. 250), local(i)
       do i=1,n
          lpw(i) = i
       enddo
@@ -646,7 +646,7 @@ C.......................................................................
       DIMENSION M(NMOT)
 C.......................................................................
       IF(NMOT.le.0) return
-C$DOACROSS if(nmot.gt.500), LOCAL(i)
+C C$DOACROSS if(nmot.gt.500), LOCAL(i)
       DO 1 I=1,NMOT
            M(I)=0
  1         CONTINUE
@@ -671,12 +671,12 @@ c
       if(nalpha .eq. 0) then
            if(nbeta .eq. 1) return
            if(nbeta .eq. -1) then
-C$DOACROSS if(n .gt. nmax), local (i)
+C C$DOACROSS if(n .gt. nmax), local (i)
                 do i = 1, n
                    ia(i) = - ia(i)
                 enddo
            else
-C$DOACROSS if(n .gt. nmax/2), local (i)
+C C$DOACROSS if(n .gt. nmax/2), local (i)
                 do i = 1, n
                    ia(i) = nbeta * ia(i)
                 enddo
@@ -684,24 +684,24 @@ C$DOACROSS if(n .gt. nmax/2), local (i)
            return
       endif
       if(nbeta .eq. 0) then
-C$DOACROSS if(n .gt. nmax), local (i)
+C C$DOACROSS if(n .gt. nmax), local (i)
            do i = 1, n
               ia(i) = nalpha
            enddo
            return
       endif
       if(nbeta .eq. -1) then
-C$DOACROSS if(n .gt. nmax/2), local (i)
+C C$DOACROSS if(n .gt. nmax/2), local (i)
            do i = 1, n
               ia(i) = nalpha - ia(i)
            enddo
       else if(nbeta .eq. 1) then
-C$DOACROSS if(n .gt. nmax/2), local (i)
+C C$DOACROSS if(n .gt. nmax/2), local (i)
            do i = 1, n
               ia(i) = nalpha + ia(i)
            enddo
       else
-C$DOACROSS if(n .gt. nmax/3), local (i)
+C C$DOACROSS if(n .gt. nmax/3), local (i)
            do i = 1, n
               ia(i) = nalpha + nbeta * ia(i)
            enddo
