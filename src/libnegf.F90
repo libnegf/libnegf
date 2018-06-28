@@ -1309,7 +1309,9 @@ contains
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
     call tunneling_and_dos(negf)
-    call electron_current(negf)                   
+    if (associated(negf%tunn_mat)) then
+      call electron_current(negf)                   
+    end if
     call destroy_matrices(negf)
 
   end subroutine compute_landauer
@@ -1326,7 +1328,9 @@ contains
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
-    call electron_current_meir_wingreen(negf)                               !DAR
+    if (associated(negf%tunn_mat)) then
+      call electron_current_meir_wingreen(negf)
+    end if
     call destroy_matrices(negf)
 
   end subroutine compute_meir_wingreen

@@ -1720,6 +1720,12 @@ contains
     integer :: size_ni, ii, ni, nf
     real(dp) :: mu1, mu2
 
+    if (.not.associated(negf%tunn_mat)) then
+      write(*,*) 'Internal error: electron_current must be invoked'
+      write(*,*) 'after tunneling calculation'
+      stop
+    end if
+
     size_ni = size(negf%tunn_mat,2)
 
     !print *, 'negf%ni',negf%ni
@@ -1752,6 +1758,12 @@ contains
     
     integer :: size_ni, ii
     real(dp) :: mu1, mu2
+
+    if (.not.associated(negf%tunn_mat)) then
+      write(*,*) 'Internal error: electron_current_meir_wingreen must be invoked'
+      write(*,*) 'after tunneling calculation'
+      stop
+    end if
 
     size_ni = size(negf%tunn_mat,2)
 
