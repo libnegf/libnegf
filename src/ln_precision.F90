@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,11 +15,12 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
 module ln_precision
+  use :: iso_fortran_env, only : int64
   implicit none
   private
 
@@ -27,7 +28,8 @@ module ln_precision
   public :: EPS, EPS10, EPS12, EPS15, SGFACC
   public :: get_machine_prec
   public :: set_drop
-  
+  public :: long
+
   integer, parameter :: sp = selected_real_kind(6,30)
   integer, parameter :: dp = selected_real_kind(14,100)
 
@@ -36,9 +38,9 @@ module ln_precision
   real(dp), parameter :: EPS12=1e-12_dp
   real(dp), parameter :: EPS15=1e-15_dp
   real(dp), parameter :: SGFACC=EPS10*10.0_dp
+  integer, parameter :: long = int64
 
-  
-contains 
+contains
 
   function get_machine_prec() result(racc)
     interface

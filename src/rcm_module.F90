@@ -9,7 +9,7 @@
 !
 !  Licensing:
 !
-!    This code is distributed under the GNU LGPL license. 
+!    This code is distributed under the GNU LGPL license.
 !
 !  Modified:
 !
@@ -32,7 +32,7 @@
 !
 !    Input, integer ( kind = 4 ) ADJ_NUM, the number of adjacency entries.
 !
-!    Input, integer ( kind = 4 ) ADJ_ROW(NODE_NUM+1).  Information about 
+!    Input, integer ( kind = 4 ) ADJ_ROW(NODE_NUM+1).  Information about
 !    row I is stored in entries ADJ_ROW(I) through ADJ_ROW(I+1)-1 of ADJ.
 !
 !    Input, integer ( kind = 4 ) ADJ(ADJ_NUM), the adjacency structure.
@@ -43,7 +43,7 @@
 !  Local Parameters:
 !
 !    Local, integer LEVEL_ROW(NODE_NUM+1), the index vector for a level
-!    structure.  The level structure is stored in the currently unused 
+!    structure.  The level structure is stored in the currently unused
 !    spaces in the permutation vector PERM.
 !
 !    Local, integer MASK(NODE_NUM), marks variables that have been numbered.
@@ -54,11 +54,12 @@
 !  They have been readapted in this module by A. Pecchia.
 !
 !  Note: find_root crash for very large matrices because of stack overflow
-!        part of the problem has been solved but not all. work in progress       
+!        part of the problem has been solved but not all. work in progress
 !
 !*****************************************************************************
 
 module rcm_module
+  use ln_precision, only : dp
 
   implicit none
   private
@@ -78,10 +79,10 @@ module rcm_module
 !!$  private ::  d2vec_permute
 !!$  private ::  degree
 !!$  private ::  dmat_print_some
-!!$  private ::  dmat_transpose_print_some 
+!!$  private ::  dmat_transpose_print_some
 !!$  private ::  graph_01_adj
 !!$  private ::  graph_01_size
-!!$  private ::  graph_01_label    
+!!$  private ::  graph_01_label
 !!$  private ::  i_swap
 !!$  private ::  i_uniform
 !!$  private ::  imat_print_some
@@ -91,7 +92,7 @@ module rcm_module
 !!$  private ::  irow_sort_a
 !!$  private ::  irow_swap
 !!$  private ::  ivec_indicator
-!!$  private ::  ivec_reverse  
+!!$  private ::  ivec_reverse
 !!$  private ::  ivec_print
 !!$  private ::  level_set
 !!$  private ::  level_set_print
@@ -108,15 +109,15 @@ module rcm_module
 !!$  private ::  triangulation_order3_example
 !!$  private ::  triangulation_order3_example_size
 !!$  private ::  triangulation_order3_neighbor_triangles
-!!$  private ::  triangulation_order6_adj_count 
+!!$  private ::  triangulation_order6_adj_count
 !!$  private ::  triangulation_order6_adj_set
 !!$  private ::  triangulation_order6_example
 !!$  private ::  triangulation_order6_example_size
 !!$  private ::  triangulation_order6_neighbor_triangles
 
 contains
-  
-function adj_bandwidth ( node_num, adj_num, adj_row, adj )  
+
+function adj_bandwidth ( node_num, adj_num, adj_row, adj )
 
 !*******************************************************************************
 !
@@ -336,7 +337,7 @@ subroutine adj_insert_ij ( node_num, adj_max, adj_num, adj_row, adj, i, j )
       return
     else if ( adj(k) < j ) then
       j_spot = k + 1
-    else 
+    else
       exit
     end if
   end do
@@ -359,7 +360,7 @@ function adj_perm_bandwidth ( node_num, adj_num, adj_row, adj, perm, perm_inv )
 !
 !  Discussion:
 !
-!    The matrix is defined by the adjacency information and a permutation.  
+!    The matrix is defined by the adjacency information and a permutation.
 !
 !    The routine also computes the bandwidth and the size of the envelope.
 !
@@ -437,12 +438,12 @@ subroutine adj_perm_show ( node_num, adj_num, adj_row, adj, perm, perm_inv )
 !
 !  Discussion:
 !
-!    The matrix is defined by the adjacency information and a permutation.  
+!    The matrix is defined by the adjacency information and a permutation.
 !
 !    The routine also computes the bandwidth and the size of the envelope.
 !
 !    If no permutation has been done, you must set PERM(I) = PERM_INV(I) = I
-!    before calling this routine.  
+!    before calling this routine.
 !
 !  Modified:
 !
@@ -736,7 +737,7 @@ subroutine adj_set ( node_num, adj_max, adj_num, adj_row, adj, irow, jcol )
 !
 !    Input/output, integer ADJ_NUM, the number of adjaceny entries.
 !
-!    Input/output, integer ADJ_ROW(NODE_NUM+1).  Information about 
+!    Input/output, integer ADJ_ROW(NODE_NUM+1).  Information about
 !    row I is stored in entries ADJ_ROW(I) through ADJ_ROW(I+1)-1 of ADJ.
 !
 !    Input/output, integer ADJ(ADJ_NUM), the adjacency structure.
@@ -829,7 +830,7 @@ subroutine adj_show ( node_num, adj_num, adj_row, adj )
 !
 !  Discussion:
 !
-!    The matrix is defined by the adjacency information and a permutation.  
+!    The matrix is defined by the adjacency information and a permutation.
 !
 !    The routine also computes the bandwidth and the size of the envelope.
 !
@@ -944,13 +945,13 @@ logical function d_is_int ( r )
   implicit none
 
   integer i
-  real ( kind = 8 ) r
+  real (dp) r
 
-  if ( real ( huge ( i ), kind = 8 ) < r ) then
+  if ( real ( huge ( i ), dp) < r ) then
     d_is_int = .false.
-  else if ( r < - real ( huge ( i ), kind = 8 ) ) then
+  else if ( r < - real ( huge ( i ), dp) ) then
     d_is_int = .false.
-  else if ( r == real ( int ( r ), kind = 8 ) ) then
+  else if ( r == real ( int ( r ), dp) ) then
     d_is_int = .true.
   else
     d_is_int = .false.
@@ -959,7 +960,7 @@ logical function d_is_int ( r )
   return
 end function d_is_int
 
-  real ( kind = 8 ) function d_uniform_01 ( seed )
+  real (dp) function d_uniform_01 ( seed )
 
 !*******************************************************************************
 !
@@ -998,14 +999,14 @@ end function d_is_int
 !    (Otherwise, the output values of SEED and UNIFORM will be zero.)
 !    On output, SEED has been updated.
 !
-!    Output, real ( kind = 8 ) D_UNIFORM_01, a new pseudorandom variate,
+!    Output, real (dp) D_UNIFORM_01, a new pseudorandom variate,
 !    strictly between 0 and 1.
 !
   implicit none
 
   integer k
   integer seed
-  !real ( kind = 8 ) d_uniform_01
+  !real (dp) d_uniform_01
 
   k = seed / 127773
 
@@ -1018,7 +1019,7 @@ end function d_is_int
 !  Although SEED can be represented exactly as a 32 bit integer,
 !  it generally cannot be represented exactly as a 32 bit real number!
 !
-  d_uniform_01 = real ( seed, kind = 8 ) * 4.656612875D-10
+  d_uniform_01 = real ( seed, dp) * 4.656612875E-10_dp
 
   return
 end function d_uniform_01
@@ -1064,7 +1065,7 @@ subroutine d2vec_permute ( n, a, p )
 !
 !    Input, integer N, the number of objects.
 !
-!    Input/output, real ( kind = 8 ) A(2,N), the array to be permuted.
+!    Input/output, real (dp) A(2,N), the array to be permuted.
 !
 !    Input, integer P(N), the permutation.  P(I) = J means
 !    that the I-th element of the output array should be the J-th
@@ -1077,8 +1078,8 @@ subroutine d2vec_permute ( n, a, p )
   integer n
   integer, parameter :: ndim = 2
 
-  real ( kind = 8 ) a(ndim,n)
-  real ( kind = 8 ) a_temp(ndim)
+  real (dp) a(ndim,n)
+  real (dp) a_temp(ndim)
   integer ierror
   integer iget
   integer iput
@@ -1150,7 +1151,7 @@ subroutine d2vec_permute ( n, a, p )
 
   return
 end subroutine d2vec_permute
-  
+
 
 subroutine degree(root, adj_num, adj_row, adj, mask, deg, iccsze, ls, node_num)
 
@@ -1194,7 +1195,7 @@ subroutine degree(root, adj_num, adj_row, adj, mask, deg, iccsze, ls, node_num)
 !    Output, integer ICCSIZE, the number of nodes in the connected component.
 !
 !    Output, integer LS(NODE_NUM), stores in entries 1 through ICCSIZE the nodes
-!    in the connected component, starting with ROOT, and proceeding 
+!    in the connected component, starting with ROOT, and proceeding
 !    by levels.
 !
 !    Input, integer NODE_NUM, the number of nodes.
@@ -1310,7 +1311,7 @@ subroutine dmat_print_some ( m, n, a, ilo, jlo, ihi, jhi, title )
 !
 !    Input, integer M, N, the number of rows and columns.
 !
-!    Input, real ( kind = 8 ) A(M,N), an M by N matrix to be printed.
+!    Input, real (dp) A(M,N), an M by N matrix to be printed.
 !
 !    Input, integer ILO, JLO, the first row and column to print.
 !
@@ -1324,7 +1325,7 @@ subroutine dmat_print_some ( m, n, a, ilo, jlo, ihi, jhi, title )
   integer m
   integer n
 
-  real ( kind = 8 ) a(m,n)
+  real (dp) a(m,n)
   character ( len = 14 ) ctemp(incx)
   !logical, external :: d_is_int
   integer i
@@ -1411,7 +1412,7 @@ subroutine dmat_transpose_print_some ( m, n, a, ilo, jlo, ihi, jhi, title )
 !
 !    Input, integer M, N, the number of rows and columns.
 !
-!    Input, real ( kind = 8 ) A(M,N), an M by N matrix to be printed.
+!    Input, real (dp) A(M,N), an M by N matrix to be printed.
 !
 !    Input, integer ILO, JLO, the first row and column to print.
 !
@@ -1425,7 +1426,7 @@ subroutine dmat_transpose_print_some ( m, n, a, ilo, jlo, ihi, jhi, title )
   integer m
   integer n
 
-  real ( kind = 8 ) a(m,n)
+  real (dp) a(m,n)
   character ( len = 14 ) ctemp(incx)
   integer i
   integer i2
@@ -1524,7 +1525,7 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
 !  Local Parameters:
 !
 !    Local, integer LEVEL_ROW(NODE_NUM+1), the index vector for a level
-!    structure.  The level structure is stored in the currently unused 
+!    structure.  The level structure is stored in the currently unused
 !    spaces in the permutation vector PERM.
 !
 !    Local, integer MASK(NODE_NUM), marks variables that have been numbered.
@@ -1571,7 +1572,7 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
 !
    call rcm(root, adj_num, adj_row, adj, mask, perm(num:), iccsze, &
             node_num )
-   
+
    num = num + iccsze
 !
 !  We can stop once every node is in one of the connected components.
@@ -1579,7 +1580,7 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
       if ( node_num < num ) then
           return
          end if
-   
+
     end if
 
   end do
@@ -1782,13 +1783,13 @@ end subroutine i_swap
 
   integer a
   integer b
-  real ( kind = 8 ) d
-  !real ( kind = 8 ) d_uniform_01
+  real (dp) d
+  !real (dp) d_uniform_01
   !integer i_uniform
   integer seed
 
-  d = real ( a, kind = 8 ) - 0.5D+00 &
-    + real ( 1 + b - a, kind = 8 ) * d_uniform_01 ( seed )
+  d = real ( a, dp) - 0.5E+00_dp &
+    + real ( 1 + b - a, dp) * d_uniform_01 ( seed )
 
   i_uniform = nint ( d )
 
@@ -2494,7 +2495,7 @@ subroutine level_set ( root, adj_num, adj_row, adj, mask, level_num, &
 !    structure.  ROOT is in level 1.  The neighbors of ROOT
 !    are in level 2, and so on.
 !
-!    Output, integer LEVEL_ROW(NODE_NUM+1), LEVEL(NODE_NUM), the rooted 
+!    Output, integer LEVEL_ROW(NODE_NUM+1), LEVEL(NODE_NUM), the rooted
 !    level structure.
 !
 !    Input, integer NODE_NUM, the number of nodes.
@@ -2521,7 +2522,7 @@ subroutine level_set ( root, adj_num, adj_row, adj, mask, level_num, &
   integer nbr
   integer node
   integer root
-  
+
   mask(root) = 0
   level(1) = root
   level_num = 0
@@ -2547,13 +2548,13 @@ subroutine level_set ( root, adj_num, adj_row, adj, mask, level_num, &
       node = level(i)
       jstrt = adj_row(node)
       jstop = adj_row(node+1)-1
-      
+
       do j = jstrt, jstop
 
         nbr = adj(j)
-        
+
         if ( mask(nbr).ne.0 ) then
-          if(iccsze.lt.node_num) then 
+          if(iccsze.lt.node_num) then
              iccsze = iccsze + 1
              level(iccsze) = nbr
              mask(nbr) = 0
@@ -2581,7 +2582,7 @@ subroutine level_set ( root, adj_num, adj_row, adj, mask, level_num, &
 !  Reset MASK to 1 for the nodes in the level structure.
 !
   mask(level(1:iccsze)) = 1
-       
+
   return
 end subroutine level_set
 
@@ -2852,9 +2853,9 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
 !    Input, integer ADJ(ADJ_NUM), the adjacency structure.
 !    For each row, it contains the column indices of the nonzero entries.
 !
-!    Input/output, integer MASK(NODE_NUM), a mask for the nodes.  Only 
-!    those nodes with nonzero input mask values are considered by the 
-!    routine.  The nodes numbered by RCM will have their mask values 
+!    Input/output, integer MASK(NODE_NUM), a mask for the nodes.  Only
+!    those nodes with nonzero input mask values are considered by the
+!    routine.  The nodes numbered by RCM will have their mask values
 !    set to zero.
 !
 !    Output, integer PERM(NODE_NUM), the RCM ordering.
@@ -2866,7 +2867,7 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
 !
 !  Local parameters:
 !
-!    Workspace, integer DEG(NODE_NUM), a temporary vector used to hold 
+!    Workspace, integer DEG(NODE_NUM), a temporary vector used to hold
 !    the degree of the nodes in the section graph specified by mask and root.
 !
   implicit none
@@ -3063,13 +3064,13 @@ subroutine root_find ( root, adj_num, adj_row, adj, mask, level_num, &
 !    Input, integer ADJ(ADJ_NUM), the adjacency structure.
 !    For each row, it contains the column indices of the nonzero entries.
 !
-!    Input, integer MASK(NODE_NUM), specifies a section subgraph.  Nodes 
+!    Input, integer MASK(NODE_NUM), specifies a section subgraph.  Nodes
 !    for which MASK is zero are ignored by FNROOT.
 !
 !    Output, integer LEVEL_NUM, is the number of levels in the level structure
 !    rooted at the node ROOT.
 !
-!    Output, integer LEVEL_ROW(NODE_NUM+1), integer LEVEL(NODE_NUM), the 
+!    Output, integer LEVEL_ROW(NODE_NUM+1), integer LEVEL(NODE_NUM), the
 !    level structure array pair containing the level structure found.
 !
 !    Input, integer NODE_NUM, the number of nodes.
@@ -3158,7 +3159,7 @@ subroutine root_find ( root, adj_num, adj_row, adj, mask, level_num, &
         end if
 
       end do
- 
+
     end if
 !
 !  Generate the rooted level structure associated with this node.
@@ -3579,7 +3580,7 @@ subroutine triangulation_order3_adj_count ( node_num, tri_num, triangle_node, &
 !     70,  74,  80,  86,  92,
 !     96,  99, 103, 107, 111,
 !    113
-!      
+!
 !  Modified:
 !
 !    11 November 2005
@@ -3595,7 +3596,7 @@ subroutine triangulation_order3_adj_count ( node_num, tri_num, triangle_node, &
 !    Input, integer TRI_NUM, the number of triangles.
 !
 !    Input, integer TRIANGLE_NODE(3,TRI_NUM), lists the nodes that
-!    make up each triangle, in counterclockwise order. 
+!    make up each triangle, in counterclockwise order.
 !
 !    Input, integer TRIANGLE_NEIGHBOR(3,TRI_NUM), for each side of
 !    a triangle, lists the neighboring triangle, or -1 if there is
@@ -3662,7 +3663,7 @@ subroutine triangulation_order3_adj_count ( node_num, tri_num, triangle_node, &
       adj_row(n1) = adj_row(n1) + 1
       adj_row(n3) = adj_row(n3) + 1
     end if
-      
+
   end do
 !
 !  We used ADJ_ROW to count the number of entries in each row.
@@ -3775,7 +3776,7 @@ subroutine triangulation_order3_adj_set ( node_num, tri_num, triangle_node, &
 !     70,  74,  80,  86,  92,
 !     96,  99, 103, 107, 111,
 !    113
-!         
+!
 !  Modified:
 !
 !    11 November 2005
@@ -3867,7 +3868,7 @@ subroutine triangulation_order3_adj_set ( node_num, tri_num, triangle_node, &
       adj(adj_copy(n3)) = n1
       adj_copy(n3) = adj_copy(n3) + 1
     end if
-      
+
   end do
 
   return
@@ -3968,7 +3969,7 @@ subroutine triangulation_order3_example ( node_num, tri_num, triangle_node, &
     -1,  6,  4, &
     13,  5,  7, &
     -1,  8,  6, &
-    15,  7, -1, & 
+    15,  7, -1, &
      2, 10, -1, &
     17,  9, 11, &
      4, 12, 10, &
@@ -3976,7 +3977,7 @@ subroutine triangulation_order3_example ( node_num, tri_num, triangle_node, &
      6, 14, 12, &
     21, 13, 15, &
      8, 16, 14, &
-    23, 15, -1, & 
+    23, 15, -1, &
     10, 18, -1, &
     25, 17, 19, &
     12, 20, 18, &
@@ -3984,7 +3985,7 @@ subroutine triangulation_order3_example ( node_num, tri_num, triangle_node, &
     14, 22, 20, &
     29, 21, 23, &
     16, 24, 22, &
-    31, 23, -1, & 
+    31, 23, -1, &
     18, 26, -1, &
     -1, 25, 27, &
     20, 28, 26, &
@@ -4310,7 +4311,7 @@ subroutine triangulation_order6_adj_count ( node_num, tri_num, triangle_node, &
 !
 !    Counting only the strict lower triangle of adjacency, we get
 !
-!      0, 1, 2, 1, 2, 
+!      0, 1, 2, 1, 2,
 !      3, 4, 4, 4, 2,
 !      6, 4, 9, 4, 5,
 !      3, 4, 4, 4, 2,
@@ -4324,7 +4325,7 @@ subroutine triangulation_order6_adj_count ( node_num, tri_num, triangle_node, &
 !     52, 55, 59, 63, 67,
 !     69, 75, 79, 88, 92,
 !     97.
-!      
+!
 !  Modified:
 !
 !    11 November 2005
@@ -4460,7 +4461,7 @@ subroutine triangulation_order6_adj_count ( node_num, tri_num, triangle_node, &
       adj_row(n3) = adj_row(n3) + 1
       adj_row(n6) = adj_row(n6) + 1
     end if
-      
+
   end do
 !
 !  We used ADJ_ROW to count the number of entries in each row.
@@ -4559,7 +4560,7 @@ subroutine triangulation_order6_adj_set ( node_num, tri_num, triangle_node, &
 !
 !    Counting only the strict lower triangle of adjacency, we get
 !
-!      0, 1, 2, 1, 2, 
+!      0, 1, 2, 1, 2,
 !      3, 4, 4, 4, 2,
 !      6, 4, 9, 4, 5,
 !      3, 4, 4, 4, 2,
@@ -4573,7 +4574,7 @@ subroutine triangulation_order6_adj_set ( node_num, tri_num, triangle_node, &
 !     52, 55, 59, 63, 67,
 !     69, 75, 79, 88, 92,
 !     97.
-!      
+!
 !  Modified:
 !
 !    11 November 2005
@@ -4747,7 +4748,7 @@ subroutine triangulation_order6_adj_set ( node_num, tri_num, triangle_node, &
       adj(adj_copy(n6)) = n3
       adj_copy(n6) = adj_copy(n6) + 1
     end if
-      
+
   end do
 
   return
