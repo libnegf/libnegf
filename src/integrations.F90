@@ -1252,7 +1252,6 @@ contains
        ! If a previous calculation is present, destroy it
        if (associated(negf%currents)) call log_deallocatep(negf%currents)    
        call log_allocatep(negf%currents,1) 
-
        negf%currents = 0.0_dp 
        return
     endif
