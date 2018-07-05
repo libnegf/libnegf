@@ -13,7 +13,7 @@ test: $(OBJS) test.f90
 system_calls.o: system_calls.f90
 	$(FC) $(FXXOPT) -c $<
 
-sys_calls.o: sys_calls.C
+sys_calls.o: sys_calls.c
 	$(CC) $(CCOPT) -c $<
 
 lib: $(OBJS)
@@ -21,4 +21,3 @@ lib: $(OBJS)
 
 clean:
 	rm -f $(OBJS) *.mod test *.a
-
