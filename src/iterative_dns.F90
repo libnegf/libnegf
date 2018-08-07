@@ -130,15 +130,13 @@ CONTAINS
     integer :: i,ierr, nbl, ncont,ii,n    
     integer, dimension(:), pointer :: cblk, indblk
 
-    !print *, 'debug: calls_eq_mem_dns is started'
-
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     cblk => negf%str%cblk
     indblk => negf%str%mat_PL_start
 
     ! Take CSR H,S and build ES-H in dense blocks
-    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),E,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -186,7 +184,6 @@ CONTAINS
     if (negf%elph%numselmodes.gt.0 .and. negf%elph%model .eq. -1) then
       ! save diagonal blocks of Gn = -i G<
       do i = 1, nbl
-        !print*,'G_r ',minval(abs(Gr(i,i)%val)), maxval(abs(Gr(i,i)%val))
         call write_blkmat(Gr(i,i),negf%scratch_path,'G_r_',i,i,negf%iE)
       end do
     endif
@@ -208,8 +205,6 @@ CONTAINS
     !Distruzione dell'array Gr
     CALL destroy_blk(Gr)
     DEALLOCATE(Gr)
-
-    !print *, 'debug: calls_eq_mem_dns is finished'
 
   end SUBROUTINE calls_eq_mem_dns
 
@@ -267,8 +262,6 @@ CONTAINS
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
 
-    !print *, 'debug: calls_neq_mem_dns is started'
-
     if (negf%elph%model .ne. 0) then
       !TOdo: output logfile
       write(*,*) "Warning: calls_neq_mem is not compatible with el-ph models"
@@ -280,10 +273,10 @@ CONTAINS
     cblk => negf%str%cblk
     ref = negf%refcont
 
-    Ec=cmplx(E,0.d0,dp)
+    Ec=cmplx(E,0.0_dp,dp)
 
     ! Take CSR H,S and build ES-H in dense blocks
-    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -366,8 +359,6 @@ CONTAINS
     CALL destroy_ESH(ESH)
     DEALLOCATE(ESH)
 
-    !print *, 'debug: calls_neq_mem_dns is finished'
-
   end SUBROUTINE calls_neq_mem_dns
 
   !****************************************************************************
@@ -419,8 +410,6 @@ CONTAINS
     logical :: mask(MAXNCONT)
     real(dp), dimension(:), allocatable :: cfrm
 
-    !print *, 'debug: calls_neq_elph is started'
-
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     indblk => negf%str%mat_PL_start
@@ -429,10 +418,10 @@ CONTAINS
     iter=0
     if (allocated(negf%inter)) iter = negf%inter%scba_iter
 
-    Ec=cmplx(E,0.d0,dp)
+    Ec=cmplx(E,0.0_dp,dp)
 
     !Costruiamo la matrice sparsa ESH
-    CALL prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    CALL prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -508,8 +497,7 @@ CONTAINS
 
     !Calcolo della G_n nel device
     !Allocazione degli array di sparse
-    ALLOCATE(Gn(nbl,nbl),stat=ierr)
-    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+    call allocate_blk_dns(Gn,nbl)
 
     call init_blkmat(Gn,ESH)
 
@@ -590,9 +578,9 @@ CONTAINS
     iter = 0
     if (allocated(negf%inter)) iter = negf%inter%scba_iter
 
-    Ec=cmplx(E,0.d0,dp)
+    Ec=cmplx(E,0.0_dp,dp)
    
-    call prealloc_sum(negf%H,negf%S,(-1.d0, 0.d0),Ec,ESH_tot)
+    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -613,7 +601,7 @@ CONTAINS
         pl_end=negf%str%mat_PL_end(n)
         do ii = 1, pl_end - pl_start + 1 
           ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-                (0.d0,1.d0)*0.5_dp*negf%deph%bp%coupling(pl_start + ii - 1)  
+                (0.0_dp,1.0_dp)*0.5_dp*negf%deph%bp%coupling(pl_start + ii - 1)  
         end do
       end do
     end if
@@ -651,9 +639,7 @@ CONTAINS
     call deallocate_gsm_dns(gsml)
 
     !! Never calculate outer blocks
-
-    ALLOCATE(Gn(nbl,nbl),stat=ierr)
-    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Gn(nbl,nbl)'
+    call allocate_blk_dns(Gn, nbl)
 
     call init_blkmat(Gn,ESH)
 
@@ -669,16 +655,15 @@ CONTAINS
     do i=1,size(negf%ni)       
       lead = negf%ni(i)
       lead_blk = negf%str%cblk(lead)
-      !print *, 'debug: lead=',lead,' lead_blk=',lead_blk
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gamma)
       if (lead.eq.ref) then
-        call prealloc_mult(Gamma, Gn(lead_blk, lead_blk), (-1.d0, 0.d0), work1)
+        call prealloc_mult(Gamma, Gn(lead_blk, lead_blk), (-1.0_dp, 0.0_dp), work1)
         tun_mat(i) = - real(trace(work1))                      !DAR "-" is added
         call destroy(work1)
       else       
         call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
         tmp = frm(lead)-frm(ref)
-        call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.d0, 0.d0), work1)
+        call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.0_dp, 0.0_dp), work1)
         call destroy(A)
         call prealloc_mult(Gamma, work1, work2)
         call destroy(work1)
@@ -848,18 +833,22 @@ CONTAINS
     nbl = SIZE(Matrix,1)
 
     call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)      
-    Matrix(1,1)%val=(0.d0,0.d0)
+    Matrix(1,1)%val=(0.0_dp,0.0_dp)
     do j=2,nbl-1
       call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)      
-      Matrix(j-1,j)%val=(0.d0,0.d0)
+      Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
       call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)      
-      Matrix(j,j)%val=(0.d0,0.d0)
+      Matrix(j,j)%val=(0.0_dp,0.0_dp)
       call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)      
-      Matrix(j,j-1)%val=(0.d0,0.d0)
+      Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
     end do
     if (nbl.gt.1) then
       call create(Matrix(nbl,nbl),S(nbl,nbl)%nrow,S(nbl,nbl)%ncol)      
-      Matrix(nbl,nbl)%val=(0.d0,0.d0)
+      Matrix(nbl,nbl)%val=(0.0_dp,0.0_dp)
+      call create(Matrix(nbl-1,nbl),S(nbl-1,nbl)%nrow,S(nbl-1,nbl)%ncol)      
+      Matrix(nbl-1,nbl)%val=(0.0_dp,0.0_dp)
+      call create(Matrix(nbl,nbl-1),S(nbl,nbl-1)%nrow,S(nbl,nbl-1)%ncol)      
+      Matrix(nbl,nbl-1)%val=(0.0_dp,0.0_dp)
     endif
 
   end SUBROUTINE init_blkmat
@@ -888,7 +877,6 @@ CONTAINS
     do i=1,nbl
       do i1=1,nbl
         if (ALLOCATED(M(i1,i)%val)) THEN
-          !print*,'kill Gr',i1,i
           CALL destroy(M(i1,i))
         end if
       end do
@@ -1129,7 +1117,7 @@ CONTAINS
 
     do i=sbl-1,ebl,-1
 
-      CALL prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.d0, 0.d0),work1)
+      CALL prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.0_dp, 0.0_dp),work1)
 
       CALL prealloc_mult(work1,ESH(i+1,i),work2)
 
@@ -1203,7 +1191,7 @@ CONTAINS
 
       nrow=ESH(i,i)%nrow   !indblk(i+1)-indblk(i)
 
-      CALL prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.d0, 0.d0),work1)
+      CALL prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
 
       CALL prealloc_mult(work1,ESH(i-1,i),work2)
 
@@ -1288,7 +1276,7 @@ CONTAINS
           CALL prealloc_mult(ESH(sbl,sbl+1),gsmr(sbl+1),work2)
           CALL prealloc_mult(work2,ESH(sbl+1,sbl),work3)
           CALL destroy(work2)
-          CALL prealloc_sum(work1,work3,(-1.d0, 0.d0),work2)
+          CALL prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
           CALL destroy(work3)
           work1%val = work2%val
           CALL destroy(work2)
@@ -1297,7 +1285,7 @@ CONTAINS
           CALL prealloc_mult(ESH(sbl,sbl-1),gsml(sbl-1),work2)
           CALL prealloc_mult(work2,ESH(sbl-1,sbl),work3)
           CALL destroy(work2)
-          CALL prealloc_sum(work1,work3,(-1.d0, 0.d0),work2)
+          CALL prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
           CALL destroy(work3)
           work1%val = work2%val
           CALL destroy(work2)
@@ -1317,13 +1305,13 @@ CONTAINS
     if ((ebl.ge.sbl).and.(ebl.gt.1).and.(sbl.gt.1)) THEN
       do i=sbl,ebl,1
         CALL prealloc_mult(gsmr(i),ESH(i,i-1),work1)
-        CALL prealloc_mult(work1,Gr(i-1,i-1),(-1.d0,0.d0),Gr(i,i-1))
+        CALL prealloc_mult(work1,Gr(i-1,i-1),(-1.0_dp,0.0_dp),Gr(i,i-1))
         CALL destroy(work1)
 
         CALL prealloc_mult(ESH(i-1,i),gsmr(i),work2)
-        CALL prealloc_mult(Gr(i-1,i-1),work2,(-1.d0, 0.d0),Gr(i-1,i))
+        CALL prealloc_mult(Gr(i-1,i-1),work2,(-1.0_dp, 0.0_dp),Gr(i-1,i))
 
-        CALL prealloc_mult(Gr(i,i-1),work2,(-1.d0,0.d0),work1)
+        CALL prealloc_mult(Gr(i,i-1),work2,(-1.0_dp,0.0_dp),work1)
         CALL destroy(work2)
 
         CALL prealloc_sum(gsmr(i),work1,Gr(i,i))
@@ -1332,13 +1320,13 @@ CONTAINS
     ELSE
       do i=sbl,ebl,-1
         CALL prealloc_mult(gsml(i),ESH(i,i+1),work1)
-        CALL prealloc_mult(work1,Gr(i+1,i+1),(-1.d0,0.d0),Gr(i,i+1))
+        CALL prealloc_mult(work1,Gr(i+1,i+1),(-1.0_dp,0.0_dp),Gr(i,i+1))
         CALL destroy(work1)
 
         CALL prealloc_mult(ESH(i+1,i),gsml(i),work2)
-        CALL prealloc_mult(Gr(i+1,i+1),work2,(-1.d0, 0.d0),Gr(i+1,i))
+        CALL prealloc_mult(Gr(i+1,i+1),work2,(-1.0_dp, 0.0_dp),Gr(i+1,i))
 
-        CALL prealloc_mult(Gr(i,i+1),work2,(-1.d0,0.d0),work1)
+        CALL prealloc_mult(Gr(i,i+1),work2,(-1.0_dp,0.0_dp),work1)
         CALL destroy(work2)
 
         CALL prealloc_sum(gsml(i),work1,Gr(i,i))
@@ -1400,14 +1388,14 @@ CONTAINS
       do i=n+2,nbl
 
         max=MAXVAL(ABS(Gr(i-1,n)%val))
-
         if (max.GT.EPS) THEN
-          CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+          CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
           CALL prealloc_mult(work1,Gr(i-1,n),Gr(i,n))
           CALL destroy(work1)
-        endif
-
-        ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
+        else
+          ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
+          exit
+        end if  
 
       end do
 
@@ -1426,12 +1414,13 @@ CONTAINS
         max=MAXVAL(ABS(Gr(i+1,n)%val))
 
         if (max.GT.EPS) THEN
-          CALL prealloc_mult(gsml(i),ESH(i,i+1),(-1.d0, 0.d0),work1)
+          CALL prealloc_mult(gsml(i),ESH(i,i+1),(-1.0_dp, 0.0_dp),work1)
           CALL prealloc_mult(work1,Gr(i+1,n),Gr(i,n))
           CALL destroy(work1)
+        else
+          ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
+          exit     
         endif
-
-        ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
 
       end do
 
@@ -1477,7 +1466,7 @@ CONTAINS
     CALL create(A,P%nrow,P%ncol,P%nnz)
     A%rowpnt(:)=P%rowpnt(:)
     A%colind(:)=P%colind(:)
-    A%nzval = (0.d0,0.d0)
+    A%nzval = (0.0_dp,0.0_dp)
 
     !If only one block is present, concatenation is not needed 
     !and it's implemented in a more trivial way
@@ -1617,7 +1606,7 @@ CONTAINS
 
         CALL zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
-        frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
+        frmdiff = cmplx(frm(j)-frm(ref),0.0_dp,dp)
         ! Computation of Gl(1,1) = Gr(1,cb) Gam(cb) Ga(cb,1)
         if (allocated(Gr(1,cb)%val)) then
           CALL prealloc_mult(Gr(1,cb),Gam,work1)    
@@ -1625,7 +1614,7 @@ CONTAINS
           CALL prealloc_mult(work1,Ga,frmdiff,Gn(1,1))
           CALL destroy(work1, Ga)
         else
-          Gn(1,1)%val=(0.d0,0.d0)
+          Gn(1,1)%val=(0.0_dp,0.0_dp)
         endif
 
         ! Computation of all tridiagonal blocks
@@ -1650,8 +1639,9 @@ CONTAINS
 
             CALL destroy(work1, Ga)
           else
-            Gn(i-1,i)%val=(0.d0,0.d0)
-            Gn(i,i-1)%val=(0.d0,0.d0)
+            Gn(i  ,i)%val=(0.0_dp,0.0_dp)
+            Gn(i-1,i)%val=(0.0_dp,0.0_dp)
+            Gn(i,i-1)%val=(0.0_dp,0.0_dp)
           endif
 
         end do
@@ -1723,7 +1713,7 @@ CONTAINS
 
         CALL zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
-        frmdiff = cmplx(frm(j)-frm(ref),0.d0,dp)
+        frmdiff = cmplx(frm(j)-frm(ref),0.0_dp,dp)
         ! Computation of Gl(1,1) = Gr(1,cb) Gam(cb) Ga(cb,1)
         if (Gr(1,cb)%nrow.gt.0) then
           CALL prealloc_mult(Gr(1,cb),Gam,work1)    
@@ -1731,7 +1721,7 @@ CONTAINS
           CALL prealloc_mult(work1,Ga,frmdiff,Gn(1,1))
           CALL destroy(work1, Ga)
         else
-          Gn(1,1)%val=(0.d0,0.d0)
+          Gn(1,1)%val=(0.0_dp,0.0_dp)
         endif
 
         ! Computation of all tridiagonal blocks
@@ -1740,7 +1730,7 @@ CONTAINS
           ! Computation of Gr(i,cb) assuming Gr(i-1,cb) exists
           ! Assume downgoing: i > cb
           if (Gr(i-1,cb)%nrow.GT.0) THEN
-            CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+            CALL prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
             CALL destroy(gsmr(i))
             CALL prealloc_mult(work1,Gr(i-1,cb),Gr(i,cb))
             CALL destroy(work1)
@@ -1766,8 +1756,9 @@ CONTAINS
 
             CALL destroy(work1, Ga)
           ELSE
-            Gn(i-1,i)%val=(0.d0,0.d0)
-            Gn(i,i-1)%val=(0.d0,0.d0)
+            Gn(i  ,i)%val=(0.0_dp,0.0_dp)
+            Gn(i-1,i)%val=(0.0_dp,0.0_dp)
+            Gn(i,i-1)%val=(0.0_dp,0.0_dp)
           endif
 
           if (Gr(i-1,cb)%nrow.gt.0) call destroy(Gr(i-1,cb))
@@ -1822,7 +1813,6 @@ CONTAINS
     !! Gn(k,k+1) = Gr(k,i)Sigma_n(i,i)Ga(i,k+1)
     !! Gn(k,k-1) = Gr(k,i)Sigma_n(i,i)Ga(i,k-1)
     !! All the rows of Gr need to be available
-    !print *, 'debug: Calculate the diagonal and off diagonal (if needed) blocks of Gn'
     do n = 1, nbl-1
       do k = 1, nbl
         if (Gr(n,k)%nrow.gt.0) then
@@ -1937,7 +1927,6 @@ CONTAINS
     nbl = str%num_PLs
     nrows = str%central_dim
     call create(Gdns,nrows,nrows)
-print*,'nbl=',nbl, nrows
 
     do n = 1, nbl 
       do m= 1, nbl 
@@ -1945,7 +1934,6 @@ print*,'nbl=',nbl, nrows
          pl_end1 = str%mat_PL_end(n)
          pl_start2 = str%mat_PL_start(m) 
          pl_end2 = str%mat_PL_end(m)
- print*,pl_start1, pl_end1, pl_start2, pl_end2
 
          do ii = 1, pl_end1 - pl_start1 + 1
            do jj = 1, pl_end2 - pl_start2 + 1
@@ -1983,7 +1971,7 @@ print*,'nbl=',nbl, nrows
     CALL create(Gcsr,P%nrow,P%ncol,P%nnz)
     Gcsr%rowpnt = P%rowpnt
     Gcsr%colind = P%colind
-    Gcsr%nzval = (0.d0, 0.d0)
+    Gcsr%nzval = (0.0_dp, 0.0_dp)
 
     !Cycle upon all rows
     x = 1
@@ -2087,7 +2075,7 @@ print*,'nbl=',nbl, nrows
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_n(i,i), m, m)
-      Sigma_n(i,i)%val = (0.d0, 0.d0)
+      Sigma_n(i,i)%val = (0.0_dp, 0.0_dp)
       call create(G_n_interP(i,i), m, m)
       call create(G_n_interN(i,i), m, m)
     end do
@@ -2202,7 +2190,7 @@ print*,'nbl=',nbl, nrows
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_p(i,i), m, m)
-      Sigma_p(i,i)%val = (0.d0, 0.d0)
+      Sigma_p(i,i)%val = (0.0_dp, 0.0_dp)
       call create(G_p_interP(i,i), m, m)
       call create(G_p_interN(i,i), m, m)
     end do
@@ -2225,10 +2213,6 @@ print*,'nbl=',nbl, nrows
           'G_p_', G_p_interN)
 
       do i = 1, nbl
-
-        !print*
-        !print*,'(sigma_r) G_p+',maxval(abs(G_p_interP(i,i)%val))
-        !print*,'(sigma_r) G_p-',maxval(abs(G_p_interN(i,i)%val))
 
         i1 =  G_p_interN(i,i)%nrow
 
@@ -2321,7 +2305,7 @@ print*,'nbl=',nbl, nrows
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_r(i,i), m, m)
-      Sigma_r(i,i)%val = (0.d0, 0.d0)
+      Sigma_r(i,i)%val = (0.0_dp, 0.0_dp)
       call create(G_r_interP(i,i), m, m)
       call create(G_r_interN(i,i), m, m)
       call create(G_n_interP(i,i), m, m)
@@ -2351,18 +2335,12 @@ print*,'nbl=',nbl, nrows
           'G_r_', G_r_interN)
 
       do i = 1, nbl
-        !print*
-        !print*,'(sigma_r) G_r+',maxval(abs(G_r_interP(i,i)%val))
-        !print*,'(sigma_r) G_r-',maxval(abs(G_r_interN(i,i)%val))
-
-        !print*,'(sigma_r) G_n+',maxval(abs(G_n_interP(i,i)%val))
-        !print*,'(sigma_r) G_n-',maxval(abs(G_n_interN(i,i)%val))
 
         i1 = Sigma_r(i,i)%nrow
 
         call create(work1,i1,i1)
 
-        work1%val = (0.d0,0.d0)
+        work1%val = (0.0_dp,0.0_dp)
 
         if (negf%elph%selfene_gr) then
           !print*,'SelfEneR_Gr'    
@@ -2399,7 +2377,7 @@ print*,'nbl=',nbl, nrows
 
         else
 
-          Sigma_r(i,i)%val = (0.d0,0.d0) 
+          Sigma_r(i,i)%val = (0.0_dp,0.0_dp) 
           call destroy(work1)
 
         endif
@@ -2471,7 +2449,7 @@ print*,'nbl=',nbl, nrows
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_r(i,i), m, m)
-      Sigma_r(i,i)%val = (0.d0, 0.d0)
+      Sigma_r(i,i)%val = (0.0_dp, 0.0_dp)
       call create(G_r(i,i), m, m)
     end do
 
@@ -2489,8 +2467,8 @@ print*,'nbl=',nbl, nrows
 
           call create(work1,i1,i1)
 
-          work1%val = (0.d0,0.d0)
-          !print*,'SelfEneR_Gr'    
+          work1%val = (0.0_dp,0.0_dp)
+              
           work1%val = (2.0_dp*Nq(m)+1.0_dp)*G_r(i,i)%val
 
           call create_id(Mq_mat,i1,Mq(m))
@@ -2508,7 +2486,7 @@ print*,'nbl=',nbl, nrows
           call destroy(work1, Mq_mat)
 
         else
-          Sigma_r(i,i)%val = (0.d0,0.d0) 
+          Sigma_r(i,i)%val = (0.0_dp,0.0_dp) 
         endif
 
       end do
@@ -2516,7 +2494,6 @@ print*,'nbl=',nbl, nrows
     end do
 
     do i = 1, nbl
-      !print*,'(sigma_r) Sigma_ph_r', negf%iE, maxval(abs(Sigma_r(i,i)%val))
       call write_blkmat(Sigma_r(i,i),negf%scratch_path,'Sigma_ph_r_',i,i,iE)
       call destroy(Sigma_r(i,i))
       call destroy(G_r(i,i))
@@ -2559,7 +2536,6 @@ print*,'nbl=',nbl, nrows
 
       call create(T,sizebl,sizebl)
 
-      !print*,'CHECK Sigma_ph_n+Sigma_ph_p',maxval(abs(Sigma_n(n,n)%val+Sigma_p(n,n)%val))
 
       T%val = G_n(n,n)%val + G_p(n,n)%val - A%val 
 
@@ -2572,8 +2548,6 @@ print*,'nbl=',nbl, nrows
         maxpos = maxloc(abs(T%val)) + psize
       endif
 
-      !print*
-
       psize = psize + sizebl
 
       call destroy(G_r(n,n))
@@ -2584,7 +2558,7 @@ print*,'nbl=',nbl, nrows
 
     end do
 
-    print*,'CHECK Gn+Gp=Gr-Ga',negf%iE, maxG, maxdev
+    !print*,'CHECK Gn+Gp=Gr-Ga',negf%iE, maxG, maxdev
 
     deallocate(G_n, G_p, G_r)
 
@@ -2637,8 +2611,6 @@ print*,'nbl=',nbl, nrows
         maxpos = maxloc(abs(T%val)) + psize
       endif
 
-      !print*
-
       psize = psize + sizebl
 
       call destroy(Sigma_r(n,n))
@@ -2649,7 +2621,7 @@ print*,'nbl=',nbl, nrows
 
     end do
 
-    print*,'CHECK Sigma_ph_r',negf%iE, maxG, maxdev
+    !print*,'CHECK Sigma_ph_r',negf%iE, maxG, maxdev
 
     deallocate(Sigma_n, Sigma_p, Sigma_r)
 
@@ -2776,13 +2748,13 @@ print*,'nbl=',nbl, nrows
     do i = 1, size(G_interp,1)
 
       call create(work1,G_interp(i,i)%nrow,G_interp(i,i)%ncol)
-      work1%val = (0.d0,0.d0)
+      work1%val = (0.0_dp,0.0_dp)
       call read_blkmat(work1, path, name, i, i, i1)
 
       if (E1.ne.E2 .and. i1.ne.i2) then
 
         call create(work2,G_interp(i,i)%nrow,G_interp(i,i)%ncol)
-        work2%val = (0.d0,0.d0)
+        work2%val = (0.0_dp,0.0_dp)
         call read_blkmat(work2, path, name, i, i, i2)
 
         G_interp(i,i)%val = ((E-E1)*work2%val + (E2-E)*work1%val)/(E2-E1)
@@ -3079,7 +3051,7 @@ print*,'nbl=',nbl, nrows
       return
     endif
 
-    Matrix%val = (0.d0,0.d0)
+    Matrix%val = (0.0_dp,0.0_dp)
 
     if (i.le.9999) write(ofblki,'(i4.4)') i
     if (i.gt.9999) stop 'ERROR: too many blks (> 9999)'
@@ -3246,14 +3218,14 @@ print*,'nbl=',nbl, nrows
   !       call dns2csr(Gr(cb,cb),GrCSR)
 
   !Calcolo di Grlc
-  !       CALL prealloc_mult(GrCSR,Tlc(i),(-1.d0, 0.d0),work1)
+  !       CALL prealloc_mult(GrCSR,Tlc(i),(-1.0_dp, 0.0_dp),work1)
   !Nota: numero colonne di Tlc = numero di righe di gsurf(i)
 
   !       CALL prealloc_mult(work1,gsurfR(i),Grlc)
   !       CALL destroy(work1)
 
   !Calcolo di Grcl
-  !       CALL prealloc_mult(gsurfR(i),Tcl(i),(-1.d0, 0.d0),work1)
+  !       CALL prealloc_mult(gsurfR(i),Tcl(i),(-1.0_dp, 0.0_dp),work1)
 
   !       CALL prealloc_mult(work1,GrCSR,Grcl)
   !       CALL destroy(work1)
@@ -3347,7 +3319,7 @@ print*,'nbl=',nbl, nrows
 
       !Numero di blocco del contatto
       cb=cblk(i)
-      CALL prealloc_mult(Gr(cb,cb),Tlc(i),(-1.d0, 0.d0),work1)
+      CALL prealloc_mult(Gr(cb,cb),Tlc(i),(-1.0_dp, 0.0_dp),work1)
       CALL prealloc_mult(work1,gsurfR(i),Grlc)
 
       CALL destroy(work1)
@@ -3372,7 +3344,7 @@ print*,'nbl=',nbl, nrows
 
       if (lower) THEN
 
-        CALL prealloc_mult(gsurfR(i),Tcl(i),(-1.d0, 0.d0), work1)
+        CALL prealloc_mult(gsurfR(i),Tcl(i),(-1.0_dp, 0.0_dp), work1)
         CALL prealloc_mult(work1, Gr(cb,cb), Grcl)
 
         CALL destroy(work1)
@@ -3490,7 +3462,7 @@ print*,'nbl=',nbl, nrows
         !***
         !Calcolo del contributo sulla proria regione
         !***          
-        frmdiff = cmplx(frm(ref)-frm(k),0.d0,dp)
+        frmdiff = cmplx(frm(ref)-frm(k),0.0_dp,dp)
 
         CALL zspectral(gsurfR(k),gsurfR(k),0,work1)
 
@@ -3650,7 +3622,7 @@ print*,'nbl=',nbl, nrows
     nbl = str%num_PLs
     ncont = str%num_conts
     !Calculation of ES-H and brak into blocks
-    call prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)    
+    call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)    
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -3769,7 +3741,7 @@ print*,'nbl=',nbl, nrows
     !Work variables
     Integer :: ct1, bl1
     Type(z_DNS) :: work1, work2, GAM1_dns, GA, TRS, AA
-    Complex(dp), parameter ::    j = (0.d0,1.d0)  ! CMPX unity
+    Complex(dp), parameter ::    j = (0.0_dp,1.0_dp)  ! CMPX unity
 
     if (size(cblk).gt.2) then
       write(*,*) "ERROR: transmission_dns is valid only for 2 contacts"
@@ -3875,7 +3847,7 @@ print*,'nbl=',nbl, nrows
         !Checks whether block has been created, if not do it 
         if (.not.allocated(Gr(i,bl1)%val)) then 
 
-          call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
+          call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
 
           call prealloc_mult(work1,Gr(i-1,bl1),Gr(i,bl1))
 
@@ -3960,7 +3932,7 @@ print*,'nbl=',nbl, nrows
     Im = 'I'
 
     !Calculation of ES-H and brak into blocks
-    call prealloc_sum(H,S,(-1.d0, 0.d0),Ec,ESH_tot)    
+    call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)    
 
     call allocate_blk_dns(ESH,nbl)
     call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
@@ -4019,7 +3991,7 @@ print*,'nbl=',nbl, nrows
       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
       call dns2csr(Gr(i,i),GrCSR)
       !Concatena direttamente la parte immaginaria per il calcolo della doS
-      zc=(-1.d0,0.d0)/pi
+      zc=(-1.0_dp,0.0_dp)/pi
       
       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
       call destroy(Gr(i,i))
