@@ -18,7 +18,7 @@ SOURCES = clock.F90  ln_extract.F90 \
           outmatrix.F90 rcm_module.F90 distributions.F90  \
           ln_allocation.F90  load.F90   sparsekit_drv.F90 integrations.F90 \
           globals.F90   iterative_dns.F90  ln_constants.F90   mat_def.F90 \
-	    population.F90 mkl_dfti.F90 energy_mesh.F90 interactions.F90 \
+	    population.F90 energy_mesh.F90 interactions.F90 \
 	    elphdd.F90 elphdb.F90 elphds.F90
 
 ifeq ($(strip $(INELASTIC)),Y)
@@ -91,7 +91,7 @@ integrations.o: sparsekit_drv.o inversions.o iterative_dns.o iterative_ph.o
 integrations.o: energy_mesh.o distributions.o contselfenergy.o	
 distributions.o: ln_precision.o
 population.o:    ln_precision.o mat_def.o 
-transform.o:     ln_precision.o mkl_dfti.o
+transform.o:     ln_precision.o 
 energy_mesh.o:   ln_precision.o
 elph.o:     globals.o ln_precision.o ln_allocation.o mat_def.o sparsekit_drv.o
 phph.o:      ln_precision.o ln_allocation.o mat_def.o
