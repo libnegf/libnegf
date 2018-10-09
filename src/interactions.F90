@@ -67,7 +67,7 @@ module interactions
       import :: interaction
       import :: z_dns
       class(interaction) :: this
-      type(z_dns), dimension(:,:), allocatable, intent(inout) :: esh
+      type(z_dns), dimension(:,:), intent(inout) :: esh
     end subroutine abst_add_sigma_r
 
     !> Returns the lesser (n) Self Energy in block format
@@ -79,7 +79,7 @@ module interactions
       import :: interaction
       import :: z_dns
       class(interaction) :: this
-      type(z_dns), dimension(:,:), allocatable, intent(inout) :: blk_sigma_n
+      type(z_dns), dimension(:,:), intent(inout) :: blk_sigma_n
       integer, intent(in) :: en_index
     end subroutine abst_get_sigma_n
 
@@ -88,7 +88,7 @@ module interactions
       import :: interaction
       import :: z_dns
       class(interaction) :: this
-      type(z_dns), dimension(:,:), allocatable, intent(in) :: Gr
+      type(z_dns), dimension(:,:), intent(in) :: Gr
       integer :: en_index
     end subroutine abst_set_Gr
 
@@ -97,7 +97,7 @@ module interactions
       import :: interaction
       import :: z_dns
       class(interaction) :: this
-      type(z_dns), dimension(:,:), allocatable, intent(in) :: Gn
+      type(z_dns), dimension(:,:), intent(in) :: Gn
       integer :: en_index
     end subroutine abst_set_Gn
 
