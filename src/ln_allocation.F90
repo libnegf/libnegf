@@ -19,15 +19,15 @@
 !!--------------------------------------------------------------------------!
 
 
-                !$#define MEMLOG
+!!#:set MEMLOG = 1
 
 module ln_allocation
   use ln_precision
   implicit none
   private
 
-  integer, save :: iolog
-  INTEGER(long), SAVE :: alloc_mem, peak_mem
+  integer, public :: iolog
+  integer(long) :: alloc_mem, peak_mem
 
   public :: log_allocate, log_deallocate
   public :: log_allocatep, log_deallocatep
