@@ -77,8 +77,8 @@ contains
     
     type(ElPhonDephB), intent(inout) :: this
     type(TStruct_info), intent(in) :: struct
-    real(dp), dimension(:), allocatable :: coupling
-    integer, dimension(:), allocatable, intent(in) :: orbsperatm
+    real(dp), dimension(:), intent(in) :: coupling
+    integer, dimension(:), intent(in) :: orbsperatm
     integer, intent(in) :: niter
     real(dp), intent(in) :: tol
 
@@ -154,7 +154,7 @@ contains
   !  the retarded self energy to ESH
   subroutine add_sigma_r(this, esh)
     class(ElPhonDephB) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(inout) :: esh
+    type(z_dns), dimension(:,:), intent(inout) :: esh
 
     integer :: n, nbl, ii, indend, indstart, natm, norbs
 
@@ -181,7 +181,7 @@ contains
   !  
   subroutine get_sigma_n(this, blk_sigma_n, en_index)
     class(ElPhonDephB) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(inout) :: blk_sigma_n
+    type(z_dns), dimension(:,:), intent(inout) :: blk_sigma_n
     integer, intent(in) :: en_index
 
     integer :: n, nbl, ii, nrow, indend, indstart, natm, norbs
@@ -193,7 +193,9 @@ contains
     
     do n = 1, nbl
       nrow = this%struct%mat_PL_end(n) - this%struct%mat_PL_start(n) + 1
-      call create(blk_sigma_n(n,n), nrow, nrow)
+      if (.not.allocated(blk_sigma_n(n,n)%val)) then
+        call create(blk_sigma_n(n,n), nrow, nrow)
+      end if  
       blk_sigma_n(n,n)%val = (0.0_dp, 0.0_dp)
     end do
     do ii = 1,natm
@@ -210,7 +212,7 @@ contains
   !> Give the Gr at given energy point to the interaction
   subroutine set_Gr(this, Gr, en_index)
     class(ElPhonDephB) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(in) :: Gr
+    type(z_dns), dimension(:,:), intent(in) :: Gr
     integer :: en_index
 
     integer :: n, npl, ii, indstart, indend, natm, norbs
@@ -236,7 +238,7 @@ contains
   !> Give the Gn at given energy point to the interaction
   subroutine set_Gn(this, Gn, en_index)
     class(ElPhonDephB) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(in) :: Gn
+    type(z_dns), dimension(:,:), intent(in) :: Gn
     integer :: en_index
 
     integer :: n, npl, ii, indstart, indend, natm, norbs

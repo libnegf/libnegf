@@ -78,8 +78,8 @@ contains
     
     type(ElPhonDephS), intent(inout) :: this
     type(TStruct_info), intent(in) :: struct
-    real(dp), dimension(:), allocatable :: coupling
-    integer, dimension(:), allocatable, intent(in) :: orbsperatm
+    real(dp), dimension(:), intent(in) :: coupling
+    integer, dimension(:), intent(in) :: orbsperatm
     integer, intent(in) :: niter
     real(dp), intent(in) :: tol
     type(z_CSR), pointer, intent(in) :: over
@@ -154,7 +154,7 @@ contains
   !  the retarded self energy to ESH
   subroutine add_sigma_r(this, esh)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(inout) :: esh
+    type(z_dns), dimension(:,:), intent(inout) :: esh
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
     integer :: n, npl, ii, ierr, jj
@@ -168,19 +168,22 @@ contains
 
     ! This could be done more performant, but this model won't see much use
     ! so I am leaving this way
+    allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1,this%nummodes
-      allocate(tmp_blk(npl,npl),stat=ierr)
       if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
       call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         ESH(jj, jj)%val = ESH(jj, jj)%val - tmp_blk(jj, jj)%val
+        call destroy(tmp_blk(jj,jj))
         if (jj .lt. npl) then
           ESH(jj, jj + 1)%val = ESH(jj, jj + 1)%val - tmp_blk(jj, jj + 1)%val
+          call destroy(tmp_blk(jj,jj+1))
           ESH(jj + 1, jj)%val = ESH(jj + 1, jj)%val - tmp_blk(jj + 1, jj)%val
+          call destroy(tmp_blk(jj+1,jj))
         end if
       end do
-      deallocate(tmp_blk)
     end do
+    deallocate(tmp_blk)
 
   end subroutine add_sigma_r
   
@@ -189,7 +192,7 @@ contains
   !  
   subroutine get_sigma_n(this, blk_sigma_n, en_index)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(inout) :: blk_sigma_n
+    type(z_dns), dimension(:,:), intent(inout) :: blk_sigma_n
     integer, intent(in) :: en_index
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
@@ -204,32 +207,37 @@ contains
     
     do n = 1, npl
       nrow = this%struct%mat_PL_end(n) - this%struct%mat_PL_start(n) + 1
-      call create(blk_sigma_n(n,n), nrow, nrow)
+      if (allocated(blk_sigma_n(n,n)%val)) then
+        call create(blk_sigma_n(n,n), nrow, nrow)
+      end if  
       blk_sigma_n(n,n)%val = (0.0_dp, 0.0_dp)
     end do
       
+    allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1, this%nummodes
-      allocate(tmp_blk(npl,npl),stat=ierr)
       if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
       call zcsr2blk_sod(this%sigma_n(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         blk_sigma_n(jj, jj)%val = blk_sigma_n(jj, jj)%val + tmp_blk(jj, jj)%val
+        call destroy(tmp_blk(jj,jj))
         if (jj .lt. npl) then
           blk_sigma_n(jj, jj + 1)%val =  blk_sigma_n(jj, jj + 1)%val + &
               & tmp_blk(jj, jj + 1)%val
+          call destroy(tmp_blk(jj,jj+1))
           blk_sigma_n(jj + 1, jj)%val = blk_sigma_n(jj + 1, jj)%val + &
               & tmp_blk(jj + 1, jj)%val
+          call destroy(tmp_blk(jj+1,jj))
         end if
       end do
-      deallocate(tmp_blk)
     end do
+    deallocate(tmp_blk)
 
   end subroutine get_sigma_n
 
   !> Give the Gr at given energy point to the interaction
   subroutine set_Gr(this, Gr, en_index)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(in) :: Gr
+    type(z_dns), dimension(:,:), intent(in) :: Gr
     integer :: en_index
 
     type(z_dns) :: work1, work2, work3
@@ -237,7 +245,7 @@ contains
 
     !! Implement sigma = M*G*M, assuming that PL structure is not only
     !! preserved, but that only the corresponding Gr blocks are used
-    !! Now dirty, only working without PL
+    !! Now dirty, only working with 1 PL
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
       write(*,*) 'ElphPhonDephB works only with single PL'
@@ -265,7 +273,7 @@ contains
   !> Give the Gn at given energy point to the interaction
   subroutine set_Gn(this, Gn, en_index)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), allocatable, intent(in) :: Gn
+    type(z_dns), dimension(:,:), intent(in) :: Gn
     integer :: en_index
 
     type(z_dns) :: work1, work2, work3
