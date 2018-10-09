@@ -219,10 +219,10 @@ module lib_param
 
    !! Output variables: these are filled by internal subroutines to stor
    !! library output
-   real(dp), dimension(:,:), pointer :: tunn_mat => null()
-   !$real(dp), dimension(:,:), pointer :: tunn_mat_bp => null()               !DAR
-   real(dp), dimension(:,:), pointer :: ldos_mat => null()
-   real(dp), dimension(:), pointer :: currents => null() ! value of contact currents 
+   real(dp), dimension(:,:), allocatable :: tunn_mat
+   real(dp), dimension(:,:), allocatable :: curr_mat
+   real(dp), dimension(:,:), allocatable :: ldos_mat 
+   real(dp), dimension(:), allocatable :: currents  
 
    !logical :: tNoGeometry = .false.
    logical :: tOrthonormal = .false.

@@ -77,6 +77,7 @@ module libnegf
  private :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
+ public :: associate_lead_currents
  public :: get_energies, pass_DM, get_DM, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
@@ -204,6 +205,9 @@ contains
     negf%isSid = .false.
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
+
+    !call openMemLog(183)
+    !write(iolog,*) 'Memory logfile'
 
   end subroutine init_negf
 
@@ -392,8 +396,8 @@ contains
   ! -----------------------------------------------------
   subroutine copy_HS(negf,H,S)
     type(Tnegf) :: negf
-    type(z_CSR), target :: H
-    type(z_CSR), optional, target :: S
+    type(z_CSR), intent(in) :: H
+    type(z_CSR), intent(in), optional :: S
 
     call create(negf%H,H%nrow,H%ncol,H%nnz)
     negf%H%nzval = H%nzval
@@ -666,7 +670,16 @@ contains
     type(Tnegf) :: negf
     integer, intent(in) :: nldos
 
-    if (allocated(negf%ldos)) deallocate(negf%ldos)
+    integer :: i
+
+    if (allocated(negf%ldos)) then
+      do i=1, size(negf%ldos)
+        if (allocated(negf%ldos(i)%indexes)) then
+          call log_deallocate(negf%ldos(i)%indexes)
+        end if
+      end do
+      deallocate(negf%ldos)
+    end if  
     allocate(negf%ldos(nldos))
     negf%nldos = nldos
 
@@ -678,7 +691,9 @@ contains
 
     integer :: err, i
     do i=1, size(ldos)
-      call log_deallocate(ldos(i)%indexes)
+      if (allocated(ldos(i)%indexes)) then
+        call log_deallocate(ldos(i)%indexes)
+      end if  
     end do
 
     deallocate(ldos)
@@ -718,6 +733,9 @@ contains
 
     integer :: ii, jj
 
+    if (.not.allocated(negf%ldos(ildos)%indexes)) then
+       call log_allocate(negf%ldos(ildos)%indexes, size(idx))
+    end if   
     negf%ldos(ildos)%indexes = idx
 
   end subroutine set_ldos_indexes
@@ -908,11 +926,24 @@ contains
 
     call destroy_HS(negf)
     call kill_Tstruct(negf%str)
-    if (allocated(negf%LDOS)) call destroy_ldos(negf%ldos)
-    if (allocated(negf%en_grid)) deallocate(negf%en_grid)
-    if (associated(negf%tunn_mat)) call log_deallocatep(negf%tunn_mat)
-    if (associated(negf%ldos_mat)) call log_deallocatep(negf%ldos_mat)
-    if (associated(negf%currents)) call log_deallocatep(negf%currents)
+    if (allocated(negf%LDOS)) then
+       call destroy_ldos(negf%ldos)
+    end if   
+    if (allocated(negf%en_grid)) then
+       deallocate(negf%en_grid)
+    end if   
+    if (allocated(negf%tunn_mat)) then 
+       call log_deallocate(negf%tunn_mat)
+    end if   
+    if (allocated(negf%curr_mat)) then 
+       call log_deallocate(negf%curr_mat)
+    end if   
+    if (allocated(negf%ldos_mat)) then
+         call log_deallocate(negf%ldos_mat)
+    end if     
+    if (allocated(negf%currents)) then 
+      call log_deallocate(negf%currents)
+    end if  
     call destroy_DM(negf)
     call destroy_matrices(negf)
     !if (allocated(negf%cont)) deallocate(negf%cont)
@@ -941,10 +972,10 @@ contains
   !! transmissions. Return NULL if internal pointer is not
   !! associated
   subroutine associate_transmission(negf, tr_pointer)
-    type(TNegf), intent(in)  :: negf
+    type(TNegf), pointer, intent(in)  :: negf
     real(dp), dimension(:,:), pointer, intent(inout) :: tr_pointer
 
-    if (associated(negf%tunn_mat)) then
+    if (allocated(negf%tunn_mat)) then
       tr_pointer => negf%tunn_mat
     else
       tr_pointer => NULL()
@@ -957,10 +988,10 @@ contains
   !!  Associate an input pointer with the internal pointer of
   !! LDOS
   subroutine associate_ldos(negf, ldos_pointer)
-    type(TNegf), intent(in)  :: negf
+    type(TNegf), pointer, intent(in)  :: negf
     real(dp), dimension(:,:), pointer, intent(inout) :: ldos_pointer
 
-    if (associated(negf%ldos_mat)) then
+    if (allocated(negf%ldos_mat)) then
       ldos_pointer => negf%ldos_mat
     else
       ldos_pointer => NULL()
@@ -973,16 +1004,31 @@ contains
   !!  Associate an input pointer with the internal pointer of
   !! currents
   subroutine associate_current(negf, curr_pointer)
-    type(TNegf), intent(in)  :: negf
-    real(dp), dimension(:), pointer, intent(inout) :: curr_pointer
+    type(TNegf), pointer, intent(in)  :: negf
+    real(dp), dimension(:,:), pointer, intent(inout) :: curr_pointer
 
-    if (associated(negf%currents)) then
-      curr_pointer => negf%currents
+    if (allocated(negf%curr_mat)) then
+      curr_pointer => negf%curr_mat
     else
       curr_pointer => NULL()
     end if
 
   end subroutine associate_current
+
+   
+  !--------------------------------------------------------------------
+  subroutine associate_lead_currents(negf, curr)
+    type(TNegf), pointer, intent(in)  :: negf
+    real(dp), dimension(:), pointer, intent(inout) :: curr
+
+    if (allocated(negf%currents)) then
+      curr => negf%currents
+    else
+      curr => null()
+    end if
+
+  end subroutine associate_lead_currents
+
 
   !--------------------------------------------------------------------
   !>
@@ -1309,7 +1355,8 @@ contains
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
     call tunneling_and_dos(negf)
-    if (associated(negf%tunn_mat)) then
+
+    if (allocated(negf%tunn_mat)) then
       call electron_current(negf)                   
     end if
     call destroy_matrices(negf)
@@ -1328,7 +1375,8 @@ contains
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
-    if (associated(negf%tunn_mat)) then
+ 
+    if (allocated(negf%curr_mat)) then
       call electron_current_meir_wingreen(negf)
     end if
     call destroy_matrices(negf)
@@ -1339,8 +1387,7 @@ contains
   ! GP Left in MPI version for debug purpose only. This will write a separate
   ! file for every ID, which is not possible on all architectures
   subroutine write_current(negf)
-
-    type(Tnegf), pointer :: negf
+    type(Tnegf) :: negf
 
     integer :: i1
     logical :: lex
@@ -1369,20 +1416,17 @@ contains
 
   !---- RETURN THE DOS MATRIX ---------------------------------------------------------
   subroutine return_dos_mat(negf, esteps, npoints, ldos)
-
-    type(Tnegf) :: negf
-
-    integer :: esteps, npoints
+    type(Tnegf), intent(in) :: negf
+    integer, intent(in) :: esteps, npoints
     real(dp), dimension(:,:) :: ldos
+    
     integer :: i, j
 
-    if (associated(negf%ldos_mat) .and. (esteps .eq. size(negf%ldos_mat,1)) .and. (npoints .eq. size(negf%ldos_mat,2))) then
+    if (allocated(negf%ldos_mat) .and. &
+       & (esteps .eq. size(negf%ldos_mat,1)) .and. &
+       & (npoints .eq. size(negf%ldos_mat,2))) then
 
-      do j=1,npoints
-        do i=1,esteps
-          ldos(i,j) = negf%ldos_mat(i,j)
-        end do
-      end do
+       ldos = negf%ldos_mat
     end if
 
   end subroutine return_dos_mat
@@ -1393,59 +1437,58 @@ contains
   ! file for every ID, which is not possible on all architectures
   subroutine write_tunneling_and_dos(negf)
 
-    type(Tnegf) :: negf
+    type(Tnegf), intent(in) :: negf
 
-    integer :: Nstep, i, i1, iLDOS, size_ni
+    integer :: Nstep, i, i1, iLDOS, size_ni, iu
     character(6) :: ofKP, idstr
     real(dp) :: E
 
-    if (associated(negf%tunn_mat)) then
+    if (allocated(negf%tunn_mat)) then
 
-        Nstep = size(negf%tunn_mat,1)
-        size_ni = size(negf%tunn_mat,2)
+      Nstep = size(negf%tunn_mat,1)
+      size_ni = size(negf%tunn_mat,2)
 
-        write(ofKP,'(i6.6)') negf%kpoint
-        write(idstr,'(i6.6)') id
+      write(ofKP,'(i6.6)') negf%kpoint
+      write(idstr,'(i6.6)') id
 
-        open(1021,file=trim(negf%out_path)//'tunneling_'//ofKP//'_'//idstr//'.dat')
+      open(newunit=iu,file=trim(negf%out_path)//'tunneling_'//ofKP//'_'//idstr//'.dat')
 
-        !print*,'ENE CONV=',negf%eneconv
-        negf%eneconv=1.d0
+      !negf%eneconv=1.d0
 
-        do i = 1,Nstep
+      do i = 1,Nstep
 
-          E=(negf%Emin+negf%Estep*(i-1))
+        E=(negf%Emin+negf%Estep*(i-1))
 
-          WRITE(1021,'(E17.8,20(E17.8))') E*negf%eneconv, &
-              (negf%tunn_mat(i,i1), i1=1,size_ni)
+        WRITE(iu,'(E17.8,20(E17.8))') E*negf%eneconv, &
+            (negf%tunn_mat(i,i1), i1=1,size_ni)
 
-        enddo
+      enddo
 
-        close(1021)
+      close(iu)
 
     endif
 
-    if (associated(negf%ldos_mat) .and. negf%nLDOS.gt.0) then
+    if (allocated(negf%ldos_mat) .and. negf%nLDOS.gt.0) then
 
         Nstep = size(negf%ldos_mat,1)
 
         write(ofKP,'(i6.6)') negf%kpoint
         write(idstr,'(i6.6)') id
 
-        open(1021,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat')  !DAR
+        open(newunit=iu,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat') 
 
         do i = 1,Nstep
 
           E=(negf%Emin+negf%Estep*(i-1))
-          WRITE(1021,'((E17.8))',advance='NO') E*negf%eneconv
+          WRITE(iu,'((E17.8))',advance='NO') E*negf%eneconv
           do iLDOS = 1, negf%nLDOS
-            WRITE(1021,'((E17.8))',advance='NO') negf%ldos_mat(i,iLDOS)/negf%eneconv
+            WRITE(iu,'((E17.8))',advance='NO') negf%ldos_mat(i,iLDOS)/negf%eneconv
           end do
-          write(1021,*)
+          write(iu,*)
 
         end do
 
-        close(1021)
+        close(iu)
 
     endif
 
