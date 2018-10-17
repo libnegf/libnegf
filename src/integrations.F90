@@ -743,8 +743,10 @@ contains
 
         if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-        if (allocated(negf%inter) .and. negf%inter%scba_iter > 0) then
-          call write_info(negf%verbose,'SCBA iterations',negf%inter%scba_iter)  
+        if (allocated(negf%inter)) then
+          if (negf%inter%scba_iter > 0) then
+            call write_info(negf%verbose,'SCBA iterations',negf%inter%scba_iter)
+          end if
         end if
 
         if(negf%DorE.eq.'E') zt = zt * Ec
@@ -893,8 +895,10 @@ contains
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-       if (allocated(negf%inter) .and. negf%inter%scba_iter > 0) then
-         call write_info(negf%verbose,'SCBA iterations',negf%inter%scba_iter)  
+       if (allocated(negf%inter)) then
+         if (negf%inter%scba_iter > 0) then
+           call write_info(negf%verbose,'SCBA iterations',negf%inter%scba_iter)
+         end if
        end if
 
        if(negf%DorE.eq.'E') zt = zt * Er
@@ -1255,9 +1259,9 @@ contains
     ! Get out immediately if Emax<Emin
     if (negf%Emax.le.negf%Emin) then
        if(id0) write(*,*) '0 tunneling points;  current = 0.0'
-       if (allocated(negf%currents)) call log_deallocate(negf%currents)    
-       call log_allocate(negf%currents,1) 
-       negf%currents = 0.0_dp 
+       if (allocated(negf%currents)) call log_deallocate(negf%currents)
+       call log_allocate(negf%currents,1)
+       negf%currents = 0.0_dp
        return
     endif
 
@@ -1276,7 +1280,7 @@ contains
     !If previous calculation is there, destroy output
     if (allocated(negf%tunn_mat)) then
        call log_deallocate(negf%tunn_mat)
-    end if   
+    end if
     call log_allocate(negf%tunn_mat,Nstep,size_ni)
 
     negf%tunn_mat = 0.0_dp
@@ -1348,7 +1352,7 @@ contains
 
   !---------------------------------------------------------------------------
   !>
-  !  Calculate the contact current per unit energy according to the 
+  !  Calculate the contact current per unit energy according to the
   !  Meir-Wingreen formula on the energy points specified by tunneling_int_def.
   !
   !    I_i(E) = Tr[Sigma^n_i(E)*A(E)-Gamma_i(E)*G^n(E)]
@@ -1364,7 +1368,7 @@ contains
     integer :: scba_iter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    Real(dp), Dimension(:), allocatable :: curr_mat 
+    Real(dp), Dimension(:), allocatable :: curr_mat
     real(dp), DIMENSION(:), allocatable :: frm
     integer :: size_ni, ii, Nstep, outer, ncont, npl, j1, icont, jj
     complex(dp) :: Ec
@@ -1419,12 +1423,12 @@ contains
       !   end if
       !end do
 
-      ! Calculate the SCBA before meir-wingreen current so el-ph self-energies are stored  
+      ! Calculate the SCBA before meir-wingreen current so el-ph self-energies are stored
       if (allocated(negf%inter)) then
 
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
-            
+
             call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
 
             if (negf%inter%scba_iter.ne.0) then
@@ -1446,15 +1450,15 @@ contains
            if (scba_error < negf%inter%scba_tol) then
               write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
                     & " iterations with error",negf%inter%scba_tol
-           else 
+           else
               write(*,*) "WARNING: SCBA exit with error ",scba_error, &
                     & "  > ",negf%inter%scba_tol
            end if
          end if
       endif
-   
+
       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,curr_mat)
-     
+
       negf%curr_mat(ii,:) = curr_mat(:) * negf%wght
 
       if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1525,7 +1529,7 @@ contains
   !  Calculates the non equilibrium LESSER Green function (extended diagonal)
   !  on a single energy point on real axis.
   !  It groups calculation of leads, scba loop if any and deallocations of
-  !  working arrays. 
+  !  working arrays.
   !
   !-----------------------------------------------------------------------------
   subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn)
@@ -1622,7 +1626,7 @@ contains
   end subroutine electron_current
 
   !---------------------------------------------------------------------------
-  !   COMPUTATION OF CURRENTS - INTEGRATION OF I_i(E) 
+  !   COMPUTATION OF CURRENTS - INTEGRATION OF I_i(E)
   !---------------------------------------------------------------------------
   subroutine electron_current_meir_wingreen(negf)
     type(Tnegf) :: negf
@@ -2089,7 +2093,7 @@ contains
   end subroutine swap
 
 end module integrations
-  
+
 !-------------------------------------------------------------------------------
 !!$  subroutine phonon_phonon(negf)
 !!$    type(Tnegf) :: negf
@@ -2315,4 +2319,3 @@ end module integrations
   !-----------------------------------------------------------------------------
   !DAR end
   !-----------------------------------------------------------------------------
-
