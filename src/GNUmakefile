@@ -101,6 +101,7 @@ elphdb.o : 	ln_precision.o globals.o mat_def.o ln_structure.o interactions.o spa
 elphds.o : 	ln_precision.o globals.o mat_def.o ln_structure.o interactions.o sparsekit_drv.o
 load.o : mat_def.o 
 outmatrix.o: ln_precision.o
+rcm_module.o: ln_precision.o
 
 # AUTO Makefile.dep does not work 
 #include Makefile.dep
