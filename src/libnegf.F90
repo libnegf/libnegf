@@ -741,13 +741,14 @@ contains
   end subroutine set_ldos_indexes
   ! -------------------------------------------------------------------
 
+#:if defined("MPI")
   subroutine set_mpi_comm(negf, mpicomm)
     type(Tnegf) :: negf
     type(mpifx_comm) :: mpicomm
 
     negf%mpicomm = mpicomm
   end subroutine
-
+#:endif
   ! -------------------------------------------------------------------
   subroutine set_convfactor(negf, eneconv)
     type(Tnegf) :: negf
