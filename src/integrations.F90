@@ -64,16 +64,12 @@ module integrations
  public :: phonon_tunneling   ! computes T(E) for phonons
  public :: phonon_current     ! computes heat currents
  public :: thermal_conductance ! computes thermal conductance
- !public :: phonon_phonon      ! computes phonon-phonon interactions
 
  public :: integrate_el       ! integration of tunneling (el)
  public :: integrate_el_meir_wingreen                                       !DAR
  public :: integrate_ph       ! integration of tunneling (ph)
- !!public :: compute_dos      ! compute local dos only
 
- !public :: contacts                                                        ! DAR
 
- !public :: menage_scratch
  ! ////////////////////////////////////////////////////////////
  ! Under development:
  !public :: init_emesh, destroy_emesh
@@ -194,7 +190,7 @@ contains
 
        if (negf%en_grid(i)%cpu /= id) cycle
 
-       Ec = negf%en_grid(i)%Ec + j*negf%dos_delta  !MUST use tunneling_int_def
+       Ec = negf%en_grid(i)%Ec + j*negf%dos_delta  
        negf%iE = negf%en_grid(i)%pt
 
        call compute_Gr(negf, outer, ncont, Ec, Gr)
@@ -1273,6 +1269,7 @@ contains
     Nstep = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
+    negf%readOldSGF = negf%readOldT_SGFs
 
     !-------------------------------------------------------
 
@@ -1389,6 +1386,7 @@ contains
     call create_SGF_SE(negf)
     call read_SGF_SE(negf)
 
+    negf%readOldSGF = negf%readOldT_SGFs
     !! Loop on energy points
     do ii = 1, Nstep
 
@@ -1492,6 +1490,8 @@ contains
 
     real(dp) :: scba_error
     Type(z_CSR) :: Gr_previous
+    
+    negf%readOldSGF = negf%readOldDM_SGFs
 
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -1549,6 +1549,7 @@ contains
     Type(z_CSR) :: Gn_previous
     !DAR end
 
+    negf%readOldSGF = negf%readOldDM_SGFs
     Er = real(Ec,dp)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -1696,6 +1697,7 @@ contains
     Nstep = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
+    negf%readOldSGF = negf%readOldT_SGFs
 
     !-------------------------------------------------------
 
@@ -2094,228 +2096,3 @@ contains
 
 end module integrations
 
-!-------------------------------------------------------------------------------
-!!$  subroutine phonon_phonon(negf)
-!!$    type(Tnegf) :: negf
-!!$
-!!$    ! Local Variables
-!!$    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-!!$    Type(z_CSR) :: Gr
-!!$    Real(dp), Dimension(:), allocatable :: TUN_MAT
-!!$    Real(dp), Dimension(:), allocatable :: LEDOS
-!!$    Real(dp) :: mu1, mu2   ! contact potentials
-!!$    Real(dp) :: ncyc       ! stores average number of iters in decimation
-!!$
-!!$    Integer :: i, i1, icont, icpl      ! dummy counters
-!!$    Integer :: ncont               ! number of contacts
-!!$    Integer :: size_ni, size_nf    ! emitter-collector contacts
-!!$
-!!$    Integer :: Nstep               ! number of integration points
-!!$    Complex(dp) :: Ec              ! Energy point
-!!$    Complex(dp) :: delta
-!!$    logical :: do_LEDOS
-!!$
-!!$    ! Get out immediately if Emax<Emin
-!!$    if (negf%Emax.le.negf%Emin) then
-!!$       if(id0) write(*,*) '0 tunneling points;  current = 0.0'
-!!$       call log_allocate(negf%currents,1)
-!!$       negf%currents = 0.0_dp
-!!$       return
-!!$    endif
-!!$    !-------------------------------------------------------
-!!$
-!!$    do_LEDOS = .false.
-!!$    if(negf%nLDOS.gt.0) do_LEDOS=.true.
-!!$    ncont = negf%str%num_conts
-!!$    Nstep = size(negf%en_grid)
-!!$    ncyc=0
-!!$
-!!$    !Extract emitter-collector contacts -------------------
-!!$    !Tunneling set-up
-!!$    do i=1,size(negf%ni)
-!!$       if (negf%ni(i).eq.0) then
-!!$          size_ni=i-1
-!!$          exit
-!!$       endif
-!!$    enddo
-!!$
-!!$    do i=1,size(negf%nf)
-!!$       if (negf%nf(i).eq.0) then
-!!$          size_nf=i-1
-!!$          exit
-!!$       endif
-!!$    enddo
-!!$
-!!$    !check size_ni .ne. size_nf
-!!$    if (size_ni.ne.size_nf) then
-!!$       size_ni=min(size_ni,size_nf)
-!!$       size_nf=min(size_ni,size_nf)
-!!$    endif
-!!$    !-------------------------------------------------------
-!!$
-!!$    call log_allocate(TUN_MAT,size_ni)
-!!$    call log_allocate(negf%tunn_mat,Nstep,size_ni)
-!!$    negf%tunn_mat = 0.0_dp
-!!$
-!!$    if (do_LEDOS) then
-!!$       call log_allocate(negf%ldos_mat,Nstep,negf%nLDOS)
-!!$       call log_allocate(LEDOS,negf%nLDOS)
-!!$       negf%ldos_mat(:,:)=0.d0
-!!$    endif
-!!$    !-------------------------------------------------------
-!!$
-!!$    negf%phph%scba_iter = 0
-!!$
-!!$    do i = 1, Nstep
-!!$
-!!$       call write_point(negf%verbose,negf%en_grid(i), size(negf%en_grid))
-!!$       if (negf%en_grid(i)%cpu /= id) cycle
-!!$
-!!$       Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
-!!$       negf%iE = negf%en_grid(i)%pt
-!!$
-!!$       ! delta*delta for reasons of units
-!!$       delta = negf%delta * negf%delta
-!!$       ! Mingo:
-!!$       !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec
-!!$
-!!$       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
-!!$       call compute_contacts(Ec+(0.d0,1.d0)*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-!!$       if (id0.and.negf%verbose.gt.VBT) call write_clock
-!!$
-!!$       call calls_Dr_ph(negf,Ec,SelfEneR,negf%str,.false.)
-!!$
-!!$       !call calls_Dn_ph(negf,Ec,...)
-!!$
-!!$       do i1=1,ncont
-!!$          call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
-!!$       enddo
-!!$
-!!$    end do
-!!$
-!!$    call log_deallocate(TUN_MAT)
-!!$    if(do_LEDOS) call log_deallocate(LEDOS)
-!!$
-!!$
-!!$  end subroutine phonon_phonon
-
-  !-----------------------------------------------------------------------------
-  !DAR begin - contacts
-  !-----------------------------------------------------------------------------
-  !subroutine contacts(negf)
-  !  type(Tnegf) :: negf
-  !
-  !  integer :: scba_iter, i1
-  !  real(dp) :: ncyc
-  !  Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-  !  integer :: size_ni, ii, Nstep, outer, ncont, j1, icont, jj
-  !  complex(dp) :: Ec
-
-  !  integer :: i,k1
-  !  integer :: ngs, npl            ! Dimension of Surface GF, PL
-  !  real(dp) :: Ec_check
-  !
-  !  ncont = negf%str%num_conts
-  !  Nstep = size(negf%en_grid)
-  !
-  !  call create_SGF_SE(negf)
-  !  call read_SGF_SE(negf)
-  !
-  !  if(negf%tElastic) write(*,*)
-  !  if(negf%tCalcSelfEnergies) write(*,"('>>> The contact self-enery calculation is started.')")
-
-  !  ! Only take non-zero contacts
-  !  do ii=1,size(negf%ni)
-  !     if (negf%ni(ii).eq.0) then
-  !        size_ni=ii-1
-  !        exit
-  !     endif
-  !  enddo
-  !  ! Don't need outer blocks
-  !  outer = 0
-  !
-  !  !if(negf%tElastic) deallocate(negf%tunn_mat)
-     !call log_allocate(TUN_MAT,size_ni)
-  !  !call log_allocate(negf%tunn_mat,Nstep,size_ni)
-  !  !negf%tunn_mat = 0.0_dp
-  !  !call log_allocate(frm,ncont)
-  !
-  !  !! Loop on energy points
-  !  do ii = 1, Nstep
-  !
-  !    negf%tranas%e%IndexEnergy=ii
-  !    if(negf%tCalcSelfEnergies) then
-  !
-  !       call write_point(negf%verbose,negf%en_grid(ii), size(negf%en_grid))
-
-  !       if (negf%en_grid(ii)%cpu /= id) cycle
-  !       Ec = negf%en_grid(ii)%Ec
-  !       negf%iE = negf%en_grid(ii)%pt
-  !
-  !
-  !       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
-  !       negf%tTrans=.true.
-  !       call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-  !       negf%tTrans=.false.
-  !       if (id0.and.negf%verbose.gt.VBT) call write_clock
-  !
-  !     end if
-  !
-  !    do icont=1,ncont
-  !        if(negf%tranas%cont(icont)%tReadSelfEnergy) then
-  !           SelfEneR(icont)%val=negf%tranas%cont(icont)%SelfEnergy(:,:,ii)
-  !           npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
-  !           SelfEneR(icont)%nrow=npl
-  !           SelfEneR(icont)%ncol=npl
-  !        end if
-  !        if(negf%tranas%cont(icont)%tWriteSelfEnergy.or.(.not.negf%tranas%cont(icont)%tReadSelfEnergy)) &
-  !           negf%tranas%cont(icont)%SelfEnergy(:,:,ii)=SelfEneR(icont)%val
-  !    end do
-
-  !    !debug begin
-  !    !print *, 'SE1'
-  !    !do j1=1,SelfEneR(1)%ncol
-  !    !   print *, SelfEneR(1)%val(j1,1:SelfEneR(1)%ncol)
-  !    !end do
-  !    !print *, 'SE2'
-  !    !do j1=1,SelfEneR(1)%ncol
-  !    !   print *, SelfEneR(2)%val(j1,1:SelfEneR(1)%ncol)
-  !    !end do
-  !    !debug end
-  !
-  !     if (id0.and.negf%verbose.gt.VBT) call write_clock
-  !    do icont=1,ncont
-  !       if(.not.negf%tranas%cont(icont)%tReadSelfEnergy) &
-  !            call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
-  !    enddo
-  !
-  !  enddo
-  !
-  !  !call log_deallocate(TUN_MAT)
-  !
-  !  if (id0) then
-  !     print *, 'The part from line 1651 in subroutine contacts should be checked and changed'
-  !  do icont=1,ncont
-  !  if(negf%tranas%cont(icont)%tWriteSelfEnergy) then
-  !     open(14,file=trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf')
-  !     do ii = 1, Nstep
-  !        write(14,*)real(negf%en_grid(ii)%Ec),negf%tranas%cont(icont)%SelfEnergy(:,:,ii)
-  !     end do
-  !     close(14)
-  !     write(*,*)
-  !     write(*,"('    The retarded contact self-energy is written into the file ',A)") &
-  !          trim(negf%tranas%cont(icont)%name)//'-SelfEnergy.mgf'
-  !  end if
-  !   end do
-  !
-  !  if(negf%tCalcSelfEnergies) write(*,*)
-  !  if(negf%tCalcSelfEnergies) write(*,"('>>> The contact self-enery calculation is finished.')")
-  !  end if
-  !
-  !end subroutine contacts
-  !
-  !---------------------------------------------------------------------------
-
-  !-----------------------------------------------------------------------------
-  !DAR end
-  !-----------------------------------------------------------------------------

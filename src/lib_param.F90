@@ -130,18 +130,18 @@ module lib_param
 #:if defined("MPI")  
    type(mpifx_comm) :: mpicomm
 #:endif   
-   integer  :: ReadoldSGF            ! 0: Read 1: compute 2: comp & save
+   integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
+   integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
    character(len=LST) :: scratch_path    ! Folder for scratch work
    character(len=LST) :: out_path        ! Folder for output data
    real(dp) :: g_spin            ! spin degeneracy
    real(dp) :: delta             ! delta for G.F. 
    real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS 
    real(dp) :: eneconv           ! Energy conversion factor
-   integer :: iteration          ! Number of current SCC itaration
    integer  :: spin              ! spin component
    real(dp) :: wght              ! k-point weight 
    integer :: kpoint             ! k-point index
-   character(1) :: DorE              ! Density or En.Density
+   character(1) :: DorE          ! Density or En.Density
 
    !! Contacts info
    type(Tcontact), dimension(:), allocatable :: cont
@@ -224,7 +224,6 @@ module lib_param
    real(dp), dimension(:,:), allocatable :: ldos_mat 
    real(dp), dimension(:), allocatable :: currents  
 
-   !logical :: tNoGeometry = .false.
    logical :: tOrthonormal = .false.
    logical :: tOrthonormalDevice = .false.
    logical :: tTrans = .false.
@@ -241,6 +240,9 @@ module lib_param
    logical :: tWrite_negf_params = .false.
    type(Ttransport) :: trans
    type(Tdephasing) :: deph
+
+   ! internal use only
+   integer :: readOldSGF
 
  end type Tnegf
 
@@ -324,7 +326,8 @@ contains
      negf%out_path = './'
      negf%DorE = 'D'           ! Density or En.Density
 
-     negf%ReadoldSGF = 1       ! Compute Surface G.F. do not save
+     negf%ReadOldDM_SGFs = 1   ! Compute Surface G.F. do not save
+     negf%ReadOldT_SGFs = 1    ! Compute Surface G.F. do not save
      
      negf%wght = 1.d0
      negf%kpoint = 1
@@ -353,7 +356,6 @@ contains
      negf%Np_p = (/20, 20/)  ! Number of points for p 
      negf%n_kt = 10          ! Numero di kT per l'integrazione
      negf%n_poles = 3        ! Numero di poli 
-     negf%iteration = 1      ! Iterazione (SCC)
      negf%activecont = 0     ! contact selfenergy
      allocate(negf%ni(1))
      allocate(negf%nf(1))
@@ -420,7 +422,8 @@ contains
      write(io,*) 'Ev= ', negf%Ev
      write(io,*) 'DEc= ', negf%DeltaEc 
      write(io,*) 'DEv= ', negf%DeltaEv
-     write(io,*) 'ReadoldSGF= ',negf%ReadoldSGF
+     write(io,*) 'ReadoldDM_SGFs= ',negf%ReadoldDM_SGFs
+     write(io,*) 'ReadoldT_SGF= ',negf%ReadoldT_SGFs
      write(io,*) 'Np_n= ',negf%Np_n
      write(io,*) 'Np_p= ', negf%Np_p
      write(io,*) 'nkT= ', negf%n_kt
@@ -448,7 +451,6 @@ contains
      write(io,*) 'outer= ', negf%outer
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
-     write(io,*) 'iter= ', negf%iteration
      write(io,*) 'activecont= ', negf%activecont 
   end subroutine print_all_vars
 

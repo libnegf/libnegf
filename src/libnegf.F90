@@ -66,7 +66,7 @@ module libnegf
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes
 
  public :: set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
- public :: set_readoldsgf, set_computation, set_iteration
+ public :: set_readOldDMsgf, set_readOldTsgf, set_computation
  public :: set_convfactor, set_fictcont
  public :: read_negf_in
  public :: negf_version
@@ -106,9 +106,11 @@ module libnegf
  public :: printcsrij   ! debugging routines
  public :: getel   ! debugging routines
 
- integer, PARAMETER :: VBT=70
- integer, PARAMETER :: MAXNUMPLs = 10000
-
+ integer, parameter :: VBT=70
+ integer, parameter :: MAXNUMPLs = 10000
+ integer, parameter, public :: READ_SGF = 0
+ integer, parameter, public :: COMP_SGF = 1
+ integer, parameter, public :: COMPSAVE_SGF = 2
   !-----------------------------------------------------------------------------
   !> Contains all the general parameters to be passed as input to library
   !! which are compatible with iso_c_binding representations
@@ -117,14 +119,14 @@ module libnegf
    !! General
    !> verbosity, > 100 is maximum
    integer(c_int) :: verbose
-   !> Managing SGF readwrite: 0: Read 1: compute 2: comp & save
-   integer(c_int)  :: readoldsgf
+   !> Managing SGF readwrite for DM: 0: Read 1: compute 2: comp & save
+   integer(c_int)  :: readOldDM_SGFs
+   !> Managing SGF readwrite for Tunn: 0: Read 1: compute 2: comp & save
+   integer(c_int)  :: readOldT_SGFs
    !> Spin component (for io)
    integer(c_int)  :: spin
    !> k-point index (for io)
    integer(c_int) :: kpoint
-   !> Current iteration (for io)
-   integer(c_int) :: iteration          ! Number of current SCC itaration
    !> Spin degeneracy
    real(c_double) :: g_spin
    !> Imaginary delta
@@ -513,9 +515,8 @@ contains
     integer :: nn
 
     params%verbose = negf%verbose
-    params%ReadoldSGF = negf%ReadoldSGF
-    !params%scratch_path = negf%scratch_path
-    !params%out_path = negf%out_path
+    params%readOldDM_SGFs = negf%readOldDM_SGFs
+    params%readOldT_SGFs = negf%readOldT_SGFs
     params%g_spin = negf%g_spin
     params%delta = negf%delta
     params%dos_delta = negf%dos_delta
@@ -556,11 +557,10 @@ contains
     params%spin = negf%spin
     params%wght = negf%wght
     params%kpoint = negf%kpoint
-    params%iteration = negf%iteration
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
-
+     
   end subroutine get_params
 
   !> Assign parameters to libnegf
@@ -571,9 +571,8 @@ contains
     integer :: nn
 
     negf%verbose = params%verbose
-    negf%ReadoldSGF = params%ReadoldSGF
-    !negf%scratch_path = params%scratch_path
-    !negf%out_path = params%out_path
+    negf%readOldDM_SGFs = params%readOldDM_SGFs
+    negf%readOldT_SGFs = params%readOldT_SGFs 
     negf%g_spin = params%g_spin
     negf%delta = params%delta
     negf%dos_delta = params%dos_delta
@@ -612,7 +611,6 @@ contains
     negf%spin = params%spin
     negf%wght = params%wght
     negf%kpoint = params%kpoint
-    negf%iteration = params%iteration
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
     negf%isSid = params%isSid
@@ -769,13 +767,6 @@ contains
 
   end subroutine set_fictcont
 
-  ! ------------------------------------------------------------------
-  subroutine set_iteration(negf,iter)
-    type(Tnegf) :: negf
-    integer :: iter
-
-    negf%iteration = iter
-  end subroutine set_iteration
   ! -------------------------------------------------------------------
 
   subroutine set_computation(negf,DorE)
@@ -786,14 +777,20 @@ contains
   end subroutine set_computation
 
   ! -------------------------------------------------------------------
-  subroutine set_readOldSGF(negf,flag)
+  subroutine set_readOldDMsgf(negf,flag)
     type(Tnegf) :: negf
-    integer :: flag
-
-    negf%ReadoldSGF=flag
-  end subroutine set_readoldsgf
+    integer :: flag !between 0:2
+    
+    negf%ReadOldDM_SGFs = flag
+  end subroutine set_readOldDMsgf
 
   ! -------------------------------------------------------------------
+  subroutine set_readOldTsgf(negf,flag)
+    type(Tnegf) :: negf
+    integer :: flag ! between 0:2
+    
+    negf%ReadOldT_SGFs = flag
+  end subroutine set_readOldTsgf
 
   !--------------------------------------------------------------------
   !> Initialize and set parameters from input file negf.in
@@ -1203,15 +1200,6 @@ contains
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
 
-    !Decide what to do with surface GFs.
-    !sets readOldSGF: if it is 0 or 1 it is left so
-    if (negf%readOldSGF.eq.2) then
-      if(negf%iteration.eq.1) then
-        negf%readOldSGF=2  ! compute and save SGF on files
-      else
-        negf%readOldSGF=0  ! read from files
-      endif
-    endif
 
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
       call contour_int_def(negf)
@@ -1318,28 +1306,19 @@ contains
     call tunneling_int_def(negf)
     call ldos_int(negf)
     call destroy_matrices(negf)
-
+    
   end subroutine compute_ldos
 
   !-------------------------------------------------------------------------------
   subroutine compute_current(negf)
-
     type(Tnegf) :: negf
 
-    integer :: flagbkup
-
-    flagbkup = negf%readOldSGF
-    if (negf%readOldSGF.ne.1) then
-       negf%readOldSGF = 1
-    end if
 
     if ( allocated(negf%inter) .or. negf%tDephasingBP) then
        call compute_meir_wingreen(negf);
     else
        call compute_landauer(negf);
     endif
-
-    negf%readOldSGF = flagbkup
 
   end subroutine compute_current
 
@@ -1500,16 +1479,10 @@ contains
 
     type(Tnegf) :: negf
 
-    integer :: flagbkup
 
     call extract_device(negf)
 
     call extract_cont(negf)
-
-    flagbkup = negf%readOldSGF
-    if (negf%readOldSGF.ne.1) then
-       negf%readOldSGF = 1
-    end if
 
     call tunneling_int_def(negf)
 
@@ -1523,8 +1496,6 @@ contains
     !call write_tunneling_and_dos(negf)
 
     call destroy_matrices(negf)
-
-    negf%readOldSGF = flagbkup
 
   end subroutine compute_phonon_current
 
