@@ -166,6 +166,21 @@ subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cbl
 
 end subroutine negf_init_structure
 
+!!* Pass contacts
+subroutine negf_init_contacts(handler, ncont) bind(c)
+  use iso_c_binding, only : c_int  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  implicit none
+  integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
+  integer(c_int), intent(in), value :: ncont ! if:var:inout
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+
+  call init_contacts(LIB%pNEGF, ncont)
+
+end subroutine negf_init_contacts
 
 !!* Passing parameters
 subroutine negf_set_params(handler, params) bind(c)
