@@ -429,9 +429,15 @@ class FormatterCpp(FormatterC):
   # Substitution of fortran types into C++ types. Boolean flag signalises
   # if the resulting C++-type is a scalar (True) or an array (False)
   typeMap = { "integer(c_int)": ("int", True),
-              "character(c_char)": ("char", True),
+              "integer": ("int", True),
+              "character(kind=c_char)": ("char", True),
+              "character": ("char", True),
               "real(c_double)" : ("double", True),
+              "real" : ("double", True),
+              "complex(c_double_complex)" : ("std::complex<double>", True),
               "complex" : ("std::complex<double>", True),
+              "type(lnparams)" : ("struct lnparams", True),
+              "type(c_ptr)" : ("double *", False)
               }
 
   def format(self, tree):
