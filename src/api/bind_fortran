@@ -535,7 +535,7 @@ def error(msg):
   """Prints an error message and stops the script.
   msg  --  Error message to print.
   """
-  print "ERROR: %s" % msg
+  print("ERROR: %s" % msg)
   sys.exit()
   
 
@@ -648,7 +648,7 @@ and dumps out the interface definitions to stdout.""" % scriptName
   tree = parse(txt)
 
   # Dump out in the required format
-  print formatter.format(tree)
+  print(formatter.format(tree))
 
 
 ### Local Variables:
