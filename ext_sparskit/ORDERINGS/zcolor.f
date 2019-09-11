@@ -816,105 +816,106 @@ c----------------------------------------------------------------------
       return
       end 
 c----------------------------------------------------------------------
-      subroutine indsetr (n,ja,ia,nset,iord,riord,sym,iptr) 
-      integer n, nset, ja(*),ia(*),riord(*),iord(*) 
-      logical sym
-c---------------------------------------------------------------------- 
-c greedy algorithm for independent set ordering -- RANDOM TRAVERSAL -- 
-c----------------------------------------------------------------------
-c parameters:
-c ----------
-c n      = row dimension of matrix
-c ja, ia = matrix pattern in CRS format
-c nset   = (output) number of elements in the independent set
-c iord   = permutation array corresponding to the independent set 
-c          ordering. Row number i will become row number iord(i) in 
-c          permuted matrix.
-c riord  = reverse permutation array. Row number i in the permutated 
-c          matrix is row number riord(i) in original matrix. 
-c----------------------------------------------------------------------
-c notes: works for CSR, MSR, and CSC formats but assumes that the
-c matrix has a symmetric structure. 
-c---------------------------------------------------------------------- 
-c local variables
-c 
-      integer j, k1, k2, nod, k, mat
-      do 1 j=1, n
-         iord(j) = 0
- 1    continue
-c
-c generate random permutation
-c 
-      iseed = 0 
-      call rndperm(n, riord, iseed)
-      write (8,'(10i6)') (riord(j),j=1,n) 
-c
-      nummat = 1
-      if (.not. sym) nummat = 2
-c     
-c iord used as a marker
-c 
-      nset = 0
-      do 12  ii=1, n
-         nod = riord(ii) 
-         if (iord(nod) .ne. 0) goto 12 
-         nset = nset+1
-         iord(nod) = 1
-c
-c visit all neighbors of current nod 
-c     
-         ipos = 0
-         do 45 mat=1, nummat
-            do 4 k=ia(ipos+nod), ia(ipos+nod+1)-1 
-               j = ja(k)
-               if (j .ne. nod) iord(j) = 2
- 4          continue
-            ipos = iptr-1
- 45      continue
- 12   continue
-c
-c get permutation
-c     
-      k1 = 0 
-      k2 = nset 
-      do 6 j=1,n
-         if (iord(j) .eq. 1) then
-            k1 = k1+1
-            k = k1
-         else
-            k2 = k2+1
-            k = k2 
-         endif
-            riord(k) = j         
-            iord(j) = k
- 6    continue
-      return
-c----------------------------------------------------------------------
-      end
-c----------------------------------------------------------------------
-      subroutine rndperm(n,iord,iseed) 
-      integer n, iseed, iord(n) 
-c----------------------------------------------------------------------
-c this subroutine will generate a pseudo random permutation of the
-c n integers 1,2, ...,n.
-c iseed is the initial seed. any integer.
-c----------------------------------------------------------------------
-c local
-c
-      integer i, j, itmp, irand
-      external irand
-c----------------------------------------------------------------------
-      do j=1, n
-         iord(j) = j
-      enddo
-c
-      do i=1, n
-         j = mod(irand(0),n) + 1
-         itmp = iord(i) 
-         iord(i) = iord(j) 
-         iord(j) = itmp
-      enddo
-c----------------------------------------------------------------------
-      return
-c----------------------------------------------------------------------
-      end 
+C      subroutine indsetr (n,ja,ia,nset,iord,riord,sym,iptr) 
+C      integer n, nset, ja(*),ia(*),riord(*),iord(*) 
+C      logical sym
+Cc---------------------------------------------------------------------- 
+Cc greedy algorithm for independent set ordering -- RANDOM TRAVERSAL -- 
+Cc----------------------------------------------------------------------
+Cc parameters:
+Cc ----------
+Cc n      = row dimension of matrix
+Cc ja, ia = matrix pattern in CRS format
+Cc nset   = (output) number of elements in the independent set
+Cc iord   = permutation array corresponding to the independent set 
+Cc          ordering. Row number i will become row number iord(i) in 
+Cc          permuted matrix.
+Cc riord  = reverse permutation array. Row number i in the permutated 
+Cc          matrix is row number riord(i) in original matrix. 
+Cc----------------------------------------------------------------------
+Cc notes: works for CSR, MSR, and CSC formats but assumes that the
+Cc matrix has a symmetric structure. 
+Cc---------------------------------------------------------------------- 
+Cc local variables
+Cc 
+C      integer j, k1, k2, nod, k, mat
+C      do 1 j=1, n
+C         iord(j) = 0
+C 1    continue
+Cc
+Cc generate random permutation
+Cc 
+C      iseed = 0 
+C      call rndperm(n, riord, iseed)
+C      write (8,'(10i6)') (riord(j),j=1,n) 
+Cc
+C      nummat = 1
+C      if (.not. sym) nummat = 2
+Cc     
+Cc iord used as a marker
+Cc 
+C      nset = 0
+C      do 12  ii=1, n
+C         nod = riord(ii) 
+C         if (iord(nod) .ne. 0) goto 12 
+C         nset = nset+1
+C         iord(nod) = 1
+Cc
+Cc visit all neighbors of current nod 
+Cc     
+C         ipos = 0
+C         do 45 mat=1, nummat
+C            do 4 k=ia(ipos+nod), ia(ipos+nod+1)-1 
+C               j = ja(k)
+C               if (j .ne. nod) iord(j) = 2
+C 4          continue
+C            ipos = iptr-1
+C 45      continue
+C 12   continue
+Cc
+Cc get permutation
+Cc     
+C      k1 = 0 
+C      k2 = nset 
+C      do 6 j=1,n
+C         if (iord(j) .eq. 1) then
+C            k1 = k1+1
+C            k = k1
+C         else
+C            k2 = k2+1
+C            k = k2 
+C         endif
+C            riord(k) = j         
+C            iord(j) = k
+C 6    continue
+C      return
+Cc----------------------------------------------------------------------
+C      end
+Cc----------------------------------------------------------------------
+C      subroutine rndperm(n,iord,iseed) 
+C      integer n, iseed, iord(n) 
+Cc----------------------------------------------------------------------
+Cc this subroutine will generate a pseudo random permutation of the
+Cc n integers 1,2, ...,n.
+Cc iseed is the initial seed. any integer.
+Cc----------------------------------------------------------------------
+Cc local
+Cc
+C      integer i, j, itmp, irand
+C      external irand
+Cc----------------------------------------------------------------------
+C      do j=1, n
+C         iord(j) = j
+C      enddo
+Cc
+C      do i=1, n
+C         j = mod(irand(0),n) + 1
+C         itmp = iord(i) 
+C         iord(i) = iord(j) 
+C         iord(j) = itmp
+C      enddo
+Cc----------------------------------------------------------------------
+C      return
+Cc----------------------------------------------------------------------
+C      end 
+C

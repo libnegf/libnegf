@@ -12,11 +12,10 @@ set(sources
   INFO/zinfofun.f
   INOUT/inout.f
   INOUT/zinout.f
+  ORDERINGS/ccncommon.f
   ORDERINGS/ccn.f
   ORDERINGS/zccn.f
-  ORDERINGS/color.f
   ORDERINGS/zcolor.f
-  ORDERINGS/dsepart.f
   ORDERINGS/zdsepart.f)
 
 add_library(sparskit ${sources})

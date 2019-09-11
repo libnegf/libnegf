@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(libNEGF VERSION 0.1 LANGUAGES Fortran C)
+project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
 
 set(FYPP "fypp" CACHE STRING "Fypp preprocessor")
 
