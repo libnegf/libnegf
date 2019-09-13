@@ -247,7 +247,7 @@ class FormatterF95(Formatter):
         argProps = sub.varDefs[argName]
         varArgs = argProps[0]
         varType = argProps[1]
-        if self.userTypeMap.has_key(varType):
+        if varType in self.userTypeMap.keys():
           varType = self.userTypeMap[varType]
         if argProps[2] == INTENT_IN:
           varIntent = "intent(in)"
@@ -382,7 +382,7 @@ class FormatterC(Formatter):
         ref = "*"
         if "value" in argProps[3]:
             ref = ""
-        if self.typeMap.has_key(varType):
+        if varType in self.typeMap.keys():
           (cVarType, isScalar) = self.typeMap[varType]
         else:
           raise FormatterError("No corresponding C-type for '%s'" % varType)
@@ -463,7 +463,7 @@ class FormatterCpp(FormatterC):
         varArgs = argProps[0]    # List of arguments (array dimensions)
         varType = argProps[1]    # Type of the variable
         varIntent = argProps[2]  # Intent of the variabe
-        if self.typeMap.has_key(varType):
+        if varType in self.typeMap.keys():
           (cVarType, isScalar) = self.typeMap[varType]
         else:
           raise FormatterError("No corresponding C++-type for '%s'" % varType)
