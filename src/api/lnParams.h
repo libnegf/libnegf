@@ -6,10 +6,10 @@
 
 struct lnparams {
   int verbose;
-  int readoldsgf; 
+  int readold_t_sgf;
+  int readold_dm_sgf;
   int spin;
   int kpoint;
-  int iteration;
   double g_spin;
   double delta;
   double dos_delta;
@@ -25,7 +25,8 @@ struct lnparams {
   double mu[MAXNCONT];
   double contact_dos[MAXNCONT];
   int fictcont[MAXNCONT];
-  double kbt[MAXNCONT];
+  double kbt_dm[MAXNCONT];
+  double kbt_t[MAXNCONT];
   int np_n[2];
   int np_p[2];
   int np_real[11];
@@ -34,6 +35,8 @@ struct lnparams {
   int ni[MAXNCONT];
   int nf[MAXNCONT];
   char dore[1];
+  int min_or_max;
+  _Bool is_s_is;
   };
 
 #endif
