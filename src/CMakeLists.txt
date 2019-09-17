@@ -34,6 +34,11 @@ if(WITH_INELASTIC)
   list(APPEND sources-fpp transform.F90)
 endif()
 
+set(sources-f90
+  api/libnegfAPICommon.f90
+  api/libnegf_api.f90)
+
+
 #execute_process(COMMAND git describe OUTPUT_VARIABLE gitrevision)
 set(gitrevision "000")
 string(TIMESTAMP compdate "%Y-%m-%d")
@@ -43,7 +48,7 @@ if(WITH_MPI)
   list(APPEND fyppdefs -DMPI)
 endif()
 
-set(sources)
+set(sources-fpp-f90)
 foreach(fppsrc IN LISTS sources-fpp)
   string(REGEX REPLACE "\\.F90" ".f90" f90src ${fppsrc})
   add_custom_command(
@@ -52,10 +57,10 @@ foreach(fppsrc IN LISTS sources-fpp)
       ${CMAKE_CURRENT_BINARY_DIR}/${f90src}
     MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${fppsrc}
     VERBATIM)
-  list(APPEND sources ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
+  list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-add_library(negf ${sources})
+add_library(negf ${sources-fpp-f90} ${sources-f90})
 
 target_link_libraries(negf PRIVATE sparskit syscalls)
 
