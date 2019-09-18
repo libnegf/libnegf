@@ -1803,7 +1803,8 @@ contains
     implicit none
 
     real(dp) :: integrate_el
-    real(dp), intent(in) :: mu1,mu2,emin,emax,estep
+    real(dp), intent(inout) :: mu1, mu2
+    real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: kT1, kT2
     real(dp), intent(in) :: spin_g
