@@ -859,7 +859,9 @@ contains
     read(101,*)  tmp, negf%g_spin
     read(101,*)  tmp, negf%delta
     read(101,*)  tmp, negf%nLDOS
-    deallocate(negf%LDOS)   !DAR
+    if (allocated(negf%LDOS)) then
+      deallocate(negf%LDOS)   !DAR
+    endif
     allocate(negf%LDOS(negf%nLDOS))
     do ii = 1, negf%nLDOS
       read(101,*) tmp, ist, iend
