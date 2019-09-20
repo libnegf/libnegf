@@ -383,7 +383,7 @@ contains
     complex(dp), intent(in) :: Ec
     Type(Tnegf), intent(inout) :: pnegf
     real(dp), intent(out) :: ncyc
-    Type(z_DNS), Dimension(MAXNCONT), intent(in) :: Tlc, Tcl
+    Type(z_DNS), Dimension(MAXNCONT), intent(inout) :: Tlc, Tcl
     Type(z_DNS), Dimension(MAXNCONT), intent(out) :: SelfEneR, GS
 
 

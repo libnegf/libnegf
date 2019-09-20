@@ -120,7 +120,7 @@ CONTAINS
     type(Tnegf), intent(inout) :: negf
     complex(dp), intent(in) :: E
     type(z_DNS), dimension(:), intent(in) :: SelfEneR
-    type(z_DNS), dimension(:), intent(in) :: Tlc, Tcl, gsurfR
+    type(z_DNS), dimension(:), intent(inout) :: Tlc, Tcl, gsurfR
     type(z_CSR), intent(out) :: A
     integer, intent(in) :: outer
 
