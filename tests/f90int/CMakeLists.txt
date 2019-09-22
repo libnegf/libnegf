@@ -1,5 +1,1 @@
-add_executable(f90int hello.F90)
-transfer_test_data(f90int)
-target_link_libraries(f90int negf sparskit ${libs})
-target_include_directories(f90int PRIVATE ${BUILD_MOD_DIR})
-add_test(f90int f90int)
+setup_f90_test(f90int hello.F90)

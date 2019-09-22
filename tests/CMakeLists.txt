@@ -4,6 +4,7 @@ set(test-directories
         c_int_file 
         f90int 
         f90int_file
+        f90elph_deph
         )
 
 # Make BLAS and LAPACK available to be linked in the tests.
@@ -24,6 +25,24 @@ function(transfer_test_data testname)
             COMMAND cp -f ${CMAKE_CURRENT_SOURCE_DIR}/* ${CMAKE_CURRENT_BINARY_DIR}/)
     endif()
     add_dependencies(${testname} ${testname}-data-transfer)
+endfunction()
+
+# A function to setup C tests.
+function(setup_c_test testname source)
+    add_executable(${testname} ${source})
+    transfer_test_data(${testname})
+    target_link_libraries(${testname} negf sparskit ${libs})
+    target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
+    add_test(${testname} ${testname})
+endfunction()
+
+# A function to setup F90 tests.
+function(setup_f90_test testname source)
+    add_executable(${testname} ${source})
+    transfer_test_data(${testname})
+    target_link_libraries(${testname} negf sparskit ${libs})
+    target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
+    add_test(${testname} ${testname})
 endfunction()
 
 
