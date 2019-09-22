@@ -17,9 +17,14 @@ set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH
 set(INSTALL_MOD_DIR "${CMAKE_INSTALL_PREFIX}/include/libnegf/modfiles" CACHE PATH
   "Installation directory for Fortran module files")
 
+set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include/libnegf" CACHE PATH
+  "Installation directory for C and C++ header files")
+
 option(BUILD_SHARED_LIBS "Whether the library should be shared" FALSE)
 
-option(INSTALL_INCLUDE_FILES "Whether module files should be installed" TRUE)
+option(INSTALL_INCLUDE_FILES "Whether module files and headers should be installed" TRUE)
+
+option(BUILD_TESTING "Whether the tests should be built" FALSE)
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
@@ -30,3 +35,8 @@ endif()
 add_subdirectory(ext_sparskit)
 add_subdirectory(ext_system)
 add_subdirectory(src)
+add_subdirectory(src/api)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
