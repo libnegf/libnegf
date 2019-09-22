@@ -1,0 +1,5 @@
+add_executable(c_int_file hello.c)
+transfer_test_data(c_int_file)
+target_link_libraries(c_int_file negf sparskit ${libs})
+target_include_directories(c_int_file PRIVATE ${CMAKE_BINARY_DIR}/src/api)
+add_test(c_int_file c_int_file)
