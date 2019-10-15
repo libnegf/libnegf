@@ -20,6 +20,7 @@ int main()
   printf("Initializing libNEGF \n");
   negf_init_session(hand);
   negf_init(hand);
+  negf_init_contacts(hand, 2);
   negf_read_input(hand);
   negf_solve_landauer(hand);
   negf_write_tunneling_and_dos(hand);

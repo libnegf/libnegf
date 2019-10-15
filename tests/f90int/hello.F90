@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 program hello
@@ -29,7 +29,8 @@ program hello
   Type(Tnegf), pointer :: pnegf
   Type(lnParams) :: params
   integer, allocatable :: surfend(:), contend(:), plend(:), cblk(:)
-  real(kind(1.d0)), allocatable :: mu(:), kt(:), energies(:), transmission(:,:)
+  real(kind(1.d0)), allocatable :: mu(:), kt(:)
+  real(kind(1.d0)), dimension(:,:), pointer :: transmission
 
   surfend = [60,80]
   contend = [80,100]
@@ -43,21 +44,22 @@ program hello
   write(*,*) 'Libnegf hello world'
   write(*,*) 'Init...'
   call init_negf(pnegf)
+  call init_contacts(pnegf, 2)
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
   call init_structure(pnegf, 2, contend, surfend, 1, plend, cblk)
-  
+
   ! Here we set the parameters, only the ones different from default
   call get_params(pnegf, params)
   params%Emin = -3.d0
   params%Emax = 3.d0
   params%Estep = 1.d-2
   call set_params(pnegf, params)
-  
+
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
-  call get_transmission(pnegf, energies, transmission)
+  call associate_transmission(pnegf, transmission)
   ! The above passes the transmission, but we write to file for debug
   call write_tunneling_and_dos(pnegf)
   write(*,*) 'Destroy negf'

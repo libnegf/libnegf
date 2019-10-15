@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 program hello
@@ -27,18 +27,19 @@ program hello
 
   Type(Tnegf), target :: negf
   Type(Tnegf), pointer :: pnegf
-  real(kind(1.d0)), allocatable :: energies(:), transmission(:,:)
+  real(kind(1.d0)), dimension(:,:), pointer :: transmission
 
   pnegf => negf
 
   write(*,*) 'Libnegf hello world'
   write(*,*) 'Init...'
   call init_negf(pnegf)
+  call init_contacts(pnegf, 2)
   call read_negf_in(negf)
-  
+
   write(*,*) 'Compute landauer tunneling and current'
   call compute_current(pnegf)
-  call get_transmission(pnegf, energies, transmission)
+  call associate_transmission(pnegf, transmission)
   ! The above passes the transmission, but we write to file for debug
   call write_tunneling_and_dos(pnegf)
   write(*,*) 'Release libnegf'
