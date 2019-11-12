@@ -12,15 +12,6 @@ libNEGF has been contributed by several authors, and a lot of the code
 is not homogeneous in style. Nevertheless, future development should follow
 this guideline in order to increase the readability and homogeneity of the project.
 
-Refactoring existing code
-=========================
-
-Everyone is welcome to refactor existing code and namings, as long as this is harmless
-from a user perspective (e.g. fixing indentation, whitespaces etc.). However, it is suggested to separate commits related to clean-up and refactoring from the commits
-containing the actual features.
-
-Impactful refactoring should be done in specific pull requests, to avoid compatibility issues.
-
 
 Style guide
 ===============
@@ -34,13 +25,13 @@ Line length and indentation
 
 * **Nested blocks** are indented by **2** white spaces::
 
-     write(*, *) "Nested block follows"
-     do ii = 1, 100
-       write(*, *) "This is the nested block"
-       if (ii == 50) then
-         write(*, *) "Next nested block"
-       end if
-     end do
+      write(*, *) "Nested block follows"
+      do ii = 1, 100
+        write(*, *) "This is the nested block"
+        if (ii == 50) then
+        write(*, *) "Next nested block"
+        end if
+      end do
 
 * **Continuation lines** are indented by **4** white spaces. Make sure to
   place continuation characters (`&`) both at the end of the line as well as at
@@ -64,19 +55,19 @@ Line length and indentation
   were not present::
 
       call doSomething()
-    #:if WITH_SCALAPACK
+      #:if WITH_SCALAPACK
       call someRoutineScalapackVersion(...)
-    #:else
+      #:else
       call someRoutineSerialVersion(...)
-    #:endif
+      #:endif
 
-    do iKS = 1, nKS
-    #:if WITH_SCALAPACK
-      call someRoutineScalapackVersion(iKS, ...)
-    #:else
-      call someRoutineSerialVersion(iKS, ...)
-    #:endif
-    end do
+      do iKS = 1, nKS
+        #:if WITH_SCALAPACK
+        call someRoutineScalapackVersion(iKS, ...)
+        #:else
+        call someRoutineSerialVersion(iKS, ...)
+        #:endif
+      end do
 
 
 
@@ -326,17 +317,27 @@ Allocation status
 At several places, the allocation status of a variable is used to signal choices
 about logical flow in the code::
 
-  !> SCC module internal variables
-  type(TScc), allocatable :: scc_calc
-  .
-  .
-  .
-  if (allocated(scc_calc)) then
+      !> SCC module internal variables
+      type(TScc), allocatable :: scc_calc
+      .
+      .
+      .
+      if (allocated(scc_calc)) then
 
-  end if
+      end if
 
 This is to be preferred to the use of additional logical variables if possible.
 
 Part of the reason for this choice is that from Fortran 2008 onwards, optional
 arguments to subroutines and functions are treated as not-present if not
 allocated.
+
+
+Refactoring existing code
+=========================
+
+Everyone is welcome to refactor existing code and namings, as long as this is harmless
+from a user perspective (e.g. fixing indentation, whitespaces etc.). However, it is suggested to separate commits related to clean-up and refactoring from the commits
+containing the actual features.
+
+Impactful refactoring should be done in specific pull requests, to avoid compatibility issues.
