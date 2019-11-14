@@ -208,8 +208,9 @@ contains
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
 
-    !call openMemLog(183)
-    !write(iolog,*) 'Memory logfile'
+    ! Allocate zero contacts by default. The actual number of contacts
+    ! can be set calling init_contacts again.
+    call init_contacts(negf, 0)
 
   end subroutine init_negf
 
@@ -460,6 +461,11 @@ contains
      integer, allocatable :: plend_tmp(:)
      integer :: npl_tmp
 
+     ! Make sure we called init_contacts in a consistent way.
+     if (size(negf%cont) .ne. ncont) then
+      stop "Error in set_structure: ncont not compatible with previous initialization."
+     end if
+     ! More sanity checks.
      if (size(contend) .ne. ncont) then
        stop "Error in set_structure: contend and ncont mismatch"
      end if
@@ -484,20 +490,34 @@ contains
     type(Tnegf) :: negf
     integer, intent(in) :: ncont
 
-    integer :: ii, nc
+    integer :: ii
 
-    ! If ncont == 0 we allocate at least one contact to hold the system el-chem potential
-    ! This makes the code easier when computing the Green's function
-    nc = ncont
-    allocate(negf%cont(nc))
-    do ii = 1, nc
-      negf%cont(ii)%FictCont = .false.   ! Ficticious contact
-      negf%cont(ii)%mu = 0.d0            ! Potenziale elettrochimico
-      negf%cont(ii)%contact_DOS = 0.d0   ! Ficticious contact DOS
+    ! Make sure that the number of contacts is compatible with naming formatting.
+    if (ncont .gt. 99) then
+      stop "Too many contacts. Cannot assign default names."
+    end if
+    ! Deallocate existing contacts if any, then allocate.
+    if (allocated(negf%cont)) then
+      deallocate(negf%cont)
+    end if
+    allocate(negf%cont(ncont))
+
+    ! Initialize the structure members to sensible defaults.
+    do ii = 1, ncont
+      ! Whether the contacts are ficticious and DOS to be used if the contact is
+      ! ficticious.
+      negf%cont(ii)%FictCont = .false.
+      negf%cont(ii)%contact_DOS = 0.d0
+      ! Electrochemical potentials.
+      negf%cont(ii)%mu = 0.d0
       negf%cont(ii)%mu_n = 0.d0
       negf%cont(ii)%mu_p = 0.d0
-      negf%cont(ii)%kbT_dm = 0.d0        ! electronic temperature
-      negf%cont(ii)%kbT_t = 0.d0         ! electronic temperature
+      ! Electronic temperature for the density matrix calculation.
+      negf%cont(ii)%kbT_dm = 0.d0
+       ! Electronic temperature for the transmission calculation.
+      negf%cont(ii)%kbT_t = 0.d0
+      ! Initialize the names to a default ContactXX, where XX is an index.
+      write (negf%cont(ii)%name , "(A7, I2.2)") "Contact", ii
     end do
 
   end subroutine init_contacts
