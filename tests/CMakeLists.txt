@@ -1,10 +1,11 @@
-# List of active tets. Each test indicates a subdirectory. 
-set(test-directories 
-        c_int 
-        c_int_file 
-        f90int 
+# List of active tets. Each test indicates a subdirectory.
+set(test-directories
+        c_int
+        c_int_file
+        f90int
         f90int_file
         f90elph_deph
+        f90issue6
         )
 
 # Make BLAS and LAPACK available to be linked in the tests.
@@ -16,8 +17,8 @@ set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 # This is used to support out-of-source build, as the test
 # directory contain input files which we don't want to specify.
 function(transfer_test_data testname)
-    if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}") 
-        add_custom_target(${testname}-data-transfer)   
+    if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
+        add_custom_target(${testname}-data-transfer)
     else()
         add_custom_target(
             ${testname}-data-transfer

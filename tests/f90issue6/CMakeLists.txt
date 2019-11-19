@@ -1,0 +1,1 @@
+setup_f90_test(f90issue6 f90issue6.F90)
