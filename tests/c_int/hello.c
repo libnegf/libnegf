@@ -26,15 +26,18 @@ int main()
   negf_init(hand);
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
   negf_set_s_id(hand, 100);
+  negf_init_contacts(hand, 2);
   negf_init_structure(hand, 2, &contend[0], &surfend[0], 1, &plend[0], &cblk[0]);
 
-  //Set parameters  
+  //Set parameters
   negf_get_params(hand, &params);
   params.emin = -3.0;
   params.emax = 3.0;
   params.estep = 0.01;
+  params.kbt_t[0] = 0.001;
+  params.kbt_t[1] = 0.001;
   negf_set_params(hand, &params);
- 
+
   //Set ldos parameters
   negf_init_ldos(hand, 1);
   negf_set_ldos_intervals(hand, 1, &ldos_start[0], &ldos_end[0]);

@@ -38,7 +38,6 @@ set(sources-f90
   api/libnegfAPICommon.f90
   api/libnegf_api.f90)
 
-
 #execute_process(COMMAND git describe OUTPUT_VARIABLE gitrevision)
 set(gitrevision "000")
 string(TIMESTAMP compdate "%Y-%m-%d")

@@ -208,8 +208,9 @@ contains
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
 
-    !call openMemLog(183)
-    !write(iolog,*) 'Memory logfile'
+    ! Allocate zero contacts by default. The actual number of contacts
+    ! can be set calling init_contacts again.
+    call init_contacts(negf, 0)
 
   end subroutine init_negf
 
@@ -460,6 +461,11 @@ contains
      integer, allocatable :: plend_tmp(:)
      integer :: npl_tmp
 
+     ! Make sure we called init_contacts in a consistent way.
+     if (size(negf%cont) .ne. ncont) then
+      stop "Error in set_structure: ncont not compatible with previous initialization."
+     end if
+     ! More sanity checks.
      if (size(contend) .ne. ncont) then
        stop "Error in set_structure: contend and ncont mismatch"
      end if
@@ -484,20 +490,34 @@ contains
     type(Tnegf) :: negf
     integer, intent(in) :: ncont
 
-    integer :: ii, nc
+    integer :: ii
 
-    ! If ncont == 0 we allocate at least one contact to hold the system el-chem potential
-    ! This makes the code easier when computing the Green's function
-    nc = ncont
-    allocate(negf%cont(nc))
-    do ii = 1, nc
-      negf%cont(ii)%FictCont = .false.   ! Ficticious contact
-      negf%cont(ii)%mu = 0.d0            ! Potenziale elettrochimico
-      negf%cont(ii)%contact_DOS = 0.d0   ! Ficticious contact DOS
+    ! Make sure that the number of contacts is compatible with naming formatting.
+    if (ncont .gt. 99) then
+      stop "Too many contacts. Cannot assign default names."
+    end if
+    ! Deallocate existing contacts if any, then allocate.
+    if (allocated(negf%cont)) then
+      deallocate(negf%cont)
+    end if
+    allocate(negf%cont(ncont))
+
+    ! Initialize the structure members to sensible defaults.
+    do ii = 1, ncont
+      ! Whether the contacts are ficticious and DOS to be used if the contact is
+      ! ficticious.
+      negf%cont(ii)%FictCont = .false.
+      negf%cont(ii)%contact_DOS = 0.d0
+      ! Electrochemical potentials.
+      negf%cont(ii)%mu = 0.d0
       negf%cont(ii)%mu_n = 0.d0
       negf%cont(ii)%mu_p = 0.d0
-      negf%cont(ii)%kbT_dm = 0.d0        ! electronic temperature
-      negf%cont(ii)%kbT_t = 0.d0         ! electronic temperature
+      ! Electronic temperature for the density matrix calculation.
+      negf%cont(ii)%kbT_dm = 0.d0
+       ! Electronic temperature for the transmission calculation.
+      negf%cont(ii)%kbT_t = 0.d0
+      ! Initialize the names to a default ContactXX, where XX is an index.
+      write (negf%cont(ii)%name , "(A7, I2.2)") "Contact", ii
     end do
 
   end subroutine init_contacts
@@ -560,7 +580,7 @@ contains
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
-     
+
   end subroutine get_params
 
   !> Assign parameters to libnegf
@@ -572,7 +592,7 @@ contains
 
     negf%verbose = params%verbose
     negf%readOldDM_SGFs = params%readOldDM_SGFs
-    negf%readOldT_SGFs = params%readOldT_SGFs 
+    negf%readOldT_SGFs = params%readOldT_SGFs
     negf%g_spin = params%g_spin
     negf%delta = params%delta
     negf%dos_delta = params%dos_delta
@@ -677,7 +697,7 @@ contains
         end if
       end do
       deallocate(negf%ldos)
-    end if  
+    end if
     allocate(negf%ldos(nldos))
     negf%nldos = nldos
 
@@ -691,7 +711,7 @@ contains
     do i=1, size(ldos)
       if (allocated(ldos(i)%indexes)) then
         call log_deallocate(ldos(i)%indexes)
-      end if  
+      end if
     end do
 
     deallocate(ldos)
@@ -733,7 +753,7 @@ contains
 
     if (.not.allocated(negf%ldos(ildos)%indexes)) then
        call log_allocate(negf%ldos(ildos)%indexes, size(idx))
-    end if   
+    end if
     negf%ldos(ildos)%indexes = idx
 
   end subroutine set_ldos_indexes
@@ -780,7 +800,7 @@ contains
   subroutine set_readOldDMsgf(negf,flag)
     type(Tnegf) :: negf
     integer :: flag !between 0:2
-    
+
     negf%ReadOldDM_SGFs = flag
   end subroutine set_readOldDMsgf
 
@@ -788,7 +808,7 @@ contains
   subroutine set_readOldTsgf(negf,flag)
     type(Tnegf) :: negf
     integer :: flag ! between 0:2
-    
+
     negf%ReadOldT_SGFs = flag
   end subroutine set_readOldTsgf
 
@@ -928,22 +948,22 @@ contains
     call kill_Tstruct(negf%str)
     if (allocated(negf%LDOS)) then
        call destroy_ldos(negf%ldos)
-    end if   
+    end if
     if (allocated(negf%en_grid)) then
        deallocate(negf%en_grid)
-    end if   
-    if (allocated(negf%tunn_mat)) then 
+    end if
+    if (allocated(negf%tunn_mat)) then
        call log_deallocate(negf%tunn_mat)
-    end if   
-    if (allocated(negf%curr_mat)) then 
+    end if
+    if (allocated(negf%curr_mat)) then
        call log_deallocate(negf%curr_mat)
-    end if   
+    end if
     if (allocated(negf%ldos_mat)) then
          call log_deallocate(negf%ldos_mat)
-    end if     
-    if (allocated(negf%currents)) then 
+    end if
+    if (allocated(negf%currents)) then
       call log_deallocate(negf%currents)
-    end if  
+    end if
     call destroy_DM(negf)
     call destroy_matrices(negf)
     !if (allocated(negf%cont)) deallocate(negf%cont)
@@ -1015,7 +1035,7 @@ contains
 
   end subroutine associate_current
 
-   
+
   !--------------------------------------------------------------------
   subroutine associate_lead_currents(negf, curr)
     type(TNegf), pointer, intent(in)  :: negf
@@ -1308,7 +1328,7 @@ contains
     call tunneling_int_def(negf)
     call ldos_int(negf)
     call destroy_matrices(negf)
-    
+
   end subroutine compute_ldos
 
   !-------------------------------------------------------------------------------
@@ -1339,7 +1359,7 @@ contains
     call tunneling_and_dos(negf)
 
     if (allocated(negf%tunn_mat)) then
-      call electron_current(negf)                   
+      call electron_current(negf)
     end if
     call destroy_matrices(negf)
 
@@ -1357,7 +1377,7 @@ contains
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
- 
+
     if (allocated(negf%curr_mat)) then
       call electron_current_meir_wingreen(negf)
     end if
@@ -1401,7 +1421,7 @@ contains
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: esteps, npoints
     real(dp), dimension(:,:) :: ldos
-    
+
     integer :: i, j
 
     if (allocated(negf%ldos_mat) .and. &
@@ -1457,7 +1477,7 @@ contains
         write(ofKP,'(i6.6)') negf%kpoint
         write(idstr,'(i6.6)') id
 
-        open(newunit=iu,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat') 
+        open(newunit=iu,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat')
 
         do i = 1,Nstep
 

@@ -1803,7 +1803,8 @@ contains
     implicit none
 
     real(dp) :: integrate_el
-    real(dp), intent(in) :: mu1,mu2,emin,emax,estep
+    real(dp), intent(inout) :: mu1, mu2
+    real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: kT1, kT2
     real(dp), intent(in) :: spin_g
@@ -1818,15 +1819,15 @@ contains
     destep=1.0d10
     Nstep=NINT((emax-emin)/estep);
 
-    !We set a minimum possible value T = 0.01 K to avoid
+    !We set a minimum possible value T = 1.0 K to avoid
     !numerical issues
-    if (kT1 < 0.01_dp*Kb) then
-      kbT1 = Kb*0.01_dp
+    if (kT1 < 1.0_dp*Kb) then
+      kbT1 = Kb*1.0_dp
     else
       kbT1 = kT1
     endif
-    if (kT2 < 0.01_dp*Kb) then
-      kbT2 = Kb*0.01_dp
+    if (kT2 < 1.0_dp*Kb) then
+      kbT2 = Kb*1.0_dp
     else
       kbT2 = kT2
     endif

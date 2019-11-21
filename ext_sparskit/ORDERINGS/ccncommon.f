@@ -355,13 +355,13 @@ c.....We modify the number of blocks to indicate the number of connected
 c.....components in the matrix.
       newblc = 0
       nsfin = 0
-CDIR$ NEXT SCALAR
+C DIR$ NEXT SCALAR
       do ibloc = 1, nbloc
          ilccnx = (mxccex+1) * (ibloc-1) + 1
          nccnex = lccnex(ilccnx)
          if(nccnex .gt. 1 .and. impr) write(iout,420) ibloc,nccnex
          lcc0 = 0
-CDIR$ NEXT SCALAR
+C DIR$ NEXT SCALAR
          do icc = 1,nccnex
             newblc = newblc + 1
             nsb = lccnex(ilccnx+icc)
