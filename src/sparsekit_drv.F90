@@ -46,15 +46,10 @@ MODULE sparsekit_drv
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
   private :: rcoocsr_st, rcsrcoo_st, rcsrdns_st, zdnscsr_st, zdnscsc_st, zcooxcsr_st
   private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st
-  private :: zcooxcsr
   private :: rclone_st, zclone_st
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs
   private :: nnz_sum, nnz_sum1, nnz_mult
-
-  external :: zcsort, csort, amask, zamask
-  !public :: rprint_csrdns
-
 
   !*************************************************************************
   !                                                                        |
@@ -279,16 +274,6 @@ MODULE sparsekit_drv
       integer, intent(inout) :: jb(*), ib(*)
     end subroutine zcoocsr
     
-    subroutine zcooxcsr(nrow, nnz, aa, ia, ja, first, bb, jb, ib)
-      import :: dp
-      integer, intent(in) :: nrow, nnz
-      complex(dp), intent(in) :: aa(*)  
-      integer, intent(in) :: ia(*), ja(*)
-      complex(dp), intent(in) :: first(*)
-      complex(dp), intent(inout) :: bb(*)
-      integer, intent(inout) :: jb(*), ib(*)
-    end subroutine zcooxcsr
-
     subroutine zcsrdns(nrow, ncol, aa, ja, ia, bb, nr, ierr)
       import :: dp
       integer, intent(in) :: nrow, ncol
@@ -345,7 +330,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine zamub
           
     subroutine zamubs(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -356,7 +342,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine zamubs
           
     subroutine aplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -366,7 +353,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       real(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine aplb
 
     subroutine aplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -377,7 +365,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       real(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine aplsb
 
     subroutine zaplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -387,7 +376,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine zaplb
     
     subroutine zaplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -398,7 +388,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine zaplsb
 
     subroutine zaplb1(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, ierr)
@@ -408,7 +399,8 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: ierr
     end subroutine zaplb1
     
     subroutine zcplsamub(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
@@ -419,11 +411,13 @@ MODULE sparsekit_drv
       integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
       complex(dp), intent(inout) :: cc(*)
       integer, intent(inout) :: jc(*), ic(*)
-      integer, intent(inout) :: nnz, iw(*), ierr
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
     end subroutine zcplsamub
 
     subroutine zcsort(nrow, aa, ja, ia, iw, vals)
       import :: dp
+      integer, intent(in) :: nrow
       complex(dp), intent(in) :: aa(*)
       integer, intent(in) :: ja(*), ia(*)
       integer, intent(inout) :: iw(*)
@@ -436,7 +430,7 @@ MODULE sparsekit_drv
       complex(dp), intent(inout) :: aa(*)
       integer, intent(inout) :: ja(*), ia(*)
       integer, intent(inout) :: iwk(*)
-      logical, intent(inout) :: ierr 
+      integer, intent(inout) :: ierr 
     end subroutine ztransp
 
     subroutine zsubmat(nrow,job,i1,i2,j1,j2,aa,ja,ia,nr,nc,bb,jb,ib)
@@ -469,8 +463,8 @@ MODULE sparsekit_drv
     !call zas1pls2b(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
     !       B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
     !       C_csr%nnz,iw,ierr)
-    subroutine zas1pls2b(nrow, ncol, job, aa, ja, ia, s1, s2, nn, jb, ib, cc, &
-                 &  jc, ic, nnz, iw, ierr)
+    subroutine zas1pls2b(nrow, ncol, job, aa, ja, ia, s1, s2, bb, jb, ib, &
+                 & cc, jc, ic, nnz, iw, ierr)
       import :: dp
       integer, intent(in) :: nrow, ncol, job
       complex(dp), intent(in) :: aa(*)
@@ -504,7 +498,7 @@ MODULE sparsekit_drv
       integer, intent(inout) :: len
       complex(dp), intent(inout) :: dd(*)
       integer, intent(inout) :: idiag(*)
-      integer, intent(inout) :: ioff
+      integer, intent(in) :: ioff
     end subroutine zgetdia
 
     !call ziluk(A_csr%nrow, A_csr%nzval, A_csr%colind, A_csr%rowpnt, lfil, &
