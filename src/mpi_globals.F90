@@ -32,14 +32,15 @@ module mpi_globals
 
   contains
     
-    subroutine negf_mpi_init(comm)
-      type(mpifx_comm) :: comm
+    subroutine negf_mpi_init(worldComm, groupComm)
+      type(mpifx_comm) :: worldComm
+      type(mpifx_comm) :: groupComm
       
-      id = comm%rank
-      numprocs = comm%size
+      id = groupComm%rank
+      numprocs = groupComm%size
       
       id0 = .false.
-      if (id.eq.0) id0 = .true.  
+      if (globalComm%rank.eq.0) id0 = .true.  
 
       !print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
       !print*, 'CPU',id,'READY'
