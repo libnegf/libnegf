@@ -18,31 +18,24 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-program hello
+!--------------------------------------------------------------------
+!>  Regression test for issue #6. Verify that we can initalize
+!!  an instance of libnegf and immediately destroy. It was not
+!!  previously possible due to problems in the inizalization of
+!!  contacts, and this test would crash.
+!--------------------------------------------------------------------
+program main
 
   use libnegf
   use lib_param
 
   implicit none
 
-  Type(Tnegf), target :: negf
-  Type(Tnegf), pointer :: pnegf
-  real(kind(1.d0)), dimension(:,:), pointer :: transmission
+  Type(Tnegf) :: pnegf
+  Type(lnParams) :: params
 
-  pnegf => negf
-
-  write(*,*) 'Libnegf hello world'
-  write(*,*) 'Init...'
   call init_negf(pnegf)
-  call init_contacts(pnegf, 2)
-  call read_negf_in(negf)
-
-  write(*,*) 'Compute landauer tunneling and current'
-  call compute_current(pnegf)
-  call associate_transmission(pnegf, transmission)
-  ! The above passes the transmission, but we write to file for debug
-  call write_tunneling_and_dos(pnegf)
-  write(*,*) 'Release libnegf'
+  call get_params(pnegf, params)
   call destroy_negf(pnegf)
 
-end program hello
+end program main

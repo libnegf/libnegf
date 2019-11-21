@@ -1,0 +1,1 @@
+setup_f90_test(f90int hello.F90)
