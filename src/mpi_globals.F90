@@ -32,14 +32,14 @@ module mpi_globals
 
   contains
     
-    subroutine negf_mpi_init(worldComm)
-      type(mpifx_comm) :: worldComm
+    subroutine negf_mpi_init(energyComm, ioMaster)
+      type(mpifx_comm) :: energyComm
+      logical :: ioMaster
       
-      id = worldComm%rank
-      numprocs = worldComm%size
+      id =energyComm%rank
+      numprocs = energyComm%size
       
-      id0 = .false.
-      if (worldComm%rank.eq.0) id0 = .true.  
+      id0 = ioMaster 
 
       !print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
       !print*, 'CPU',id,'READY'
