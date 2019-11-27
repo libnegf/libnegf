@@ -34,13 +34,16 @@ module mpi_globals
     
     subroutine negf_mpi_init(energyComm, ioMaster)
       type(mpifx_comm) :: energyComm
-      logical :: ioMaster
+      logical, optional :: ioMaster
       
       id =energyComm%rank
       numprocs = energyComm%size
       
-      id0 = ioMaster 
-
+      if (present(ioMaster)) then
+        id0 = ioMaster 
+      else
+        id0 = (id == 0)
+      end if    
       !print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
       !print*, 'CPU',id,'READY'
       !print*, 'PRINTING CPU:',id0
