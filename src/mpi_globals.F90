@@ -40,10 +40,10 @@ module mpi_globals
       numprocs = energyComm%size
       
       if (present(ioMaster)) then
-        id0 = ioMaster 
+        id0 = ioMaster
       else
         id0 = (id == 0)
-      end if    
+      end if
       !print*, 'INIT MPI-NEGF ON',numprocs,'NODES' 
       !print*, 'CPU',id,'READY'
       !print*, 'PRINTING CPU:',id0
