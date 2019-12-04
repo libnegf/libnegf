@@ -62,7 +62,8 @@ module system_calls
      if (verbose) print*,'Folder "'//trim(dirname)//'" created'
    else
      if (present(error)) then
-       select case (error) 
+       error = err    
+       select case (err) 
        case(INT_EEXIST)
        case(INT_ENODIR)      
          print*,'Folder name error "'//trim(dirname)//'"' 

@@ -46,37 +46,10 @@ MODULE sparsekit_drv
   private :: zrconcatm_csr, zconcat_csr, zconcatm_csr
   private :: rcoocsr_st, rcsrcoo_st, rcsrdns_st, zdnscsr_st, zdnscsc_st, zcooxcsr_st
   private :: zcsrdns_st, zcscdns_st, zcoocsr_st, zcsrcoo_st, zcsrcsc_st, zcsccsr_st
-  private :: zcooxcsr
   private :: rclone_st, zclone_st
   private :: rsumcsr, rsumcsrs, zsumcsr, zsumcsrs, zsumcsrs1s2, zsumdns, zsumdnss
   private :: zmultcsr, zmultcsrs
   private :: nnz_sum, nnz_sum1, nnz_mult
-
-  external :: zcsort, csort, amask, zamask
-  !public :: rprint_csrdns
-
-  interface
-    function getelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
-      import :: dp
-      integer :: ii, jj
-      real(dp) :: aa(*)
-      integer :: ia(*), ja(*)
-      integer :: iadd
-      logical :: sorted
-      real(dp) :: res
-    end function getelm
-
-    function zgetelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
-      import :: dp
-      integer :: ii, jj
-      complex(dp) :: aa(*)
-      integer :: ia(*), ja(*)
-      integer :: iadd
-      logical :: sorted
-      complex(dp) :: res
-    end function zgetelm
-  end interface
-
 
   !*************************************************************************
   !                                                                        |
@@ -241,22 +214,296 @@ MODULE sparsekit_drv
      module procedure zspectral_csr
      module procedure zspectral_dns
   end interface
-  !interface
-  !   function getelm(i1,i2,r,i4,i5,i6,l)
-  !     integer, intent(in) :: i1,i2
-  !     real(dp), dimension(:), intent(in) :: r
-  !     integer, dimension(:), intent(in) :: i4,i5
-  !     integer, intent(out) :: i6
-  !     logical, intent(in) :: l
-  !     real(dp) :: getelm
-  !   end function getelm
-  !end interface
 
   integer, parameter :: MISMATCH = 1
   integer, parameter :: CONVERR = 2
   integer, parameter :: BADINDEX = 3
   integer, parameter :: OUTOFBOUND = 4
   integer, parameter :: ALLOCERR = 5
+
+
+  interface
+    function getelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
+      import :: dp
+      integer, intent(in) :: ii, jj
+      real(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ia(*), ja(*)
+      integer, intent(in)  :: iadd
+      logical, intent(in) :: sorted
+      real(dp) :: res
+    end function getelm
+
+    function zgetelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
+      import :: dp
+      integer, intent(in) :: ii, jj
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ia(*), ja(*)
+      integer, intent(in) :: iadd
+      logical, intent(in) :: sorted
+      complex(dp) :: res
+    end function zgetelm
+     
+    subroutine dnscsr(nrow, ncol, nnz, aa, nr, bb, colind, rowpnt, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol
+      integer, intent(inout) :: nnz
+      real(dp), intent(in) :: aa(*)  
+      integer, intent(in) :: nr
+      real(dp), intent(inout) :: bb(*)  
+      integer, intent(inout) :: colind(*), rowpnt(*)
+      integer, intent(inout) :: ierr
+    end subroutine dnscsr
+
+    subroutine zdnscsr(nrow, ncol, nnz, aa, nr, bb, colind, rowpnt, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol
+      integer, intent(inout) :: nnz
+      complex(dp), intent(in) :: aa(*)  
+      integer, intent(in) :: nr
+      complex(dp), intent(inout) :: bb(*)  
+      integer, intent(inout) :: colind(*), rowpnt(*)
+      integer, intent(inout) :: ierr
+    end subroutine zdnscsr
+       
+    subroutine zcoocsr(nrow, nnz, aa, ia, ja, bb, jb, ib)
+      import :: dp
+      integer, intent(in) :: nrow, nnz
+      complex(dp), intent(in) :: aa(*)  
+      integer, intent(in) :: ia(*), ja(*)
+      complex(dp), intent(inout) :: bb(*)
+      integer, intent(inout) :: jb(*), ib(*)
+    end subroutine zcoocsr
+    
+    subroutine zcsrdns(nrow, ncol, aa, ja, ia, bb, nr, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol
+      complex(dp), intent(in) :: aa(*)  
+      integer, intent(in) :: ja(*), ia(*)
+      complex(dp), intent(inout) :: bb(*)  
+      integer, intent(inout) :: nr
+      integer, intent(inout) :: ierr
+    end subroutine zcsrdns
+
+    subroutine zcsrcoo(nrow, job, nnz, aa, ja, ia, innz, bb, ib, jb, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, job, nnz
+      complex(dp), intent(in) :: aa(*)  
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: innz
+      complex(dp), intent(inout) :: bb(*)  
+      integer, intent(inout) :: ib(*), jb(*)
+      integer, intent(inout) :: ierr
+    end subroutine zcsrcoo
+            
+    subroutine zcsrcsc(nrow, job, ipos, aa, colind, rowpnt, bb, rowind, colpnt)
+      import :: dp
+      integer, intent(in) :: nrow, job, ipos
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: rowind(*), colpnt(*)
+      complex(dp), intent(inout) :: bb(*)
+      integer, intent(inout) :: colind(*), rowpnt(*)
+    end subroutine zcsrcsc
+
+    subroutine zcsrcsc2(nrow, ncol, job, ipos, aa, colind, rowpnt, bb, rowind, colpnt)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job, ipos
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: colind(*), rowpnt(*)
+      complex(dp), intent(inout) :: bb(*)
+      integer, intent(inout) :: rowind(*), colpnt(*)
+    end subroutine zcsrcsc2
+
+    subroutine amub(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      real(dp), intent(in) :: aa(*), bb(*)
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      real(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(inout) :: nnz, iw(*), ierr
+    end subroutine amub
+
+    subroutine zamub(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine zamub
+          
+    subroutine zamubs(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      complex(dp), intent(in) :: s
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine zamubs
+          
+    subroutine aplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      real(dp), intent(in) :: aa(*), bb(*)
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      real(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine aplb
+
+    subroutine aplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      real(dp), intent(in) :: aa(*), bb(*)
+      real(dp), intent(in) :: s
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      real(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine aplsb
+
+    subroutine zaplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine zaplb
+    
+    subroutine zaplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      complex(dp), intent(in) :: s
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine zaplsb
+
+    subroutine zaplb1(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: ierr
+    end subroutine zaplb1
+    
+    subroutine zcplsamub(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*), bb(*)
+      complex(dp), intent(in) :: s
+      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(in) :: nnz
+      integer, intent(inout) :: iw(*), ierr
+    end subroutine zcplsamub
+
+    subroutine zcsort(nrow, aa, ja, ia, iw, vals)
+      import :: dp
+      integer, intent(in) :: nrow
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: iw(*)
+      logical, intent(in) :: vals 
+    end subroutine zcsort
+
+    subroutine ztransp(nrow,ncol,aa,ja,ia,iwk,ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol
+      complex(dp), intent(inout) :: aa(*)
+      integer, intent(inout) :: ja(*), ia(*)
+      integer, intent(inout) :: iwk(*)
+      integer, intent(inout) :: ierr 
+    end subroutine ztransp
+
+    subroutine zsubmat(nrow,job,i1,i2,j1,j2,aa,ja,ia,nr,nc,bb,jb,ib)
+      import :: dp
+      integer, intent(in) :: nrow, job, i1, i2, j1, j2 
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: nr, nc    
+      complex(dp), intent(inout) :: bb(*)
+      integer, intent(inout) :: jb(*), ib(*)
+    end subroutine zsubmat
+
+    subroutine zcopmat(nrow,aa,ja,ia,bb,jb,ib,job,ierr)
+      import :: dp
+      integer, intent(in) :: nrow 
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      complex(dp), intent(inout) :: bb(*)
+      integer, intent(inout) :: jb(*), ib(*)
+      integer, intent(in) :: job, ierr
+    end subroutine zcopmat
+  
+    subroutine bandwidth(ncol, ja, ia, ml, mu, a_bw, bndav)
+      import :: dp
+      integer, intent(in) :: ncol 
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: ml, mu, a_bw, bndav
+    end subroutine bandwidth
+   
+    !call zas1pls2b(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
+    !       B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
+    !       C_csr%nnz,iw,ierr)
+    subroutine zas1pls2b(nrow, ncol, job, aa, ja, ia, s1, s2, bb, jb, ib, &
+                 & cc, jc, ic, nnz, iw, ierr)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      complex(dp), intent(in) :: bb(*)
+      integer, intent(in) :: jb(*), ib(*)
+      complex(dp), intent(in) :: s1, s2
+      complex(dp), intent(inout) :: cc(*)
+      integer, intent(inout) :: jc(*), ic(*)
+      integer, intent(inout) :: nnz
+      integer, intent(inout) :: iw(*)
+      integer, intent(inout) :: ierr
+    end subroutine zas1pls2b
+      
+    subroutine getdia(nrow, ncol, job, aa, ja, ia, len, dd, idiag, ioff)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      real(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: len
+      real(dp), intent(inout) :: dd(*)
+      integer, intent(inout) :: idiag(*)
+      integer, intent(in) :: ioff
+    end subroutine getdia
+    
+    subroutine zgetdia(nrow, ncol, job, aa, ja, ia, len, dd, idiag, ioff)
+      import :: dp
+      integer, intent(in) :: nrow, ncol, job
+      complex(dp), intent(in) :: aa(*)
+      integer, intent(in) :: ja(*), ia(*)
+      integer, intent(inout) :: len
+      complex(dp), intent(inout) :: dd(*)
+      integer, intent(inout) :: idiag(*)
+      integer, intent(in) :: ioff
+    end subroutine zgetdia
+
+    !call ziluk(A_csr%nrow, A_csr%nzval, A_csr%colind, A_csr%rowpnt, lfil, &
+    !     LU_msr%nzval, LU_msr%index, LU_ju, LU_levs, LU_iwk, w, jw, ierr)
+  end interface      
 
 CONTAINS
   ! -------------------------------------------------------------------------
@@ -1644,7 +1891,7 @@ CONTAINS
     call log_allocate(colind,A_csr%nrow*A_ncol)
     call log_allocate(rowpnt,A_csr%nrow+1)
 
-    call zaplb1 (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call zaplb1(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                  B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,&
                  rowpnt,A_csr%nrow*A_ncol,ierr)
 
