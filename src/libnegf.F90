@@ -57,6 +57,7 @@ module libnegf
  public :: set_mpi_comm
  public :: negf_mpi_init !from mpi_globals
 #:endif
+ public :: set_mpi_bare_comm
 
  !Input and work flow procedures
  public :: lnParams
@@ -760,11 +761,40 @@ contains
   ! -------------------------------------------------------------------
 
 #:if defined("MPI")
+  !> Set a global mpifx communicator.
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] mpicomm: an mpifx communicator
   subroutine set_mpi_comm(negf, mpicomm)
     type(Tnegf) :: negf
     type(mpifx_comm) :: mpicomm
 
     negf%mpicomm = mpicomm
+  end subroutine
+
+  !> Set a global mpifx communicator from a bare communicator.
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] mpicomm: an mpi communicator
+  subroutine set_mpi_bare_comm(negf, mpicomm)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: mpicomm
+
+    type(mpifx_comm) :: mpifxcomm
+
+    call mpifxcomm%init(mpicomm)
+    negf%mpicomm = mpifxcomm
+
+  end subroutine
+#:else
+  !> Dummy method for the C-interface, when mpi implementation is missing.
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] mpicomm: unused.
+  subroutine set_mpi_bare_comm(negf, mpicomm)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: mpicomm
+
   end subroutine
 #:endif
   ! -------------------------------------------------------------------
