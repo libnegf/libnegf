@@ -73,6 +73,7 @@ set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
   target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
+  target_link_libraries(negf PRIVATE mpifx)
 endif()
 
 target_include_directories(negf PUBLIC
