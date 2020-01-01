@@ -784,6 +784,7 @@ contains
 
     call mpifxcomm%init(mpicomm)
     negf%mpicomm = mpifxcomm
+    call negf_mpi_init(negf%mpicomm)
 
   end subroutine
 #:else

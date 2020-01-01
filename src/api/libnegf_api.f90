@@ -245,7 +245,6 @@ subroutine negf_set_mpi_fcomm(handler, comm) bind(C)
 
   LIB = transfer(handler, LIB)
   call set_mpi_bare_comm(LIB%pNEGF, comm)
-  call negf_mpi_init(LIB%pNEGF%mpicomm)
 
 end subroutine negf_set_mpi_fcomm
 
