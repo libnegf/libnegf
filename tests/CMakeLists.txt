@@ -6,6 +6,7 @@ set(test-directories
         f90int_file
         f90elph_deph
         f90issue6
+        f90block_partition
         )
 
 # Make BLAS and LAPACK available to be linked in the tests.
