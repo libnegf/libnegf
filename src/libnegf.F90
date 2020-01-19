@@ -441,7 +441,8 @@ contains
   !!               contact(fortran indexing. If cblk is not known, use
   !!               find_cblocks
   !!
-  !! If nbl = 0 the code will try to guess an automatic partitioning
+  !! If nbl = 0 the code will try to guess an automatic partitioning and
+  !! plend, cblk will be ignored.
   !!
   !! Example: device goes from 1 to 60. Contacts from 61 to 80 and to
   !! 81 to 100. Only 1 PL:
@@ -458,7 +459,7 @@ contains
      integer, intent(in) :: plend(:)
      integer, intent(in) :: cblk(:)
 
-     integer, allocatable :: plend_tmp(:)
+     integer, allocatable :: plend_tmp(:), cblk_tmp(:)
      integer :: npl_tmp
 
      ! Make sure we called init_contacts in a consistent way.
@@ -479,7 +480,11 @@ contains
      if (npl .eq. 0) then
        call log_allocate(plend_tmp, MAXNUMPLs)
        call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
-       call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk, negf%str)
+       call log_allocate(cblk_tmp, MAXNUMPLs)
+       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, contend, surfend, cblk_tmp)
+       call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk_tmp, negf%str)
+       call log_deallocate(plend_tmp)
+       call log_deallocate(cblk_tmp)
      else
        call create_Tstruct(ncont, npl, plend, contend, surfend, cblk, negf%str)
      end if
@@ -1604,16 +1609,23 @@ contains
 
   end subroutine reorder
 
-  !----------------------------------------------------------------------
-  ! Authomatic Block partitioning. The Hamiltonian must be already sorted
-  !----------------------------------------------------------------------
+  !>  Authomatic Block partitioning. The matrix must be already sorted.
   subroutine block_partition(mat,nrow,cont_end,surf_end,ncont,nbl,blks)
+
+    !> The matrix to be partitioned.
     type(z_CSR), intent(in) :: mat
+    !> The number of row to partition.
     integer, intent(in) :: nrow
+    !> The indices indicating the end of the contact.
     integer, dimension(:), intent(in) :: cont_end
+    !> The indices indicating the end of the scattering region surface
+    !> (last orbitals before corresponding contact.)
     integer, dimension(:), intent(in) :: surf_end
-   integer, intent(in) :: ncont
+    !> The number of contacts.
+    integer, intent(in) :: ncont
+    !> The number of blocks.
     integer, intent(out) :: nbl
+    !> The array with the end index for each block.
     integer, dimension(:), intent(inout) :: blks
 
     integer :: j, k, i
@@ -1622,9 +1634,7 @@ contains
     integer :: rn, rnold, tmax, rmax, maxmax
     integer :: dbuff, minsize, minv, maxv
 
-    !nrow = mat%nrow
-
-     minsize = 0
+    minsize = 0
      do i1 = 1, ncont
         maxv = 0
         minv = 400000000
@@ -1637,6 +1647,10 @@ contains
         if (maxv-minv+1 .gt. minsize) minsize = maxv - minv + 1
     end do
 
+    ! The current algorithm does not work when the minimum block
+    ! size is 1. We fix the minimum possible size to 2 as temporary fix.
+    minsize = max(minsize, 2)
+
     ! Find maximal stancil of the matrix and on which row
     !  ( Xx     )
     !  ( xXxx   )
@@ -1644,12 +1658,8 @@ contains
     !  (   xXx  )
     maxmax = 0
     do j=1,nrow
-
-       i1 = mat%rowpnt(j)
-       i2 = mat%rowpnt(j+1) - 1
-
        tmax = 0
-       do i = i1, i2
+       do i = mat%rowpnt(j), mat%rowpnt(j+1) - 1
            if ( mat%colind(i).le.nrow .and. (mat%colind(i)-j) .gt. tmax) then
                 tmax = mat%colind(i)-j
            endif
@@ -1664,14 +1674,8 @@ contains
        minsize = max((dbuff+1)/2,minsize)
     enddo
 
-    !write(*,*) 'minsize=',minsize
-    !write(*,*) 'maxrow=',rmax
-
     ! Define central block
     rn = rmax - maxmax/2 - dbuff
-
-    !write(*,*) 'rn=',rn
-
 
     if(rn-dbuff.ge.0) then
 
