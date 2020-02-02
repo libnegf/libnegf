@@ -61,7 +61,7 @@ endforeach()
 
 add_library(negf ${sources-fpp-f90} ${sources-f90} )
 
-target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
+target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib> $<TARGET_OBJECTS:sparskit>)
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:syscalls_objlib,INTERFACE_INCLUDE_DIRECTORIES>>)
 
