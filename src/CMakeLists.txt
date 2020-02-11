@@ -59,7 +59,7 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit>)
+add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC

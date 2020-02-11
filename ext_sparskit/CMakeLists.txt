@@ -18,4 +18,5 @@ set(sources
   ORDERINGS/zcolor.f
   ORDERINGS/zdsepart.f)
 
-add_library(sparskit OBJECT ${sources})
+add_library(sparskit_objlib OBJECT ${sources})
+set_target_properties(sparskit_objlib PROPERTIES POSITION_INDEPENDENT_CODE ${BUILD_SHARED_LIBS})
