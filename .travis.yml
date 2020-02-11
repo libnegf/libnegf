@@ -1,0 +1,28 @@
+os: linux
+dist: bionic
+
+language: python
+python: 3.7
+
+env:
+   - BUILD_TESTING=ON
+
+addons:
+   apt:
+      packages:
+      - cmake
+      - build-essential
+      - gfortran
+      - libblas-dev
+      - liblapack-dev
+      - python3
+      - python3-pip
+#      - libopenmpi-dev
+#      - libscalapack-openmpi-dev
+
+script:
+- mkdir _build
+- cd _build
+- cmake -DBUILD_TESTING=${BUILD_TESTING} ..
+- make -j 2 
+- ctest -j 2 
