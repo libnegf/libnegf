@@ -5,7 +5,8 @@ language: python
 python: 3.7
 
 env:
-   - BUILD_TESTING=ON
+   - BUILD_SHARED_LIBS=OFF
+   - BUILD_SHARED_LIBS=ON
 
 addons:
    apt:
@@ -23,6 +24,6 @@ addons:
 script:
 - mkdir _build
 - cd _build
-- cmake -DBUILD_TESTING=${BUILD_TESTING} ..
+- cmake -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON ..
 - make -j 2 
 - ctest -j 2 
