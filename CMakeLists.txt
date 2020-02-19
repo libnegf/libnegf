@@ -28,7 +28,7 @@ option(BUILD_TESTING "Whether the tests should be built" FALSE)
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  set(MPIFX_INCLUDE_DIR "/opt/mpifx/include" CACHE PATH
+  set(MPIFX_INCLUDE_DIR "/usr/local/include/mpifx" CACHE PATH
     "Include directory of the MPIFX library (only if built with MPI)")
 endif()
 
