@@ -133,7 +133,16 @@ subroutine negf_init(handler) bind(C)
 
 end subroutine negf_init
 
-!!* Pass structure
+!> Set the structure partitioning information.
+!! If npl is set to 0, plend and cblk are ignored and an automatic
+!! partitioning is invoked.
+!! @param [in] handler:  handler Number for the LIBNEGF instance
+!! @param [int] ncont (int): the number of contacts.
+!! @param [int] contend (array): the last index of each contact (size ncont)
+!! @param [int] surfend (array): the last index before each contact (size ncont)
+!! @param [int] npl (int): the number of principal layers
+!! @param [int] plend (array): the indices of the layer end (size npl)
+!! @param [int] cblks (array): the indices of the blocks interacting with the contacts (size ncont)
 subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cblk) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
@@ -156,15 +165,47 @@ subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cbl
   allocate(contend_al(ncont))
   allocate(cblk_al(ncont))
   allocate(plend_al(npl))
-
+  plend_al(1:npl) = plend(1:npl)
   surfend_al(1:ncont) = surfend(1:ncont)
   contend_al(1:ncont) = contend(1:ncont)
   cblk_al(1:ncont) = cblk(1:ncont)
-  plend_al(1:npl) = plend(1:npl)
 
   call init_structure(LIB%pNEGF, ncont, contend_al, surfend_al, npl, plend_al, cblk_al)
 
 end subroutine negf_init_structure
+
+!> Retrieve the arrays describing the hamiltonina principal layer partitions for the
+!! block iterative algorithm.
+!! @param [in] handler:  handler Number for the LIBNEGF instance
+!! @param [out] npl (int): the number of principal layers
+!! @param [out] plend (array): the indices of the layer end (size npl)
+!! @param [out] cblks (array): the indices of the blocks interacting with the contacts (size ncont)
+!! @param [in] copy (int): 0 if you want only to fill npoints, any value
+!!               if you want to perform the actual copy
+subroutine negf_get_pls(handler, npl, ncont, plend, cblk, copy) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(out) ::npl ! if:var:in
+  integer(c_int), intent(out) ::ncont ! if:var:in
+  integer(c_int), intent(out) :: plend(*)  ! if:var:in
+  integer(c_int), intent(out) :: cblk(*)  ! if:var:in
+  integer(c_int), intent(in), value :: copy ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+  if (copy.eq.0) then
+    npl = LIB%pNEGF%str%num_PLs
+  else
+    npl = LIB%pNEGF%str%num_PLs
+    plend(1:npl) = LIB%pNEGF%str%mat_PL_end(:)
+    cblk(1:LIB%pNEGF%str%num_conts) = LIB%pNEGF%str%cblk(:)
+  end if
+
+end subroutine negf_get_pls
 
 !!* Pass contacts
 subroutine negf_init_contacts(handler, ncont) bind(C)
