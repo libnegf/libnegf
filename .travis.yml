@@ -5,8 +5,8 @@ language: python
 python: 3.7
 
 env:
-   - BUILD_SHARED_LIBS=OFF
-   - BUILD_SHARED_LIBS=ON
+   #- BUILD_SHARED_LIBS=OFF
+   - BUILD_SHARED_LIBS=ON WITH_MPI=ON
 
 addons:
    apt:
@@ -18,12 +18,18 @@ addons:
       - liblapack-dev
       - python3
       - python3-pip
-#      - libopenmpi-dev
-#      - libscalapack-openmpi-dev
+      - libopenmpi-dev
+      - libscalapack-openmpi-dev
+
+install:
+- pip3 install fypp
+- git clone https://github.com/dftbplus/mpifx.git
+- cd mpifx && mkdir _build && cd _build
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/  -DINSTALL_MOD_DIR=/usr/include/mpifx -DBUILD_SHARED_LIBS=ON ..
+- make && sudo make install
 
 script:
-- mkdir _build
-- cd _build
-- cmake -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON ..
-- make -j 2 
-- ctest -j 2 
+- cd ${TRAVIS_BUILD_DIR} && mkdir _build && cd _build
+- cmake -DWITH_MPI=${WITH_MPI} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON -DMPIFX_INCLUDE_DIR=/usr/include/mpifx ..
+- make -j 2
+- ctest -j 2
