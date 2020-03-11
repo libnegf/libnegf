@@ -5,8 +5,8 @@ language: python
 python: 3.7
 
 env:
-   #- BUILD_SHARED_LIBS=OFF
-   - BUILD_SHARED_LIBS=ON WITH_MPI=ON
+   - BUILD_SHARED_LIBS=OFF WITH_MPI=ON
+   #- BUILD_SHARED_LIBS=ON WITH_MPI=ON
 
 addons:
    apt:
@@ -25,7 +25,7 @@ install:
 - pip3 install fypp
 - git clone https://github.com/dftbplus/mpifx.git
 - cd mpifx && mkdir _build && cd _build
-- cmake -DCMAKE_INSTALL_PREFIX=/usr/  -DINSTALL_MOD_DIR=/usr/include/mpifx -DBUILD_SHARED_LIBS=ON ..
+- cmake -DCMAKE_INSTALL_PREFIX=/usr/  -DINSTALL_MOD_DIR=/usr/include/mpifx -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} ..
 - make && sudo make install
 
 script:
