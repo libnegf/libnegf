@@ -72,6 +72,7 @@ set(BUILD_MOD_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
+  find_package(MPI REQUIRED)
   target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
   target_link_libraries(negf PRIVATE mpifx)
 endif()

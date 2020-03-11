@@ -12,7 +12,11 @@ set(test-directories
 # Make BLAS and LAPACK available to be linked in the tests.
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+if(WITH_MPI)
+  set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${MPI_Fortran_LIBRARIES})
+else()
+  set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
 
 # Define a function wich copies over the content of the tests.
 # This is used to support out-of-source build, as the test
