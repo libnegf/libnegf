@@ -190,7 +190,7 @@ contains
 
        if (negf%en_grid(i)%cpu /= id) cycle
 
-       Ec = negf%en_grid(i)%Ec + j*negf%dos_delta  
+       Ec = negf%en_grid(i)%Ec + j*negf%dos_delta
        negf%iE = negf%en_grid(i)%pt
 
        call compute_Gr(negf, outer, ncont, Ec, Gr)
@@ -1379,7 +1379,9 @@ contains
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     call log_allocate(curr_mat,size_ni)
-    call log_allocate(negf%curr_mat,Nstep,size_ni)
+    if (.not. allocated(negf%curr_mat)) then
+      call log_allocate(negf%curr_mat,Nstep,size_ni)
+    end if
     negf%curr_mat = 0.0_dp
     call log_allocate(frm,ncont)
 
@@ -1490,7 +1492,7 @@ contains
 
     real(dp) :: scba_error
     Type(z_CSR) :: Gr_previous
-    
+
     negf%readOldSGF = negf%readOldDM_SGFs
 
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -2096,4 +2098,3 @@ contains
   end subroutine swap
 
 end module integrations
-
