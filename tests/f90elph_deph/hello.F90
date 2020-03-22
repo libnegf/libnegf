@@ -80,7 +80,7 @@ program hello
   call compute_current(pnegf)
   write(*,*) 'Current ', pnegf%currents(1)
   ! The current with dephasing is smaller than the ballistic current.
-  if ((abs(pnegf%currents(1)) > 1.95) .and. (abs(pnegf%currents(1)) < 1.90)) error stop "Wrong current for finite coupling"
+  if (pnegf%currents(1) > 1.95 .or. pnegf%currents(1) < 1.90) error stop "Wrong current for finite coupling"
   deallocate(coupling)
   write(*,*) 'Destroy negf'
   call destroy_negf(pnegf)
