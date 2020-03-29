@@ -758,7 +758,7 @@ end subroutine negf_associate_ldos
 
 !!> Set ldos intervals
 !! @param [in] handler: handler Number for the LIBNEGF instance
-!! @param [in] istart(nldos) array with first interval indelibnegfx
+!! @param [in] istart(nldos) array with first interval index
 !! @param [in] iend(nldos) array with first interval index
 subroutine negf_set_ldos_intervals(handler, nldos, istart, iend) bind(c)
   use iso_c_binding, only : c_int ! if:mod:use
@@ -777,7 +777,7 @@ subroutine negf_set_ldos_intervals(handler, nldos, istart, iend) bind(c)
 end subroutine negf_set_ldos_intervals
 
 
-!> Initialize the ldos containeralloca
+!> Initialize the ldos container
 !! @param [in] handler: handler Number for the LIBNEGF instance
 !! @param [in] nldos: number of intervals
 subroutine negf_init_ldos(handler, nldos) bind(c)
@@ -999,7 +999,7 @@ end subroutine negf_print_tnegf
 !!> Set electron-phonon dephasing model.
 !! @param [in] handler: handler Number for the LIBNEGF instance
 !! @param [in] coupling(norbitals): array with coupling strength
-!! @param [in] coupling_size: the sie of the coupling array
+!! @param [in] coupling_size: the size of the coupling array
 !! @param [in] orbsperatom(natoms): array with the number of orbital per atoms. Ignored for model=1
 !! @param [in] orbspreatom_size: the size of orbsperatom
 !! @param [in] niter: the number of SCBA iterations.
