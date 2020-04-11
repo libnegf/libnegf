@@ -402,6 +402,7 @@ CONTAINS
     integer :: ref, iter
     integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH, Gn, Gp
+    integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
 
@@ -463,6 +464,18 @@ CONTAINS
     !! Update el-ph retarded self energy if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !! TODO: moving this after the outer calculations causes numerical
+    !! errors even if S is orthogonal. To be investigated.
+    allocate(Gr_columns(ncont))
+    Gr_columns = 0
+    do i=1,ncont
+      if (i.NE.ref) THEN
+        Gr_columns = cblk(i)
+        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+      endif
+    end do
+
     !Computing outer blocks
     SELECT CASE (outblocks)
     CASE(0)  ! No outer blocks
@@ -479,17 +492,12 @@ CONTAINS
 
     ! Computing contact contributions as G^n = Sum_i [f_i - f_ref] G^r Gamma_i G^a
     ! Computes the columns of Gr for the contacts != reference
-    do i=1,ncont
-      if (i.NE.ref) THEN
-        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
-      endif
-    end do
     call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
     !       This is fine for elastic dephasing but could be a problem in general
-    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn)
+    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn,Gr_columns)
 
     ! The gsmr, gsml are used to calculate columns on-the-fly in Make_Gn_ph, we
     ! can destroy them here.
@@ -559,6 +567,7 @@ CONTAINS
     integer :: ref, iter, lead, lead_blk, ref_blk
     integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH, Gn
+    integer, dimension(:), allocatable :: Gr_columns
     type(z_DNS) :: work1, work2, Gam, A
     type(z_CSR) :: ESH_tot, Gl
 
@@ -618,17 +627,6 @@ CONTAINS
 
     !! Give Gr to interaction model if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
-    !---------------------------------------------------
-    !With el-ph we need all columns
-    do i=1,nbl
-      call Make_Grcol_mem_dns(ESH,i,indblk)
-    end do
-
-    !Distruzione delle gsmall
-    call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
-    call destroy_gsm(gsml)
-    call deallocate_gsm_dns(gsml)
 
     !! Never calculate outer blocks
     call allocate_blk_dns(Gn, nbl)
@@ -637,9 +635,24 @@ CONTAINS
 
     !! TEMPORARY AND INEFFICIENT:
     !! CALCULATE THE FULL Gn WHEN THE CONTACT BLOCK WHOULD BE ENOUGH
+    allocate(Gr_columns(ncont))
+    Gr_columns = 0
+    do i=1,ncont
+      if (i.NE.ref) THEN
+        Gr_columns = cblk(i)
+        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+      endif
+    end do
     call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn)
+    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn, Gr_columns)
+
+    ! The gsmr, gsml are used to calculate columns on-the-fly in Make_Gn_ph, we
+    ! can destroy them here.
+    call destroy_gsm(gsmr)
+    call deallocate_gsm_dns(gsmr)
+    call destroy_gsm(gsml)
+    call deallocate_gsm_dns(gsml)
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
@@ -1770,11 +1783,12 @@ CONTAINS
   ! Calculate G_n contributions due to elph:  G_n = G_n + Gr Sigma_ph Ga
   !
   !****************************************************************************
-  subroutine Make_Gn_ph(negf,ESH,iter,Gn)
+  subroutine Make_Gn_ph(negf, ESH, iter, Gn, existing_Gr_cols)
 
     type(Tnegf), intent(in) :: negf
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     type(z_DNS), dimension(:,:), intent(inout) :: Gn
+    integer, dimension(:), intent(in) :: existing_Gr_cols
     integer, intent(in) :: iter
 
     integer, dimension(:), pointer :: indblk
@@ -1782,12 +1796,14 @@ CONTAINS
     Type(z_DNS) :: Ga, work1, work2, sigma_tmp
     integer :: n, k, nbl, nrow, ierr, ii, jj, norbs, nblk, indstart, indend
 
+    indblk => negf%str%mat_PL_start
+    nbl = negf%str%num_PLs
+
     !! If this is the first scba cycle, there's nothing to do
     if (negf%inter%scba_iter .eq. 0) then
       return
     endif
-    nbl = negf%str%num_PLs
-    ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
+    allocate(Sigma_ph_n(nbl,nbl),stat=ierr)
     if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
     ! The block sigma n is made available from el-ph model
@@ -1804,49 +1820,57 @@ CONTAINS
     !! Gn(n,n+1) = Gr(n,k)*Sigma_n(k,k)*Ga(k,n+1)
     !! Gn(n,n-1) = Gr(n,k)*Sigma_n(k,k)*Ga(k,n-1)
     !! All the rows of Gr need to be available
-    indblk => negf%str%mat_PL_start
-    do k = 1, nbl
 
+    do k = 1, nbl
       ! Calculate k-th column on-the-fly. The reference contact column
-      ! might already be available, check.
-      if (Gr(nbl, k)%nrow .ne. 0) then
+      ! might already be available. Check if the top and bottom of the
+      ! column are available.
+      if (all(existing_Gr_cols .ne. k)) then
         call Make_Grcol_mem_dns(ESH, k, indblk)
       endif
 
       do n = 1, nbl
-        if (Gr(n, k)%nrow.gt.0) then
-          call zdagger(Gr(n, k),Ga)
+
+        ! Zero column blocks are not created at all.
+        if (Gr(n, k)%nrow .gt. 0) then
+          ! Calculate diagonal blocks Gn(n, n)
+          call zdagger(Gr(n, k), Ga)
           call prealloc_mult(Gr(n, k), Sigma_ph_n(k, k), work1)
           call prealloc_mult(work1, Ga, work2)
-          ! Computing diagonal blocks of Gn(n,n)
-        ! initialized on ESH therefore we need to check whether the block exists.
-        if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0) then
-          call zdagger(Gr(n + 1, n), Ga)
-          call prealloc_mult(work1, Ga, work2)
-          Gn(n, n + 1)%val = Gn(n, n + 1)%val + work2%val
-        endif
-        call destroy(work2,Ga)
-        ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
-        ! initialized on ESH therefore we need to check whether the block exists.
-          call zdagger(Gr(n - 1, n), Ga)
-          call prealloc_mult(work1, Ga, work2)
-          Gn(n, n - 1)%val = Gn(n, n - 1)%val + work2%val
-        endif
-        call destroy(work1, work2, Ga)
+          Gn(n,n)%val = Gn(n,n)%val + work2%val
+          call destroy(work2, Ga)
+
+          ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
+          ! initialized on ESH therefore we need to check whether the block exists.
+          if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0) then
+            call zdagger(Gr(n + 1, k), Ga)
+            call prealloc_mult(work1, Ga, work2)
+            Gn(n, n + 1)%val = Gn(n, n + 1)%val + work2%val
+            call destroy(work2, Ga)
+          endif
+
+          ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
+          ! initialized on ESH therefore we need to check whether the block exists.
+          if (n .gt. 1 .and. Gn(n, n - 1)%nrow .gt. 0) then
+            call zdagger(Gr(n - 1, k), Ga)
+            call prealloc_mult(work1, Ga, work2)
+            Gn(n, n - 1)%val = Gn(n, n - 1)%val + work2%val
+            call destroy(work2, Ga)
+          endif
+          call destroy(work1)
+        end if
       end do
+
       ! Remove column blocks of Gr.
       do n = 1, nbl
         if (abs(n - k) .gt. 1) then
           call destroy(Gr(n, k))
         end if
       end do
+
     end do
 
-    do n = 1, nbl
-      call destroy(Sigma_ph_n(n,n))
-    end do
-
-    DEALLOCATE(Sigma_ph_n)
+    deallocate(Sigma_ph_n)
 
   end subroutine Make_Gn_ph
 
