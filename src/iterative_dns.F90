@@ -463,17 +463,6 @@ CONTAINS
     !! Update el-ph retarded self energy if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
-    !--------------------------------------------------------
-    !With el-ph we need all columns :(
-    do i=1,nbl
-      call Make_Grcol_mem_dns(ESH,i,indblk)
-    end do
-
-    call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
-    call destroy_gsm(gsml)
-    call deallocate_gsm_dns(gsml)
-
     !Computing outer blocks
     SELECT CASE (outblocks)
     CASE(0)  ! No outer blocks
@@ -489,12 +478,25 @@ CONTAINS
     call init_blkmat(Gn,ESH)
 
     ! Computing contact contributions as G^n = Sum_i [f_i - f_ref] G^r Gamma_i G^a
+    ! Computes the columns of Gr for the contacts != reference
+    do i=1,ncont
+      if (i.NE.ref) THEN
+        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+      endif
+    end do
     call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
     !       This is fine for elastic dephasing but could be a problem in general
     if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn)
+
+    ! The gsmr, gsml are used to calculate columns on-the-fly in Make_Gn_ph, we
+    ! can destroy them here.
+    call destroy_gsm(gsmr)
+    call deallocate_gsm_dns(gsmr)
+    call destroy_gsm(gsml)
+    call deallocate_gsm_dns(gsml)
 
     !Passing G^n to interaction that builds Sigma^n
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
@@ -1798,44 +1800,46 @@ CONTAINS
 
     !! Calculate the diagonal and off diagonal (if needed) blocks of Gn
     !! in the assumption of diagonal self energy
-    !! Gn(k,k) = Gr(k,i)*Sigma_n(i,i)*Ga(i,k)
-    !! Gn(k,k+1) = Gr(k,i)*Sigma_n(i,i)*Ga(i,k+1)
-    !! Gn(k,k-1) = Gr(k,i)*Sigma_n(i,i)*Ga(i,k-1)
+    !! Gn(n,n) = Gr(n,k)*Sigma_n(k,k)*Ga(k,n)
+    !! Gn(n,n+1) = Gr(n,k)*Sigma_n(k,k)*Ga(k,n+1)
+    !! Gn(n,n-1) = Gr(n,k)*Sigma_n(k,k)*Ga(k,n-1)
     !! All the rows of Gr need to be available
-    do n = 1, nbl-1
-      do k = 1, nbl
-        if (Gr(n,k)%nrow.gt.0) then
-          call zdagger(Gr(n,k),Ga)
-          !print *, 'debug: Gr(n,k)%ncol=',Gr(n,k)%ncol,' Sigma_ph_n(k,k)%ncol=', &
-          !     Sigma_ph_n(k,k)%ncol,' work1%ncol=',work1%ncol
-          call prealloc_mult(Gr(n,k), Sigma_ph_n(k,k), work1)
+    indblk => negf%str%mat_PL_start
+    do k = 1, nbl
+
+      ! Calculate k-th column on-the-fly. The reference contact column
+      ! might already be available, check.
+      if (Gr(nbl, k)%nrow .ne. 0) then
+        call Make_Grcol_mem_dns(ESH, k, indblk)
+      endif
+
+      do n = 1, nbl
+        if (Gr(n, k)%nrow.gt.0) then
+          call zdagger(Gr(n, k),Ga)
+          call prealloc_mult(Gr(n, k), Sigma_ph_n(k, k), work1)
           call prealloc_mult(work1, Ga, work2)
           ! Computing diagonal blocks of Gn(n,n)
-          Gn(n,n)%val = Gn(n,n)%val + work2%val
-          call destroy(work2,Ga)
-        endif
-        ! Computing blocks of Gn(n,n+1)
-        ! Only if S is not identity: Gn is initialized on ESH therefore
-        ! we need to check the number of rows (or column)
-        if (Gr(n+1,k)%nrow.gt.0 .and. Gn(n,n+1)%nrow .gt. 0) then
-          call zdagger(Gr(n+1,k),Ga)
-          !print *, 'debug: work1%ncol=',work1%ncol,' Ga%ncol=',Ga%ncol,' work2%ncol=',work2%ncol
+        ! initialized on ESH therefore we need to check whether the block exists.
+        if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0) then
+          call zdagger(Gr(n + 1, n), Ga)
           call prealloc_mult(work1, Ga, work2)
-          Gn(n,n+1)%val = Gn(n,n+1)%val + work2%val
-          Gn(n+1,n)%val = conjg(transpose(Gn(n,n+1)%val))
+          Gn(n, n + 1)%val = Gn(n, n + 1)%val + work2%val
         endif
-        call destroy(work1,work2,Ga)
+        call destroy(work2,Ga)
+        ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
+        ! initialized on ESH therefore we need to check whether the block exists.
+          call zdagger(Gr(n - 1, n), Ga)
+          call prealloc_mult(work1, Ga, work2)
+          Gn(n, n - 1)%val = Gn(n, n - 1)%val + work2%val
+        endif
+        call destroy(work1, work2, Ga)
       end do
-    end do
-    !print *, 'debug: check2'
-    do k = 1, nbl
-      if (Gr(nbl,k)%nrow.gt.0) then
-        call zdagger(Gr(nbl,k),Ga)
-        call prealloc_mult(Gr(nbl,k), Sigma_ph_n(k,k), work1)
-        call prealloc_mult(work1, Ga, work2)
-        Gn(nbl,nbl)%val = Gn(nbl,nbl)%val + work2%val
-        call destroy(work1,work2,Ga)
-      endif
+      ! Remove column blocks of Gr.
+      do n = 1, nbl
+        if (abs(n - k) .gt. 1) then
+          call destroy(Gr(n, k))
+        end if
+      end do
     end do
 
     do n = 1, nbl
@@ -4054,7 +4058,7 @@ CONTAINS
 
   end subroutine deallocate_blk_dns
 
-  !---------------------------------------------------
+
 
 
 
