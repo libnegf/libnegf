@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 module elph
@@ -33,9 +33,9 @@ module elph
   public :: init_elph_1, destroy_elph, init_elph_2, init_elph_3
   public :: init_elph !? check this one
 
-  !> This type contains information describing different electron phonon 
+  !> This type contains information describing different electron phonon
   !! models: input parameters, temporary data and output quantities
-  !! 
+  !!
   !! Note: I don't use explicitely interfaces and different data types
   !! for different models because then we'll need all the different
   !! containers in negf container (cannot use virtualization)
@@ -45,7 +45,7 @@ module elph
     !! 0 : dummy model, no electron-phonon interactions
     !! 1 : electron phonon dephasing limit (as in Datta, Cresti etc.)
     !!     Assumes elastic scattering and fully local (diagonal) model
-    !!     Coupling is diagonal (Local Deformation Potential) and 
+    !!     Coupling is diagonal (Local Deformation Potential) and
     !!     Self energies are diagonal as well
     !! 2 : semi-local electron-phonon dephasing
     !!     Similar to 1, but the oscillator is considered local on
@@ -53,21 +53,21 @@ module elph
     !!     It is a atom-block generalization of 1 for LCAO
     !!     Coupling is diagonal (per oscillator site, per orbital)
     !!     Self energy is an array of atomic block
-    !!     An additional descriptor with the number of orbitals per atom is 
+    !!     An additional descriptor with the number of orbitals per atom is
     !!     needed.
     !!     Note: the modes do not need to be local on a single atom, but
     !!     you need the orbitals on a given local phonon site to be contiguous
-    !! 3 : as 2, but I will set the coupling as csr matrix including 
+    !! 3 : as 2, but I will set the coupling as csr matrix including
     !!     overlap M->MS/2+SM/2 and treat each atomic oscillator mode separately
     !!     This is needed to verify whether neglecting overlap is ok
-    
+
     !! Common parameters
     integer :: model = 0
     !> SCBA option: number of iterations
     !! 0 corresponds to no iterations (self energy is not calculated)
     integer :: scba_niter = 0
-    
-    !> Keep track of SCBA iteration 
+
+    !> Keep track of SCBA iteration
     integer :: scba_iter = 0
 
     !> SCBA Tolerance (Exact meaning may depend on model)
@@ -78,7 +78,7 @@ module elph
     !! Model 1
     !!
     !> Diagonal coupling. Used in local coupling models (1)
-    !! Note: it is stored directly as squared value as we always use it  
+    !! Note: it is stored directly as squared value as we always use it
     !! that way (units energy^2)
     real(dp), allocatable, dimension(:) :: coupling_array
     !> Diagonal elelents of retarded self energy. Used only in model (1)
@@ -115,17 +115,17 @@ module elph
 
     !> Number of active modes
     integer :: nummodes
-     
+
 
 
     integer :: numselmodes
     logical, dimension(:), pointer :: selmodes => null()
     real(dp), dimension(:), pointer :: Wq => null()
     real(dp), dimension(:), pointer :: Nq => null()
- 
+
     real(dp), dimension(:), pointer :: Mq => null()
 
-    real(dp) :: self_range(2) !Energy interval for Sigma< 
+    real(dp) :: self_range(2) !Energy interval for Sigma<
     real(dp) :: Erange(2)     !Integration interval
 
     integer :: scba_iterations
@@ -142,7 +142,7 @@ contains
   !>
   ! Initialize the el-ph structure when model = 1 (elastic model)
   ! @param elph: electron-phonon container
-  ! @param coupling: coupling (energy units) 
+  ! @param coupling: coupling (energy units)
   ! @param niter: fixed number of scba iterations
   subroutine init_elph_1(elph, coupling, niter)
     Type(Telph), intent(inout) :: elph
@@ -156,7 +156,7 @@ contains
     call log_allocate(elph%diag_sigma_n, size(coupling))
     elph%diag_sigma_r = 0.d0
     elph%diag_sigma_n = 0.d0
-    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
+    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we
                        !treat them all contemporary)
 
   end subroutine init_elph_1
@@ -164,11 +164,11 @@ contains
   !>
   ! Initialize the el-ph structure when model = 2 (elastic quasi-local model)
   ! @param elph: electron-phonon container
-  ! @param coupling: coupling per orbital (energy units) 
+  ! @param coupling: coupling per orbital (energy units)
   ! @param orbsperatm: number of orbitals per each atom
   ! @param niter: fixed number of scba iterations
   ! @param pl_start: PL partitioning: used to accelerate block-sparse assignment
-  !                  note: needs to contain NPL+1 elements, the last one 
+  !                  note: needs to contain NPL+1 elements, the last one
   !                  is norbs+1, as in dftb
   subroutine init_elph_2(elph, coupling, orbsperatm, niter, pl_start)
     Type(Telph), intent(inout) :: elph
@@ -176,7 +176,7 @@ contains
     integer, dimension(:), allocatable, intent(in) :: orbsperatm
     integer, dimension(:), pointer, intent(in) :: pl_start
     integer :: niter, ii, jj, natm, ierr
-  
+
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
       stop 'Error: coupling and orbsperatom not compatible'
@@ -206,7 +206,7 @@ contains
       call create(elph%atmcoupling(ii),orbsperatm(ii),orbsperatm(ii))
       elph%atmcoupling(ii)%val = 0.d0
     end do
-    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we 
+    elph%nummodes = 1  !Single 0eV mode (Actually n localized modes, but we
                        !treat them all contemporary)
     ! Assign coupling
     do ii = 1,natm
@@ -238,11 +238,11 @@ contains
   !>
   ! Initialize the el-ph structure when model = 3 (semilocal S masked)
   ! @param elph: electron-phonon container
-  ! @param coupling: coupling per orbital (energy units) 
+  ! @param coupling: coupling per orbital (energy units)
   ! @param orbsperatm: number of orbitals per each atom
   ! @param niter: fixed number of scba iterations
   ! @param pl_start: PL partitioning: used to accelerate block-sparse assignment
-  !                  note: needs to contain NPL+1 elements, the last one 
+  !                  note: needs to contain NPL+1 elements, the last one
   !                  is norbs+1, as in dftb
   subroutine init_elph_3(elph, coupling, orbsperatm, niter, pl_start, over)
     Type(Telph), intent(inout) :: elph
@@ -254,6 +254,12 @@ contains
     integer :: niter, ii, jj, natm, ierr, norbs, offset, iimode
     type(z_COO) :: tmp_coo
     type(z_CSR) :: work1, work2, work3, over_device
+
+    ! Most components are only supported for 1 PL, to be safe disable the model
+    ! when more than 1 PL is present.
+    if (size(pl_start) > 2) then
+      stop 'Electron-phonon model 3 only supported for systems with 1 PL'
+    end if
 
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
@@ -269,7 +275,7 @@ contains
 
     call extract(over, 1, norbs, 1, norbs, over_device)
 
-    !! Check how many modes we really need, 
+    !! Check how many modes we really need,
     !! in some cases we can have all zero couplings
     do ii = 1,natm
       offset = sum(orbsperatm(1:ii-1))
@@ -285,7 +291,7 @@ contains
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_sigma_n'
     allocate(elph%csr_couplings(elph%nummodes), stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_couplings'
-    
+
     iimode = 0
     do ii = 1, natm
      offset = sum(orbsperatm(1:ii-1))
@@ -394,7 +400,7 @@ contains
 
   end subroutine destroy_elph_2
 
- 
+
 
 
   !>
@@ -429,33 +435,33 @@ contains
        elph%nummodes = 0
        elph%numselmodes = 0
     end if
-    elph%scba_iterations = 0 ! starts from 0  
+    elph%scba_iterations = 0 ! starts from 0
     elph%scba_iter = 0       ! initialize at 0
 
     if (elph%nummodes .eq. 0) then
-      
+
       elph%Selfene_Gr = .false.
       elph%Selfene_Gless =.false.
       elph%Selfene_Hilb = .false.
-     
+
     else
 
       call log_allocatep(elph%selmodes, elph%nummodes)
       call log_allocatep(elph%Wq, elph%nummodes)
       call log_allocatep(elph%Nq, elph%nummodes)
       call log_allocatep(elph%Mq, elph%nummodes)
- 
+
       elph%Wq = 0.0_dp/27.2114_dp  !0.050_dp  ! 50 meV phonon
       elph%Nq = 0.0_dp              ! should be bose-einstain
       elph%Mq = 0.0_dp/27.2114_dp    ! 100 meV phonon coupling
       elph%selmodes = .true.
- 
+
       elph%Selfene_Gr = .true.
       elph%Selfene_Gless = .true.
       elph%Selfene_Hilb = .true.
-      
+
       elph%memory = .true.
-      elph%check = .false. 
+      elph%check = .false.
     end if
 
   end subroutine init_elph
