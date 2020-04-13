@@ -464,9 +464,7 @@ CONTAINS
     !! Update el-ph retarded self energy if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !! TODO: moving this after the outer calculations causes numerical
-    !! errors even if S is orthogonal. To be investigated.
+    ! Calculate the contact column blocks.
     allocate(Gr_columns(ncont))
     Gr_columns = 0
     do i=1,ncont
@@ -475,15 +473,6 @@ CONTAINS
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
       endif
     end do
-
-    !Computing outer blocks
-    SELECT CASE (outblocks)
-    CASE(0)  ! No outer blocks
-    CASE(1)  ! Upper diagonal outer blocks
-      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
-    CASE(2)  ! Upper and Lower diagonal outer blocks
-      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
-    end SELECT
 
     !Computing device G^n
     call allocate_blk_dns(Gn,nbl)
@@ -505,6 +494,15 @@ CONTAINS
     call deallocate_gsm_dns(gsmr)
     call destroy_gsm(gsml)
     call deallocate_gsm_dns(gsml)
+
+    !Computing outer blocks
+    SELECT CASE (outblocks)
+    CASE(0)  ! No outer blocks
+    CASE(1)  ! Upper diagonal outer blocks
+      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
+    CASE(2)  ! Upper and Lower diagonal outer blocks
+      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
+    end SELECT
 
     !Passing G^n to interaction that builds Sigma^n
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
@@ -1840,18 +1838,16 @@ CONTAINS
           Gn(n,n)%val = Gn(n,n)%val + work2%val
           call destroy(work2, Ga)
 
-          ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
-          ! initialized on ESH therefore we need to check whether the block exists.
-          if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0) then
+          ! Computing blocks of Gn(n, n - 1).
+          if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0 .and. Gr(n + 1, k)%nrow .gt. 0) then
             call zdagger(Gr(n + 1, k), Ga)
             call prealloc_mult(work1, Ga, work2)
             Gn(n, n + 1)%val = Gn(n, n + 1)%val + work2%val
             call destroy(work2, Ga)
           endif
 
-          ! Computing blocks of Gn(n, n - 1). Only if S is not identity: Gn is
-          ! initialized on ESH therefore we need to check whether the block exists.
-          if (n .gt. 1 .and. Gn(n, n - 1)%nrow .gt. 0) then
+          ! Computing blocks of Gn(n, n - 1).
+          if (n .gt. 1 .and. Gn(n, n - 1)%nrow .gt. 0 .and. Gr(n - 1, k)%nrow .gt. 0) then
             call zdagger(Gr(n - 1, k), Ga)
             call prealloc_mult(work1, Ga, work2)
             Gn(n, n - 1)%val = Gn(n, n - 1)%val + work2%val
@@ -1861,9 +1857,9 @@ CONTAINS
         end if
       end do
 
-      ! Remove column blocks of Gr.
+      ! Remove column blocks of Gr if they were calculated on the fly.
       do n = 1, nbl
-        if (abs(n - k) .gt. 1) then
+        if (abs(n - k) .gt. 1 .and. all(existing_Gr_cols .ne. k)) then
           call destroy(Gr(n, k))
         end if
       end do
