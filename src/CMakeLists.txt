@@ -59,19 +59,20 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-add_library(negf ${sources-fpp-f90} ${sources-f90} )
+add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:syscalls_objlib,INTERFACE_INCLUDE_DIRECTORIES>>)
 
-target_link_libraries(negf PRIVATE sparskit)
+#target_link_libraries(negf PRIVATE sparskit)
 
 set(BUILD_MOD_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
+  find_package(MPI REQUIRED)
   target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
   target_link_libraries(negf PRIVATE mpifx)
 endif()
