@@ -1,6 +1,7 @@
 # List of active tets. Each test indicates a subdirectory.
 set(test-directories
         c_int
+        c_int_elph_deph
         c_int_file
         f90int
         f90int_file
