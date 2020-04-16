@@ -469,7 +469,7 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        Gr_columns = cblk(i)
+        Gr_columns(i) = cblk(i)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
       endif
     end do
@@ -637,7 +637,7 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        Gr_columns = cblk(i)
+        Gr_columns(i) = cblk(i)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
       endif
     end do
