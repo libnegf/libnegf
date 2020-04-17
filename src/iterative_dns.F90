@@ -1830,7 +1830,7 @@ CONTAINS
       do n = 1, nbl
 
         ! Zero column blocks are not created at all.
-        if (Gr(n, k)%nrow .gt. 0) then
+        if (allocated(Gr(n, k)%val)) then
           ! Calculate diagonal blocks Gn(n, n)
           call zdagger(Gr(n, k), Ga)
           call prealloc_mult(Gr(n, k), Sigma_ph_n(k, k), work1)
@@ -1839,7 +1839,7 @@ CONTAINS
           call destroy(work2, Ga)
 
           ! Computing blocks of Gn(n, n - 1).
-          if (n .lt. nbl .and. Gn(n, n + 1)%nrow .gt. 0 .and. Gr(n + 1, k)%nrow .gt. 0) then
+          if (n .lt. nbl .and. allocated(Gn(n, n + 1)%val) .and. allocated(Gr(n + 1, k)%val)) then
             call zdagger(Gr(n + 1, k), Ga)
             call prealloc_mult(work1, Ga, work2)
             Gn(n, n + 1)%val = Gn(n, n + 1)%val + work2%val
@@ -1847,7 +1847,7 @@ CONTAINS
           endif
 
           ! Computing blocks of Gn(n, n - 1).
-          if (n .gt. 1 .and. Gn(n, n - 1)%nrow .gt. 0 .and. Gr(n - 1, k)%nrow .gt. 0) then
+          if (n .gt. 1 .and. allocated(Gn(n, n - 1)%val) .and. allocated(Gr(n - 1, k)%val)) then
             call zdagger(Gr(n - 1, k), Ga)
             call prealloc_mult(work1, Ga, work2)
             Gn(n, n - 1)%val = Gn(n, n - 1)%val + work2%val
