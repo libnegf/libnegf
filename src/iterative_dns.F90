@@ -293,16 +293,8 @@ CONTAINS
     rbl = minval(cblk(1:ncont),mask(1:ncont))
     lbl = maxval(cblk(1:ncont),mask(1:ncont))
 
-    ! Fix to a bug when there are 2 PLs:
-    ! later Make_Gr tries to compute Gr(1,1) but needs gsmr(2,2)
-    ! Alex 27/09/2018: Apparently this fix is not needed
-    !if (nbl.eq.2) then
-    !  call Make_gsmr_mem_dns(ESH,nbl,rbl)
-    !  call Make_gsml_mem_dns(ESH,1,lbl)
-    !else
-      call Make_gsmr_mem_dns(ESH,nbl,rbl+1)
-      call Make_gsml_mem_dns(ESH,1,lbl-1)
-    !endif
+    call Make_gsmr_mem_dns(ESH,nbl,rbl+1)
+    call Make_gsml_mem_dns(ESH,1,lbl-1)
 
     call allocate_blk_dns(Gr,nbl)
 
