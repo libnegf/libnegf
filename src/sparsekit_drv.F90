@@ -2766,7 +2766,7 @@ CONTAINS
     integer :: nnz
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       STOP 'ERROR (zextract): bad indeces specification';
+       STOP 'ERROR (zextract_csr): bad indeces specification';
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
@@ -3388,17 +3388,28 @@ CONTAINS
   end subroutine rgetdiag_csr
   !---------------------------------------------
 
-  function ztrace_csr(mat) result(trace)
+  function ztrace_csr(mat, mask) result(trace)
     type(z_CSR) :: mat
+    logical, optional :: mask(:)
     complex(dp) :: trace
 
     complex(kind=dp), dimension(:), allocatable :: D_vec
+
+    if (present(mask)) then
+       if (size(mask) /= mat%nrow) then
+          stop 'Error in ztrace_csr: size(mask) /= nrow'
+       end if
+    end if
 
     call log_allocate(D_vec,mat%nrow)
 
     call getdiag(mat,D_vec)
 
-    trace = sum(D_vec)
+    if (present(mask)) then
+      trace = sum(D_vec, mask)
+    else
+      trace = sum(D_vec)
+    end if
 
     call log_deallocate(D_vec)
 
@@ -3406,16 +3417,28 @@ CONTAINS
 
 !---------------------------------------------
 
-  function ztrace_dns(mat) result(trace)
-     type(z_DNS) :: mat
-     complex(dp) :: trace
+  function ztrace_dns(mat, mask) result(trace)
+    type(z_DNS) :: mat
+    logical, optional :: mask(:)
+    complex(dp) :: trace
 
-     integer :: i
-
-     trace = (0.d0,0.d0)
-     do i = 1,mat%nrow
-        trace = trace + mat%val(i,i)
-     end do
+    integer :: i
+    
+    trace = (0.d0,0.d0)
+    if (present(mask)) then
+       if (size(mask) /= mat%nrow) then
+          stop 'Error in ztrace_csr: size(mask) /= nrow'
+       end if
+       do i = 1,mat%nrow
+          if (mask(i)) then
+             trace = trace + mat%val(i,i)
+          end if   
+       end do
+    else
+       do i = 1,mat%nrow
+         trace = trace + mat%val(i,i)
+       end do
+    end if
 
   end function ztrace_dns
 

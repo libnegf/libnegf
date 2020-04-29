@@ -45,12 +45,14 @@ module libnegf
 
  public :: log_deallocatep
  public :: r_CSR, z_CSR, r_DNS, z_DNS, create, destroy   !from matdef
- public :: HAR, eovh, pi, unit, convertcurrent, set_drop     ! from ln_constants
+ public :: HAR, eovh, pi, kb, unit, set_drop             ! from ln_constants
+ public :: convertCurrent, convertHeatCurrent, convertHeatConductance ! from ln_constants
  public :: Tnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing
  public :: set_elph_s_dephasing, destroy_elph_model
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
+ public :: dns2csr, csr2dns, nzdrop
 
  public :: id, id0
 #:if defined("MPI")
@@ -465,16 +467,20 @@ contains
 
      ! Make sure we called init_contacts in a consistent way.
      if (size(negf%cont) .ne. ncont) then
-      stop "Error in set_structure: ncont not compatible with previous initialization."
+       write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont     
+       stop "Error in set_structure: ncont not compatible with previous initialization."
      end if
      ! More sanity checks.
      if (size(contend) .ne. ncont) then
+       write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont     
        stop "Error in set_structure: contend and ncont mismatch"
      end if
      if (size(surfend) .ne. ncont) then
+       write(*, *) 'size(surfend)=',size(surfend),'<->  ncont=',ncont     
        stop "Error in set_structure: surfend and ncont mismatch"
      end if
      if (npl .ne. 0 .and. size(plend) .ne. npl) then
+       write(*, *) 'size(plend)=',size(plend),'<->  npl=',npl    
        stop "Error in set_structure: plend and npl mismatch"
      end if
 
@@ -1249,7 +1255,6 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
-    call extract_device(negf)
     call extract_cont(negf)
 
     !! Did anyone passed externally allocated DM? If not, create it
@@ -1294,8 +1299,6 @@ contains
        write(*,*) "libNEGF error. In compute_density_efa, unknown particle"
        stop
     endif
-
-    call extract_device(negf)
 
     call extract_cont(negf)
 
@@ -1359,7 +1362,6 @@ contains
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
 
-    call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call ldos_int(negf)
@@ -1388,7 +1390,6 @@ contains
 
     type(Tnegf) :: negf
 
-    call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
@@ -1409,7 +1410,6 @@ contains
 
     type(Tnegf) :: negf
 
-    call extract_device(negf)
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
@@ -1537,8 +1537,6 @@ contains
 
     type(Tnegf) :: negf
 
-
-    call extract_device(negf)
 
     call extract_cont(negf)
 
