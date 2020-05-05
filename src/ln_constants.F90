@@ -19,17 +19,17 @@
 !!--------------------------------------------------------------------------!
 
 !!--------------------------------------------------------------------------!
-!! Unit conversion utility for length and energy units. 
+!! Conversion utility for length and energy units.
 !! Example:
-!! unitin%name = "eV"
-!! unitout%name = "H"
-!! unitin%value = val
+!! unitsin%name = "eV"
+!! unitsout%name = "H"
+!! unitsin%value = val
 !! call convertUnits(unitin, unitout)
-!! unitout%value  contains converted value
+!! unitsout%value  contains converted value
 
 !! Current conversion utility:
 !! Define your energy units and desired current units ("A", "mA", ...)
-!! I = value * convertCurrent(UnitsofEnergy, currUnits)
+!! I = value * convertCurrent(unitsOfEnergy, currUnits)
 !! For Heat current, define desired output units ("W", "mW", ...)
 !! IF unitsofEnergy is "unknown" (default), then convert returns 1.0
 !!--------------------------------------------------------------------------!
@@ -68,85 +68,85 @@ module ln_constants
   real(dp), parameter    :: Go= 2*ee/hh                   ! A/V 
  
 
-  !!* Contains name of a unit and its conversion factor
-  type unit
+  !!* Contains name of a units and its conversion factor
+  type units
     character(8) :: name = "unknown "
     real(dp) :: value = 1.0_dp
-  end type unit
+  end type units
    
 
   !!* Length units ---------------------------------------------
-  integer, parameter :: nLengthUnits = 10
+  integer, parameter :: nLengthunits = 10
 
-  type(unit), parameter :: lengthUnits(nLengthUnits) = (/ &
-      &unit("unknown ", 1.0_dp), &
-      &unit("Bohr    ", 1.0_dp), &
-      &unit("au      ", 1.0_dp), &
-      &unit("AA      ", 1.0_dp/ATU ), &
-      &unit("Ang     ", 1.0_dp/ATU ), &
-      &unit("pm      ", 0.01_dp/ATU), &
-      &unit("nm      ", 10.0_dp/ATU), &
-      &unit("um      ", 1.0e4_dp/ATU), &
-      &unit("cm      ", 1.0e8_dp/ATU ), &
-      &unit("m       ", 1.0e10_dp/ATU) &
+  type(units), parameter :: lengthUnits(nLengthUnits) = (/ &
+      &units("unknown ", 1.0_dp), &
+      &units("Bohr    ", 1.0_dp), &
+      &units("au      ", 1.0_dp), &
+      &units("AA      ", 1.0_dp/ATU ), &
+      &units("Ang     ", 1.0_dp/ATU ), &
+      &units("pm      ", 0.01_dp/ATU), &
+      &units("nm      ", 10.0_dp/ATU), &
+      &units("um      ", 1.0e4_dp/ATU), &
+      &units("cm      ", 1.0e8_dp/ATU ), &
+      &units("m       ", 1.0e10_dp/ATU) &
       /)
 
   
   !!* Energy units ---------------------------------------------
   integer, parameter :: nEnergyUnits = 9 
 
-  type(unit), parameter :: energyUnits(nEnergyUnits) = (/ &
-      &unit("unknown ", 1.0_dp), &
-      &unit("au      ", 1.0_dp), &
-      &unit("H       ", 1.0_dp), &
-      &unit("Ry      ", 0.5_dp), &
-      &unit("eV      ", 1.0_dp/HAR), &
-      &unit("kcal/mol", 0.0433634_dp/HAR), &
-      &unit("K       ", Kb), &
-      &unit("cm^-1   ", 1.239841930e-4_dp/HAR), &
-      &unit("J       ", J_eV/HAR) &
+  type(units), parameter :: energyUnits(nEnergyUnits) = (/ &
+      &units("unknown ", 1.0_dp), &
+      &units("au      ", 1.0_dp), &
+      &units("H       ", 1.0_dp), &
+      &units("Ry      ", 0.5_dp), &
+      &units("eV      ", 1.0_dp/HAR), &
+      &units("kcal/mol", 0.0433634_dp/HAR), &
+      &units("K       ", Kb), &
+      &units("cm^-1   ", 1.239841930e-4_dp/HAR), &
+      &units("J       ", J_eV/HAR) &
       &/)
   
    ! Internally current is computed in e/h * Energy 
    integer, parameter :: nCurrentUnits = 4
-   type(unit), parameter :: currentUnits(4) = (/ &
-      &unit("unknown ", 1.0_dp), &
-      &unit("A       ", 1.0_dp), &
-      &unit("mA      ", 1.0e-3_dp), &
-      &unit("nA      ", 1.0e-9_dp) &
+   type(units), parameter :: currentUnits(4) = (/ &
+      &units("unknown ", 1.0_dp), &
+      &units("A       ", 1.0_dp), &
+      &units("mA      ", 1.0e-3_dp), &
+      &units("nA      ", 1.0e-9_dp) &
       &/)
      
    ! Heat current is computed in 1/h * Energy^2
    integer, parameter :: nHeatCurrentUnits = 4
-   type(unit), parameter :: heatCurrentUnits(4) = (/ &
-      &unit("unknown ", 1.0_dp), &
-      &unit("W       ", 1.0_dp), &
-      &unit("mW      ", 1.0e-3_dp), &
-      &unit("nW      ", 1.0e-9_dp) &
+   type(units), parameter :: heatCurrentUnits(4) = (/ &
+      &units("unknown ", 1.0_dp), &
+      &units("W       ", 1.0_dp), &
+      &units("mW      ", 1.0e-3_dp), &
+      &units("nW      ", 1.0e-9_dp) &
       &/)
 
    ! Thermal conductance is computed in kb/h * Energy
    integer, parameter :: nHeatCondUnits = 4
-   type(unit), parameter :: heatCondUnits(4) = (/ &
-      &unit("unknown ", 1.0_dp), &
-      &unit("W/K     ", 1.0_dp), &
-      &unit("mW/K    ", 1.0e-3_dp), &
-      &unit("nW/K    ", 1.0e-9_dp) &
+   type(units), parameter :: heatCondUnits(4) = (/ &
+      &units("unknown ", 1.0_dp), &
+      &units("W/K     ", 1.0_dp), &
+      &units("mW/K    ", 1.0e-3_dp), &
+      &units("nW/K    ", 1.0e-9_dp) &
       &/)
 
 contains 
  
-  subroutine convertUnits(unitin,unitout)
-    type(unit), intent(in) :: unitin
-    type(unit),intent(inout) :: unitout
+  subroutine convertUnits(unitsin,unitsout)
+    type(units), intent(in) :: unitsin
+    type(units),intent(inout) :: unitsout
 
     integer :: ii, jj
     
     do ii = 1, nEnergyUnits
-      if (unitin%name .eq. energyUnits(ii)%name) then
+      if (unitsin%name .eq. energyUnits(ii)%name) then
         do jj = 1, nEnergyUnits
-          if (unitout%name .eq. energyUnits(jj)%name) then
-             unitout%value = unitin%value * &
+          if (unitsout%name .eq. energyUnits(jj)%name) then
+             unitsout%value = unitsin%value * &
                &  energyUnits(ii)%value / energyUnits(jj)%value
              return 
           endif
@@ -155,10 +155,10 @@ contains
     end do
 
     do ii = 1, nLengthUnits
-      if (unitin%name .eq. lengthUnits(ii)%name) then
+      if (unitsin%name .eq. lengthUnits(ii)%name) then
         do jj = 1, nLengthUnits
-          if (unitout%name .eq. lengthUnits(jj)%name) then
-             unitout%value = unitin%value * &
+          if (unitsout%name .eq. lengthUnits(jj)%name) then
+             unitsout%value = unitsin%value * &
                &  lengthUnits(ii)%value / lengthUnits(jj)%value
              return 
           endif
@@ -166,17 +166,17 @@ contains
       end if
     end do
 
-    unitout%name="unknown "
+    unitsout%name="unknown "
 
   end subroutine
  
   
-  ! Compute conversion factor of current units
+  ! Compute conversion factor of current unitss
   ! [j] = e/h * [Energy]
   ! Current output is converted to Amp
   function convertCurrent(unitsOfH,currUnits) result(curr)
-    type(unit), intent(in) :: unitsOfH
-    type(unit), intent(in) :: currUnits
+    type(units), intent(in) :: unitsOfH
+    type(units), intent(in) :: currUnits
     real(dp) :: curr
 
     integer :: ii
@@ -193,7 +193,7 @@ contains
       end if
     end do
     do ii = 1, nCurrentUnits
-      if (currUnits%name .eq. currentUnits(ii)%name) then
+      if (currunits%name .eq. currentUnits(ii)%name) then
         curr = curr * currentUnits(ii)%value
       end if
     end do
@@ -201,8 +201,8 @@ contains
   end function convertCurrent
 
   function convertHeatCurrent(unitsOfH,currUnits) result(curr)
-    type(unit), intent(in) :: unitsOfH
-    type(unit), intent(in) :: currUnits
+    type(units), intent(in) :: unitsOfH
+    type(units), intent(in) :: currUnits
     real(dp) :: curr
 
     integer :: ii
@@ -219,7 +219,7 @@ contains
       end if
     end do
     do ii = 1, nHeatCurrentUnits
-      if (currUnits%name .eq. heatCurrentUnits(ii)%name) then
+      if (currunits%name .eq. heatCurrentUnits(ii)%name) then
         curr = curr * heatCurrentUnits(ii)%value
       end if
     end do
@@ -227,8 +227,8 @@ contains
   end function convertHeatCurrent
 
   function convertHeatConductance(unitsOfH,condUnits) result(cond)
-    type(unit), intent(in) :: unitsOfH
-    type(unit), intent(in) :: condUnits
+    type(units), intent(in) :: unitsOfH
+    type(units), intent(in) :: condUnits
     real(dp) :: cond
 
     integer :: ii

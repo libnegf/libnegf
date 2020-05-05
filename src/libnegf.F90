@@ -45,7 +45,7 @@ module libnegf
 
  public :: log_deallocatep
  public :: r_CSR, z_CSR, r_DNS, z_DNS, create, destroy   !from matdef
- public :: HAR, eovh, pi, kb, unit, set_drop             ! from ln_constants
+ public :: HAR, eovh, pi, kb, units, set_drop             ! from ln_constants
  public :: convertCurrent, convertHeatCurrent, convertHeatConductance ! from ln_constants
  public :: Tnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing

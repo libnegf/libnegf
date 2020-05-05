@@ -562,12 +562,12 @@ end subroutine negf_solve_density_dft
 !!  @param[in] handler: handler Number for the LIBNEGF instance
 !! @param [in] lead_pair: specifies which leads are considered
 !!             for retrieving current (as ordered in ni, nf)
-!!  @param[in] unitoOfH: units modifer for energy (write"unknown"
+!!  @param[in] unitsOfH: units modifer for energy (write"unknown"
 !!                   for default)
-!!  @param[in] unitOfJ: units modifier for current (write"unknown"
+!!  @param[in] unitsOfJ: units modifier for current (write"unknown"
 !!                  for default)
 !!  @param[out] current: current value
-subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
+subroutine negf_get_current(handler, leadPair, unitsOfH, unitsOfJ, current)
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   use ln_constants ! if:mod:use
@@ -576,18 +576,18 @@ subroutine negf_get_current(handler, leadPair, unitOfH, unitOfJ, current)
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: leadPair      !if:var:in
   real(dp) :: current       !if:var:inout
-  character(SST) :: unitOfH !if:var:in
-  character(SST) :: unitOfJ !if:var:in
+  character(SST) :: unitsOfH !if:var:in
+  character(SST) :: unitsOfJ !if:var:in
 
   type(NEGFpointers) :: LIB
-  type(unit) :: unitH, unitJ
+  type(units) :: unitsH, unitsJ
 
-  unitH%name=trim(unitOfH)
-  unitJ%name=trim(unitOfJ)
+  unitsH%name=trim(unitsOfH)
+  unitsJ%name=trim(unitsOfJ)
   LIB = transfer(handler, LIB)
   current = LIB%pNEGF%currents(leadPair) ! just take first value (2 contacts)
   ! units conversion.
-  current = current * convertCurrent(unitH, unitJ)
+  current = current * convertCurrent(unitsH, unitsJ)
 end subroutine negf_get_current
 
 !> Copy the energy axis on all processors (for output, plot, debug)
@@ -951,7 +951,7 @@ end subroutine negf_write_partition
 !>
 !!* Compute current for a given LIBNEGF instance.
 !!* @param [in] handler Number for the LIBNEGF instance to destroy.
-subroutine negf_current(handler, current, unitOfH, unitOfJ)
+subroutine negf_current(handler, current, unitsOfH, unitsOfJ)
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   use ln_constants ! if:mod:use
@@ -959,14 +959,14 @@ subroutine negf_current(handler, current, unitOfH, unitOfJ)
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   real(dp) :: current       !if:var:inout
-  character(SST) :: unitOfH !if:var:in
-  character(SST) :: unitOfJ !if:var:in
+  character(SST) :: unitsOfH !if:var:in
+  character(SST) :: unitsOfJ !if:var:in
 
   type(NEGFpointers) :: LIB
-  type(unit) :: unitH, unitJ
+  type(units) :: unitsH, unitsJ
 
-  unitH%name=trim(unitOfH)
-  unitJ%name=trim(unitOfJ)
+  unitsH%name=trim(unitsOfH)
+  unitsJ%name=trim(unitsOfJ)
 
   LIB = transfer(handler, LIB)
 
@@ -975,7 +975,7 @@ subroutine negf_current(handler, current, unitOfH, unitOfJ)
   current = LIB%pNEGF%currents(1) ! just take first value (2 contacts)
 
   ! units conversion.
-  current = current * convertCurrent(unitH, unitJ)
+  current = current * convertCurrent(unitsH, unitsJ)
 
   call write_tunneling_and_dos(LIB%pNEGF)
 
