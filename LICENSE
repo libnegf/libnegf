@@ -9,12 +9,7 @@
 
  with the exception of:
 
- 1) source files located in ext_metis, belonging to METIS
- (Copyright 1997, Regents of the University of Minnesota
- http://glaros.dtc.umn.edu/gkhome/metis/metis/overview)
- Refer to METIS website for terms of distribution
-
- 2) source file located in ext_sparskit, except
+ 1) source file located in ext_sparskit, except
     complex implementation (Complex Sparskit),
     belonging to Sparskit (Copyright (C) 2005, 
     the Regents of the University of Minnesota)
