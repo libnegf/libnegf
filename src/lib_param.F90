@@ -137,6 +137,9 @@ module lib_param
    real(dp) :: g_spin            ! spin degeneracy
    real(dp) :: delta             ! delta for G.F. 
    real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS 
+   integer  :: deltaModel        ! Used for phonon G.F. ! delta**2, 2*delta*w, Mingo's
+   real(dp) :: wmax              ! Maximum frequency in Mingo's model
+                                 ! See 'Numerical Heat Transfer, Part B', 51:333, 2007
    real(dp) :: eneconv           ! Energy conversion factor
    integer  :: spin              ! spin component
    real(dp) :: wght              ! k-point weight 

@@ -45,7 +45,7 @@ module libnegf
 
  public :: log_deallocatep
  public :: r_CSR, z_CSR, r_DNS, z_DNS, create, destroy   !from matdef
- public :: HAR, eovh, pi, kb, units, set_drop             ! from ln_constants
+ public :: HAR, eovh, pi, kb, units, set_drop, DELTA_SQ, DELTA_W, DELTA_MINGO ! from ln_constants
  public :: convertCurrent, convertHeatCurrent, convertHeatConductance ! from ln_constants
  public :: Tnegf
  public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing
@@ -134,6 +134,10 @@ module libnegf
    real(c_double) :: g_spin
    !> Imaginary delta
    real(c_double) :: delta
+   !> delta model for phonon GF
+   integer(c_int) :: deltaModel
+   !> Maximal energy in Mingo delta model
+   real(c_double) :: wmax
    !> Additional delta to force more broadening in the DOS
    real(c_double) :: dos_delta
    !> Energy conversion factor
@@ -551,6 +555,8 @@ contains
     params%readOldT_SGFs = negf%readOldT_SGFs
     params%g_spin = negf%g_spin
     params%delta = negf%delta
+    params%deltaModel = negf%deltaModel
+    params%wmax = negf%wmax
     params%dos_delta = negf%dos_delta
     nn = size(negf%cont)
     params%mu_n(1:nn) = negf%cont(1:nn)%mu_n
@@ -607,6 +613,8 @@ contains
     negf%readOldT_SGFs = params%readOldT_SGFs
     negf%g_spin = params%g_spin
     negf%delta = params%delta
+    negf%deltaModel = params%deltaModel
+    negf%wmax = params%wmax
     negf%dos_delta = params%dos_delta
     nn = size(negf%cont)
     negf%cont(1:nn)%mu_n        = params%mu_n(1:nn)

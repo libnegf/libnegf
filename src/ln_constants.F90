@@ -67,6 +67,9 @@ module ln_constants
   ! electric conductance quantum:  
   real(dp), parameter    :: Go= 2*ee/hh                   ! A/V 
  
+  integer, parameter :: DELTA_SQ = 0
+  integer, parameter :: DELTA_W = 1
+  integer, parameter :: DELTA_MINGO = 2
 
   !!* Contains name of a units and its conversion factor
   type units

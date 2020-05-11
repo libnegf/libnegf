@@ -1724,12 +1724,14 @@ contains
        Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
 
-       ! delta*delta for reasons of units
-       delta = negf%delta * negf%delta
-       ! Mingo:
-       !delta = negf%delta*(1.0_dp-real(negf%en_grid(i)%Ec)/(negf%Emax+EPS12)) * Ec
-       ! Alex:
-       !delta = 2.0_dp * negf%delta * Ec
+       select case(negf%deltaModel)
+       case(DELTA_SQ)
+         delta = negf%delta * negf%delta
+       case(DELTA_W)
+         delta = negf%delta * real(negf%en_grid(i)%Ec)
+       case(DELTA_MINGO)
+         delta = negf%delta * (1.0_dp - real(negf%en_grid(i)%Ec)/(negf%wmax+1d-12)) * Ec
+       end select
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
        call compute_contacts(Ec+j*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
