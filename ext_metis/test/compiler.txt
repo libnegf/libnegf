@@ -1,1 +1,0 @@
-./kmetis.sh: line 8: @gcc: command not found
