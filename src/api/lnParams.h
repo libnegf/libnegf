@@ -12,6 +12,8 @@ struct lnparams {
   int kpoint;
   double g_spin;
   double delta;
+  int deltaModel;
+  double wmax;
   double dos_delta;
   double eneconv;
   double wght;
