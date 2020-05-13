@@ -350,6 +350,8 @@ contains
 
      negf%delta = 1.d-4      ! delta for G.F. 
      negf%dos_delta = 1.d-4  ! delta for DOS 
+     negf%deltaModel = 1     ! deltaOmega model
+     negf%wmax = 0.009d0     ! about 2000 cm^-1 cutoff 
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        ! 
      negf%Estep = 0.d0       ! Tunneling or dos E step
