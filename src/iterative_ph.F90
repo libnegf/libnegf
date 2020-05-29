@@ -19,18 +19,18 @@
 !!--------------------------------------------------------------------------!
 
 
-MODULE iterative_ph
+ module negf_iterative_ph
 
-  USE ln_precision
-  USE ln_constants, only : pi
-  USE ln_allocation
-  USE mat_def
-  USE sparsekit_drv
+  use negf_ln_precision
+  use negf_ln_constants, only : pi
+  use negf_ln_allocation
+  use negf_mat_def
+  use negf_sparsekit_drv
   USE inversions
-  USE ln_structure, only : TStruct_Info
-  USE lib_param, only : MAXNCONT, Tnegf, intarray
-  USE outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
-  USE clock
+  use negf_ln_structure, only : TStruct_Info
+  use negf_lib_param, only : MAXNCONT, Tnegf, intarray
+  use negf_outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c 
+  use negf_clock
   !USE transform
 
   IMPLICIT NONE
@@ -1923,7 +1923,7 @@ CONTAINS
 ! ! Wq has a sign (+/- Wq)
 ! !
 ! SUBROUTINE search_points(pnegf, Wq, Epnt, i1, i2, E1, E2)
-!   use energy_mesh, only : elem 
+!   use negf_energy_mesh, only : elem 
 !   type(TNegf) :: pnegf
 !   real(dp) :: Wq                
 !   real(dp), dimension(:), allocatable :: Epnt
@@ -2907,7 +2907,7 @@ CONTAINS
   !---------------------------------------------------
 
 
-END MODULE iterative_ph
+END  module negf_iterative_ph
 
 
 ! SUBROUTINE calls_neq_ph(pnegf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,out)

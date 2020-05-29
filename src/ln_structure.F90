@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module ln_structure
+ module negf_ln_structure
 
 implicit none
 private
@@ -171,4 +171,4 @@ contains
 
   end subroutine print_Tstruct
 
-end module ln_structure
+end  module negf_ln_structure

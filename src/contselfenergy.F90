@@ -22,20 +22,20 @@
 !---------------------------------------------------------------------
 !    Subroutine : SelfEnergy for contacts
 !---------------------------------------------------------------------
-module ContSelfEnergy
+ module negf_contselfenergy
 
- use ln_precision
- use ln_constants
- use lib_param
- use ln_structure, only : Tstruct_info
- use ln_allocation
- use mat_def
- use sparsekit_drv
- use outmatrix, only : outmat_c, inmat_c
+ use negf_ln_precision
+ use negf_ln_constants
+ use negf_lib_param
+ use negf_ln_structure, only : Tstruct_info
+ use negf_ln_allocation
+ use negf_mat_def
+ use negf_sparsekit_drv
+ use negf_outmatrix, only : outmat_c, inmat_c
  use inversions, only : compGreen, inverse
- use clock
- use mpi_globals
- use complexbands
+ use negf_clock
+ use negf_mpi_globals
+ use negf_complexbands
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
 #:endif
@@ -701,7 +701,7 @@ contains
 
   end subroutine write_SGF_SE
 
-end module ContSelfEnergy
+end  module negf_contselfenergy
 
 
 

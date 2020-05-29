@@ -19,20 +19,20 @@
 !!--------------------------------------------------------------------------!
 
 
-module iterative_dns
+ module negf_iterative_dns
 
-  use ln_precision
-  use ln_constants, only : pi
-  use ln_allocation
-  use mat_def
-  use sparsekit_drv
+  use negf_ln_precision
+  use negf_ln_constants, only : pi
+  use negf_ln_allocation
+  use negf_mat_def
+  use negf_sparsekit_drv
   use inversions
-  use elph
-  use ln_structure, only : TStruct_Info
-  use lib_param, only : MAXNCONT, Tnegf, intarray
-  use mpi_globals, only : id, numprocs, id0                                 !DAR
-  use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
-  use clock
+  use negf_elph
+  use negf_ln_structure, only : TStruct_Info
+  use negf_lib_param, only : MAXNCONT, Tnegf, intarray
+  use negf_mpi_globals, only : id, numprocs, id0                                 !DAR
+  use negf_outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
+  use negf_clock
   !use transform
 
   implicit none
@@ -2639,7 +2639,7 @@ CONTAINS
   ! Wq has a sign (+/- Wq)
   !
   subroutine search_points(negf, Wq, Epnt, i1, i2, E1, E2)
-    use energy_mesh, only : elem
+    use negf_energy_mesh, only : elem
     type(TNegf) :: negf
     real(dp) :: Wq
     real(dp), dimension(:), allocatable :: Epnt
@@ -4077,7 +4077,7 @@ CONTAINS
 
 
 
-end module iterative_dns
+end  module negf_iterative_dns
 
 
 

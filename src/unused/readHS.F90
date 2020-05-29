@@ -21,7 +21,7 @@
 
 program readHS
 
-  use mat_def
+  use negf_mat_def
   use precision
 
   implicit none

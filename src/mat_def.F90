@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-Module mat_def
-  use ln_precision
-  use ln_allocation
+ module negf_mat_def
+  use negf_ln_precision
+  use negf_ln_allocation
   implicit none
   private
 
@@ -1862,4 +1862,4 @@ subroutine zwriteMem_CSR(id,mat)
 end subroutine zwriteMem_CSR
 
 
-end module mat_def
+end  module negf_mat_def

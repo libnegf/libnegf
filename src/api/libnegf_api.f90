@@ -61,7 +61,7 @@
 !! @param[out]  handlerSize Contains the size of the handler array on exit.
 subroutine negf_gethandlersize(handlerSize) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
   implicit none
   integer(c_int), intent(out) :: handlerSize  ! if:var:out
 
@@ -74,7 +74,7 @@ end subroutine negf_gethandlersize
 !! @param [out]  handler  Contains the handler for the new instance on return
 subroutine negf_init_session(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon ! if:mod:use
+  use negf_libnegfAPICommon ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize) ! if:var:out
 
@@ -101,8 +101,8 @@ end subroutine negf_init_session
 !! @param  handler  Contains the handler for the new instance on return
 subroutine negf_get_version(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf  ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:inout
 
@@ -119,8 +119,8 @@ end subroutine negf_get_version
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_init(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
 
@@ -145,8 +145,8 @@ end subroutine negf_init
 !! @param [int] cblks (array): the indices of the blocks interacting with the contacts (size ncont)
 subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cblk) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
   integer(c_int), intent(in), value :: ncont ! if:var:inout
@@ -184,8 +184,8 @@ end subroutine negf_init_structure
 !!               if you want to perform the actual copy
 subroutine negf_get_pls(handler, npl, ncont, plend, cblk, copy) bind(c)
   use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) ::npl ! if:var:in
@@ -210,8 +210,8 @@ end subroutine negf_get_pls
 !!* Pass contacts
 subroutine negf_init_contacts(handler, ncont) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
   integer(c_int), intent(in), value :: ncont ! if:var:inout
@@ -226,8 +226,8 @@ end subroutine negf_init_contacts
 !!* Passing parameters
 subroutine negf_set_params(handler, params) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
   type(lnparams), intent(in) :: params ! if:var:inout
@@ -241,8 +241,8 @@ end subroutine negf_set_params
 !!* Getting parameters
 subroutine negf_get_params(handler, params) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
   type(lnparams), intent(inout) :: params ! if:var:inout
@@ -256,9 +256,9 @@ end subroutine negf_get_params
 !!* Passing Hamiltonian from memory
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_h(handler, nrow, A, JA, IA) bind(C)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer, intent(in), value :: nrow     ! if:var:in
@@ -275,9 +275,9 @@ end subroutine negf_set_h
 !!* Passing fortran style mpi communicator.
 !!* @param  handler The handler to this negf instance.
 subroutine negf_set_mpi_fcomm(handler, comm) bind(C)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer, intent(in), value :: comm    ! if:var:in
@@ -292,9 +292,9 @@ end subroutine negf_set_mpi_fcomm
 !!* Passing Overlap from memory
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_s(handler, nrow, A, JA, IA) bind(C)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer, intent(in), value :: nrow     ! if:var:out
@@ -312,9 +312,9 @@ end subroutine negf_set_s
 !! and imaginary part (for ctypes c-python interface)
 subroutine negf_set_s_cp(handler, nrow, a_re, a_im, ja, ia) bind(c)
   use iso_c_binding, only : c_int, c_double
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nrow     ! if:var:out
@@ -340,9 +340,9 @@ end subroutine negf_set_s_cp
 !! and imaginary part (for ctypes c-python interface)
 subroutine negf_set_h_cp(handler, nrow, a_re, a_im, ja, ia) bind(c)
   use iso_c_binding, only : c_int, c_double
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nrow     ! if:var:out
@@ -368,9 +368,9 @@ end subroutine negf_set_h_cp
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_s_id(handler, nrow) bind(C)
   use iso_c_binding, only : c_int
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use ln_precision      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value:: nrow     ! if:var:out
@@ -385,8 +385,8 @@ end subroutine negf_set_s_id
 
 subroutine negf_print_mat(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -411,8 +411,8 @@ end subroutine negf_print_mat
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_read_input(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -429,9 +429,9 @@ end subroutine negf_read_input
   !TODO: We can (and maybe should) wrap string in input to accept c-like
 subroutine negf_read_hs(handler, real_path, imag_path, target_matrix) bind(C)
   use iso_c_binding, only : c_int, c_char, c_null_char  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
-  use globals           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
+  use negf_globals           ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
   character(kind=c_char), intent(in) :: real_path(*) ! if:var:in
@@ -473,7 +473,7 @@ end subroutine negf_read_hs
 !!* @param  handler  Handler for the instance to destroy
 subroutine negf_destruct_session(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon             ! if:mod:use
+  use negf_libnegfAPICommon             ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -493,8 +493,8 @@ end subroutine negf_destruct_session
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_destruct_libnegf(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf  ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -510,7 +510,7 @@ end subroutine negf_destruct_libnegf
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_verbosity(handler,verbose_lev) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in) :: verbose_lev               ! if:var:in
@@ -529,8 +529,8 @@ end subroutine negf_set_verbosity
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 subroutine negf_solve_landauer(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -545,8 +545,8 @@ end subroutine negf_solve_landauer
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 subroutine negf_solve_density_dft(handler) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -568,10 +568,10 @@ end subroutine negf_solve_density_dft
 !!                  for default)
 !!  @param[out] current: current value
 subroutine negf_get_current(handler, leadPair, unitsOfH, unitsOfJ, current)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
-  use ln_constants ! if:mod:use
-  use globals  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
+  use negf_ln_constants ! if:mod:use
+  use negf_globals  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: leadPair      !if:var:in
@@ -600,8 +600,8 @@ end subroutine negf_get_current
 !!               if you want to perform the actual copy
 subroutine negf_get_energies(handler, npoints, re_en, im_en, copy) bind(c)
   use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) ::npoints ! if:var:in
@@ -634,8 +634,8 @@ end subroutine negf_get_energies
 !!               if you want to perform the actual copy
 subroutine negf_get_dm(handler, nnz, nrow, rowpnt, colind, re_nzval, im_nzval, copy) bind(c)
   use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) ::nnz ! if:var:in
@@ -668,8 +668,8 @@ end subroutine negf_get_dm
 !!               if you want to perform the actual copy
 subroutine negf_get_currents(handler, npairs, currents, copy) bind(c)
   use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) :: npairs ! if:var:in
@@ -693,8 +693,8 @@ end subroutine negf_get_currents
 !!  @param[out] tr_pointer: C pointer to data
 subroutine negf_associate_transmission(handler, tr_shape, tr_pointer) bind(c)
   use iso_c_binding, only : c_int, c_double, c_loc, c_ptr   ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) :: tr_shape(2) ! if:var:out
@@ -716,8 +716,8 @@ end subroutine negf_associate_transmission
 !!  @param[out] tr_pointer: C pointer to data
 subroutine negf_associate_energy_current(handler, currents_shape, currents_pointer) bind(c)
   use iso_c_binding, only : c_int, c_double, c_loc, c_ptr   ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) :: currents_shape(2) ! if:var:out
@@ -739,8 +739,8 @@ end subroutine negf_associate_energy_current
 !!  @param[out] ldos_pointer: C pointer to data
 subroutine negf_associate_ldos(handler, ldos_shape, ldos_pointer) bind(c)
   use iso_c_binding, only : c_int, c_double, c_loc, c_ptr   ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(out) :: ldos_shape(2) ! if:var:out
@@ -762,8 +762,8 @@ end subroutine negf_associate_ldos
 !! @param [in] iend(nldos) array with first interval index
 subroutine negf_set_ldos_intervals(handler, nldos, istart, iend) bind(c)
   use iso_c_binding, only : c_int ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nldos ! if:var:in
@@ -782,8 +782,8 @@ end subroutine negf_set_ldos_intervals
 !! @param [in] nldos: number of intervals
 subroutine negf_init_ldos(handler, nldos) bind(c)
   use iso_c_binding, only : c_int ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nldos ! if:var:in
@@ -802,8 +802,8 @@ end subroutine negf_init_ldos
 !! @param [in] idx: array with indexes
 subroutine negf_set_ldos_indexes(handler, ildos, idx_size, idx) bind(c)
   use iso_c_binding, only : c_int ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: ildos ! if:var:in
@@ -830,8 +830,8 @@ end subroutine negf_set_ldos_indexes
 !!  ONLY
 subroutine negf_write_tunneling_and_dos(handler) bind(C)
   use iso_c_binding, only : c_int   ! if:mod:use
-  use libnegfAPICommon ! if:mod:use
-  use libnegf          ! if:mode:use
+  use negf_libnegfAPICommon ! if:mod:use
+  use negf_libnegf          ! if:mode:use
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
 
   type(NEGFpointers) :: LIB
@@ -846,9 +846,9 @@ end subroutine negf_write_tunneling_and_dos
 !!* @param handler Number for the LIBNEGF instance to destroy.
 !! SAME, IS IT REALLY NEEDED??
 subroutine negf_set_output(handler, out_path)
-  use libnegfAPICommon    ! if:mod:use
-  use globals             ! if:mod:use
-  use libnegf             ! if:mod:use
+  use negf_libnegfAPICommon    ! if:mod:use
+  use negf_globals             ! if:mod:use
+  use negf_libnegf             ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   character(LST) :: out_path(1)    ! if:var:in
@@ -865,9 +865,9 @@ end subroutine negf_set_output
 !!* Sets iteration in self-consistent loops
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_scratch(handler, scratch_path)
-  use libnegfAPICommon    ! if:mod:use
-  use globals             ! if:mod:use
-  use libnegf             ! if:mod:use
+  use negf_libnegfAPICommon    ! if:mod:use
+  use negf_globals             ! if:mod:use
+  use negf_libnegf             ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   character(LST) :: scratch_path(1)    ! if:var:in
@@ -887,8 +887,8 @@ end subroutine negf_set_scratch
 !!* outer = 2   Computes both upper and lower blocks (needed by dftb+)
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_outer(handler, outer)
-  use libnegfAPICommon    ! if:mod:use
-  use libnegf             ! if:mod:use
+  use negf_libnegfAPICommon    ! if:mod:use
+  use negf_libnegf             ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: outer              ! if:var:in
@@ -903,8 +903,8 @@ end subroutine negf_set_outer
 
 
 subroutine negf_set_kpoint(handler, kpoint)
-  use libnegfAPICommon    ! if:mod:use
-  use libnegf             ! if:mod:use
+  use negf_libnegfAPICommon    ! if:mod:use
+  use negf_libnegf             ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: kpoint             ! if:var:in
@@ -919,8 +919,8 @@ end subroutine negf_set_kpoint
 
 
 subroutine negf_set_reference(handler, minmax)
-  use libnegfAPICommon    ! if:mod:use
-  use libnegf             ! if:mod:use
+  use negf_libnegfAPICommon    ! if:mod:use
+  use negf_libnegf             ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer :: minmax             ! if:var:in
@@ -935,8 +935,8 @@ end subroutine negf_set_reference
 
 
 subroutine negf_write_partition(handler)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf           ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -952,10 +952,10 @@ end subroutine negf_write_partition
 !!* Compute current for a given LIBNEGF instance.
 !!* @param [in] handler Number for the LIBNEGF instance to destroy.
 subroutine negf_current(handler, current, unitsOfH, unitsOfJ)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
-  use ln_constants ! if:mod:use
-  use globals  ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
+  use negf_ln_constants ! if:mod:use
+  use negf_globals  ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   real(dp) :: current       !if:var:inout
@@ -984,8 +984,8 @@ end subroutine negf_current
 !> Print TNegf container for debug
 subroutine negf_print_tnegf(handler) bind(c)
   use iso_c_binding, only : c_int   ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
 
@@ -1006,10 +1006,10 @@ end subroutine negf_print_tnegf
 !! @param [in] model: an integer identifying the model (1: fully diagona, 2: block diagonal, 3: overlap mask)
 subroutine negf_set_elph_dephasing(handler, coupling, coupling_size, orbsperatom, orbsperatom_size, niter, model) bind(c)
   use iso_c_binding, only : c_int, c_double ! if:mod:use
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
-  use ln_precision      ! if:mod:use
-  use lib_param      ! if:mod:use
+  use negf_libnegfAPICommon  ! if:mod:use
+  use negf_libnegf   ! if:mod:use
+  use negf_ln_precision      ! if:mod:use
+  use negf_lib_param      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
   real(c_double), intent(in) :: coupling(*)  ! if:var:in

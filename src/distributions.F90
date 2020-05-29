@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module distributions
+ module negf_distributions
 
-  use ln_precision
+  use negf_ln_precision
   
   implicit none
   private
@@ -173,4 +173,4 @@ contains
      
   end function diff_bose
   
-end module distributions
+end  module negf_distributions

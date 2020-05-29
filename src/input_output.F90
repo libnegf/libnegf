@@ -19,11 +19,11 @@
 !!--------------------------------------------------------------------------!
 
 
-module input_output
-  use ln_precision
-  use ln_allocation
-  use mat_def
-  use sparsekit_drv
+ module negf_input_output
+  use negf_ln_precision
+  use negf_ln_allocation
+  use negf_mat_def
+  use negf_sparsekit_drv
   implicit none
   private
 
@@ -261,4 +261,4 @@ end subroutine read_H
 
 
 
-end module input_output
+end  module negf_input_output

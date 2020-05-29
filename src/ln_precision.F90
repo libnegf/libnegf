@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module ln_precision
+ module negf_ln_precision
   use :: iso_fortran_env, only : int64
   implicit none
   private
@@ -58,4 +58,4 @@ contains
      EPS = drop
   end subroutine set_drop
 
-end module ln_precision
+end  module negf_ln_precision

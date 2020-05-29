@@ -19,14 +19,14 @@
 !!--------------------------------------------------------------------------!
 
 
-module scattstates
+ module negf_scattstates
   use precision
   use constants
   use allocation
-  use mat_def
-  use sparsekit_drv
-  use contselfenergy, only : surface_green,selfenergy
-  use complexbands
+  use negf_mat_def
+  use negf_sparsekit_drv
+  use negf_contselfenergy, only : surface_green,selfenergy
+  use negf_complexbands
   use inversions, only : inverse
   implicit none
   private
@@ -1328,4 +1328,4 @@ contains
   end function numtolabel
 
 
-end module scattstates
+end  module negf_scattstates

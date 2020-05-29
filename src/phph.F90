@@ -19,12 +19,12 @@
 !!--------------------------------------------------------------------------!
 
 
-module phph
+ module negf_phph
 
-  use ln_precision, only : dp
-  use globals
-  use ln_allocation
-  use mat_def
+  use negf_ln_precision, only : dp
+  use negf_globals
+  use negf_ln_allocation
+  use negf_mat_def
 
   implicit none
   private
@@ -286,6 +286,6 @@ contains
 
   end subroutine Permute_Cubic
 
-end module phph
+end  module negf_phph
 
 

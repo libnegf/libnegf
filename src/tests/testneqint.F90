@@ -21,14 +21,14 @@
 
 program testneqint
 
-  use ln_precision
-  use ln_constants
-  use ln_allocation
-  use libnegf
-  use mat_def
-  use sparsekit_drv
-  use lib_param
-  use ln_extract
+  use negf_ln_precision
+  use negf_ln_constants
+  use negf_ln_allocation
+  use negf_libnegf
+  use negf_mat_def
+  use negf_sparsekit_drv
+  use negf_lib_param
+  use negf_ln_extract
 
   implicit none
 

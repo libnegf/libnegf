@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module population
-  use ln_precision
-  use mat_def
+ module negf_population
+  use negf_ln_precision
+  use negf_mat_def
 
   implicit none
   private
@@ -70,4 +70,4 @@ contains
 
   ! -------------------------------------------------------------
 
-end module population
+end  module negf_population

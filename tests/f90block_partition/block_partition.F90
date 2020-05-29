@@ -20,8 +20,8 @@
 
 program test_block_partition
 
-  use libnegf
-  use lib_param
+  use negf_libnegf
+  use negf_lib_param
 
   implicit none
 

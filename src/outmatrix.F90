@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module outmatrix
+ module negf_outmatrix
 
-  use ln_precision
+  use negf_ln_precision
   
   implicit none
   private
@@ -289,4 +289,4 @@ module outmatrix
     end subroutine direct_in_c
 
   
-  end module outmatrix
+  end  module negf_outmatrix

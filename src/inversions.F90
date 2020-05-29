@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
@@ -27,10 +27,10 @@
 
 Module inversions
 
-use ln_precision
-use ln_allocation 
-use mat_def
-use sparsekit_drv
+use negf_ln_precision
+use negf_ln_allocation
+use negf_mat_def
+use negf_sparsekit_drv
 private
 
 INTEGER :: t1_i,t2_I,cr_i,cm_i,t1_ii,t2_ii,cr_ii,cm_ii
@@ -69,15 +69,15 @@ contains
 
     Integer :: sel, iter
 
-    sel = 1 
-    !if(A%nrow.gt.100) sel = 2 
-    !if(A%nrow.gt.1200) sel = 3     
+    sel = 1
+    !if(A%nrow.gt.100) sel = 2
+    !if(A%nrow.gt.1200) sel = 3
 
     select case(sel)
     case(1)
        call inverse(G%val,A%val,n)
     case(2)
-       iter = 1     
+       iter = 1
        call block2Green(G%val,A%val,n,iter)
     case(3)
        call block3Green(G%val,A%val,n)
@@ -91,13 +91,13 @@ contains
 
     Integer :: sel, iter
 
-    sel = 1 
+    sel = 1
 
     select case(sel)
     case(1)
        call inverse(G,A,n)
     case(2)
-       iter = 1     
+       iter = 1
        call block2Green(G,A,n,iter)
     case(3)
        call block3Green(G,A,n)
@@ -107,7 +107,7 @@ contains
 
 
 !******************************************************
-!                                                     | 
+!                                                     |
 !  PGMRES based inversion subroutine with masking     |
 !                                                     |
 !******************************************************
@@ -122,20 +122,20 @@ contains
 !A_csr: Matrix to be inverted in Real CSR format                         |
 !M_csc: Mask matrix in csc format                                        |
 !Output:                                                                 |
-!INV_csc: Inverted masked matrix                                         | 
-!                                                                        | 
+!INV_csc: Inverted masked matrix                                         |
+!                                                                        |
 !Note for allocation: INV_csc has the same dimension of M_csc            |
 !*************************************************************************
 
-!integer :: i, j, index_start, index_end, row_index, nzval_address  
+!integer :: i, j, index_start, index_end, row_index, nzval_address
 !integer :: ierr, LU_iwk, iout
 !type(z_CSR) :: A_csr
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x
 !type(z_MSR) :: LU_msr
-!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv
 !type(z_CSC) :: M_csc, INV_csc
 
 !Define parameters for PGMRES and FILTER calls
@@ -148,18 +148,18 @@ contains
 !
 !
 !write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
-!  
+!
 !  LU_iwk=A_csr%nnz+1
 !  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
 !  call log_allocate(LU_ju,A_csr%nrow)
-!  call log_allocate(LU_levs,LU_iwk) 
+!  call log_allocate(LU_levs,LU_iwk)
 !  !End Allocation
-!    
+!
 !write(*,*)  "Call LU0 preconditioning for pgmres solver"
-!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-!  
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk)
+!
 !   call log_deallocate(LU_levs)
-!  
+!
 !  nzval_address=1
 !  INV_csc%rowind=M_csc%rowind
 !  INV_csc%colpnt=M_csc%colpnt
@@ -168,10 +168,10 @@ contains
 !write(*,*) im*A_csr%nrow+1
 !  iout=0
 !
-!  call log_allocate(vv,im*A_csr%nrow+1) 
+!  call log_allocate(vv,im*A_csr%nrow+1)
 ! call log_allocate(x,A_csr%nrow)
-! call log_allocate(y,A_csr%nrow)  
-! 
+! call log_allocate(y,A_csr%nrow)
+!
 ! x(:)=(0.d0,0.d0) !Solution initial guess
 !
 ! do i=1,A_csr%nrow
@@ -198,7 +198,7 @@ contains
 !    enddo
 !
 ! enddo
-! 
+!
 !write(*,*) "Work arrays and structures deallocation"
 ! call destroy(LU_msr)
 ! call log_deallocate(vv)
@@ -206,12 +206,12 @@ contains
 ! call log_deallocate(x)
 !  call log_deallocate(y)
 
- 
+
 !END subroutine ZMSKINVP_LA
- 
- 
+
+
 !*************************************************************************
-!                                                                        | 
+!                                                                        |
 !  PGMRES based inversion subroutine with masking and more arguments     |
 !                                                                        |
 !*************************************************************************
@@ -233,15 +233,15 @@ contains
 !!INV_csc: Inverted masked matrix                                         |
 !!*************************************************************************
 !
-!integer :: i, j, index_start, index_end, row_index, nzval_address  
+!integer :: i, j, index_start, index_end, row_index, nzval_address
 !integer :: ierr, LU_iwk, iout
 !type(z_CSR) :: A_csr
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x
 !type(z_MSR) :: LU_msr
-!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv
 !type(z_CSC) :: M_csc, INV_csc
 !
 !integer :: im, maxits
@@ -249,18 +249,18 @@ contains
 !
 !
 !write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
-!  
+!
 !  LU_iwk=A_csr%nnz+1
 !  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk)
 !  call log_allocate(LU_ju,A_csr%nrow)
-!  call log_allocate(LU_levs,LU_iwk) 
+!  call log_allocate(LU_levs,LU_iwk)
 !  !End Allocation
-!    
+!
 !write(*,*)  "Call LU0 preconditioning for pgmres solver"
-!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-!  
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk)
+!
 !  call log_deallocate(LU_levs)
-!  
+!
 !  nzval_address=1
 !  INV_csc%rowind=M_csc%rowind
 !  INV_csc%colpnt=M_csc%colpnt
@@ -269,10 +269,10 @@ contains
 !write(*,*) im*A_csr%nrow+1
 !  iout=0
 !
-!  call log_allocate(vv,im*A_csr%nrow+1) 
+!  call log_allocate(vv,im*A_csr%nrow+1)
 !  call log_allocate(x,A_csr%nrow)
-!  call log_allocate(y,A_csr%nrow)  
-!  
+!  call log_allocate(y,A_csr%nrow)
+!
 !  x(:)=(0.d0, 0.d0) !Solution initial guess
 !
 !  do i=1,A_csr%nrow
@@ -299,7 +299,7 @@ contains
 !     enddo
 
 !  enddo
-  
+
 ! write(*,*) "Work arrays and structures deallocation"
 !  call destroy(LU_msr)
 !  call log_deallocate(vv)
@@ -324,7 +324,7 @@ contains
 !!Result is INV in dense format.                                          |
 !!                                                                        |
 !!Input:                                                                  |
-!!A_csr: Matrix to be inverted in Real CSR format                         |                                       
+!!A_csr: Matrix to be inverted in Real CSR format                         |
 !!im: krylov subspace dimension for PGMRES solver                         |
 !!maxits: maximum iterations number for PGMRES solver                     |
 !!eps: error allowed in PGMRES solver                                     |
@@ -337,12 +337,12 @@ contains
 !integer :: nrow, ierr, LU_iwk, iout
 !type(z_CSR) :: A_csr
 !complex(kind=dp), DIMENSION(nrow,nrow) :: INV
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x 
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: y
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: x
 !type(z_MSR) :: LU_msr
-!integer, DIMENSION(:), ALLOCATABLE :: LU_levs 
-!integer, DIMENSION(:), ALLOCATABLE :: LU_ju 
-!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv 
+!integer, DIMENSION(:), ALLOCATABLE :: LU_levs
+!integer, DIMENSION(:), ALLOCATABLE :: LU_ju
+!complex(kind=dp), DIMENSION(:), ALLOCATABLE :: vv
 !
 !integer :: im, maxits
 !real(kind=dp) :: eps
@@ -350,29 +350,29 @@ contains
 !if (nrow.ne.A_csr%nrow) then
 !  stop 'Error in INVP_MA: INV must have same number of rows of A_csr'
 !endif
-!  
+!
 !write(*,*) "Allocation of LU_msr, LU_ju e LU_levs for preconditioning"
-!  
+!
 !  LU_iwk=A_csr%nnz+1
 !  call create(LU_msr,A_csr%nrow,A_csr%ncol,LU_iwk-1)
 !  call log_allocate(LU_ju,A_csr%nrow)
-!  call log_allocate(LU_levs,LU_iwk) 
+!  call log_allocate(LU_levs,LU_iwk)
 !  !End Allocation
-!    
+!
 !write(*,*)  "Call LU0 preconditioning for pgmres solver"
-!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk) 
-!  
+!  call  ziluk_st(A_csr, 0, LU_msr, LU_ju, LU_levs, LU_iwk)
+!
 !  call log_deallocate(LU_levs)
-!  
+!
 !!Debug
 !write(*,*) "Allocations and initializations for PGMRES solver"
 !!EndDebug
 !  iout=0
-!  
-!  call log_allocate(vv,im*A_csr%nrow+1) 
+!
+!  call log_allocate(vv,im*A_csr%nrow+1)
 !  call log_allocate(x,A_csr%nrow)
-!  call log_allocate(y,A_csr%nrow)  
-!  
+!  call log_allocate(y,A_csr%nrow)
+!
 !  x(:)=(0.d0, 0.d0) !Solution initial guess
 !
 !  do i=1,A_csr%nrow
@@ -394,10 +394,10 @@ contains
 !        endif
 !     endif
 !
-!     INV(:,i)=x(:)  
+!     INV(:,i)=x(:)
 !
 !  enddo
-!  
+!
 !  call destroy(LU_msr)
 !  call log_deallocate(LU_ju)
 !  call log_deallocate(x)
@@ -414,7 +414,7 @@ contains
 !*********************************************
 !                                            |
 !  SuperLU based inversion without masking   |
-!                                            | 
+!                                            |
 !*********************************************
 subroutine zINV_LU(A_csr, INV)
 
@@ -422,7 +422,7 @@ subroutine zINV_LU(A_csr, INV)
 !Calculate the inverse matrix                              |
 !                                                          |
 !Input:                                                    |
-!A_csr: matrix to be inverted in CSR format                | 
+!A_csr: matrix to be inverted in CSR format                |
 !       (must be square)                                   |
 !                                                          |
 !Output:                                                   |
@@ -436,39 +436,39 @@ subroutine zINV_LU(A_csr, INV)
 
   complex(kind=dp), DIMENSION(:,:) :: INV
   integer :: i, mem
- 
+
   if (timing) call SYSTEM_CLOCK(t1_i,cr_i,cm_i)
   if (timing) call SYSTEM_CLOCK(t1_ii,cr_ii,cm_ii)
 
-  !Trasposizione da csr a csc 
+  !Trasposizione da csr a csc
   !(nota: A_csr viene lasciata allocata)
   call create(A_csc,A_csr%nrow,A_csr%ncol,A_csr%nnz)
-  call csr2csc(A_csr,A_csc) 
+  call csr2csc(A_csr,A_csc)
 
   !Parameter and rhs inizialization
   nrhs=A_csc%nrow
   ldb=A_csc%nrow
-  
+
   INV=(0.d0, 0.d0)
-  
+
   FORALL (i=1:nrhs)  INV(i,i)=(1.D0,0.D0)
-  
+
   if (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_i)
   IF (timing) WRITE(*,*) 'SuperLU pre-inversion operations',&
        (t2_ii-t1_ii)*1.0/cr_ii,'sec'
-  
+
   !Chiamata Superlu 2.0
   call c_bridge_zgssv(nrhs, A_csc%nnz, nrhs, &
        A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
-       INV, ldb, info, mem)      
+       INV, ldb, info, mem)
 
   !alloc_mem=alloc_mem+mem
   !if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
-  !alloc_mem=alloc_mem-mem         
-  
+  !alloc_mem=alloc_mem-mem
+
   !Deallocazione della matrice CSC
   call destroy(A_csc)
-  
+
   if (timing) call SYSTEM_CLOCK(t2_i,cr_i,cm_i)
   IF (timing) WRITE(*,*) 'SuperLU inversions done in ',&
        (t2_i-t1_i)*1.0/cr_i,'sec'
@@ -480,15 +480,15 @@ end subroutine zINV_LU
 !!$!************************************************
 !!$!                                               |
 !!$!  SuperLU3.0 based inversion without masking   |
-!!$!                                               | 
+!!$!                                               |
 !!$!************************************************
 !!$subroutine zINV_LU(A_csr, INV)
-!!$  
+!!$
 !!$!***********************************************************
 !!$!Calculate the inverse matrix                              |
 !!$!                                                          |
 !!$!Input:                                                    |
-!!$!A_csr: matrix to be inverted in CSR format                | 
+!!$!A_csr: matrix to be inverted in CSR format                |
 !!$!       (must be square)                                   |
 !!$!                                                          |
 !!$!Output:                                                   |
@@ -502,13 +502,13 @@ end subroutine zINV_LU
 !!$
 !!$  complex(kind=dp), DIMENSION(:,:) :: INV
 !!$  integer :: i, mem
-!!$ 
+!!$
 !!$if (timing) call SYSTEM_CLOCK(t1_i,cr_i,cm_i)
 !!$if (timing) call SYSTEM_CLOCK(t1_ii,cr_ii,cm_ii)
 !!$
 !!$!Trasposizione da csr a csc (nota: A_csr viene lasciata allocata)
 !!$call create(A_csc,A_csr%nrow,A_csr%ncol,A_csr%nnz)
-!!$call zcsrcsc_st(A_csr,A_csc) 
+!!$call zcsrcsc_st(A_csr,A_csc)
 !!$
 !!$!Parameter and rhs inizialization
 !!$nrhs=A_csc%nrow
@@ -516,28 +516,28 @@ end subroutine zINV_LU
 !!$
 !!$INV=(0.d0, 0.d0)
 !!$FORALL (i=1:nrhs) INV(i,i)=(1.D0,0.D0)
-!!$  
-!!$IF (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_i)  
+!!$
+!!$IF (timing) call SYSTEM_CLOCK(t2_ii,cr_ii,cm_i)
 !!$IF (timing) WRITE(*,*) 'SuperLU pre-inversion operations',(t2_ii-t1_ii)*1.0/cr_ii,'sec'
 !!$
 !!$!First call, LU factorization
 !!$iopt = 1
-!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, & 
+!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
 !!$    INV, ldb, factors, info, mem)
 !!$
 !!$!Second call, solve system
 !!$iopt=2
-!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, & 
+!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
 !!$    INV, ldb, factors, info, mem)
 !!$
 !!$!Third call, free internal allocated memory
 !!$iopt=3
-!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, & 
+!!$call c_fortran_zgssv( iopt, A_csc%nrow, A_csc%nnz, nrhs, A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
 !!$    INV, ldb, factors, info, mem)
 !!$
 !!$alloc_mem=alloc_mem+mem
 !!$ if (alloc_mem.gt.peak_mem) peak_mem = alloc_mem
-!!$alloc_mem=alloc_mem-mem         
+!!$alloc_mem=alloc_mem-mem
 !!$
 !!$!Deallocazione della matrice CSC
 !!$call zdestroy_CSC(A_csc)
@@ -547,7 +547,7 @@ end subroutine zINV_LU
 !!$
 !!$end subroutine zINV_LU
 
-#:if defined("__PARDISO") 
+#:if defined("__PARDISO")
 !***********************************************************
 !
 !  PARDISO Direct inversion
@@ -559,7 +559,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   !Calculate the inverse matrix                              |
   !                                                          |
   !Input:                                                    |
-  !A_csr: matrix to be inverted in CSR format                | 
+  !A_csr: matrix to be inverted in CSR format                |
   !       (must be square)                                   |
   !                                                          |
   !Output:                                                   |
@@ -585,17 +585,17 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   iwork_lenght=MAX(A_csr%nrow+1,2*A_csr%nnz)
   CALL log_allocate(iwork,iwork_lenght)
-  CALL zcsort(A_csr%nrow,A_csr%nzval,A_csr%colind,A_csr%rowpnt,iwork,.TRUE.) 
-  CALL log_deallocate(iwork) 
+  CALL zcsort(A_csr%nrow,A_csr%nzval,A_csr%colind,A_csr%rowpnt,iwork,.TRUE.)
+  CALL log_deallocate(iwork)
 
   NRHS = 1  ! Number or RHS
- 
+
   CALL log_allocate(PERM,ndim)
   CALL log_allocate(B,ndim,NRHS)
   CALL log_allocate(X,ndim,NRHS)
   CALL log_allocate(wind,ndim)
 
-  MTYPE=13 ! 6: Complex, symmetric; 13: Complex, non symmetric 
+  MTYPE=13 ! 6: Complex, symmetric; 13: Complex, non symmetric
 
   IPARM(:)=0
   PT(:)=0
@@ -607,13 +607,13 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   IPARM(1)=1;  ! 0 sets all default values
   IPARM(2)=2;  ! 0 MDA, 2 ND (metis)
   IPARM(3)=1;  ! is number of processors - must be set
-  IPARM(4)=0;  ! 10*L+K; K=0: LU; K=1: CGS; K=2: CG  acc (1E-L) 
+  IPARM(4)=0;  ! 10*L+K; K=0: LU; K=1: CGS; K=2: CG  acc (1E-L)
   IPARM(5)=0;  ! 1 if user supplies permutation (PERM)
   IPARM(6)=0;  ! 1 => the solution in on B
   IPARM(8)=0;  ! input: max num of iterative refinement steps
   IPARM(7)=0;  ! output: num of iterative steps
   IPARM(10)=13;! |A|*1.0E-IPARM(10) pivot threshold
-  IPARM(11)=1; ! Scaling vectors (For unsym or indef sym mat) 
+  IPARM(11)=1; ! Scaling vectors (For unsym or indef sym mat)
   IPARM(13)=1; ! move large close to diag (use for highly indef)
   IPARM(18)=0; ! if <0 the solver will report nnz in L U
   IPARM(19)=0; ! if <0 the solver will report factoring MFlops
@@ -638,16 +638,16 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   call PARDISO(PT, MAXFCT, MNUM, MTYPE, PHASE, ndim, A_csr%nzval,A_csr%rowpnt,A_csr%colind, &
        PERM, NRHS, IPARM, MSGLVL, B, X, info)
 
-  IF(info.NE.0) THEN 
+  IF(info.NE.0) THEN
      WRITE(*,*) 'PARDISO Inversion error number ',info, ' in phase ',PHASE
      SELECT CASE (info)
-     CASE (-1) 
+     CASE (-1)
         WRITE(*,*) 'Input inconsistent'
      CASE (-2)
         WRITE(*,*) 'No enough memory'
      CASE (-3)
         WRITE(*,*) 'Reordering problem'
-     CASE (-4) 
+     CASE (-4)
         WRITE(*,*) 'Zero pivot'
      CASE (-5)
         WRITE(*,*) 'Unclassified internal error'
@@ -666,22 +666,22 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
 
   ! --------------------------------------------------------------------------------------
   ! SOLVE ndim linear systems and compress the results in a CSR matrix
-  allocate(RM(ndim))  
+  allocate(RM(ndim))
   PHASE = 33 ! solve
   nnz = 0
 
   do i1 = 1, ndim
 
      B(i1,1)=(1.d0,0.d0)  ! set rhs column
-        
+
      call PARDISO(PT, MAXFCT, MNUM, MTYPE, PHASE, ndim, A_csr%nzval,A_csr%rowpnt, &
           A_csr%colind, PERM, NRHS, IPARM, MSGLVL, B, X, info)
 
      IF(info.NE.0) THEN
          WRITE(*,*) 'Error in solve'
          STOP
-     ENDIF  
-     ! counts all non-zero elements in this column 
+     ENDIF
+     ! counts all non-zero elements in this column
      cnt = 0
      do i2=1,ndim
         if(ABS(X(i2,1)).gt.EPS10) then
@@ -691,13 +691,13 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
      end do
      ! store the column in the ragged matrix RM
      call log_allocate(RM(i1)%val,cnt)
-     call log_allocate(RM(i1)%ind,cnt)     
-     RM(i1)%len=cnt 
+     call log_allocate(RM(i1)%ind,cnt)
+     RM(i1)%len=cnt
      do i2=1,cnt
          nnz = nnz + 1
          RM(i1)%ind(i2) = wind(i2)
          RM(i1)%val(i2) = X(wind(i2),1)
-     end do            
+     end do
 
      B(i1,1)=(0.d0,0.d0)  ! unset rhs column
 
@@ -708,7 +708,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
   INV%rowpnt(1)=1
   indx = 0
   do i1 = 1, ndim
-     do i2 = 1,RM(i1)%len   
+     do i2 = 1,RM(i1)%len
         indx = indx + 1
         INV%colind(indx) = RM(i1)%ind(i2)
         INV%nzval(indx) = RM(i1)%val(i2)
@@ -777,10 +777,10 @@ subroutine cinv(inA,A,n)
   INTEGER :: ipiv(n),info, lwork, NB
   integer, external :: ilaenv
   complex(dp), dimension(:), allocatable  :: work
- 
+
   lwork = n*ilaenv(1,'cgetri','',n,-1,-1,-1)
   call log_allocate(work,lwork)
-  
+
   inA=A
   call cgetrf( n, n, inA, n, ipiv, info )
 
@@ -799,13 +799,13 @@ subroutine cinv(inA,A,n)
   end if
 
   call log_deallocate(work)
-  
-end subroutine cinv  
+
+end subroutine cinv
 
 
 ! --------------------------------------------------------------------------
 subroutine zinv(inA,A,n)
-   
+
   Implicit none
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
@@ -814,7 +814,7 @@ subroutine zinv(inA,A,n)
   INTEGER :: ipiv(n),info, lwork, NB
   integer, external :: ilaenv
   complex(dp), dimension(:), allocatable  :: work
-  
+
   lwork = n*ilaenv(1,'zgetri','',n,-1,-1,-1)
 
   call log_allocate(work,lwork)
@@ -836,7 +836,7 @@ subroutine zinv(inA,A,n)
   end if
 
   call log_deallocate(work)
-  
+
 end subroutine zinv
 !---------------------------------------------------------------------------
 !---------- INTERFACE FOR LAPACK INVERSION (SYMMETRIC MATRICES) -------------
@@ -848,11 +848,11 @@ subroutine rinv(inA,A,n)
   INTEGER :: ipiv(n),info, lwork, NB
   integer, external :: ilaenv
   complex(dp), dimension(:), allocatable  :: work
- 
+
   lwork = n * ilaenv(1,'dgetri','',N,-1,-1,-1)
 
   call log_allocate(work,lwork)
-  
+
   inA=A
   call  dgetrf(n, n, inA, n, ipiv, info )
   if (info.ne.0)  then
@@ -864,7 +864,7 @@ subroutine rinv(inA,A,n)
      write(*,*) 'ERROR in INVERSION part 2',info
      stop
   end if
-  
+
   call log_deallocate(work)
 
 end subroutine rinv
@@ -874,7 +874,7 @@ end subroutine rinv
   !
   !  (G11   )|(      )
   !  (   G22)|(      )
-  !  ----------------- 
+  !  -----------------
   !  (      )|(G11   )
   !  (      )|(   G22)
   !
@@ -899,7 +899,7 @@ end subroutine rinv
 
     bl1 = n/2
     b22 = n - bl1
-    n2 = bl1 + 1 
+    n2 = bl1 + 1
 
     call create(gr22,b22,b22)
 
@@ -908,13 +908,13 @@ end subroutine rinv
        allocate(B(n2:n,n2:n))
        B=A(n2:n,n2:n)
        call block2Green(gr22%val,B,b22,iter)
-       deallocate(B)     
+       deallocate(B)
        iter = iter - 1
     else
        allocate(B(n2:n,n2:n))
        B=A(n2:n,n2:n)
        call inverse(gr22%val,B,b22)    !g22 in uscita
-       deallocate(B)     
+       deallocate(B)
     endif
 
     allocate(B(1:bl1,n2:n))
@@ -939,7 +939,7 @@ end subroutine rinv
 
     if (iter.lt.maxiter) then
        iter = iter + 1
-       call block2Green(G11%val,h11%val,bl1,iter)     
+       call block2Green(G11%val,h11%val,bl1,iter)
        iter = iter - 1
     else
        call inverse(G11%val,h11%val,bl1)        !blocco G11
@@ -954,9 +954,9 @@ end subroutine rinv
     call prealloc_mult(gr22%val,B,work2)
     deallocate(B)
 
-    call prealloc_mult(work2,G11,G21)    !blocco G21 
+    call prealloc_mult(work2,G11,G21)    !blocco G21
 
-    call destroy(work2)  
+    call destroy(work2)
 
     call prealloc_mult(G21%val,work1%val,work4)
 
@@ -964,7 +964,7 @@ end subroutine rinv
 
     call prealloc_sum(gr22,work4,G22)          !blocco G22
 
-    call destroy(work4)  
+    call destroy(work4)
 
     call destroy(gr22)
 
@@ -1008,7 +1008,7 @@ end subroutine rinv
     call inverse(gr11%val,A(1:bl1,1:bl1),bl1)     !Blocco g11 in uscita
 
     call prealloc_mult(A(n2:n3-1,n3:n),gr33%val,work1)                          !Moltiplicatione
-    call prealloc_mult(work1%val,A(n3:n,n2:n3-1),(-1.d0,0.d0),work2)            !-H23g33H32  
+    call prealloc_mult(work1%val,A(n3:n,n2:n3-1),(-1.d0,0.d0),work2)            !-H23g33H32
     call destroy(work1)
     call prealloc_mult(A(n2:n3-1,1:bl1),gr11%val,work1)                         !Moltiplicazione
     call prealloc_mult(work1%val,A(1:bl1,n2:n3-1),(-1.d0,0.d0),work3)           !-H21g11H12
@@ -1020,15 +1020,15 @@ end subroutine rinv
     call create(G22,bl2,bl2)
     call inverse(G22%val,h22%val,bl2)            !Blocco G22 in uscita, G22=(h22)^-1
     call destroy(h22)
-    
-    call prealloc_mult(gr33%val,A(n3:n,n2:n3-1),work1)                         
+
+    call prealloc_mult(gr33%val,A(n3:n,n2:n3-1),work1)
     call prealloc_mult(work1,G22,work2)
     call destroy(work1)
     call prealloc_mult(work2%val,A(n2:n3-1,n3:n),work3)
     call destroy(work2)
     call prealloc_mult(work3,gr33,work4)                      !Moltiplicazione
-    call destroy(work3)                                       !g33*H32*G22*H23*g33          
-    call prealloc_sum(gr33,work4,G33)                          !Blocco G33 in uscita  
+    call destroy(work3)                                       !g33*H32*G22*H23*g33
+    call prealloc_sum(gr33,work4,G33)                          !Blocco G33 in uscita
     call destroy(work4)                               !G33=g33+g33H32G22H23g33
 
     call prealloc_mult(gr11%val,A(1:bl1,n2:n3-1),work1)
@@ -1042,9 +1042,9 @@ end subroutine rinv
     call destroy(work4)                                 !G11=g11+g11H12G22H21g11
 
     call prealloc_mult(gr11%val,A(1:bl1,n2:n3-1),work1)
-    call prealloc_mult(work1,G22,(-1.d0,0.d0),G12)          !Blocco G12 in uscita, G12=-g11*H12*G22  
-    call destroy(work1) 
-    
+    call prealloc_mult(work1,G22,(-1.d0,0.d0),G12)          !Blocco G12 in uscita, G12=-g11*H12*G22
+    call destroy(work1)
+
     call prealloc_mult(G22%val,A(n2:n3-1,1:bl1),work1)
     call prealloc_mult(work1,gr11,(-1.d0,0.d0),G21)         !Blocco G21 in uscita, G21=-G22*H21*g11
     call destroy(work1)
@@ -1055,7 +1055,7 @@ end subroutine rinv
 
     call prealloc_mult(gr33%val,A(n3:n,n2:n3-1),work1)
     call prealloc_mult(work1,G22,(-1.d0,0.d0),G32)          !Blocco G32 in uscita, G32=-g33*H32*G22
-    call destroy(work1)  
+    call destroy(work1)
 
     call prealloc_mult(gr11%val,A(1:bl1,n2:n3-1),work1)
     call prealloc_mult(work1,G23,(-1.d0,0.d0),G13)          !Blocco G13 in uscita, G13=-g11*H12*G23
@@ -1063,7 +1063,7 @@ end subroutine rinv
 
     call prealloc_mult(gr33%val,A(n3:n,n2:n3-1),work1)
     call prealloc_mult(work1,G21,(-1.d0,0.d0),G31)          !Blocco G31 in uscita, G31=-g33*H32*G21
-    call destroy(work1) 
+    call destroy(work1)
 
     call destroy(gr11)
     call destroy(gr33)
@@ -1096,11 +1096,11 @@ end subroutine rinv
   ! A U = T
   !
   ! A is an n x n complex matrix
-  ! 
+  !
   subroutine zlin(A,T,gT,n)
     complex(dp), dimension(:,:) :: A, T, gT
     integer :: n
-  
+
     INTEGER :: ipiv(n),info, lwork, NB, nrhs
     integer, external :: ilaenv
     complex(dp), dimension(:), allocatable  :: work
@@ -1111,13 +1111,13 @@ end subroutine rinv
 
     ! LU factorization
     call zgetrf( n, n, LU, n, ipiv, info )
-  
+
     if (info.ne.0)  then
        write(*,*)
        write(*,*) 'ERROR in INVERSION part 1',info
        stop
     end if
-  
+
     nrhs = size(T,2)
     lwork = n*ilaenv(1,'zgetrs','',N,-1,-1,-1)
     call log_allocate(work,lwork)
@@ -1129,7 +1129,7 @@ end subroutine rinv
        write(*,*) 'ERROR in INVERSION part 2',info
        stop
     end if
-  
+
     call log_deallocate(work)
     call log_deallocate(LU)
 

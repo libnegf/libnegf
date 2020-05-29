@@ -20,10 +20,10 @@
 
 
 
-module transform
+ module negf_transform
 
-   use ln_precision
-   use mpi_globals
+   use negf_ln_precision
+   use negf_mpi_globals
    use libmpifx_module, only : mpifx_comm
    use, intrinsic :: iso_c_binding
    implicit none   
@@ -246,4 +246,4 @@ module transform
 
  end subroutine convolve_retarded
 
-end module transform       
+end  module negf_transform       

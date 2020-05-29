@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module metis_interface
+ module negf_metis_interface
 
-  use mat_def
+  use negf_mat_def
   
   implicit none
   private
@@ -79,4 +79,4 @@ contains
 
   !----------------------------------------------------------
 
-end module metis_interface
+end  module negf_metis_interface

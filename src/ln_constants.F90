@@ -34,9 +34,9 @@
 !! IF unitsofEnergy is "unknown" (default), then convert returns 1.0
 !!--------------------------------------------------------------------------!
 
-module ln_constants
+ module negf_ln_constants
   
-  use ln_precision
+  use negf_ln_precision
   
   complex(dp), parameter ::    j = (0.d0,1.d0)  ! CMPX unity
   
@@ -253,5 +253,5 @@ contains
 
   end function convertHeatConductance
 
-end module ln_constants
+end  module negf_ln_constants
 

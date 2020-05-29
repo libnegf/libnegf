@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module complexbands
-  use ln_precision
-  use ln_constants
+ module negf_complexbands
+  use negf_ln_precision
+  use negf_ln_constants
   use inversions
   implicit none
   private
@@ -630,4 +630,4 @@ contains
     !enddo
   end subroutine sort_and_normalize
 
-end module complexbands
+end  module negf_complexbands

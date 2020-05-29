@@ -21,8 +21,8 @@
 
 !!#:set MEMLOG = 1
 
-module ln_allocation
-  use ln_precision
+ module negf_ln_allocation
+  use negf_ln_precision
   implicit none
   private
 
@@ -920,4 +920,4 @@ contains
 
   end subroutine memstr
 
-end module ln_allocation
+end  module negf_ln_allocation

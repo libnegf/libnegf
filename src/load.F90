@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module load
+ module negf_load
  
-  use mat_def
+  use negf_mat_def
   implicit none
   private
 
@@ -85,4 +85,4 @@ contains
   end subroutine load_HS
 
 
-end module load
+end  module negf_load

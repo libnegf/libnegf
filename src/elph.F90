@@ -18,13 +18,13 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-module elph
+ module negf_elph
 
-  use ln_precision, only : dp
-  use globals
-  use ln_allocation
-  use mat_def, only : create, destroy, z_DNS, z_CSR, z_COO
-  use sparsekit_drv, only : prealloc_mult, prealloc_sum, coo2csr, extract, csr2dns
+  use negf_ln_precision, only : dp
+  use negf_globals
+  use negf_ln_allocation
+  use negf_mat_def, only : create, destroy, z_DNS, z_CSR, z_COO
+  use negf_sparsekit_drv, only : prealloc_mult, prealloc_sum, coo2csr, extract, csr2dns
 
   implicit none
   private
@@ -466,4 +466,4 @@ contains
 
   end subroutine init_elph
 
-end module elph
+end  module negf_elph

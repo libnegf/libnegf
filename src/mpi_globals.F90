@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module mpi_globals
+ module negf_mpi_globals
 
 
 #:if defined("MPI")
@@ -54,4 +54,4 @@ module mpi_globals
 
 #:endif
 
-end module mpi_globals
+end  module negf_mpi_globals

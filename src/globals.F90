@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module globals
+ module negf_globals
 
   implicit none
   private
@@ -28,4 +28,4 @@ module globals
   INTEGER, PUBLIC, PARAMETER :: MST = 200
   INTEGER, PUBLIC, PARAMETER :: SST = 100
 
-end module globals
+end  module negf_globals

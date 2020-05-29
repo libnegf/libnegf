@@ -35,15 +35,15 @@
 
 
 
-MODULE iterative
+ module negf_iterative
 
-  USE ln_precision
-  USE ln_allocation
-  USE mat_def
-  USE sparsekit_drv
+  use negf_ln_precision
+  use negf_ln_allocation
+  use negf_mat_def
+  use negf_sparsekit_drv
   USE inversions
-  USE ln_structure, only : TStruct_Info
-  USE lib_param, only : MAXNCONT
+  use negf_ln_structure, only : TStruct_Info
+  use negf_lib_param, only : MAXNCONT
 
   !USE parameters, only : ncont, ncdim
   !use structure, only : nbl, indblk, cblk, cindblk
@@ -2377,4 +2377,4 @@ CONTAINS
   end subroutine deallocate_Gr
 
 
-END MODULE iterative
+END  module negf_iterative

@@ -58,8 +58,8 @@
 !
 !*****************************************************************************
 
-module rcm_module
-  use ln_precision, only : dp
+ module negf_rcm_module
+  use negf_ln_precision, only : dp
 
   implicit none
   private
@@ -5022,4 +5022,4 @@ subroutine triangulation_order6_neighbor_triangles ( tri_num, tri_vert, &
   return
 end subroutine triangulation_order6_neighbor_triangles
 
-end module rcm_module
+end  module negf_rcm_module

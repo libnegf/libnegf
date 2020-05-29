@@ -19,26 +19,26 @@
 !!--------------------------------------------------------------------------!
 
 
-module integrations
+ module negf_integrations
 
- use ln_precision
- use ln_constants
- use ln_allocation
- use lib_param
- use mpi_globals, only : id, numprocs, id0
- use input_output
- use ln_structure
- use distributions
- use sparsekit_drv
+ use negf_ln_precision
+ use negf_ln_constants
+ use negf_ln_allocation
+ use negf_lib_param
+ use negf_mpi_globals, only : id, numprocs, id0
+ use negf_input_output
+ use negf_ln_structure
+ use negf_distributions
+ use negf_sparsekit_drv
  use inversions
- use iterative_dns
+ use negf_iterative_dns
  !use iterative_ph
- use mat_def
- use ln_extract
- use contselfenergy
- use clock
- use elph
- use energy_mesh
+ use negf_mat_def
+ use negf_ln_extract
+ use negf_contselfenergy
+ use negf_clock
+ use negf_elph
+ use negf_energy_mesh
 
  implicit none
 
@@ -2097,4 +2097,4 @@ contains
 
   end subroutine swap
 
-end module integrations
+end  module negf_integrations

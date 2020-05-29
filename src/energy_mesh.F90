@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module energy_mesh
+ module negf_energy_mesh
 
-  use ln_precision
+  use negf_ln_precision
   implicit none
   private
 
@@ -328,4 +328,4 @@ contains
   end function get_error   
 
 
-end module energy_mesh
+end  module negf_energy_mesh

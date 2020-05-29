@@ -21,17 +21,17 @@
 
 program Testdos
 
-  use ln_precision
-  use ln_constants
-  use mat_def
-  use ln_allocation
-  use ln_structure
-  use input_output
-  use sparsekit_drv
+  use negf_ln_precision
+  use negf_ln_constants
+  use negf_mat_def
+  use negf_ln_allocation
+  use negf_ln_structure
+  use negf_input_output
+  use negf_sparsekit_drv
   use inversions
-  use iterative
-  use libnegf
-  use lib_param
+  use negf_iterative
+  use negf_libnegf
+  use negf_lib_param
 
   implicit none
 

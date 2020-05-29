@@ -19,9 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
-module lowdin
+ module negf_lowdin
   
-  use ln_precision
+  use negf_ln_precision
 
   implicit none
   private
@@ -140,4 +140,4 @@ contains
   end subroutine lowdin_trans
 
 
-end module lowdin
+end  module negf_lowdin

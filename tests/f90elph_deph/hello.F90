@@ -20,9 +20,9 @@
 
 program hello
 
-  use libnegf
-  use lib_param
-  use integrations
+  use negf_libnegf
+  use negf_lib_param
+  use negf_integrations
 
   implicit none
 

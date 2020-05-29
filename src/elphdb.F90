@@ -20,13 +20,13 @@
 
 !> Atom block diagonal elastic dephasing model
 
-module elphdb
+ module negf_elphdb
 
-  use ln_precision, only : dp
-  use interactions, only : interaction
-  use ln_allocation, only : log_allocate, log_deallocate
-  use ln_structure, only : TStruct_info
-  use mat_def, only : z_dns, create
+  use negf_ln_precision, only : dp
+  use negf_interactions, only : interaction
+  use negf_ln_allocation, only : log_allocate, log_deallocate
+  use negf_ln_structure, only : TStruct_info
+  use negf_mat_def, only : z_dns, create
   
   implicit none
   private
@@ -261,4 +261,4 @@ contains
   end subroutine set_Gn
 
 
-end module elphdb
+end  module negf_elphdb

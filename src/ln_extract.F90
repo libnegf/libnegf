@@ -19,15 +19,15 @@
 !!--------------------------------------------------------------------------!
 
 
-module ln_extract
+ module negf_ln_extract
   
-  use ln_precision
-  use ln_allocation
-  use ln_constants
-  use mat_def
-  use sparsekit_drv
-  use ln_structure, only: TStruct_Info
-  use lib_param
+  use negf_ln_precision
+  use negf_ln_allocation
+  use negf_ln_constants
+  use negf_mat_def
+  use negf_sparsekit_drv
+  use negf_ln_structure, only: TStruct_Info
+  use negf_lib_param
 
   implicit none
 
@@ -76,4 +76,4 @@ contains
 
   end subroutine extract_cont
 
-end module ln_extract
+end  module negf_ln_extract

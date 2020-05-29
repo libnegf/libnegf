@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module clock
+ module negf_clock
 
   implicit none
   private
@@ -93,4 +93,4 @@ contains
  end subroutine write_clock
 
 
-end module clock
+end  module negf_clock

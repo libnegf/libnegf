@@ -21,12 +21,12 @@
 !> The module implements an abstract class to interface different
 !! many body interactions. 
 
-module interactions
+ module negf_interactions
 
-  use globals, only : LST
-  use ln_precision, only : dp
-  use mat_def, only : z_dns
-  use ln_structure, only : TStruct_info
+  use negf_globals, only : LST
+  use negf_ln_precision, only : dp
+  use negf_mat_def, only : z_dns
+  use negf_ln_structure, only : TStruct_info
 
   implicit none
   private
@@ -116,4 +116,4 @@ module interactions
 !!$      
 !!$    end subroutine init_Gbuffer
 
-end module interactions
+end  module negf_interactions

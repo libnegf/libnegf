@@ -30,20 +30,20 @@
 !  Permission to redistribute the code to third parties is restricted    *
 !  by the licence agreement.                                             *
 !*************************************************************************
-module GreenDftb
+ module negf_greendftb
 
   use precision
   use constants 
-  use mpi_globals
+  use negf_mpi_globals
   use allocation
-  use lib_param
-  use mat_def
-  use sparsekit_drv
+  use negf_lib_param
+  use negf_mat_def
+  use negf_sparsekit_drv
   use structure, only : TStruct_Info
-  use contselfenergy
-  use iterative
+  use negf_contselfenergy
+  use negf_iterative
   use fermi_dist
-  use clock
+  use negf_clock
 
   
   implicit none
@@ -982,4 +982,4 @@ subroutine gauleg(x1,x2,x,w,n)
 end subroutine Gauleg
   
 
-end module GreenDftb
+end  module negf_greendftb

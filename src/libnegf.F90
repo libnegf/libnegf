@@ -19,27 +19,27 @@
 !!--------------------------------------------------------------------------!
 
 
-module libnegf
+ module negf_libnegf
 
- use ln_precision
- use ln_constants
- use ln_allocation
- use lib_param
- use globals, only : LST
- use mpi_globals
- use input_output
- use ln_structure
- use rcm_module
- use mat_def
- use ln_extract
- use sparsekit_drv
- use integrations
+ use negf_ln_precision
+ use negf_ln_constants
+ use negf_ln_allocation
+ use negf_lib_param
+ use negf_globals, only : LST
+ use negf_mpi_globals
+ use negf_input_output
+ use negf_ln_structure
+ use negf_rcm_module
+ use negf_mat_def
+ use negf_ln_extract
+ use negf_sparsekit_drv
+ use negf_integrations
  use iso_c_binding
  use system_calls
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
- use clock
+ use negf_clock
  implicit none
  private
 
@@ -1969,4 +1969,4 @@ contains
 
   end function getel
 
-end module libnegf
+end  module negf_libnegf

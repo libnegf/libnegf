@@ -20,14 +20,14 @@
 
 !> Overlap mask elastic dephasing model
 
-module elphds
+ module negf_elphds
 
-  use ln_precision, only : dp
-  use interactions, only : interaction
-  use ln_allocation, only : log_allocate, log_deallocate
-  use ln_structure, only : TStruct_info
-  use mat_def, only : z_csr, z_dns, create, destroy
-  use sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
+  use negf_ln_precision, only : dp
+  use negf_interactions, only : interaction
+  use negf_ln_allocation, only : log_allocate, log_deallocate
+  use negf_ln_structure, only : TStruct_info
+  use negf_mat_def, only : z_csr, z_dns, create, destroy
+  use negf_sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
   
   implicit none
@@ -305,4 +305,4 @@ contains
   end subroutine set_Gn
 
 
-end module elphds
+end  module negf_elphds

@@ -20,10 +20,10 @@
 
 
 
-MODULE sparsekit_drv
-  USE ln_precision
-  USE ln_allocation
-  USE mat_def
+ module negf_sparsekit_drv
+  use negf_ln_precision
+  use negf_ln_allocation
+  use negf_mat_def
 
   private
 
@@ -3612,4 +3612,4 @@ CONTAINS
   end subroutine zcsr2blk_sod
 
 
-end module sparsekit_drv
+end  module negf_sparsekit_drv

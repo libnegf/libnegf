@@ -20,8 +20,8 @@
 
 program hello
 
-  use libnegf
-  use lib_param
+  use negf_libnegf
+  use negf_lib_param
 
   implicit none
 

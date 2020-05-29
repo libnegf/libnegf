@@ -19,20 +19,20 @@
 !!--------------------------------------------------------------------------!
 
 
-module lib_param
+ module negf_lib_param
 
-  use ln_precision, only : dp
-  use globals
-  use mat_def
-  use ln_structure, only : TStruct_info, print_Tstruct
-  use input_output
-  use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
-  use phph
-  use energy_mesh, only : mesh
-  use interactions, only : Interaction
-  use elphdd, only : ElPhonDephD, ElPhonDephD_create 
-  use elphdb, only : ElPhonDephB, ElPhonDephB_create
-  use elphds, only : ElPhonDephS, ElPhonDephS_create
+  use negf_ln_precision, only : dp
+  use negf_globals
+  use negf_mat_def
+  use negf_ln_structure, only : TStruct_info, print_Tstruct
+  use negf_input_output
+  use negf_elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
+  use negf_phph
+  use negf_energy_mesh, only : mesh
+  use negf_interactions, only : Interaction
+  use negf_elphdd, only : ElPhonDephD, ElPhonDephD_create 
+  use negf_elphdb, only : ElPhonDephB, ElPhonDephB_create
+  use negf_elphds, only : ElPhonDephS, ElPhonDephS_create
 #:if defined("MPI")  
   use libmpifx_module, only : mpifx_comm
 #:endif
@@ -454,7 +454,7 @@ contains
      write(io,*) 'activecont= ', negf%activecont 
   end subroutine print_all_vars
 
-end module lib_param
+end  module negf_lib_param
  
 
 
