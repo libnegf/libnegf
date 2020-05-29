@@ -1316,7 +1316,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
+          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1324,7 +1324,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
 
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
+          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1417,7 +1417,7 @@ contains
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
 
-            call calls_neq_mem_dns(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
+            call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
 
             if (negf%inter%scba_iter.ne.0) then
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
@@ -1485,7 +1485,7 @@ contains
 
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-    call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
+    call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
     if (allocated(negf%inter)) then
       if (negf%inter%scba_niter /= 0) then
@@ -1494,7 +1494,7 @@ contains
         do scba_iter = 1, negf%inter%scba_niter
           negf%inter%scba_iter = scba_iter
           call destroy(Gr)
-          call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
+          call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
           scba_error = maxval(abs(Gr%nzval - Gr_previous%nzval))
 
@@ -1543,7 +1543,7 @@ contains
     Er = real(Ec,dp)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-    call calls_neq_mem_dns(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+    call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
 
     ! In case of interactions (only elastic supported now) we go into
     ! the Self Consistent Born Approximation loop.
@@ -1558,7 +1558,7 @@ contains
       negf%inter%scba_iter = scba_iter
       call clone(Gn,Gn_previous)
       call destroy(Gn)
-      call calls_neq_neq_mem_dns(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
       call destroy(Gn_previous)
       if (scba_error .lt. negf%inter%scba_tol) then
@@ -1724,7 +1724,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
+          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1732,7 +1732,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
 
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
+          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght

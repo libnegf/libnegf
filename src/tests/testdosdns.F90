@@ -99,7 +99,7 @@ print*,'(main) open dos.dat'
 
      call compute_contacts(Ec,pnegf,it,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+     call calculate_Gr(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))

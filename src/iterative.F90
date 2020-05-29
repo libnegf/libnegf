@@ -38,11 +38,11 @@
   implicit none
   private
 
-  public :: tunneling_dns
-  public :: tun_and_dos
+  public :: calculate_transmissions
+  public :: calculate_transmissions_and_dos
 
-  public :: calls_eq_mem_dns
-  public :: calls_neq_mem_dns
+  public :: calculate_Gr
+  public :: calculate_Gn_neq_components
 
   public :: sigma_ph_n
   public :: sigma_ph_p
@@ -52,13 +52,13 @@
   public :: check_Gl_Gr
 
   public :: rebuild_dns
-  public :: Make_gsmr_mem_dns
-  public :: Make_gsml_mem_dns
-  public :: Make_Gr_mem_dns
-  public :: Make_Grcol_mem_dns
-  public :: Make_Gn_mem_dns
-  public :: Outer_Gr_mem_dns
-  public :: Outer_Gn_mem_dns
+  public :: calculate_gsmr_blocks
+  public :: calculate_gsml_blocks
+  public :: calculate_Gr_tridiag_blocks
+  public :: calculate_Gr_column_blocks
+  public :: calculate_Gn_tridiag_blocks
+  public :: calculate_Gr_outer
+  public :: calculate_Gn_outer
   !public :: Outer_A_mem_dns
   public :: iterative_meir_wingreen
   public :: transmission_BP_corrected
@@ -91,7 +91,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine calls_eq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,Grout,outer)
+  subroutine calculate_Gr(negf,E,SelfEneR,Tlc,Tcl,gsurfR,Grout,outer)
 
     !****************************************************************************
     !
@@ -164,19 +164,19 @@ CONTAINS
     !DAR end
     !----------------------------------
 
-    call allocate_gsm_dns(gsmr,nbl)
-    call Make_gsmr_mem_dns(ESH,nbl,2)
+    call allocate_gsm(gsmr,nbl)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
 
-    call Make_Gr_mem_dns(ESH,1)
-    call Make_Gr_mem_dns(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
     call destroy_ESH(ESH)
     call deallocate_blk_dns(ESH)
 
     call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
+    call deallocate_gsm(gsmr)
 
 
     ! SAVE ON FILES/MEMORY (for elph).........................
@@ -196,16 +196,16 @@ CONTAINS
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.FALSE.,Grout)
+      call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.FALSE.,Grout)
     CASE(2)
-      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.TRUE.,Grout)
+      call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.TRUE.,Grout)
     end SELECT
 
     !Distruzione dell'array Gr
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
 
-  end subroutine calls_eq_mem_dns
+  end subroutine calculate_Gr
 
 
   !****************************************************************************
@@ -217,7 +217,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine calls_neq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
+  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
 
     !****************************************************************************
     !
@@ -290,8 +290,8 @@ CONTAINS
       if (allocated(negf%inter)) iter = negf%inter%scba_iter
     end if
 
-    call allocate_gsm_dns(gsmr,nbl)
-    call allocate_gsm_dns(gsml,nbl)
+    call allocate_gsm(gsmr,nbl)
+    call allocate_gsm(gsml,nbl)
 
     ! Determine the leftmost and rightmost contact blocks to determine
     ! which column blocks are needed and hence which gsmr and gsml. In the case
@@ -306,8 +306,8 @@ CONTAINS
       lbl = maxval(cblk(1:ncont),mask(1:ncont))
     endif
 
-    call Make_gsmr_mem_dns(ESH,nbl,rbl+1)
-    call Make_gsml_mem_dns(ESH,1,lbl-1)
+    call calculate_gsmr_blocks(ESH,nbl,rbl+1)
+    call calculate_gsml_blocks(ESH,1,lbl-1)
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -315,9 +315,9 @@ CONTAINS
     ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
     ! 2. rbl<lbl  => lbl=rbl-2 has been computed
     ! Make_Gr does not compute if sbl>nbl or sbl<1
-    call Make_Gr_mem_dns(ESH,rbl)
-    call Make_Gr_mem_dns(ESH,rbl+1,nbl)
-    call Make_Gr_mem_dns(ESH,rbl-1,1)
+    call calculate_Gr_tridiag_blocks(ESH,rbl)
+    call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
+    call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
 
     !Computes the columns of Gr for the contacts != reference
     ! Keep track of the calculated column indices in the array Gr_columns.
@@ -326,7 +326,7 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
       endif
     end do
 
@@ -334,9 +334,9 @@ CONTAINS
     !Otherwise they are still needed to calculate columns ont-the-fly.
     if (.not.allocated(negf%inter)) then
       call destroy_gsm(gsmr)
-      call deallocate_gsm_dns(gsmr)
+      call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
-      call deallocate_gsm_dns(gsml)
+      call deallocate_gsm(gsml)
     end if
 
     !Computing device G_n
@@ -344,16 +344,16 @@ CONTAINS
 
     call init_blkmat(Gn,ESH)
 
-    call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
-      call Make_Gn_ph(negf,ESH,iter,Gn,Gr_columns)
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
       call destroy_gsm(gsmr)
-      call deallocate_gsm_dns(gsmr)
+      call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
-      call deallocate_gsm_dns(gsml)
+      call deallocate_gsm(gsml)
     end if
 
     !Passing G^n to interaction that builds Sigma^n
@@ -365,9 +365,9 @@ CONTAINS
     SELECT CASE (outblocks)
     CASE(0)
     CASE(1)
-      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
+      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
     CASE(2)
-      call Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
+      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
     end SELECT
 
     call destroy_blk(Gn)
@@ -379,7 +379,7 @@ CONTAINS
     call destroy_ESH(ESH)
     DEALLOCATE(ESH)
 
-  end subroutine calls_neq_mem_dns
+  end subroutine calculate_Gn_neq_components
 
   !---------------------------------------------------------------------
   !>
@@ -461,19 +461,19 @@ CONTAINS
     !end if
 
 
-    call allocate_gsm_dns(gsmr,nbl)
-    call allocate_gsm_dns(gsml,nbl)
+    call allocate_gsm(gsmr,nbl)
+    call allocate_gsm(gsml,nbl)
 
-    call Make_gsmr_mem_dns(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     if ( ncont.gt.1 ) then
-      call Make_gsml_mem_dns(ESH,1,nbl-2)
+      call calculate_gsml_blocks(ESH,1,nbl-2)
     endif
 
     call allocate_blk_dns(Gr,nbl)
 
-    call Make_Gr_mem_dns(ESH,1)
-    call Make_Gr_mem_dns(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
     !! Give Gr to interaction model if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
@@ -490,19 +490,19 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
       endif
     end do
-    call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    if (allocated(negf%inter)) call Make_Gn_ph(negf,ESH,iter,Gn, Gr_columns)
+    if (allocated(negf%inter)) call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
 
-    ! The gsmr, gsml are used to calculate columns on-the-fly in Make_Gn_ph, we
+    ! The gsmr, gsml are used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
     ! can destroy them here.
     call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
+    call deallocate_gsm(gsmr)
     call destroy_gsm(gsml)
-    call deallocate_gsm_dns(gsml)
+    call deallocate_gsm(gsml)
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
@@ -927,7 +927,7 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine Make_gsmr_mem_dns(ESH,sbl,ebl)
+  subroutine calculate_gsmr_blocks(ESH,sbl,ebl)
 
     !***********************************************************************
     !Input:
@@ -987,7 +987,7 @@ CONTAINS
     end do
 
 
-  end subroutine Make_gsmr_mem_dns
+  end subroutine calculate_gsmr_blocks
 
 
 
@@ -998,7 +998,7 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine Make_gsml_mem_dns(ESH,sbl,ebl)
+  subroutine calculate_gsml_blocks(ESH,sbl,ebl)
 
     !***********************************************************************
     !Input:
@@ -1066,7 +1066,7 @@ CONTAINS
       WRITE(*,*) '********************'
     endif
 
-  end subroutine Make_gsml_mem_dns
+  end subroutine calculate_gsml_blocks
 
 
 
@@ -1079,7 +1079,7 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine Make_Gr_mem_dns(ESH,sbl,ebl)
+  subroutine calculate_Gr_tridiag_blocks(ESH,sbl,ebl)
 
     !***********************************************************************
     !Input:
@@ -1185,7 +1185,7 @@ CONTAINS
       end do
     endif
 
-  end subroutine Make_Gr_mem_dns
+  end subroutine calculate_Gr_tridiag_blocks
 
   !**************************************************************************
   !
@@ -1193,7 +1193,7 @@ CONTAINS
   !
   !**************************************************************************
 
-  subroutine Make_Grcol_mem_dns(ESH,n,indblk)
+  subroutine calculate_Gr_column_blocks(ESH,n,indblk)
 
     !***********************************************************************
     !Input:
@@ -1283,7 +1283,7 @@ CONTAINS
       WRITE(*,*) '********************'
     endif
 
-  end subroutine Make_Grcol_mem_dns
+  end subroutine calculate_Gr_column_blocks
 
   !****************************************************************************
   !
@@ -1409,7 +1409,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,struct,Gn)
+  subroutine calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,struct,Gn)
 
     !******************************************************************************
     !Input:
@@ -1507,7 +1507,7 @@ CONTAINS
 
     end do
 
-  end subroutine Make_Gn_mem_dns
+  end subroutine calculate_Gn_tridiag_blocks
 
   !****************************************************************************
   !
@@ -1516,7 +1516,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine Make_Gn_mem_dns2(ESH,SelfEneR,frm,ref,struct,Gn)
+  subroutine calculate_Gn_tridiag_blocks2(ESH,SelfEneR,frm,ref,struct,Gn)
 
     !******************************************************************************
     !Input:
@@ -1626,14 +1626,14 @@ CONTAINS
 
     end do
 
-  end subroutine Make_Gn_mem_dns2
+  end subroutine calculate_Gn_tridiag_blocks2
 
   !****************************************************************************
   !
   ! Calculate G_n contributions due to elph:  G_n = G_n + Gr Sigma_ph Ga
   !
   !****************************************************************************
-  subroutine Make_Gn_ph(negf, ESH, iter, Gn, existing_Gr_cols)
+  subroutine calculate_Gn_tridiag_elph_contributions(negf, ESH, iter, Gn, existing_Gr_cols)
 
     type(Tnegf), intent(in) :: negf
     type(z_DNS), dimension(:,:), intent(in) :: ESH
@@ -1676,7 +1676,7 @@ CONTAINS
       ! might already be available. Check if the top and bottom of the
       ! column are available.
       if (all(existing_Gr_cols .ne. k)) then
-        call Make_Grcol_mem_dns(ESH, k, indblk)
+        call calculate_Gr_column_blocks(ESH, k, indblk)
       endif
 
       do n = 1, nbl
@@ -1720,7 +1720,7 @@ CONTAINS
 
     deallocate(Sigma_ph_n)
 
-  end subroutine Make_Gn_ph
+  end subroutine calculate_Gn_tridiag_elph_contributions
 
   !****************************************************************************
   !
@@ -3133,7 +3133,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,struct,lower,Aout)
+  subroutine calculate_Gr_outer(Tlc,Tcl,gsurfR,struct,lower,Aout)
 
     !****************************************************************************
     !Input:
@@ -3241,7 +3241,7 @@ CONTAINS
       WRITE(*,*) '********************'
     endif
 
-  end subroutine Outer_Gr_mem_dns
+  end subroutine calculate_Gr_outer
 
 
 
@@ -3253,7 +3253,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine Outer_Gn_mem_dns(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
+  subroutine calculate_Gn_outer(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
 
     !****************************************************************************
     !Input:
@@ -3459,12 +3459,12 @@ CONTAINS
       WRITE(*,*) '********************'
     endif
 
-  end subroutine Outer_Gn_mem_dns
+  end subroutine calculate_Gn_outer
 
 
   !---------------------------------------------------
 
-  subroutine tunneling_dns(H,S,Ec,SelfEneR,ni,nf,str,tun_mat)
+  subroutine calculate_transmissions(H,S,Ec,SelfEneR,ni,nf,str,tun_mat)
 
     implicit none
 
@@ -3499,10 +3499,10 @@ CONTAINS
       ibl = str%cblk(i)
       ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
     end do
-    call allocate_gsm_dns(gsmr,nbl)
+    call allocate_gsm(gsmr,nbl)
 
     !Iterative calculation up with gsmr
-    call Make_gsmr_mem_dns(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
     nit=ni(1)
@@ -3518,16 +3518,16 @@ CONTAINS
 
     ! Iterative calculation of Gr down to nt1
     call allocate_blk_dns(Gr,nbl)
-    call Make_Gr_mem_dns(ESH,1)
-    if (nt.gt.1) call Make_Gr_mem_dns(ESH,2,nt)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    if (nt.gt.1) call calculate_Gr_tridiag_blocks(ESH,2,nt)
 
     select case(ncont)
     case(1)
       tun = 0.0_dp
     case(2)
-      call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun)
+      call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
     case default
-      call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
+      call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
     end select
 
     tun_mat(1) = tun
@@ -3546,12 +3546,12 @@ CONTAINS
 
       ! if nt1 > nt extend the Gr calculation
       if (nt1 .gt. nt) then
-        call Make_Gr_mem_dns(ESH,nt+1,nt1)
+        call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
         nt = nt1
       endif
 
       if (ncont > 1) then
-        call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
       else
         tun = 0.0_dp
       end if
@@ -3572,12 +3572,12 @@ CONTAINS
 
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
+    call deallocate_gsm(gsmr)
 
     call destroy_ESH(ESH)
     call deallocate_blk_dns(ESH)
 
-  end subroutine tunneling_dns
+  end subroutine calculate_transmissions
 
   !************************************************************************
   !
@@ -3592,7 +3592,7 @@ CONTAINS
   !************************************************************************
 
 
-  subroutine trasmission_dns(ni,nf,ESH,SelfEneR,cblk,TUN)
+  subroutine calculate_single_transmission_2_contacts(ni,nf,ESH,SelfEneR,cblk,TUN)
 
     implicit none
 
@@ -3609,7 +3609,7 @@ CONTAINS
     Complex(dp), parameter ::    j = (0.0_dp,1.0_dp)  ! CMPX unity
 
     if (size(cblk).gt.2) then
-      write(*,*) "ERROR: transmission_dns is valid only for 2 contacts"
+      write(*,*) "ERROR: calculate_single_transmission_2_contacts is valid only for 2 contacts"
       return
     endif
 
@@ -3658,14 +3658,14 @@ CONTAINS
 
     call destroy(TRS,work1,work2)
 
-  end subroutine trasmission_dns
+  end subroutine calculate_single_transmission_2_contacts
 
   !************************************************************************
   !
   ! Subroutine for transmission calculation (GENERIC FOR N CONTACTS)
   !
   !************************************************************************
-  subroutine trasmission_old(ni,nf,ESH,SelfEneR,cblk,TUN)
+  subroutine calculate_single_transmission_N_contacts(ni,nf,ESH,SelfEneR,cblk,TUN)
 
     !In/Out
     Integer :: ni,nf
@@ -3756,14 +3756,14 @@ CONTAINS
 
     call destroy(TRS)
 
-  end subroutine trasmission_old
+  end subroutine calculate_single_transmission_N_contacts
 
 
   !---------------------------------------------------!
   !Subroutine for transmission and dos calculation    !
   !---------------------------------------------------!
 
-  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,nLdoS,LDOS,str,TUN_MAT,LEDOS)
+  subroutine calculate_transmissions_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,nLdoS,LDOS,str,TUN_MAT,LEDOS)
 
     implicit none
 
@@ -3808,14 +3808,14 @@ CONTAINS
       ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR(i)%val
     end do
 
-    call allocate_gsm_dns(gsmr,nbl)
+    call allocate_gsm(gsmr,nbl)
 
-    call Make_gsmr_mem_dns(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
 
-    call Make_Gr_mem_dns(ESH,1)
-    call Make_Gr_mem_dns(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
     do icpl=1,size(ni)
@@ -3827,9 +3827,9 @@ CONTAINS
       case(1)
         tun = 0.0_dp
       case(2)
-        call trasmission_dns(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
       case default
-        call trasmission_old(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
       end select
 
       TUN_MAT(icpl) = tun
@@ -3838,7 +3838,7 @@ CONTAINS
 
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
+    call deallocate_gsm(gsmr)
 
     !Distruzione dei blocchi fuori-diagonale
     do i=2,nbl
@@ -3882,20 +3882,20 @@ CONTAINS
 
     call destroy(Grm)
 
-  end subroutine tun_and_dos
+  end subroutine calculate_transmissions_and_dos
 
 
   !---------------------------------------------------
 
 
-  subroutine allocate_gsm_dns(gsm,nbl)
+  subroutine allocate_gsm(gsm,nbl)
     type(z_DNS), dimension(:), allocatable :: gsm
     integer :: nbl, ierr
 
     allocate(gsm(nbl),stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
 
-  end subroutine allocate_gsm_dns
+  end subroutine allocate_gsm
 
   !---------------------------------------------------
 
@@ -3910,14 +3910,14 @@ CONTAINS
 
   !---------------------------------------------------
 
-  subroutine deallocate_gsm_dns(gsm)
+  subroutine deallocate_gsm(gsm)
     type(z_DNS), dimension(:), allocatable :: gsm
     integer :: ierr
 
     deallocate(gsm,stat=ierr)
     if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsmr'
 
-  end subroutine deallocate_gsm_dns
+  end subroutine deallocate_gsm
 
   !---------------------------------------------------
 
