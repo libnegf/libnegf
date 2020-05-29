@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
- module negf_iterative_dns
+ module negf_iterative
 
   use negf_ln_precision
   use negf_ln_constants, only : pi
@@ -3937,7 +3937,7 @@ CONTAINS
 
 
 
-end  module negf_iterative_dns
+end  module negf_iterative
 
 
 

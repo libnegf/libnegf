@@ -31,7 +31,7 @@
  use negf_distributions
  use negf_sparsekit_drv
  use inversions
- use negf_iterative_dns
+ use negf_iterative
  !use iterative_ph
  use negf_mat_def
  use negf_ln_extract

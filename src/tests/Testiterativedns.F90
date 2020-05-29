@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
@@ -29,7 +29,7 @@ program Testiterativedns
   use negf_input_output
   use negf_sparsekit_drv
   use inversions
-  use negf_iterative_dns
+  use negf_iterative
   use negf_libnegf
   use negf_lib_param
   use negf_clock
@@ -54,8 +54,8 @@ program Testiterativedns
   negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = 1.d0  !HAR  ! to convert Kb 
-  negf%isSid = .false.  
+  negf%eneconv = 1.d0  !HAR  ! to convert Kb
+  negf%isSid = .false.
   negf%form%formatted = .false.
   negf%form%type = 'UPT'
   negf%form%fmt = 'F'
@@ -87,7 +87,7 @@ print*,'(main) open dos.dat'
     open(101,file='dos.dat')
 
     do i=1,N
-  
+
        Ec=(negf%Emin+i*negf%Estep)+negf%delta*(0.d0,1.d0)
 
        call message_clock('Compute Green`s function')
@@ -110,7 +110,7 @@ print*,'(main) open dos.dat'
     call destroy(Tlc(1))
     call destroy(gsurfR(1))
 
-    close(101)   
+    close(101)
 
 
   print*,'(main) destroy negf'
@@ -125,4 +125,4 @@ end program Testiterativedns
 
 
 ! negf:0 XXXXXXXXXXXX  negf:END
-! pointer 
+! pointer
