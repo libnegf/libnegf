@@ -92,7 +92,7 @@ print*,'(main) open dos.dat'
 
        call message_clock('Compute Green`s function')
 
-       call calls_eq_mem_dns(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,Gr,negf%str,outer)
+       call calculate_Gr(negf%H,negf%S,Ec,SelfEneR,Tlc,Tcl,gsurfR,Gr,negf%str,outer)
 
        call write_clock
 
