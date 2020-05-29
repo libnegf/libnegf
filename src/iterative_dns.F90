@@ -216,8 +216,6 @@ CONTAINS
   !   Sum   [f_j(E)-f_r(E)] Gr Gam_j Ga
   !   j!=r
   !
-  ! NOTE: The subroutine assumes that
-  !
   !****************************************************************************
 
   subroutine calls_neq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
@@ -253,12 +251,13 @@ CONTAINS
     integer, intent(in)  :: outblocks
 
     !Work
-    integer :: ref
+    integer :: ref, iter
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
     integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH
     type(z_DNS), dimension(:,:), allocatable :: Gn
+    integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
 
@@ -268,8 +267,10 @@ CONTAINS
     indblk => negf%str%mat_PL_start
     cblk => negf%str%cblk
     ref = negf%refcont
+    ! scba counter, unused in ballistic case.
+    iter = 0
 
-    Ec=cmplx(E,0.0_dp,dp)
+    Ec = cmplx(E,0.0_dp,dp)
 
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
@@ -284,14 +285,27 @@ CONTAINS
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     end do
 
+    !! Add interaction self energy if any and initialize scba counter
+    if (allocated(negf%inter)) then
+      call negf%inter%add_sigma_r(ESH)
+      if (allocated(negf%inter)) iter = negf%inter%scba_iter
+    end if
+
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
 
-    ! Compute blocks for gsmr and gsml
-    mask = .true.
-    mask(ref) = .false.
-    rbl = minval(cblk(1:ncont),mask(1:ncont))
-    lbl = maxval(cblk(1:ncont),mask(1:ncont))
+    ! Determine the leftmost and rightmost contact blocks to determine
+    ! which column blocks are needed and hence which gsmr and gsml. In the case
+    ! of interactions we need to be able to calculate all columns.
+    if (allocated(negf%inter)) then
+      rbl = 1
+      lbl = nbl - 1
+    else
+      mask = .true.
+      mask(ref) = .false.
+      rbl = minval(cblk(1:ncont),mask(1:ncont))
+      lbl = maxval(cblk(1:ncont),mask(1:ncont))
+    endif
 
     call Make_gsmr_mem_dns(ESH,nbl,rbl+1)
     call Make_gsml_mem_dns(ESH,1,lbl-1)
@@ -307,18 +321,24 @@ CONTAINS
     call Make_Gr_mem_dns(ESH,rbl-1,1)
 
     !Computes the columns of Gr for the contacts != reference
+    ! Keep track of the calculated column indices in the array Gr_columns.
+    allocate(Gr_columns(ncont))
+    Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
+        Gr_columns(i) = cblk(i)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
       endif
     end do
 
-    !.......................................................
-    call destroy_gsm(gsmr)
-    call deallocate_gsm_dns(gsmr)
-    call destroy_gsm(gsml)
-    call deallocate_gsm_dns(gsml)
-    !.......................................................
+    !If not interactions are present we can already destroy gsmr, gsml.
+    !Otherwise they are still needed to calculate columns ont-the-fly.
+    if (.not.allocated(negf%inter)) then
+      call destroy_gsm(gsmr)
+      call deallocate_gsm_dns(gsmr)
+      call destroy_gsm(gsml)
+      call deallocate_gsm_dns(gsml)
+    end if
 
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
@@ -326,6 +346,19 @@ CONTAINS
     call init_blkmat(Gn,ESH)
 
     call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
+
+    !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
+    !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
+    if (allocated(negf%inter)) then
+      call Make_Gn_ph(negf,ESH,iter,Gn,Gr_columns)
+      call destroy_gsm(gsmr)
+      call deallocate_gsm_dns(gsmr)
+      call destroy_gsm(gsml)
+      call deallocate_gsm_dns(gsml)
+    end if
+
+    !Passing G^n to interaction that builds Sigma^n
+    if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
 
     call blk2csr(Gn,negf%str,negf%S,Glout)
 

@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
@@ -50,10 +50,10 @@ MODULE iterative
   !use clock
 
   private
-  
+
   public :: allocate_gsmr
   public :: allocate_gsml
-  public :: allocate_Gr  
+  public :: allocate_Gr
 
   public :: deallocate_gsmr
   public :: deallocate_gsml
@@ -77,7 +77,7 @@ MODULE iterative
   public :: Outer_GreenR_mem
   public :: Outer_Gl_mem
 
-  LOGICAL, PARAMETER :: debug=.false. 
+  LOGICAL, PARAMETER :: debug=.false.
   !Dropout value
   REAL(dp), PARAMETER :: drop=EPS12
 
@@ -88,7 +88,7 @@ MODULE iterative
 CONTAINS
 
   !****************************************************************************
-  ! 
+  !
   ! Driver for computing Equilibrium Green Retarded (Outer blocks included)
   ! writing on memory
   !
@@ -105,8 +105,8 @@ CONTAINS
     !Tlc: sparse matrices array containing contacts-device interaction blocks (ES-H)
     !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
     !gsurfR: sparse matrices array containing contacts surface green
-    !min: collector index 
-    !lower_outer: optional parameter. If defined (and true), Aout contains also 
+    !min: collector index
+    !lower_outer: optional parameter. If defined (and true), Aout contains also
     !the lower outer parts (needed for K-points calculations)
     !
     !Output:
@@ -118,7 +118,7 @@ CONTAINS
 
     !In/Out
     TYPE(z_CSR) :: H, S, Aout
-    TYPE(z_CSR), DIMENSION(:) :: SelfEneR, Tlc, Tcl, gsurfR 
+    TYPE(z_CSR), DIMENSION(:) :: SelfEneR, Tlc, Tcl, gsurfR
     COMPLEX(dp) :: E
     TYPE(Tstruct_info) :: struct
     INTEGER :: outer
@@ -129,7 +129,7 @@ CONTAINS
     INTEGER :: i,ierr, nbl, ncont
     INTEGER, DIMENSION(:), POINTER :: cblk, indblk
 
-    !if (debug) then 
+    !if (debug) then
     !   write(*,*) '----------------------------------------------------'
     !   call writeMemInfo(6)
     !   call writePeakInfo(6)
@@ -198,19 +198,19 @@ CONTAINS
     !endif
 
     !Distruzione delle gsmall
-    do i=2,nbl 
+    do i=2,nbl
        call destroy(gsmr(i))
     enddo
     DEALLOCATE(gsmr)
 
     !Chiamata di Outer_A_mem
-    !CALL Outer_A_mem(Tlc,Tcl,gsurfR,Aout) 
+    !CALL Outer_A_mem(Tlc,Tcl,gsurfR,Aout)
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.FALSE.,Aout)   
+       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.FALSE.,Aout)
     CASE(2)
-       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.TRUE.,Aout) 
+       CALL Outer_GreenR_mem(Tlc,Tcl,gsurfR,struct,.TRUE.,Aout)
     END SELECT
 
     !if (debug) then
@@ -220,9 +220,9 @@ CONTAINS
     !endif
     !Chiamata di Make_Spectral_mem
     !CALL Make_Spectral_mem(struct,0,A)
-    !if (debug) write(*,*) 'Compute GreenR'   
-    !Nota: Il flag 0 indica che non teniamo le Gr calcolate 
-    !E' necessario metterlo a 1 se dopo il calcolo della spectral 
+    !if (debug) write(*,*) 'Compute GreenR'
+    !Nota: Il flag 0 indica che non teniamo le Gr calcolate
+    !E' necessario metterlo a 1 se dopo il calcolo della spectral
     !effettuiamo il calcolo dei contributi aggiunti della Gless
     !(omesso perchè è implementato un driver a parte)
     !CALL Make_GreenR_mem(H%nrow,0,A)
@@ -274,7 +274,7 @@ CONTAINS
   !****************************************************************************
   !
   ! Driver for computing Gless contributions due to all contacts but collector
-  ! writing on memory 
+  ! writing on memory
   !
   !****************************************************************************
 
@@ -290,7 +290,7 @@ CONTAINS
     !Tcl: sparse matrices array containing device-contacts interaction blocks (ES-H)
     !gsurfR: sparse matrices array containing contacts surface green
     !frm: array containing Fermi distribution values for all contacts
-    !ref: reference contact for non eq:  Gr Gam_ref Ga 
+    !ref: reference contact for non eq:  Gr Gam_ref Ga
     !
     !Output:
     !Aout: Gless contributions (Device + Contacts overlap regions -> effective conductor)
@@ -355,11 +355,61 @@ CONTAINS
     !Chiamata di Make_gsmr_mem
     CALL Make_gsmr_mem(ESH,nbl,2)
 
-    !Chiamata di Make_gsml_mem solo se i contatti sono più di due o se il 
-    !contatto a potenziale minimo è nel primo blocco
-    IF (((ncont.GT.2).OR.(cblk(ref).EQ.1)).AND.(nbl.gt.2)) THEN
+    ! Pass the tridiagonal Gr to the interaction if any.
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
-       CALL Make_gsml_mem(ESH,1,nbl-1)    
+    !Computes the columns of Gr for the contacts != reference
+    ! Keep track of the calculated column indices in the array Gr_columns.
+    allocate(Gr_columns(ncont))
+    Gr_columns = 0
+    do i=1,ncont
+      if (i.NE.ref) THEN
+        Gr_columns(i) = cblk(i)
+        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
+      endif
+    end do
+
+    !If not interactions are present we can already destroy gsmr, gsml.
+    !Otherwise they are still needed to calculate columns ont-the-fly.
+    if (.not.allocated(negf%inter)) then
+      call destroy_gsm(gsmr)
+      call deallocate_gsm(gsmr)
+      call destroy_gsm(gsml)
+      call deallocate_gsm(gsml)
+    end if
+
+    !Computing device G_n
+    call allocate_blk_dns(Gn,nbl)
+
+    call init_blkmat(Gn,ESH)
+
+    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+
+    !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
+    !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
+    if (allocated(negf%inter)) then
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
+      call destroy_gsm(gsmr)
+      call deallocate_gsm(gsmr)
+      call destroy_gsm(gsml)
+      call deallocate_gsm(gsml)
+    end if
+
+    !Passing G^n to interaction that builds Sigma^n
+    if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
+
+    call blk2csr(Gn,negf%str,negf%S,Glout)
+
+    !Computing the 'outer' blocks (device/contact overlapping elements)
+    SELECT CASE (outblocks)
+    CASE(0)
+    CASE(1)
+      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
+    CASE(2)
+      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
+    end SELECT
+
+       CALL Make_gsml_mem(ESH,1,nbl-1)
 
     ENDIF
 
@@ -389,14 +439,14 @@ CONTAINS
        enddo
 
        if (destr) then
-          call destroy(Gr(i,i)) 
+          call destroy(Gr(i,i))
           if (i.ne.1) call destroy(Gr(i-1,i))
-          if (i.ne.nbl) call destroy(Gr(i+1,i))  
+          if (i.ne.nbl) call destroy(Gr(i+1,i))
        endif
     enddo
 
 
-    !Chiamata di Make_Grcol_mem per i contatti necessari 
+    !Chiamata di Make_Grcol_mem per i contatti necessari
     DO i=1,ncont
        IF (i.NE.ref) THEN
           CALL Make_Grcol_mem(ESH,cblk(i),indblk)
@@ -407,11 +457,11 @@ CONTAINS
 
 
     !Distruzione delle gsmall
-    do i=2,nbl 
+    do i=2,nbl
        call destroy(gsmr(i))
     enddo
     DEALLOCATE(gsmr)
-    DO i=1,nbl-1 
+    DO i=1,nbl-1
        IF(gsml(i)%nrow.NE.0) CALL destroy(gsml(i))
     ENDDO
     DEALLOCATE(gsml)
@@ -421,8 +471,8 @@ CONTAINS
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
 
-    !Calcolo degli outer blocks 
-    !if (debug) write(*,*) 'Compute Outer_Gless' 
+    !Calcolo degli outer blocks
+    !if (debug) write(*,*) 'Compute Outer_Gless'
     SELECT CASE (out)
     CASE(0)
     CASE(1)
@@ -431,13 +481,13 @@ CONTAINS
        CALL Outer_Gl_mem(Tlc,gsurfR,SelfEneR,struct,frm,ref,.true.,Glout)
     END SELECT
 
-    
+
     !if (debug) write(*,*) '----------------------------------------------------'
     !if (debug) call writePeakInfo(6)
     !if (debug) write(*,*) '----------------------------------------------------'
 
     !Calcolo della Gless nel device
-    !if (debug) write(*,*) 'Compute Gless'   
+    !if (debug) write(*,*) 'Compute Gless'
     CALL Make_Gl_mem(ESH,SelfEneR,frm,ref,0,ESH_tot,Gl)
 
     CALL destroy(ESH_tot)
@@ -494,11 +544,11 @@ CONTAINS
     !ESH_tot: sparse matrix ES-H related to device
     !
     !Output:
-    !ESH(nbl,nbl): sparse matrix array -> single matrices allocated 
+    !ESH(nbl,nbl): sparse matrix array -> single matrices allocated
     !              internally, array ESH(nbl,nbl) allocated externally
     !**********************************************************************
 
-    IMPLICIT NONE 
+    IMPLICIT NONE
 
     INTEGER :: i
     TYPE(z_CSR) :: ESH_tot
@@ -527,7 +577,7 @@ CONTAINS
   !***********************************************************************
   !
   !  Construct a sparse matrix starting from the sparse matrices array
-  !  related to the blocks  
+  !  related to the blocks
   !
   !***********************************************************************
 
@@ -542,7 +592,7 @@ CONTAINS
     !
     !Output:
     !Atot: total sparse matrix (allocated internally)
-    !***********************************************************************  
+    !***********************************************************************
 
     IMPLICIT NONE
 
@@ -590,7 +640,7 @@ CONTAINS
     !
     !Output:
     !sparse matrices array global variable gsmr(nbl) is available in memory
-    !single blocks are allocated internally, array Gr(nbl,nbl) 
+    !single blocks are allocated internally, array Gr(nbl,nbl)
     !must be allocated externally
     !***********************************************************************
 
@@ -624,8 +674,8 @@ CONTAINS
        CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsmr(sbl))
 #endif
 #ifdef __SUPERLU
-       CALL zINV_LU(ESH(sbl,sbl), gsmr_d%val)  
-#endif 
+       CALL zINV_LU(ESH(sbl,sbl), gsmr_d%val)
+#endif
 #ifdef __LAPACK
        CALL zINV_LAPACK(ESH(sbl,sbl), gsmr_d%val)
 #endif
@@ -659,10 +709,10 @@ CONTAINS
 
 #ifdef __PARDISO
        CALL zINV_PARDISO(work1, nrow, gsmr(i))
-#endif 
+#endif
 #ifdef __SUPERLU
-       CALL zINV_LU(work1, gsmr_d%val)  
-#endif 
+       CALL zINV_LU(work1, gsmr_d%val)
+#endif
 #ifdef __LAPACK
        CALL zINV_LAPACK(work1, gsmr_d%val)
 #endif
@@ -686,7 +736,7 @@ CONTAINS
 
   END SUBROUTINE Make_gsmr_mem
 
- 
+
 
 
   !***********************************************************************
@@ -705,7 +755,7 @@ CONTAINS
     !
     !Output:
     !sparse matrices array global variable gsml(nbl) is available in memory
-    !single blocks are allocated internally, array Gr(nbl,nbl) 
+    !single blocks are allocated internally, array Gr(nbl,nbl)
     !must be allocated externally
     !***********************************************************************
 
@@ -733,10 +783,10 @@ CONTAINS
 
 #ifdef __PARDISO
        CALL zINV_PARDISO(ESH(sbl,sbl), nrow, gsml(sbl))
-#endif 
+#endif
 #ifdef __SUPERLU
-       CALL zINV_LU(ESH(sbl,sbl), gsml_d%val)  
-#endif 
+       CALL zINV_LU(ESH(sbl,sbl), gsml_d%val)
+#endif
 #ifdef __LAPACK
        CALL zINV_LAPACK(ESH(sbl,sbl), gsml_d%val)
 #endif
@@ -769,10 +819,10 @@ CONTAINS
 
 #ifdef __PARDISO
        CALL zINV_PARDISO(work1, nrow, gsml(i))
-#endif 
+#endif
 #ifdef __SUPERLU
-       CALL zINV_LU(work1, gsml_d%val)  
-#endif 
+       CALL zINV_LU(work1, gsml_d%val)
+#endif
 #ifdef __LAPACK
        CALL zINV_LAPACK(work1, gsml_d%val)
 #endif
@@ -801,10 +851,10 @@ CONTAINS
 
   !***********************************************************************
   !
-  !  Diagonal, Subdiagonal, Superdiagonal blocks of Green Retarded 
+  !  Diagonal, Subdiagonal, Superdiagonal blocks of Green Retarded
   !  Gr(nbl,nbl) - writing on memory
   !
-  !*********************************************************************** 
+  !***********************************************************************
 
   SUBROUTINE Make_Grdiag_mem(ESH,indblk)
 
@@ -813,15 +863,15 @@ CONTAINS
     !ESH: sparse matrices array ESH(nbl,nbl)
     !
     !global variables needed: nbl (number of layers), indblk(nbl+1),
-    !gsmr(:) 
+    !gsmr(:)
     !
     !Output:
-    !sparse matrices array global variable Gr(nbl,nbl) is available in 
-    !memory - single blocks are allocated internally, array Gr(nbl,nbl) 
+    !sparse matrices array global variable Gr(nbl,nbl) is available in
+    !memory - single blocks are allocated internally, array Gr(nbl,nbl)
     !must be allocated externally
     !***********************************************************************
 
-    IMPLICIT NONE 
+    IMPLICIT NONE
 
     !In/Out
     TYPE(z_CSR), DIMENSION(:,:) :: ESH
@@ -860,10 +910,10 @@ CONTAINS
 
 #ifdef __PARDISO
        CALL zINV_PARDISO(work1, nrow, Gr(1,1))
-#endif 
+#endif
 #ifdef __SUPERLU
-       CALL zINV_LU(work1, Gr_d%val)  
-#endif 
+       CALL zINV_LU(work1, Gr_d%val)
+#endif
 #ifdef __LAPACK
        CALL zINV_LAPACK(work1, Gr_d%val)
 #endif
@@ -901,7 +951,7 @@ CONTAINS
 
        CALL prealloc_sum(gsmr(i),work1,Gr(i,i))
 
-       CALL destroy(work1) 
+       CALL destroy(work1)
 
        !***
        !Superdiagonal blocks
@@ -936,7 +986,7 @@ CONTAINS
 
   !**************************************************************************
   !
-  !  Calculate Green Retarded column "n" - writing on memory 
+  !  Calculate Green Retarded column "n" - writing on memory
   !
   !**************************************************************************
 
@@ -947,22 +997,22 @@ CONTAINS
     !ESH: sparse matrices array ESH(nbl,nbl)
     !n: n umber of column to be calculated
     !
-    !global variables needed: nbl (number of layers), indblk(nbl+1), 
-    !Gr diagonal, subadiagonal and superdiagonal, gsmr(:) for 
-    !downgoing and gsml(:) for upgoing 
+    !global variables needed: nbl (number of layers), indblk(nbl+1),
+    !Gr diagonal, subadiagonal and superdiagonal, gsmr(:) for
+    !downgoing and gsml(:) for upgoing
     !
     !Output:
-    !sparse matrices array global variable Gr(:,n) is available in 
-    !memory - single blocks are allocated internally, array Gr(nbl,nbl) 
+    !sparse matrices array global variable Gr(:,n) is available in
+    !memory - single blocks are allocated internally, array Gr(nbl,nbl)
     !must be allocated externally
-    !*********************************************************************** 
+    !***********************************************************************
 
     IMPLICIT NONE
 
     !In/Out
     TYPE(z_CSR), DIMENSION(:,:) :: ESH
     INTEGER :: n
-    INTEGER, DIMENSION(:), POINTER :: indblk 
+    INTEGER, DIMENSION(:), POINTER :: indblk
 
     !Work
     INTEGER :: i,nrow,ncol,nbl
@@ -986,9 +1036,9 @@ CONTAINS
 
           nrow=indblk(i+1)-indblk(i)
 
-          IF (Gr(i-1,n)%nnz.NE.0) THEN 
+          IF (Gr(i-1,n)%nnz.NE.0) THEN
              max=MAXVAL(ABS(Gr(i-1,n)%nzval(:)))
-          ELSE 
+          ELSE
              max=0
           ENDIF
 
@@ -1019,9 +1069,9 @@ CONTAINS
 
           nrow=indblk(i+1)-indblk(i)
 
-          IF (Gr(i+1,n)%nnz.NE.0) THEN 
+          IF (Gr(i+1,n)%nnz.NE.0) THEN
              max=MAXVAL(ABS(Gr(i+1,n)%nzval(:)))
-          ELSE 
+          ELSE
              max=0
           ENDIF
 
@@ -1068,7 +1118,7 @@ CONTAINS
     !keep_Gr (flag): if 0, destroy elements Gr(:,:) when no more necessary. If 1,
     !                keep them in memory
     !
-    !global variable needed: nbl, indblk(nbl+1), Gr(:,:) 
+    !global variable needed: nbl, indblk(nbl+1), Gr(:,:)
     !
     !Output:
     !A: sparse matrix containing spectral density of device (allocated internally)
@@ -1103,7 +1153,7 @@ CONTAINS
     A%rowpnt(:)=1
 
     !***
-    !A(1,1) 
+    !A(1,1)
     !***
     nrow=indblk(2)-indblk(1)
 
@@ -1137,14 +1187,14 @@ CONTAINS
 
        CALL zspectral(Gr(i-1,i),Gr(i,i-1),0,Asub(i-1,i))
        CALL concat(A,Asub(i-1,i),i1,j1)
-       CALL destroy(Asub(i-1,i))  
+       CALL destroy(Asub(i-1,i))
 
        i1=indblk(i)
        j1=indblk(i-1)
 
        CALL zspectral(Gr(i,i-1),Gr(i-1,i),0,Asub(i,i-1))
 
-       IF (keep_Gr.EQ.0) THEN 
+       IF (keep_Gr.EQ.0) THEN
           CALL destroy(Gr(i,i-1))
           CALL destroy(Gr(i-1,i))
        ENDIF
@@ -1157,7 +1207,7 @@ CONTAINS
 
     DEALLOCATE(Asub)
 
-    if (debug) then    
+    if (debug) then
        WRITE(*,*) '**********************'
        WRITE(*,*) 'Make_Spectral_mem done'
        WRITE(*,*) '**********************'
@@ -1183,7 +1233,7 @@ CONTAINS
 !!$    !keep_Gr (flag): if 0, destroy elements Gr(:,:) when no more necessary. If 1,
 !!$    !                keep them in memory
 !!$    !
-!!$    !global variable needed: nbl, indblk(nbl+1), Gr(:,:) 
+!!$    !global variable needed: nbl, indblk(nbl+1), Gr(:,:)
 !!$    !
 !!$    !Output:
 !!$    !A: sparse matrix containing Green Retarded of device (allocated internally)
@@ -1248,7 +1298,7 @@ CONTAINS
 !!$
 !!$       !       write(*,*) 'Gr',i,i-1,'concat'
 !!$
-!!$       IF (keep_Gr.EQ.0) THEN 
+!!$       IF (keep_Gr.EQ.0) THEN
 !!$          CALL destroy(Gr(i,i-1))
 !!$          CALL destroy(Gr(i-1,i))
 !!$       ENDIF
@@ -1257,7 +1307,7 @@ CONTAINS
 !!$
 !!$    ENDDO
 !!$
-!!$    !if (debug) call writePeakInfo(6)    
+!!$    !if (debug) call writePeakInfo(6)
 !!$    if (debug) then
 !!$       WRITE(*,*) '**********************'
 !!$       WRITE(*,*) 'Make_GreenR_mem done'
@@ -1281,7 +1331,7 @@ CONTAINS
     !keep_Gr (flag): if 0, destroy elements Gr(:,:) when no more necessary. If 1,
     !                keep them in memory
     !
-    !global variable needed: nbl, indblk(nbl+1), Gr(:,:) 
+    !global variable needed: nbl, indblk(nbl+1), Gr(:,:)
     !
     !Output:
     !A: sparse matrix containing Green Retarded of device (allocated internally)
@@ -1305,7 +1355,7 @@ CONTAINS
     A%rowpnt(:)=P%rowpnt(:)
     A%colind(:)=P%colind(:)
 
-    !If only one block is present, concatenation is not needed 
+    !If only one block is present, concatenation is not needed
     !and it's implemented in a more trivial way
     IF (nbl.EQ.1) THEN
 
@@ -1313,17 +1363,17 @@ CONTAINS
 
        CALL destroy(Gr(1,1))
 
-    ELSE  
+    ELSE
 
        !Cycle upon all rows
-       x = 1    
+       x = 1
        DO i = 1, A%nrow
           !Choose which block (row) we're dealing with
           oldx = x
 
-          !Check if row is in same block of previous or in next block. Not needed 
+          !Check if row is in same block of previous or in next block. Not needed
           !(and not allowed not to exceed indblk index boundaries) if we're in the last block
-          IF (oldx.EQ.nbl) THEN 
+          IF (oldx.EQ.nbl) THEN
              x = oldx
           ELSE
              DO ix = oldx, oldx+1
@@ -1333,20 +1383,20 @@ CONTAINS
 
           !Offset: i1 is the index for separate blocks
           i1 = i - indblk(x) + 1
-          !Cycle upon columns 
+          !Cycle upon columns
           DO j = A%rowpnt(i), A%rowpnt(i+1) -1
              !Choose which block column we're dealing with
              y = 0
              IF (x.EQ.1) THEN
-                IF ( (A%colind(j).GE.indblk(x)).AND.(A%colind(j).LT.indblk(x + 1)) ) then 
+                IF ( (A%colind(j).GE.indblk(x)).AND.(A%colind(j).LT.indblk(x + 1)) ) then
                    y = 1
-                ELSEIF ( (A%colind(j).GE.indblk(x + 1)).AND.(A%colind(j).LT.indblk(x + 2)) ) then 
+                ELSEIF ( (A%colind(j).GE.indblk(x + 1)).AND.(A%colind(j).LT.indblk(x + 2)) ) then
                    y = 2
                 ENDIF
              elseif (x.eq.nbl) then
-                IF ( (A%colind(j).GE.indblk(x)).AND.(A%colind(j).LT.indblk(x + 1)) ) then 
+                IF ( (A%colind(j).GE.indblk(x)).AND.(A%colind(j).LT.indblk(x + 1)) ) then
                    y = nbl
-                ELSEIF ( (A%colind(j).GE.indblk(x - 1)).AND.(A%colind(j).LT.indblk(x)) ) then 
+                ELSEIF ( (A%colind(j).GE.indblk(x - 1)).AND.(A%colind(j).LT.indblk(x)) ) then
                    y = nbl - 1
                 ENDIF
              ELSE
@@ -1376,10 +1426,10 @@ CONTAINS
 
           IF(oldx.NE.x) THEN
 
-             IF ( (keep_Gr.EQ.0).AND.(x.eq.2) ) THEN 
+             IF ( (keep_Gr.EQ.0).AND.(x.eq.2) ) THEN
                 CALL destroy(Gr(x-1,x-1))
                 CALL destroy(Gr(x-1,x))
-             ELSEIF ( (keep_Gr.EQ.0).AND.(x.GT.2) ) THEN 
+             ELSEIF ( (keep_Gr.EQ.0).AND.(x.GT.2) ) THEN
                 CALL destroy(Gr(x-1,x-1))
                 CALL destroy(Gr(x-1,x-2))
                 CALL destroy(Gr(x-1,x))
@@ -1397,7 +1447,7 @@ CONTAINS
 
     ENDIF
 
-    !if (debug) call writePeakInfo(6)    
+    !if (debug) call writePeakInfo(6)
     if (debug) then
        WRITE(*,*) '**********************'
        WRITE(*,*) 'Make_GreenR_mem2 done'
@@ -1420,21 +1470,21 @@ CONTAINS
   SUBROUTINE Make_Gl_mem(ESH,SelfEneR,frm,min,keep_Gr,P,Gl)
 
     !******************************************************************************
-    !Input:  
+    !Input:
     !ESH(nbl,nbl): sparse matrices array ES-H
-    !SelfEneR(ncont): sparse matrices array with contacts Self Energy 
-    !frm(ncont): Fermi diistribution value for each contact 
+    !SelfEneR(ncont): sparse matrices array with contacts Self Energy
+    !frm(ncont): Fermi diistribution value for each contact
     !min:  collector index
     !keep_Gr (flag): if 0, destroy elements Gr(:,:) when no more necessary. If 1,
-    !                keep them in memory 
+    !                keep them in memory
     !
-    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont), Gr(:,:) 
+    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont), Gr(:,:)
     !diagonal, subdiagonal, overdiagonal and in colums Gr(:,cb) where cb are
     !layers interacting with all contacts but collector
     !
     !Output:
     !Gl: sparse matrix containing G less contacts contribution
-    !*******************************************************************************  
+    !*******************************************************************************
 
     IMPLICIT NONE
 
@@ -1455,7 +1505,7 @@ CONTAINS
     INTEGER, DIMENSION(:), POINTER :: indblk, cblk
     COMPLEX(dp) :: frmdiff
 
-    ncont = struct%num_conts    
+    ncont = struct%num_conts
     nbl = struct%num_PLs
     cblk => struct%cblk
     indblk => struct%mat_PL_start
@@ -1471,7 +1521,7 @@ CONTAINS
     CALL create(Gl,P%nrow,P%ncol,P%nnz)
     Gl%rowpnt(:)=P%rowpnt(:)
     Gl%colind(:)=P%colind(:)
-    Gl%nzval(:) = (0.d0 , 0.d0) 
+    Gl%nzval(:) = (0.d0 , 0.d0)
 
 
     !***
@@ -1489,7 +1539,7 @@ CONTAINS
           CALL zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
           !***
-          !Iterazione sui blocchi 
+          !Iterazione sui blocchi
           !***
           frmdiff = cmplx(frm(j)-frm(min))
           !Calcolo del sottoblocco Gl(1,1) fuori iterazione
@@ -1557,11 +1607,11 @@ CONTAINS
              !CALL concat(Gl,Glsub(i,i-1),i1,j1)
              !CALL destroy(Glsub(i,i-1))
 
-             IF (keep_Gr.EQ.0) CALL destroy(Gr(i-1,cb)) 
+             IF (keep_Gr.EQ.0) CALL destroy(Gr(i-1,cb))
 
           ENDDO
 
-          IF (keep_Gr.EQ.0) CALL destroy(Gr(nbl,cb))                     
+          IF (keep_Gr.EQ.0) CALL destroy(Gr(nbl,cb))
 
           call destroy(Gam)
 
@@ -1570,7 +1620,7 @@ CONTAINS
 
           !Concatenation for every contact in Gless. Performs a sum on elements, not a replacement
           !Similar to Make_GreenR_mem2, except for sum of elements
-          !Note: to backup old version zconcat calls (and Glsub deallocations) must be uncommented and all this part removed 
+          !Note: to backup old version zconcat calls (and Glsub deallocations) must be uncommented and all this part removed
 
           !If only one block is present, concatenation is not needed and it's implemented in a more trivial way
           IF (nbl.EQ.1) THEN
@@ -1581,14 +1631,14 @@ CONTAINS
 
              CALL destroy(Glsub(1,1))
 
-          ELSE  
+          ELSE
 
              !Cycle upon all rows
              x = 1
              DO ii = 1, Gl%nrow
                 !Choose which block (row) we're dealing with
                 oldx = x
-                IF (oldx.EQ.nbl) THEN 
+                IF (oldx.EQ.nbl) THEN
                    x = oldx
                 ELSE
                    DO ix = oldx, oldx+1
@@ -1604,20 +1654,20 @@ CONTAINS
                 !Offset: i1 is the index for separate blocks
                 i1 = ii - indblk(x) + 1
 
-                !Cycle upon columns 
+                !Cycle upon columns
                 DO jj = Gl%rowpnt(ii), Gl%rowpnt(ii+1) -1
                    !Choose which block column we're dealing with
                    y = 0
                    if (x.eq.1) then
-                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
+                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then
                          y = 1
-                      ELSEIF ( (Gl%colind(jj).GE.indblk(x + 1)).AND.(Gl%colind(jj).LT.indblk(x + 2)) ) then 
+                      ELSEIF ( (Gl%colind(jj).GE.indblk(x + 1)).AND.(Gl%colind(jj).LT.indblk(x + 2)) ) then
                          y = 2
                       ENDIF
                    elseif (x.eq.nbl) then
-                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then 
+                      IF ( (Gl%colind(jj).GE.indblk(x)).AND.(Gl%colind(jj).LT.indblk(x + 1)) ) then
                          y = nbl
-                      ELSEIF ( (Gl%colind(jj).GE.indblk(x - 1)).AND.(Gl%colind(jj).LT.indblk(x)) ) then 
+                      ELSEIF ( (Gl%colind(jj).GE.indblk(x - 1)).AND.(Gl%colind(jj).LT.indblk(x)) ) then
                          y = nbl - 1
                       ENDIF
                    else
@@ -1640,11 +1690,11 @@ CONTAINS
 
                 IF(oldx.NE.x) THEN
 
-                   IF (x.eq.2)  THEN 
+                   IF (x.eq.2)  THEN
                       CALL destroy(Glsub(x-1,x-1))
                       CALL destroy(Glsub(x-1,x))
 
-                   ELSEIF  (x.GT.2)  THEN 
+                   ELSEIF  (x.GT.2)  THEN
                       CALL destroy(Glsub(x-1,x-1))
                       CALL destroy(Glsub(x-1,x-2))
                       CALL destroy(Glsub(x-1,x))
@@ -1679,7 +1729,7 @@ CONTAINS
 
   !****************************************************************************
   !
-  !  Calculate Gless contributions for all contacts but collector, in the 
+  !  Calculate Gless contributions for all contacts but collector, in the
   !  contacts regions, where overlap with device orbitals is non-zero
   !  writing on memory
   !
@@ -1689,22 +1739,22 @@ CONTAINS
 
     !****************************************************************************
     !Input:
-    !Tlc: sparse arraymatrices array containing contact-device interacting blocks 
+    !Tlc: sparse arraymatrices array containing contact-device interacting blocks
     !     ESH-H
-    !Tlc: sparse arraymatrices array containing device-contact interacting blocks 
+    !Tlc: sparse arraymatrices array containing device-contact interacting blocks
     !     ESH-H
     !gsurfR: sparse matrices array containing contacts surface green
     !
-    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont), 
+    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont),
     !cindblk(ncont), Gr in the diagonal block related to the interaction layer
-    ! 
+    !
     !Output:
-    !Aout: sparse matrix containing density matrix in the region 
+    !Aout: sparse matrix containing density matrix in the region
     !      corresponding to non-zero overlap
     !
     !****************************************************************************
 
-    IMPLICIT NONE 
+    IMPLICIT NONE
 
     !In/Out
     TYPE(z_CSR), DIMENSION(:) :: Tlc,Tcl,gsurfR
@@ -1723,7 +1773,7 @@ CONTAINS
     indblk => struct%mat_PL_start
     cblk => struct%cblk
 
-    !Righe totali del conduttore effettivo nrow_tot 
+    !Righe totali del conduttore effettivo nrow_tot
     !nrow_tot=indblk(nbl+1)-1
     !DO i=1,ncont
     !   nrow_tot=nrow_tot+ncdim(i)   !gsurfR(i)%nrow
@@ -1760,7 +1810,7 @@ CONTAINS
        i1=indblk(cb)
        j1=struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
        CALL concat(Aout,Asub,i1,j1)
-       CALL destroy(Asub)  
+       CALL destroy(Asub)
 
     ENDDO
 
@@ -1776,7 +1826,7 @@ CONTAINS
 
   !****************************************************************************
   !
-  !  Calculate Green Retarded in the 
+  !  Calculate Green Retarded in the
   !  contacts regions, where overlap with device orbitals is non-zero
   !  (only the upper part, needed in both K=0 and K points calculations,
   !   or both upper and lower parts)
@@ -1788,23 +1838,23 @@ CONTAINS
 
     !****************************************************************************
     !Input:
-    !Tlc: sparse arraymatrices array containing contact-device interacting blocks 
+    !Tlc: sparse arraymatrices array containing contact-device interacting blocks
     !     ESH-H
-    !Tlc: sparse arraymatrices array containing device-contact interacting blocks 
+    !Tlc: sparse arraymatrices array containing device-contact interacting blocks
     !     ESH-H
     !gsurfR: sparse matrices array containing contacts surface green
     !lower: if .true., also lower parts are calculated and concatenated
     !
-    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont), 
+    !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont),
     !cindblk(ncont), Gr in the diagonal block related to the interaction layer
-    ! 
+    !
     !Output:
-    !Aout: sparse matrix containing density matrix in the region 
+    !Aout: sparse matrix containing density matrix in the region
     !      corresponding to non-zero overlap
     !
     !****************************************************************************
 
-    IMPLICIT NONE 
+    IMPLICIT NONE
 
     !In/Out
     TYPE(z_CSR), DIMENSION(:) :: Tlc,Tcl,gsurfR
@@ -1825,7 +1875,7 @@ CONTAINS
     indblk => struct%mat_PL_start
     cblk => struct%cblk
 
-    !Righe totali del conduttore effettivo nrow_tot 
+    !Righe totali del conduttore effettivo nrow_tot
     !nrow_tot=indblk(nbl+1)-1
     !DO i=1,ncont
     !   nrow_tot=nrow_tot+ncdim(i) !gsurfR(i)%nrow
@@ -1854,7 +1904,7 @@ CONTAINS
        j1=struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
 
        CALL concat(Aout,Grlc,i1,j1)
-       !CALL destroy(Asub) 
+       !CALL destroy(Asub)
        CALL destroy(Grlc)
        !CALL destroy(Grcl)
 
@@ -1893,7 +1943,7 @@ CONTAINS
   !****************************************************************************
   !
   !  Calculate Gless contributions for all contacts except collector, in the
-  !  outer region where contacts-device overlap is non-zero - writing on 
+  !  outer region where contacts-device overlap is non-zero - writing on
   !  memory
   !
   !****************************************************************************
@@ -1908,13 +1958,13 @@ CONTAINS
     !frm: array containing Fermi distribution values for all contacts
     !min: collector index
     !
-    !global variables needed: nbl, indblk(nbl+1), cindblk(ncont), ncont, 
-    !cblk(ncont), Gr(:,:), diagonal, subdiagonal, overdiagonal and 
-    !in colums Gr(:,cb) where cb are layers interacting with all contacts 
-    !but collector 
+    !global variables needed: nbl, indblk(nbl+1), cindblk(ncont), ncont,
+    !cblk(ncont), Gr(:,:), diagonal, subdiagonal, overdiagonal and
+    !in colums Gr(:,cb) where cb are layers interacting with all contacts
+    !but collector
     !
     !Output:
-    !Glout: sparse matrix containing G less contributions in the region 
+    !Glout: sparse matrix containing G less contributions in the region
     !       corresponding to non-zero overlap
     !
     !****************************************************************************
@@ -1925,7 +1975,7 @@ CONTAINS
     TYPE(z_CSR), DIMENSION(:) :: Tlc, gsurfR, SelfEneR
     REAL(dp), DIMENSION(:) :: frm
     TYPE(Tstruct_info), intent(in) :: struct
-    INTEGER :: min  
+    INTEGER :: min
     LOGICAL :: lower
     TYPE(z_CSR) :: Glout
 
@@ -1941,9 +1991,9 @@ CONTAINS
     nrow_tot = struct%total_dim
     indblk => struct%mat_PL_start
     cblk => struct%cblk
-    
+
     !Allocazione della Glout
-    !Righe totali del conduttore effettivo nrow_tot 
+    !Righe totali del conduttore effettivo nrow_tot
     !nrow_tot=indblk(nbl+1)-1
     !DO i=1,ncont
     !   nrow_tot=nrow_tot+ncdim(i) !gsurfR(i)%nrow
@@ -1952,7 +2002,7 @@ CONTAINS
     Glout%rowpnt(:)=1
 
     !***
-    !Iterazione su tutti i contatti "k" 
+    !Iterazione su tutti i contatti "k"
     !***
     DO k=1,ncont
 
@@ -1963,14 +2013,14 @@ CONTAINS
           !Calcolo della Gamma corrispondente
           cb=cblk(k)
           !nota:cb indica l'indice di blocco corrispondente al contatto j-esimo
-          !nrow_cont=ncdim(k) !gsurfR(k)%nrow          
+          !nrow_cont=ncdim(k) !gsurfR(k)%nrow
           !nrow_cb=indblk(cb+1)-indblk(cb)
 
           CALL zspectral(SelfEneR(k),SelfEneR(k),0,Gam)
 
           !***
           !Calcolo del contributo sulla proria regione
-          !***          
+          !***
           !Primo addendo
           frmdiff=cmplx(frm(min)-frm(k))
 
@@ -1993,18 +2043,18 @@ CONTAINS
           CALL prealloc_mult(Tlc(k),gsurfA,work2)
           CALL destroy(gsurfA)
 
-          !work3=Ga*work2=Ga*Tlc*gsurfA           
+          !work3=Ga*work2=Ga*Tlc*gsurfA
           CALL zdagger(Gr(cb,cb),Ga)
           CALL prealloc_mult(Ga,work2,work3)
 
           CALL destroy(Ga)
           CALL destroy(work2)
 
-          !work2=Gam*work3=Gam*Ga*Tlc*gsurfA          
+          !work2=Gam*work3=Gam*Ga*Tlc*gsurfA
           CALL prealloc_mult(Gam,work3,work2)
           CALL destroy(work3)
 
-          !work3=-Gr*work2=-Gr*Gam*Ga*Tlc*gsurfA        
+          !work3=-Gr*work2=-Gr*Gam*Ga*Tlc*gsurfA
           CALL prealloc_mult(Gr(cb,cb),work2,frmdiff,work3)
           CALL destroy(work2)
 
@@ -2015,14 +2065,14 @@ CONTAINS
           CALL destroy(work1)
           CALL destroy(work3)
 
-          CALL zmask_realloc(Glsub, Tlc(k)) 
+          CALL zmask_realloc(Glsub, Tlc(k))
 
           !Concatenazione di Glsub nella matrice globale Glout
           i1=indblk(cb)
           j1=struct%mat_B_start(k)-struct%central_dim+indblk(nbl+1)-1
           CALL concat(Glout,Glsub,i1,j1)
 
-          ! compute lower outer part using (iG<)+ = iG<    
+          ! compute lower outer part using (iG<)+ = iG<
           IF (lower) THEN
              call zdagger(Glsub,work1)
              call concat(Glout,work1,j1,i1)
@@ -2043,18 +2093,18 @@ CONTAINS
              !nrow_cbj=indblk(cbj+1)-indblk(cbj)
              !nrow_contj=ncdim(j) !gsurfR(j)%nrow
              !Esegue le operazioni del ciclo solo se il j.ne.k o se
-             !il blocco colonna di Gr è non nullo (altrimenti il contributo è nullo) 
+             !il blocco colonna di Gr è non nullo (altrimenti il contributo è nullo)
 
              IF ((j.NE.k).AND.(Gr(cbj,cb)%nnz.NE.0)) THEN
 
-                !work1=Tlc*gsurfA  
+                !work1=Tlc*gsurfA
                 CALL zdagger(gsurfR(j),gsurfA)
                 CALL prealloc_mult(Tlc(j),gsurfA,work1)
                 CALL destroy(gsurfA)
 
                 !if (debug) write(*,*) 'cont',j,'T*g'
 
-                !work2=Ga*work1=Ga*Tlc*gsurfA  
+                !work2=Ga*work1=Ga*Tlc*gsurfA
                 CALL zdagger(Gr(cbj,cb),Ga)
                 CALL prealloc_mult(Ga,work1,work2)
 
@@ -2065,7 +2115,7 @@ CONTAINS
 
                 !if (debug) write(*,*) 'Gam',Gam%nrow,Gam%ncol,Gam%nnz
                 !if (debug) write(*,*) 'work2',work2%nrow,work2%ncol,work2%nnz
-                !work1=Gam*work2=Gam*Ga*Tlc*gsurfA  
+                !work1=Gam*work2=Gam*Ga*Tlc*gsurfA
                 CALL prealloc_mult(Gam,work2,work1)
                 CALL destroy(work2)
 
@@ -2074,7 +2124,7 @@ CONTAINS
                 !if (debug) write(*,*) 'work1',work1%nrow,work1%ncol,work1%nnz
                 !if (debug) write(*,*) 'Gr',Gr(cbj,cb)%nrow,Gr(cbj,cb)%ncol,Gr(cbj,cb)%nnz
 
-                !Glsub=-Gr*work1=-Gr*Gam*Ga*Tlc*gsurfA  
+                !Glsub=-Gr*work1=-Gr*Gam*Ga*Tlc*gsurfA
                 CALL prealloc_mult(Gr(cbj,cb),work1,frmdiff,Glsub)
                 CALL destroy(work1)
 
@@ -2087,7 +2137,7 @@ CONTAINS
                 j1=struct%mat_B_start(j)-struct%central_dim+indblk(nbl+1)-1
                 CALL concat(Glout,Glsub,i1,j1)
 
-                ! compute lower outer part using (iG<)+ = iG<    
+                ! compute lower outer part using (iG<)+ = iG<
                 IF (lower) THEN
                    call zdagger(Glsub,work1)
                    call concat(Glout,work1,j1,i1)
@@ -2118,7 +2168,7 @@ CONTAINS
 
   SUBROUTINE tunneling(HM,SM,Ec,SelfEneR,ni,nf,size_ni,str,TUN_MAT)
     Type(z_CSR) :: HM
-    Type(z_CSR) :: SM           
+    Type(z_CSR) :: SM
     Complex(dp) :: Ec
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
     Real(kind=dp), Dimension(:) :: TUN_MAT
@@ -2136,7 +2186,7 @@ CONTAINS
     ncont = str%num_conts
 
     !Calculation of ES-H and brak into blocks
-    call prealloc_sum(HM,SM,(-1.d0, 0.d0),Ec,ESH_tot)    
+    call prealloc_sum(HM,SM,(-1.d0, 0.d0),Ec,ESH_tot)
 
     allocate(ESH(nbl,nbl),stat=ierr)
     if (ierr.eq.1) stop 'Error in ESH allocation'
@@ -2150,7 +2200,7 @@ CONTAINS
 
     call allocate_gsmr(nbl)
 
-    !Iterative calculation up with gsmr 
+    !Iterative calculation up with gsmr
     call Make_gsmr_mem(ESH,nbl,2)
 
     !Iterative calculation down for Gr
@@ -2163,15 +2213,15 @@ CONTAINS
 
        nit=ni(icpl)
        nft=nf(icpl)
-  
-       call trasmission(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun) 
-  
-       TUN_MAT(icpl) = tun 
-    
+
+       call trasmission(nit,nft,ESH,SelfEneR,nbl,str%cblk,str%mat_PL_start,tun)
+
+       TUN_MAT(icpl) = tun
+
     enddo
 
     !Deallocate energy-dependent matrices
-    do i=2,nbl 
+    do i=2,nbl
        call destroy(gsmr(i))
     enddo
 
@@ -2202,22 +2252,22 @@ CONTAINS
   ! Subroutine for transmission calculation
   !
   !************************************************************************
-  
+
   subroutine trasmission(ni,nf,ESH,SelfEneR,nbl,cblk,indblk,TUN)
-    
+
     !In/Out
     Integer :: ni,nf
     Type(z_CSR), Dimension(MAXNCONT) :: SelfEneR
     Type(z_CSR), Dimension(:,:) :: ESH
     Integer, Dimension(:), pointer :: cblk, indblk
     Real(kind=dp) :: TUN
-    
+
     !Work variables
     Integer :: ct1, ct2, nt1, nt2, i, nrow, ncol, nbl
     Type(z_CSR) :: work1, work2, GAM1, GAM2, GA, TRS
     Real(kind=dp) :: max
     Real(kind=dp), parameter :: drop=1e-20
-   
+
     !Arrange contacts in way that order between first and second is always the
     !same (always ct1 > ct2)
 !print*,ni,nf
@@ -2227,74 +2277,74 @@ CONTAINS
     else
        ct1=nf;ct2=ni;
     endif
-    
+
     nt1=cblk(ct1); nt2=cblk(ct2);
-!print*,'(tunneling) nt1 nt2',nt1,nt2    
+!print*,'(tunneling) nt1 nt2',nt1,nt2
     ! in this way nt1 > nt2 by construction
     ncol=indblk(nt2+1)-indblk(nt2)
-    
+
     if ( nbl.gt.1 .and. (nt1-nt2).gt.1) then
-       
+
        !Calcolo dei blocchi colonna (nt2) fino al desiderato (riga nt1)
        !IF ( nt2.LT.(nbl-1) ) THEN
-       
+
        do i=nt2+2,nbl
 
           nrow=indblk(i+1)-indblk(i)
-          
-          if (Gr(i-1,nt2)%nnz.ne.0) then 
+
+          if (Gr(i-1,nt2)%nnz.ne.0) then
 !print*,'(tunneling) Gr',Gr(i-1,nt2)%nrow,Gr(i-1,nt2)%ncol, Gr(i-1,nt2)%nnz
              max=maxval(abs(Gr(i-1,nt2)%nzval(:)))
           else
              print*,'(tunneling) Gr',i-1,nt2,'==0'
              max=0.d0
           endif
-          
+
           if (max.gt.drop) then
 !print*,'(tunneling) gsmr',gsmr(i)%nrow,gsmr(i)%ncol,gsmr(i)%nnz
-!print*,'(tunneling) ESH',ESH(i,i-1)%nnz            
+!print*,'(tunneling) ESH',ESH(i,i-1)%nnz
              call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.d0, 0.d0),work1)
 !print*,'(tunneling) work1',work1%nrow,work1%ncol,work1%nnz
              call prealloc_mult(work1,Gr(i-1,nt2),Gr(i,nt2))
              call destroy(work1)
-!print*,'(tunneling)',Gr(i,nt2)%nrow,Gr(i,nt2)%ncol,Gr(i,nt2)%nnz                
+!print*,'(tunneling)',Gr(i,nt2)%nrow,Gr(i,nt2)%ncol,Gr(i,nt2)%nnz
           else
              call create(Gr(i,nt2),nrow,ncol,0)
              Gr(i,nt2)%rowpnt(:)=1
-             
+
           endif
-          
+
           !Destroy only if not adiacent to diagonal (adiacent blocks are
-          !deallocated in a separate way, outside from subroutine)           
+          !deallocated in a separate way, outside from subroutine)
           if (i.gt.(nt2+2)) call destroy(Gr(i-1,nt2))
-        
+
           if (Gr(i,nt2)%nnz.eq.0) then
              TUN = 0
-             return         
+             return
           endif
 
           if (i.eq.nt1) exit
 
        enddo
-       
+
        !ENDIF
-       
+
     endif
 
     ! Computes the Gamma matrices
     call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1)
     call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2)
-    
+
     ! Work to compute transmission matrix (Gamma G Gamma G)
     call prealloc_mult(GAM1,Gr(nt1,nt2),work1)
-    
+
     call destroy(GAM1)
-    
+
     call zdagger(Gr(nt1,nt2),GA)
     call prealloc_mult(work1,GAM2,work2)
-    
+
     if (nt1.gt.2) call destroy( Gr(nt1,nt2) )
-    
+
     call destroy(work1)
     call destroy(GAM2)
 
@@ -2302,18 +2352,18 @@ CONTAINS
 !print*,'work2=',work2%nrow,work2%ncol,work2%nnz
 !print*,'GA=',GA%nrow,GA%ncol,GA%nnz
     call destroy(work2)
-    call destroy(GA) 
-  
-!print*,'TUN=trace(TRS)'    
+    call destroy(GA)
+
+!print*,'TUN=trace(TRS)'
     TUN = real(trace(TRS))
-!print*,'Trace done'    
+!print*,'Trace done'
 
     !call tunneling(TRS,TUN)
 
     call destroy(TRS)
-    
+
   end subroutine trasmission
- 
+
 
   !---------------------------------------------------
 
@@ -2322,7 +2372,7 @@ CONTAINS
 
     allocate(gsmr(nbl),stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsmr'
-    
+
   end subroutine allocate_gsmr
 
   !---------------------------------------------------
@@ -2332,7 +2382,7 @@ CONTAINS
 
     allocate(gsml(nbl),stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsml'
-    
+
   end subroutine allocate_gsml
 
   !---------------------------------------------------
