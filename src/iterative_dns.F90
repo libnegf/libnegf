@@ -91,7 +91,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine calls_eq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,A,outer)
+  subroutine calls_eq_mem_dns(negf,E,SelfEneR,Tlc,Tcl,gsurfR,Grout,outer)
 
     !****************************************************************************
     !
@@ -105,7 +105,7 @@ CONTAINS
     !outer:    optional parameter (0,1,2).
     !
     !Output:
-    !A: Spectral function (Device + Contacts overlap regions -> effective conductor)
+    !Grout: Retarded Green's function (Device + Contacts overlap regions -> effective conductor)
     !   outer = 0  no outer parts are computed
     !   outer = 1  only D/C part is computed
     !   outer = 2  D/C and C/D parts are computed
@@ -120,7 +120,7 @@ CONTAINS
     complex(dp), intent(in) :: E
     type(z_DNS), dimension(:), intent(in) :: SelfEneR
     type(z_DNS), dimension(:), intent(inout) :: Tlc, Tcl, gsurfR
-    type(z_CSR), intent(out) :: A
+    type(z_CSR), intent(out) :: Grout
     integer, intent(in) :: outer
 
     !Work
@@ -191,14 +191,14 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
     !-----------------------------------------------------------
 
-    call blk2csr(Gr,negf%str,negf%S,A)
+    call blk2csr(Gr,negf%str,negf%S,Grout)
 
     SELECT CASE (outer)
     CASE(0)
     CASE(1)
-      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.FALSE.,A)
+      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.FALSE.,Grout)
     CASE(2)
-      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.TRUE.,A)
+      call Outer_Gr_mem_dns(Tlc,Tcl,gsurfR,negf%str,.TRUE.,Grout)
     end SELECT
 
     !Distruzione dell'array Gr
