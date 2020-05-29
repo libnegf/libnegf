@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-module iterative_dns
+module iterative
 
   use ln_precision
   use ln_constants, only : pi
@@ -3930,14 +3930,7 @@ CONTAINS
 
   end subroutine deallocate_blk_dns
 
-
-
-
-
-
-
-
-end module iterative_dns
+end module iterative
 
 
 

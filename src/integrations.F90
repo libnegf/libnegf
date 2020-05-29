@@ -31,7 +31,7 @@ module integrations
  use distributions
  use sparsekit_drv
  use inversions
- use iterative_dns
+ use iterative
  !use iterative_ph
  use mat_def
  use ln_extract
