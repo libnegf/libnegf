@@ -319,6 +319,9 @@ CONTAINS
     call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
     call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
 
+    ! Pass the tridiagonal Gr to the interaction if any.
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
+
     !Computes the columns of Gr for the contacts != reference
     ! Keep track of the calculated column indices in the array Gr_columns.
     allocate(Gr_columns(ncont))
