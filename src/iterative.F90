@@ -318,6 +318,8 @@ CONTAINS
     call calculate_Gr_tridiag_blocks(ESH,rbl)
     call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
     call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
+    !Passing Gr to interaction that builds Sigma_n
+    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
     !Computes the columns of Gr for the contacts != reference
     ! Keep track of the calculated column indices in the array Gr_columns.
