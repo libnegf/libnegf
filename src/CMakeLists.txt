@@ -20,7 +20,7 @@ set(sources-fpp
   sparsekit_drv.F90
   integrations.F90
   globals.F90
-  iterative_dns.F90
+  iterative.F90
   ln_constants.F90
   mat_def.F90
   population.F90
