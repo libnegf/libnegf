@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
@@ -29,7 +29,7 @@ program testdosdns
   use input_output
   use sparsekit_drv
   use inversions
-  use iterative_dns
+  use iterative
   use libnegf
   use lib_param
   use clock
@@ -57,8 +57,8 @@ use iterative
   !negf%file_im_S='S_imm.dat'
   negf%file_struct='driver'
   negf%verbose = 10
-  negf%eneconv = 1.d0  !HAR  ! to convert Kb 
-  negf%isSid = .true.  
+  negf%eneconv = 1.d0  !HAR  ! to convert Kb
+  negf%isSid = .true.
   negf%form%formatted = .true.
   negf%form%type = 'PETSc'
   negf%form%fmt = 'F'
@@ -69,7 +69,7 @@ use iterative
   call init_negf(pnegf)
 
   print*, '(main) extract device'
-  
+
   call extract_device(pnegf)
 
   print*, '(main) extract contacts'
@@ -77,7 +77,7 @@ use iterative
   call extract_cont(pnegf)
 
   print*,'(main) computing dos'
-  
+
   outer = 1
   it = negf%iteration
   nbl = negf%str%num_PLs
@@ -99,7 +99,7 @@ print*,'(main) open dos.dat'
 
      call compute_contacts(Ec,pnegf,it,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-     call calls_eq_mem_dns(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
+     call calculate_Gr(negf%HM,negf%SM,Ec,SelfEneR,Tlc,Tcl,GS,Gr,negf%str,outer)
 
        do i1=1,ncont
           call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -114,7 +114,7 @@ print*,'(main) open dos.dat'
 
     enddo
 
-    close(101)   
+    close(101)
 
 
   print*,'(main) destroy negf'
@@ -129,4 +129,4 @@ end program testdosdns
 
 
 ! negf:0 XXXXXXXXXXXX  negf:END
-! pointer 
+! pointer

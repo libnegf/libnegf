@@ -210,8 +210,6 @@ module lib_param
    integer :: local_en_points    ! Local number of energy points
    type(TEnGrid), dimension(:), allocatable :: en_grid
    real(dp) :: int_acc           ! integration accuracy
-   real(dp), dimension(:), pointer :: E_singular => null()
-   real(dp) :: delta_singular
    type(Telph) :: elph           ! electron-phonon data
    type(Tphph) :: phph           ! phonon-phonon data
 

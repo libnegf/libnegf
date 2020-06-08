@@ -31,7 +31,7 @@ module integrations
  use distributions
  use sparsekit_drv
  use inversions
- use iterative_dns
+ use iterative
  !use iterative_ph
  use mat_def
  use ln_extract
@@ -1316,7 +1316,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
+          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1324,7 +1324,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
 
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
+          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1411,25 +1411,13 @@ contains
          if (id0.and.negf%verbose.gt.VBT) call write_clock
       end if
 
-      !do icont=1,ncont
-      !   if (negf%cont(icont)%tReadSelfEnergy) then
-      !      SelfEneR(icont)%val = negf%cont(icont)%SelfEnergy(:,:,ii)
-      !      npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)-negf%str%mat_PL_start(negf%str%cblk(icont))
-      !      SelfEneR(icont)%nrow = npl
-      !      SelfEneR(icont)%ncol = npl
-      !   end if
-      !   if (negf%cont(icont)%tWriteSelfEnergy) then
-      !      negf%cont(icont)%SelfEnergy(:,:,ii) = SelfEneR(icont)%val
-      !   end if
-      !end do
-
       ! Calculate the SCBA before meir-wingreen current so el-ph self-energies are stored
       if (allocated(negf%inter)) then
 
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
 
-            call calls_neq_elph(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
+            call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
 
             if (negf%inter%scba_iter.ne.0) then
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
@@ -1497,7 +1485,7 @@ contains
 
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-    call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
+    call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
     if (allocated(negf%inter)) then
       if (negf%inter%scba_niter /= 0) then
@@ -1506,7 +1494,7 @@ contains
         do scba_iter = 1, negf%inter%scba_niter
           negf%inter%scba_iter = scba_iter
           call destroy(Gr)
-          call calls_eq_mem_dns(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
+          call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
           scba_error = maxval(abs(Gr%nzval - Gr_previous%nzval))
 
@@ -1541,7 +1529,7 @@ contains
     real(dp), dimension(:), intent(in) :: frm
 
     integer, intent(in) :: outer, ncont
-    integer :: scba_iter, i1
+    integer :: scba_iter, i1, max_scba_iter
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp) :: Er
@@ -1555,31 +1543,28 @@ contains
     Er = real(Ec,dp)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-    if ((.not.allocated(negf%inter)).and.(.not.negf%tDephasingBP)) then
-      call calls_neq_mem_dns(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
-    else if ((.not.allocated(negf%inter)).and.negf%tDephasingBP) then
-      call calls_neq_elph(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+    call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+
+    ! In case of interactions (only elastic supported now) we go into
+    ! the Self Consistent Born Approximation loop.
+    if (.not.allocated(negf%inter)) then
+      max_scba_iter = 0
     else
+      max_scba_iter = negf%inter%scba_niter
       negf%inter%scba_iter = 0
-      call calls_neq_elph(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+    end if
+
+    do scba_iter = 1, max_scba_iter
+      negf%inter%scba_iter = scba_iter
       call clone(Gn,Gn_previous)
-
-      do scba_iter = 1, negf%inter%scba_niter
-        negf%inter%scba_iter = scba_iter
-        ! Destroy previous Gn
-        call destroy(Gn)
-        call calls_neq_elph(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
-
-        scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
-
-        if (scba_error .lt. negf%inter%scba_tol) then
-          exit
-        end if
-        call destroy(Gn_previous)
-        call clone(Gn,Gn_previous)
-      enddo
-
-    endif
+      call destroy(Gn)
+      call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+      scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
+      call destroy(Gn_previous)
+      if (scba_error .lt. negf%inter%scba_tol) then
+        exit
+      end if
+    enddo
 
     do i1=1,ncont
       call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1741,7 +1726,7 @@ contains
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
+          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str,TUN_MAT,negf%tun_indices)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
@@ -1749,7 +1734,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
 
-          call tun_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
+          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                            & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
