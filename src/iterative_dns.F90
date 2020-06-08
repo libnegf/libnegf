@@ -114,9 +114,6 @@ CONTAINS
     !
     !*****************************************************************************
 
-    implicit none
-
-    !In/Out
     type(Tnegf), intent(inout) :: negf
     complex(dp), intent(in) :: E
     type(z_DNS), dimension(:), intent(in) :: SelfEneR
@@ -128,25 +125,24 @@ CONTAINS
     type(z_DNS), dimension(:,:), allocatable :: ESH
     type(z_CSR) :: ESH_tot, Ain
     integer :: i,ierr, nbl, ncont,ii,n
-    integer, dimension(:), pointer :: cblk, indblk
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
-    cblk => negf%str%cblk
-    indblk => negf%str%mat_PL_start
 
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
-    call zcsr2blk_sod(ESH_tot,ESH,indblk)
+    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
 
     call destroy(ESH_tot)
 
+    associate(cblk=>negf%str%cblk)
     do i=1,ncont
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     end do
+    end associate
 
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
@@ -256,7 +252,6 @@ CONTAINS
     integer :: ref
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
-    integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH
     type(z_DNS), dimension(:,:), allocatable :: Gn
     type(z_CSR) :: ESH_tot, Gl
@@ -265,8 +260,6 @@ CONTAINS
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
-    indblk => negf%str%mat_PL_start
-    cblk => negf%str%cblk
     ref = negf%refcont
 
     Ec=cmplx(E,0.0_dp,dp)
@@ -276,13 +269,15 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    call zcsr2blk_sod(ESH_tot,ESH,indblk)
+    call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start)
 
     call destroy(ESH_tot)
 
+    associate (cblk=>negf%str%cblk)
     do i=1,ncont
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     end do
+    end associate
 
     call allocate_gsm_dns(gsmr,nbl)
     call allocate_gsm_dns(gsml,nbl)
@@ -290,8 +285,10 @@ CONTAINS
     ! Compute blocks for gsmr and gsml
     mask = .true.
     mask(ref) = .false.
+    associate (cblk=>negf%str%cblk)
     rbl = minval(cblk(1:ncont),mask(1:ncont))
     lbl = maxval(cblk(1:ncont),mask(1:ncont))
+    end associate
 
     call Make_gsmr_mem_dns(ESH,nbl,rbl+1)
     call Make_gsml_mem_dns(ESH,1,lbl-1)
@@ -309,7 +306,9 @@ CONTAINS
     !Computes the columns of Gr for the contacts != reference
     do i=1,ncont
       if (i.NE.ref) THEN
+        associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+        end associate
       endif
     end do
 
@@ -392,7 +391,6 @@ CONTAINS
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl,lbl,ii,n                              !DAR +ii,n
     integer :: ref, iter
-    integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH, Gn, Gp
     integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
@@ -400,8 +398,6 @@ CONTAINS
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
-    indblk => negf%str%mat_PL_start
-    cblk => negf%str%cblk
     ref = negf%refcont
     iter=0
     if (allocated(negf%inter)) iter = negf%inter%scba_iter
@@ -413,11 +409,13 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    call zcsr2blk_sod(ESH_tot,ESH,indblk)
+    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
 
     call destroy(ESH_tot)
     do i=1,ncont
+       associate (cblk=>negf%str%cblk)
        ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+       end associate
     end do
 
     !! Add interaction self energy if any
@@ -461,8 +459,10 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
+        associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
         Gr_columns(i) = cblk(i)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+        end associate
       endif
     end do
 
@@ -555,7 +555,6 @@ CONTAINS
     integer :: i,ierr,ncont,nbl,lbl,ii,n
     integer :: pl_start, pl_end
     integer :: ref, iter, lead, lead_blk, ref_blk
-    integer, dimension(:), pointer :: cblk, indblk
     type(z_DNS), dimension(:,:), allocatable :: ESH, Gn
     integer, dimension(:), allocatable :: Gr_columns
     type(z_DNS) :: work1, work2, Gam, A
@@ -563,8 +562,6 @@ CONTAINS
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
-    indblk => negf%str%mat_PL_start
-    cblk => negf%str%cblk
     ref = negf%refcont
     ref_blk = negf%str%cblk(ref)
     iter = 0
@@ -576,13 +573,15 @@ CONTAINS
 
     call allocate_blk_dns(ESH,nbl)
 
-    call zcsr2blk_sod(ESH_tot,ESH,indblk)
+    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
 
     call destroy(ESH_tot)
 
     ! Add contact self energies
     do i=1,ncont
+      associate (cblk=>negf%str%cblk)
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+      end associate
     end do
 
     !! Add el-ph self energy if any
@@ -629,8 +628,10 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
+        associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
         Gr_columns(i) = cblk(i)
         call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
+        end associate
       endif
     end do
     call Make_Gn_mem_dns(ESH,SelfEneR,frm,ref,negf%str,Gn)
@@ -1447,7 +1448,7 @@ CONTAINS
 
     !In/Out
     integer :: nbl
-    integer, dimension(:), pointer :: indblk
+    integer, dimension(:) :: indblk
     type(z_CSR) :: A, P, GrCsr
 
     !Work
@@ -1581,12 +1582,10 @@ CONTAINS
     type(z_DNS) :: work1,Ga
     integer :: i,j,cb
     integer :: ncont, nbl
-    integer, dimension(:), pointer :: cblk
     complex(dp) :: frmdiff
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
-    cblk => struct%cblk
 
     !*******************************************
     ! Contact Iteration
@@ -1597,7 +1596,7 @@ CONTAINS
       ! C = C + A*B
       if (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.EPS) THEN
 
-        cb=cblk(j) ! block corresponding to contact j
+        cb=struct%cblk(j) ! block corresponding to contact j
 
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
@@ -1688,12 +1687,10 @@ CONTAINS
     type(z_DNS) :: work1,Ga
     integer :: i,j,cb
     integer :: ncont, nbl
-    integer, dimension(:), pointer :: cblk
     complex(dp) :: frmdiff
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
-    cblk => struct%cblk
 
     !*******************************************
     ! Contact Iteration
@@ -1704,7 +1701,7 @@ CONTAINS
       ! C = C + A*B
       if (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.EPS) THEN
 
-        cb=cblk(j) ! block corresponding to contact j
+        cb=struct%cblk(j) ! block corresponding to contact j
 
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
 
@@ -1781,12 +1778,10 @@ CONTAINS
     integer, dimension(:), intent(in) :: existing_Gr_cols
     integer, intent(in) :: iter
 
-    integer, dimension(:), pointer :: indblk
     Type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_n, sigma_blk
     Type(z_DNS) :: Ga, work1, work2, sigma_tmp
     integer :: n, k, nbl, nrow, ierr, ii, jj, norbs, nblk, indstart, indend
 
-    indblk => negf%str%mat_PL_start
     nbl = negf%str%num_PLs
 
     !! If this is the first scba cycle, there's nothing to do
@@ -1816,7 +1811,7 @@ CONTAINS
       ! might already be available. Check if the top and bottom of the
       ! column are available.
       if (all(existing_Gr_cols .ne. k)) then
-        call Make_Grcol_mem_dns(ESH, k, indblk)
+        call Make_Grcol_mem_dns(ESH, k, negf%str%mat_PL_start)
       endif
 
       do n = 1, nbl
@@ -1964,12 +1959,9 @@ CONTAINS
     type(z_CSR) :: Gcsr
     type(z_CSR) :: P, G_sp
 
-    integer, dimension(:), pointer :: indblk, cblk
     integer :: nbl, oldx, row, col, iy, ix, x, y, ii, jj, nrows
 
     nbl = struct%num_PLs
-    cblk => struct%cblk
-    indblk => struct%mat_PL_start
     nrows = struct%mat_PL_end(nbl)
 
     !create Gcsr with same pattern of P
@@ -1978,6 +1970,7 @@ CONTAINS
     Gcsr%colind = P%colind
     Gcsr%nzval = (0.0_dp, 0.0_dp)
 
+    associate(indblk=>struct%mat_PL_start)
     !Cycle upon all rows
     x = 1
     do ii = 1, nrows
@@ -2034,7 +2027,7 @@ CONTAINS
       end do
 
     end do
-
+    end associate
 
   end subroutine blk2csr
 
@@ -2058,11 +2051,9 @@ CONTAINS
 
     integer :: i, m, iE, i1,i2
     integer :: nummodes, numselmodes, nbl
-    integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
 
     selmodes => negf%elph%selmodes
     Wq => negf%elph%Wq
@@ -2077,6 +2068,7 @@ CONTAINS
     allocate(G_n_interN(nbl,nbl))
     allocate(Sigma_n(nbl,nbl))
 
+    associate(indblk=>negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_n(i,i), m, m)
@@ -2084,6 +2076,7 @@ CONTAINS
       call create(G_n_interP(i,i), m, m)
       call create(G_n_interN(i,i), m, m)
     end do
+    end associate
 
     do m = 1 , nummodes
 
@@ -2173,11 +2166,9 @@ CONTAINS
 
     integer :: i, m, iE, i1,i2
     integer :: nummodes, numselmodes, nbl
-    integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
 
     selmodes => negf%elph%selmodes
     Wq => negf%elph%Wq
@@ -2192,6 +2183,7 @@ CONTAINS
     allocate(G_p_interN(nbl,nbl))
     allocate(Sigma_p(nbl,nbl))
 
+    associate(indblk=>negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_p(i,i), m, m)
@@ -2199,6 +2191,7 @@ CONTAINS
       call create(G_p_interP(i,i), m, m)
       call create(G_p_interN(i,i), m, m)
     end do
+    end associate
 
     do m = 1 , nummodes
 
@@ -2282,11 +2275,9 @@ CONTAINS
     logical, dimension(:), pointer :: selmodes
     integer :: i, m, iE, i1, i2
     integer :: nummodes, numselmodes, nbl
-    integer, dimension(:), pointer :: indblk
     real(dp) :: E1, E2, En
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
 
 
     selmodes => negf%elph%selmodes
@@ -2303,10 +2294,8 @@ CONTAINS
     allocate(G_n_interP(nbl,nbl))
     allocate(G_n_interN(nbl,nbl))
     allocate(Sigma_r(nbl,nbl))
-    !allocate(G_r(nbl,nbl))
 
-
-
+    associate(indblk=>negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_r(i,i), m, m)
@@ -2318,7 +2307,7 @@ CONTAINS
       !call create(G_r(i,i), m, m)
       !call read_blkmat(G_r(i,i),negf%scratch_path,'G_r_',i,i,iE)
     end do
-
+    end associate
     do m = 1 , nummodes
 
       if (.not.selmodes(m)) cycle
@@ -2433,11 +2422,8 @@ CONTAINS
     logical, dimension(:), pointer :: selmodes
     integer :: i, m, iE,i1
     integer :: nummodes, numselmodes, nbl
-    integer, dimension(:), pointer :: indblk
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
-
 
     selmodes => negf%elph%selmodes
     Mq => negf%elph%Mq
@@ -2450,13 +2436,15 @@ CONTAINS
 
     allocate(Sigma_r(nbl,nbl))
     allocate(G_r(nbl,nbl))
-
+    
+    associate(indblk => negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
       call create(Sigma_r(i,i), m, m)
       Sigma_r(i,i)%val = (0.0_dp, 0.0_dp)
       call create(G_r(i,i), m, m)
     end do
+    end associate
 
     do m = 1 , nummodes
 
@@ -2515,10 +2503,8 @@ CONTAINS
     type(z_DNS) :: A, T
     integer :: nbl, n, sizebl, i_start, i_stop, psize, maxpos(2)
     real(dp) :: Wmax, maxdev, tmp, maxG
-    integer, dimension(:), pointer :: indblk
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
 
     allocate(G_n(nbl,nbl))
     allocate(G_p(nbl,nbl))
@@ -2529,7 +2515,7 @@ CONTAINS
     psize = 0
 
     do n = 1, nbl
-      sizebl = indblk(n+1)-indblk(n)
+      sizebl = negf%str%mat_PL_start(n+1)-negf%str%mat_PL_start(n)
       call create(G_r(n,n),sizebl,sizebl)
       call create(G_n(n,n),sizebl,sizebl)
       call create(G_p(n,n),sizebl,sizebl)
@@ -2577,10 +2563,8 @@ CONTAINS
     type(z_DNS) :: Gam, T
     integer :: nbl, n, sizebl, psize, maxpos(2)
     real(dp) :: maxdev, tmp, maxG
-    integer, dimension(:), pointer :: indblk
 
     nbl = negf%str%num_PLs
-    indblk => negf%str%mat_PL_start
 
     allocate(Sigma_n(nbl,nbl))
     allocate(Sigma_p(nbl,nbl))
@@ -2591,7 +2575,7 @@ CONTAINS
     psize = 0
 
     do n = 1, nbl
-      sizebl = indblk(n+1)-indblk(n)
+      sizebl = negf%str%mat_PL_start(n+1)-negf%str%mat_PL_start(n)
       call create(Sigma_r(n,n),sizebl,sizebl)
       call create(Sigma_n(n,n),sizebl,sizebl)
       call create(Sigma_p(n,n),sizebl,sizebl)
@@ -3307,13 +3291,10 @@ CONTAINS
     type(z_CSR) :: GrCSR, TCSR
     integer :: i,cb,nrow_tot,i1,j1
     integer :: ncont, nbl
-    integer, dimension(:), pointer :: indblk, cblk
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
     nrow_tot = struct%total_dim
-    indblk => struct%mat_PL_start
-    cblk => struct%cblk
 
     if (.not.allocated(Aout%nzval)) THEN
       call create(Aout,nrow_tot,nrow_tot,0)
@@ -3323,7 +3304,7 @@ CONTAINS
     do i=1,ncont
 
       !Numero di blocco del contatto
-      cb=cblk(i)
+      cb=struct%cblk(i)
       call prealloc_mult(Gr(cb,cb),Tlc(i),(-1.0_dp, 0.0_dp),work1)
       call prealloc_mult(work1,gsurfR(i),Grlc)
 
@@ -3340,7 +3321,7 @@ CONTAINS
       call destroy(TCSR)
 
       !Concatenazione di Asub nella posizione corrispondente
-      i1=indblk(cb)
+      i1=struct%mat_PL_start(cb)
       j1=struct%mat_B_start(i)
 
       call concat(Aout,GrCSR,i1,j1)
@@ -3364,8 +3345,8 @@ CONTAINS
         call zmask_realloc(GrCSR,TCSR)
         call destroy(TCSR)
 
-        i1 = struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
-        j1 = indblk(cb)
+        i1 = struct%mat_B_start(i)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
+        j1 = struct%mat_PL_start(cb)
 
         call concat(Aout,GrCSR,i1,j1)
 
@@ -3429,15 +3410,12 @@ CONTAINS
     type(z_CSR) :: GlCSR, TCSR
     integer :: j,k,cb,cbj,i1,j1,nrow_tot
     integer :: ncont, nbl
-    integer, dimension(:), pointer :: indblk, cblk
     complex(dp) :: frmdiff
 
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
     nrow_tot = struct%total_dim
-    indblk => struct%mat_PL_start
-    cblk => struct%cblk
 
     !Allocazione della Glout
     !Righe totali del conduttore effettivo nrow_tot
@@ -3459,7 +3437,7 @@ CONTAINS
       if ((ABS(frm(k)-frm(ref)).GT.EPS).AND.(k.NE.ref)) THEN
 
         !Calcolo della Gamma corrispondente
-        cb=cblk(k)
+        cb=struct%cblk(k)
         !nota:cb indica l'indice di blocco corrispondente al contatto j-esimo
 
         call zspectral(SelfEneR(k),SelfEneR(k),0,Gam)
@@ -3512,8 +3490,8 @@ CONTAINS
           call dns2csr(Glsub,GlCSR)
 
           !Concatenazione di Glsub nella matrice globale Glout
-          i1=indblk(cb)
-          j1=struct%mat_B_start(k)-struct%central_dim+indblk(nbl+1)-1
+          i1=struct%mat_PL_start(cb)
+          j1=struct%mat_B_start(k)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
           call concat(Glout,GlCSR,i1,j1)
 
           ! compute lower outer part using (iG<)+ = iG<
@@ -3533,7 +3511,7 @@ CONTAINS
 
         do j=1,ncont
 
-          cbj=cblk(j)
+          cbj=struct%cblk(j)
           !Esegue le operazioni del ciclo solo se il j.ne.k o se
           !il blocco colonna di Gr e` non nullo (altrimenti il contributo e` nullo)
 
@@ -3567,8 +3545,8 @@ CONTAINS
               call dns2csr(Glsub,GlCSR)
 
               !Concatenazione di Glsub nella posizione corrispondente al contatto "j"
-              i1=indblk(cbj)
-              j1=struct%mat_B_start(j)-struct%central_dim+indblk(nbl+1)-1
+              i1=struct%mat_PL_strart(cbj)
+              j1=struct%mat_B_start(j)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
 
               call concat(Glout,GlCSR,i1,j1)
 
@@ -3733,15 +3711,11 @@ CONTAINS
 
 
   subroutine trasmission_dns(ni,nf,ESH,SelfEneR,cblk,TUN)
-
-    implicit none
-
-    !In/Out
-    Integer :: ni,nf
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR
-    Type(z_DNS), Dimension(:,:) :: ESH
-    Integer, Dimension(:), pointer :: cblk
-    Real(dp) :: TUN
+    integer, intent(in) :: ni,nf
+    type(z_DNS), intent(in) :: SelfEneR(MAXNCONT)
+    type(z_DNS), intent(in) :: ESH(:,:)
+    integer, intent(in) :: cblk(:)
+    real(dp), intent(out) :: TUN
 
     !Work variables
     Integer :: ct1, bl1
@@ -3806,13 +3780,11 @@ CONTAINS
   !
   !************************************************************************
   subroutine trasmission_old(ni,nf,ESH,SelfEneR,cblk,TUN)
-
-    !In/Out
-    Integer :: ni,nf
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR
-    Type(z_DNS), Dimension(:,:) :: ESH
-    Integer, Dimension(:), pointer :: cblk
-    Real(kind=dp) :: TUN
+    integer, intent(in) :: ni,nf
+    type(z_DNS), intent(in) :: SelfEneR(MAXNCONT)
+    type(z_DNS), intent(in) :: ESH(:,:)
+    integer, intent(in) :: cblk(:)
+    real(dp), intent(out) :: TUN
 
     !Work variables
     Integer :: ct1, ct2, bl1, bl2, i, nbl
@@ -3903,10 +3875,7 @@ CONTAINS
   !Subroutine for transmission and dos calculation    !
   !---------------------------------------------------!
 
-  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,nLdoS,LDOS,str,TUN_MAT,LEDOS)
-
-    implicit none
-
+  subroutine tun_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,str,tun_ind,TUN_MAT,LDOS_ind,LEDOS)
     Type(z_CSR), intent(in) :: H
     Type(z_CSR), intent(in) :: S
     Complex(dp), intent(in) :: Ec
@@ -3914,8 +3883,8 @@ CONTAINS
     Integer, intent(in) :: ni(:)
     Integer, intent(in) :: nf(:)
     Type(TStruct_Info), intent(in) :: str
-    integer, intent(in)  :: nLdos
-    type(intarray), dimension(:), intent(in) :: LdoS
+    type(intarray), dimension(:), intent(in) :: tun_ind
+    type(intarray), dimension(:), intent(in) :: LDOS_ind
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
     Real(dp), Dimension(:), intent(inout) :: LEdoS
 
@@ -4005,13 +3974,13 @@ CONTAINS
 
     call deallocate_blk_dns(Gr)
 
-    !Compute LdoS on the specified intervals
-    if (nLdoS.gt.0) then
+    !Compute LDOS on the specified intervals
+    if (size(LDOS_ind).gt.0) then
       call log_allocate(diag, Grm%nrow)
       call getdiag(Grm,diag)
-      do iLDOS=1,nLDOS
-        do i = 1, size(LdoS(iLDOS)%indexes)
-          i2 = LdoS(iLDOS)%indexes(i)
+      do iLDOS=1,size(LDOS_ind)
+        do i = 1, size(LDOS_ind(iLDOS)%indexes)
+          i2 = LDOS_ind(iLDOS)%indexes(i)
           if (i2 .le. str%central_dim) then
             LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)
           end if

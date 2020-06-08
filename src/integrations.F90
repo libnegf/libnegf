@@ -1742,7 +1742,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
           call tunneling_dns(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str,TUN_MAT)
+                             & negf%str,TUN_MAT,negf%tun_indices)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
        else
@@ -1759,10 +1759,7 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
        do icont=1,ncont
-          call destroy(Tlc(icont))
-          call destroy(Tcl(icont))
-          call destroy(SelfEneR(icont))
-          call destroy(GS(icont))
+         call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
        enddo
 
     enddo !Loop on energy

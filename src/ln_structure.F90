@@ -28,15 +28,15 @@ public ::  TStruct_info, create_TStruct, print_TStruct, kill_TStruct
 public :: neighbor_map
 
 type TStruct_Info
-   integer, dimension(:), Pointer :: mat_PL_start => NULL() !ind(..)
-   integer, dimension(:), Pointer :: mat_PL_end => NULL()    !ind(..)
+   integer, dimension(:), allocatable :: mat_PL_start  !ind(..)
+   integer, dimension(:), allocatable :: mat_PL_end    !ind(..)
 
-   integer, dimension(:), Pointer :: mat_B_start => NULL()  ! starting bound    
-   integer, dimension(:), Pointer :: mat_C_start => NULL()  ! starting real contact
-   integer, dimension(:), Pointer :: mat_C_end => NULL()  ! end real contact
-   integer, dimension(:), Pointer :: cont_dim => NULL()   ! total contact dim
+   integer, dimension(:), allocatable :: mat_B_start  ! starting bound    
+   integer, dimension(:), allocatable :: mat_C_start  ! starting real contact
+   integer, dimension(:), allocatable :: mat_C_end    ! end real contact
+   integer, dimension(:), allocatable :: cont_dim     ! total contact dim
 
-   integer, dimension(:), Pointer :: cblk => NULL()        !contact int block
+   integer, dimension(:), allocatable :: cblk         !contact int block
    integer :: central_dim
    integer :: total_dim
    integer :: num_PLs
@@ -134,14 +134,14 @@ contains
   subroutine kill_TStruct(str)
     type(TStruct_Info) :: str
     
-    if(associated(str%mat_B_start)) deallocate(str%mat_B_start) 
-    if(associated(str%mat_C_start)) deallocate(str%mat_C_start)
-    if(associated(str%mat_C_end))   deallocate(str%mat_C_end)
-    if(associated(str%cblk))  deallocate(str%cblk)
+    if(allocated(str%mat_B_start)) deallocate(str%mat_B_start) 
+    if(allocated(str%mat_C_start)) deallocate(str%mat_C_start)
+    if(allocated(str%mat_C_end))   deallocate(str%mat_C_end)
+    if(allocated(str%cblk))  deallocate(str%cblk)
 
-    if(associated(str%mat_PL_start)) deallocate(str%mat_PL_start)
-    if(associated(str%mat_PL_end)) deallocate(str%mat_PL_end)
-    if(associated(str%cont_dim)) deallocate(str%cont_dim)
+    if(allocated(str%mat_PL_start)) deallocate(str%mat_PL_start)
+    if(allocated(str%mat_PL_end)) deallocate(str%mat_PL_end)
+    if(allocated(str%cont_dim)) deallocate(str%cont_dim)
   end subroutine kill_TStruct
 
   ! --------------------------------------------------------  
