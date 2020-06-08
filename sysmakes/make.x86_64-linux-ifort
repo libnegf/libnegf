@@ -76,5 +76,4 @@ EXTRALIBS = -lstdc++
 #LIB_NEGF = $(ROOT)/ext_libnegf/libnegf.$(ARCH).a
 #LIB_SPARSEKIT = $(ROOT)/../extlib/sparskit/zlibskit.$(ARCH).a
 #LIB_MUDPACK = $(ROOT)/../extlib/mudpack/mudpack.$(ARCH).a
-#LIB_METIS = $(ROOT)/ext_libnegf/libmetis.$(ARCH).a
 
