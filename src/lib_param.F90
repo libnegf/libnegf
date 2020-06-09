@@ -168,11 +168,12 @@ module lib_param
    integer, allocatable :: ni(:) ! ni: emitter contact list 
    integer, allocatable :: nf(:) ! nf: collector contact list
 
-
-   integer  :: nldos                 ! Number of LDOS intervals
-   type(intArray), dimension(:), allocatable :: LDOS !Array of LDOS descriptor 
-                                                     !(contain only index of atoms 
-                                                     !for LDOS projection)  
+   integer :: ndos_proj              ! number of LDOS interval ranges    
+   type(intArray), dimension(:), allocatable :: DOS_proj ! PDOS descriptor 
+                                                         ! contain matrix index 
+                                                         ! for PDOS projection  
+   type(intArray) :: TUN_proj    ! Array of TUN projection indices 
+   
    real(dp) :: DeltaEc           ! safe guard energy below Ec
    real(dp) :: DeltaEv           ! safe guard energy above Ev
 
@@ -370,7 +371,7 @@ contains
      negf%dumpHS = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy 
                              ! Only in adaptive refinement 
-     negf%nldos = 0
+     negf%ndos_proj = 0
 
    end subroutine set_defaults
 

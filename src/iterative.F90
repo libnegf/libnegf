@@ -146,20 +146,6 @@ CONTAINS
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
-    !DAR begin - Add BP self energy if any
-    !if (negf%tDephasingBP) then
-    !do n=1,nbl
-    !   associate(pl_start=>negf%str%mat_PL_start(n),pl_end=>negf%str%mat_PL_end(n))
-    !   forall(ii = 1:pl_end - pl_start + 1)
-    !      ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-    !           &(0.0_dp,0.5_dp)*negf%deph%bp%coupling(pl_start + ii - 1)
-    !   end forall
-    !   end associate
-    !end do
-    !end if
-    !DAR end
-    !----------------------------------
-
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
@@ -253,6 +239,7 @@ CONTAINS
     integer :: i,ierr,ncont,nbl, lbl, rbl
     type(z_DNS), dimension(:,:), allocatable :: ESH
     type(z_DNS), dimension(:,:), allocatable :: Gn
+    integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
 
@@ -260,6 +247,7 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     ref = negf%refcont
+    associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
 
     Ec = cmplx(E,0.0_dp,dp)
 
@@ -272,11 +260,9 @@ CONTAINS
 
     call destroy(ESH_tot)
 
-    associate (cblk=>negf%str%cblk)
     do i=1,ncont
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
     end do
-    end associate
 
     !! Add interaction self energy if any and initialize scba counter
     if (allocated(negf%inter)) then
@@ -321,13 +307,11 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
         Gr_columns(i) = cblk(i)
         call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
-        end associate
       endif
     end do
-
+    
     !If not interactions are present we can already destroy gsmr, gsml.
     !Otherwise they are still needed to calculate columns ont-the-fly.
     if (.not.allocated(negf%inter)) then
@@ -358,6 +342,8 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
 
     call blk2csr(Gn,negf%str,negf%S,Glout)
+
+    end associate
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
     SELECT CASE (outblocks)
@@ -399,9 +385,6 @@ CONTAINS
   !  I_i = Tr[ \Gamma_{i}(-G^{n,l\neq ref}  - G^{n,l\neq ref}_{\phi}) ]
   !---------------------------------------------------------------------
   subroutine iterative_meir_wingreen(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,curr_mat)
-    implicit none
-
-    !In/Out
     type(Tnegf), intent(inout) :: negf
     real(dp) :: E
     type(z_DNS), dimension(:) :: SelfEneR, gsurfR, Tlc, Tcl
@@ -422,8 +405,12 @@ CONTAINS
     ncont = negf%str%num_conts
     ref = negf%refcont
     ref_blk = negf%str%cblk(ref)
+    associate (cblk=>negf%str%cblk)
+
     iter = 0
-    if (allocated(negf%inter)) iter = negf%inter%scba_iter
+    if (allocated(negf%inter)) then
+      iter = negf%inter%scba_iter
+    end if
 
     Ec=cmplx(E,0.0_dp,dp)
 
@@ -437,26 +424,11 @@ CONTAINS
 
     ! Add contact self energies
     do i=1,ncont
-      associate (cblk=>negf%str%cblk)
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
-      end associate
     end do
 
     !! Add el-ph self energy if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
-
-    !! Buttiker-Probe dephasing (to be retested)
-    !if (negf%tDephasingBP) then
-    !  do n=1,nbl
-    !    pl_start=negf%str%mat_PL_start(n)
-    !    pl_end=negf%str%mat_PL_end(n)
-    !    do ii = 1, pl_end - pl_start + 1
-    !      ESH(n,n)%val(ii,ii) = ESH(n,n)%val(ii,ii)+ &
-    !            (0.0_dp,1.0_dp)*0.5_dp*negf%deph%bp%coupling(pl_start + ii - 1)
-    !    end do
-    !  end do
-    !end if
-
 
     call allocate_gsm(gsmr,nbl)
     call allocate_gsm(gsml,nbl)
@@ -486,15 +458,15 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
         Gr_columns(i) = cblk(i)
-        call Make_Grcol_mem_dns(ESH,cblk(i),indblk)
-        end associate
+        call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)
       endif
     end do
     call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    if (allocated(negf%inter)) call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
+    if (allocated(negf%inter)) then
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
+    end if
 
     ! The gsmr, gsml are used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
     ! can destroy them here.
@@ -505,7 +477,7 @@ CONTAINS
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
-      lead_blk = negf%str%cblk(lead)
+      lead_blk = cblk(lead)
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gam)
       if (lead.eq.ref) then
         call prealloc_mult(Gam, Gn(lead_blk, lead_blk), (-1.0_dp, 0.0_dp), work1)
@@ -527,16 +499,13 @@ CONTAINS
     call blk2csr(Gn,negf%str,negf%S,Gl)
     DEALLOCATE(Gn)
 
-    !if (negf%tZeroCurrent) then
-    !  call transmission_BP_corrected(negf,SelfEneR,curr_mat)
-    !end if
-
-    !Distruzione dell'array Gr
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
 
     call destroy_ESH(ESH)
     DEALLOCATE(ESH)
+      
+    end associate
 
   end subroutine iterative_meir_wingreen
 
@@ -1669,7 +1638,7 @@ CONTAINS
       ! might already be available. Check if the top and bottom of the
       ! column are available.
       if (all(existing_Gr_cols .ne. k)) then
-        call calculate_Gr_column_blocks(ESH, k, indblk)
+        call calculate_Gr_column_blocks(ESH, k, negf%str%mat_PL_start)
       endif
 
       do n = 1, nbl
@@ -3403,7 +3372,7 @@ CONTAINS
               call dns2csr(Glsub,GlCSR)
 
               !Concatenazione di Glsub nella posizione corrispondente al contatto "j"
-              i1=struct%mat_PL_strart(cbj)
+              i1=struct%mat_PL_start(cbj)
               j1=struct%mat_B_start(j)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
 
               call concat(Glout,GlCSR,i1,j1)
@@ -3440,10 +3409,7 @@ CONTAINS
 
   !---------------------------------------------------
 
-  subroutine calculate_transmissions(H,S,Ec,SelfEneR,ni,nf,str,tun_mat)
-
-    implicit none
-
+  subroutine calculate_transmissions(H,S,Ec,SelfEneR,ni,nf,str,tun_proj,tun_mat)
     Type(z_CSR) :: H
     Type(z_CSR) :: S
     Complex(dp) :: Ec
@@ -3452,6 +3418,7 @@ CONTAINS
     Integer :: nf(:)
     Type(z_CSR) :: ESH_tot
     Type(TStruct_Info) :: str
+    type(intarray), intent(in) :: tun_proj
     Real(dp), Dimension(:) :: tun_mat
 
     ! Local variables
@@ -3480,57 +3447,45 @@ CONTAINS
     !Iterative calculation up with gsmr
     call calculate_gsmr_blocks(ESH,nbl,2)
 
-    !Computation of transmission(s) between contacts ni(:) -> nf(:)
-    nit=ni(1)
-    nft=nf(1)
-    !Arrange contacts in a way that the order between first and second is always the
-    !same (always ct1 < ct2), so nt is the largest contact block
+    do icpl = 1, size(ni)
 
-    if (str%cblk(nit).gt.str%cblk(nft)) then
-      nt = str%cblk(nit)
-    else
-      nt = str%cblk(nft)
-    endif
-
-    ! Iterative calculation of Gr down to nt1
-    call allocate_blk_dns(Gr,nbl)
-    call calculate_Gr_tridiag_blocks(ESH,1)
-    if (nt.gt.1) call calculate_Gr_tridiag_blocks(ESH,2,nt)
-
-    select case(ncont)
-    case(1)
-      tun = 0.0_dp
-    case(2)
-      call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
-    case default
-      call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
-    end select
-
-    tun_mat(1) = tun
-
-    ! When more contacts are present sometimes we can re-use previous GF
-    do icpl = 2, size(ni)
-
+      !Computation of transmission(s) between contacts ni(:) -> nf(:)
       nit=ni(icpl)
       nft=nf(icpl)
 
+      !Arrange contacts in a way that the order between first and second is always the
+      !same (always ct1 < ct2), so nt is the largest contact block
       if (str%cblk(nit).gt.str%cblk(nft)) then
         nt1 = str%cblk(nit)
       else
         nt1 = str%cblk(nft)
       endif
-
-      ! if nt1 > nt extend the Gr calculation
-      if (nt1 .gt. nt) then
-        call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
+    
+      if (icpl == 1) then
+        ! Iterative calculation of Gr down to nt
         nt = nt1
-      endif
-
-      if (ncont > 1) then
-        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call allocate_blk_dns(Gr,nbl)
+        call calculate_Gr_tridiag_blocks(ESH,1)
+        if (nt.gt.1) then
+          call calculate_Gr_tridiag_blocks(ESH,2,nt)
+        end if
       else
+        ! When more contacts are present sometimes we can re-use previous GF
+        ! if nt1 > nt extend the Gr calculation
+        if (nt1 .gt. nt) then
+          call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
+          nt = nt1
+        endif
+      end if   
+
+      select case(ncont)
+      case(1)
         tun = 0.0_dp
-      end if
+      case(2)
+        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+      case default
+        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+      end select
 
       tun_mat(icpl) = tun
 
@@ -3568,20 +3523,23 @@ CONTAINS
   !************************************************************************
 
 
-  subroutine calculate_single_transmission_2_contacts(ni,nf,ESH,SelfEneR,cblk,TUN)
+  subroutine calculate_single_transmission_2_contacts(ni,nf,ESH,SelfEneR,cblk,tun_proj,TUN)
     integer, intent(in) :: ni,nf
     type(z_DNS), intent(in) :: SelfEneR(MAXNCONT)
     type(z_DNS), intent(in) :: ESH(:,:)
     integer, intent(in) :: cblk(:)
+    type(intarray), intent(in) :: tun_proj
     real(dp), intent(out) :: TUN
 
     !Work variables
     Integer :: ct1, bl1
+    logical, dimension(:), allocatable :: tun_mask
     Type(z_DNS) :: work1, work2, GAM1_dns, GA, TRS, AA
     Complex(dp), parameter ::    j = (0.0_dp,1.0_dp)  ! CMPX unity
 
     if (size(cblk).gt.2) then
       write(*,*) "ERROR: calculate_single_transmission_2_contacts is valid only for 2 contacts"
+      TUN = 0.0_dp
       return
     endif
 
@@ -3626,7 +3584,11 @@ CONTAINS
 
     TRS%val = work2%val - work1%val
 
-    TUN = abs( real(trace(TRS)) )
+    call get_tun_mask(ESH, bl1, tun_proj, tun_mask)
+
+    TUN = abs( real(trace(TRS, tun_mask)) )
+
+    call log_deallocate(tun_mask)
 
     call destroy(TRS,work1,work2)
 
@@ -3637,15 +3599,17 @@ CONTAINS
   ! Subroutine for transmission calculation (GENERIC FOR N CONTACTS)
   !
   !************************************************************************
-  subroutine calculate_single_transmission_N_contacts(ni,nf,ESH,SelfEneR,cblk,TUN)
+  subroutine calculate_single_transmission_N_contacts(ni,nf,ESH,SelfEneR,cblk,tun_proj,TUN)
     integer, intent(in) :: ni,nf
     type(z_DNS), intent(in) :: SelfEneR(MAXNCONT)
     type(z_DNS), intent(in) :: ESH(:,:)
     integer, intent(in) :: cblk(:)
+    type(intarray), intent(in) :: tun_proj
     real(dp), intent(out) :: TUN
 
     !Work variables
     Integer :: ct1, ct2, bl1, bl2, i, nbl
+    logical, dimension(:), allocatable :: tun_mask
     Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, GA, TRS
     Real(kind=dp) :: max
 
@@ -3722,18 +3686,56 @@ CONTAINS
 
     call destroy(GA)
 
-    TUN = real(trace(TRS))
+    call get_tun_mask(ESH, bl2, tun_proj, tun_mask)
+
+    TUN = abs( real(trace(TRS, tun_mask)) )
+
+    call log_deallocate(tun_mask)
 
     call destroy(TRS)
 
   end subroutine calculate_single_transmission_N_contacts
 
+  ! Based on projection indices build a logical mask just on contact block 
+  subroutine get_tun_mask(ESH,nbl,tun_proj,tun_mask)
+    Type(z_DNS), intent(in) :: ESH(:,:)
+    integer, intent(in) :: nbl
+    type(intarray), intent(in) :: tun_proj
+    logical, intent(out), allocatable :: tun_mask(:)    
+    
+    integer :: ii, istart, iend, ind
+
+    call log_allocate(tun_mask, ESH(nbl,nbl)%nrow)
+
+    if (allocated(tun_proj%indexes)) then
+      tun_mask = .false.
+       
+      ! set the start/end indices of nbl
+      ! NB: istart has offset -1 to avoid +/-1 operations
+      istart = 0
+      do ii = 1, nbl-1
+        istart = istart + ESH(ii,ii)%nrow
+      end do
+      iend = istart + ESH(nbl,nbl)%nrow + 1  
+ 
+      ! select the indices in tun_proj 
+      do ii = 1, size(tun_proj%indexes)
+         ind = tun_proj%indexes(ii)
+         if (ind > istart .and. ind < iend) then
+            tun_mask(ind - istart) = .true. 
+         end if     
+      end do
+    else
+      tun_mask = .true.
+    end if
+
+  end subroutine get_tun_mask
 
   !---------------------------------------------------!
   !Subroutine for transmission and dos calculation    !
   !---------------------------------------------------!
 
-  subroutine calculate_transmissions_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,str,tun_ind,TUN_MAT,LDOS_ind,LEDOS)
+  subroutine calculate_transmissions_and_dos(H,S,Ec,SelfEneR,Gs,ni,nf,str,tun_proj,TUN_MAT,dos_proj,LEDOS)
     Type(z_CSR), intent(in) :: H
     Type(z_CSR), intent(in) :: S
     Complex(dp), intent(in) :: Ec
@@ -3741,10 +3743,10 @@ CONTAINS
     Integer, intent(in) :: ni(:)
     Integer, intent(in) :: nf(:)
     Type(TStruct_Info), intent(in) :: str
-    type(intarray), dimension(:), intent(in) :: tun_ind
-    type(intarray), dimension(:), intent(in) :: LDOS_ind
+    type(intarray), intent(in) :: tun_proj
+    type(intarray), dimension(:), intent(in) :: dos_proj
     Real(dp), Dimension(:), intent(inout) :: TUN_MAT
-    Real(dp), Dimension(:), intent(inout) :: LEdoS
+    Real(dp), Dimension(:), intent(inout) :: LEDOS
 
     ! Local variables
     Type(z_CSR) :: ESH_tot, GrCSR
@@ -3794,9 +3796,9 @@ CONTAINS
       case(1)
         tun = 0.0_dp
       case(2)
-        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
       case default
-        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun)
+        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
       end select
 
       TUN_MAT(icpl) = tun
@@ -3833,12 +3835,12 @@ CONTAINS
     call deallocate_blk_dns(Gr)
 
     !Compute LDOS on the specified intervals
-    if (size(LDOS_ind).gt.0) then
+    if (size(dos_proj).gt.0) then
       call log_allocate(diag, Grm%nrow)
       call getdiag(Grm,diag)
-      do iLDOS=1,size(LDOS_ind)
-        do i = 1, size(LDOS_ind(iLDOS)%indexes)
-          i2 = LDOS_ind(iLDOS)%indexes(i)
+      do iLDOS=1,size(dos_proj)
+        do i = 1, size(dos_proj(iLDOS)%indexes)
+          i2 = dos_proj(iLDOS)%indexes(i)
           if (i2 .le. str%central_dim) then
             LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)
           end if
