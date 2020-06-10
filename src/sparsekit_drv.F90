@@ -3389,8 +3389,8 @@ CONTAINS
   !---------------------------------------------
 
   function ztrace_csr(mat, mask) result(trace)
-    type(z_CSR) :: mat
-    logical, optional :: mask(:)
+    type(z_CSR), intent(in) :: mat
+    logical, intent(in), optional :: mask(:)
     complex(dp) :: trace
 
     complex(kind=dp), dimension(:), allocatable :: D_vec
@@ -3418,8 +3418,8 @@ CONTAINS
 !---------------------------------------------
 
   function ztrace_dns(mat, mask) result(trace)
-    type(z_DNS) :: mat
-    logical, optional :: mask(:)
+    type(z_DNS), intent(in) :: mat
+    logical, intent(in), optional :: mask(:)
     complex(dp) :: trace
 
     integer :: i

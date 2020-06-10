@@ -66,7 +66,7 @@ module libnegf
  public :: init_negf, destroy_negf
  public :: init_contacts, init_structure
  public :: get_params, set_params, set_scratch, set_outpath, create_scratch
- public :: init_ldos, set_ldos_intervals, set_ldos_indexes
+ public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
  public :: set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
  public :: set_readOldDMsgf, set_readOldTsgf, set_computation
@@ -97,7 +97,7 @@ module libnegf
                                     ! Note: for debug purpose. I/O should be managed
                                     ! by calling program
  public :: compute_ldos             ! wrapping to compute ldos
- public :: return_dos_mat           ! return pointer to LDOS matrix
+ public :: return_dos_mat           ! return pointer to dos_proj matrix
 
  public :: compute_phonon_current   ! High-level wrapping to
                                     ! compute phonon transmission
@@ -694,7 +694,7 @@ contains
 
 
   !--------------------------------------------------------------------
-  ! LDOS methods: you can set N index intervals OR N separate index
+  ! dos_proj methods: you can set N index intervals OR N separate index
   ! arrays. You have to initialize the data by indicating the number of
   ! ldos interval (nldos) and then you can either set the start/end
   ! indexes for intervals OR append one by one explicit arrays
@@ -710,20 +710,20 @@ contains
 
     integer :: i
 
-    if (allocated(negf%ldos)) then
-      do i=1, size(negf%ldos)
-        if (allocated(negf%ldos(i)%indexes)) then
-          call log_deallocate(negf%ldos(i)%indexes)
+    if (allocated(negf%dos_proj)) then
+      do i=1, size(negf%dos_proj)
+        if (allocated(negf%dos_proj(i)%indexes)) then
+          call log_deallocate(negf%dos_proj(i)%indexes)
         end if
       end do
-      deallocate(negf%ldos)
+      deallocate(negf%dos_proj)
     end if
-    allocate(negf%ldos(nldos))
-    negf%nldos = nldos
+    allocate(negf%dos_proj(nldos))
+    negf%ndos_proj = nldos
 
   end subroutine init_ldos
 
-  !> Destroy the LDOS container
+  !> Destroy the dos_proj container
   subroutine destroy_ldos(ldos)
     type(intarray), dimension(:), allocatable :: ldos
 
@@ -750,10 +750,10 @@ contains
 
     integer :: ii, jj
 
-    do ii = 1, negf%nldos
-      call log_allocate(negf%ldos(ii)%indexes,iend(ii)-istart(ii)+1)
+    do ii = 1, negf%ndos_proj
+      call log_allocate(negf%dos_proj(ii)%indexes,iend(ii)-istart(ii)+1)
       do jj = 1, iend(ii) - istart(ii) + 1
-        negf%ldos(ii)%indexes(jj) = istart(ii) + jj - 1
+        negf%dos_proj(ii)%indexes(jj) = istart(ii) + jj - 1
       end do
     end do
 
@@ -771,12 +771,31 @@ contains
 
     integer :: ii, jj
 
-    if (.not.allocated(negf%ldos(ildos)%indexes)) then
-       call log_allocate(negf%ldos(ildos)%indexes, size(idx))
+    if (.not.allocated(negf%dos_proj(ildos)%indexes)) then
+       call log_allocate(negf%dos_proj(ildos)%indexes, size(idx))
     end if
-    negf%ldos(ildos)%indexes = idx
+    negf%dos_proj(ildos)%indexes = idx
 
   end subroutine set_ldos_indexes
+  ! -------------------------------------------------------------------
+  !> Set tunneling projection indexes array
+  subroutine set_tun_indexes(negf, idx)
+    type(Tnegf) :: negf
+    integer, intent(in) :: idx(:)
+
+    integer :: ii, jj
+
+    if (.not.allocated(negf%tun_proj%indexes)) then
+      call log_allocate(negf%tun_proj%indexes, size(idx))
+    else
+      if (size(negf%tun_proj%indexes) /= size(idx)) then
+         write(*,*) 'ERROR in set_tun_indexes size mismatch'
+         return
+      end if   
+    end if
+    negf%tun_proj%indexes = idx
+
+  end subroutine set_tun_indexes
   ! -------------------------------------------------------------------
 
 #:if defined("MPI")
@@ -928,16 +947,16 @@ contains
     read(101,*)  tmp, negf%n_poles
     read(101,*)  tmp, negf%g_spin
     read(101,*)  tmp, negf%delta
-    read(101,*)  tmp, negf%nLDOS
-    if (allocated(negf%LDOS)) then
-      deallocate(negf%LDOS)   !DAR
+    read(101,*)  tmp, negf%ndos_proj
+    if (allocated(negf%dos_proj)) then
+      deallocate(negf%dos_proj)   !DAR
     endif
-    allocate(negf%LDOS(negf%nLDOS))
-    do ii = 1, negf%nLDOS
+    allocate(negf%dos_proj(negf%ndos_proj))
+    do ii = 1, negf%ndos_proj
       read(101,*) tmp, ist, iend
-      call log_allocate(negf%LDOS(ii)%indexes, iend-ist+1)
+      call log_allocate(negf%dos_proj(ii)%indexes, iend-ist+1)
       do jj = 1, iend-ist+1
-        negf%LDOS(ii)%indexes(jj) = ist + jj - 1
+        negf%dos_proj(ii)%indexes(jj) = ist + jj - 1
       end do
     end do
     if (ncont.gt.0) then
@@ -996,8 +1015,11 @@ contains
 
     call destroy_HS(negf)
     call kill_Tstruct(negf%str)
-    if (allocated(negf%LDOS)) then
-       call destroy_ldos(negf%ldos)
+    if (allocated(negf%dos_proj)) then
+       call destroy_ldos(negf%dos_proj)
+    end if
+    if (allocated(negf%tun_proj%indexes)) then
+       call log_deallocate(negf%tun_proj%indexes)
     end if
     if (allocated(negf%en_grid)) then
        deallocate(negf%en_grid)
@@ -1056,7 +1078,7 @@ contains
   !--------------------------------------------------------------------
   !>
   !!  Associate an input pointer with the internal pointer of
-  !! LDOS
+  !! dos_proj
   subroutine associate_ldos(negf, ldos_pointer)
     type(TNegf), pointer, intent(in)  :: negf
     real(dp), dimension(:,:), pointer, intent(inout) :: ldos_pointer
@@ -1485,7 +1507,7 @@ contains
 
     type(Tnegf), intent(in) :: negf
 
-    integer :: Nstep, i, i1, iLDOS, size_ni, iu
+    integer :: Nstep, i, i1, idos_proj, size_ni, iu
     character(6) :: ofKP, idstr
     real(dp) :: E
 
@@ -1514,7 +1536,7 @@ contains
 
     endif
 
-    if (allocated(negf%ldos_mat) .and. negf%nLDOS.gt.0) then
+    if (allocated(negf%ldos_mat) .and. negf%ndos_proj.gt.0) then
 
         Nstep = size(negf%ldos_mat,1)
 
@@ -1527,8 +1549,8 @@ contains
 
           E=(negf%Emin+negf%Estep*(i-1))
           WRITE(iu,'((E17.8))',advance='NO') E*negf%eneconv
-          do iLDOS = 1, negf%nLDOS
-            WRITE(iu,'((E17.8))',advance='NO') negf%ldos_mat(i,iLDOS)/negf%eneconv
+          do idos_proj = 1, negf%nDOS_proj
+            WRITE(iu,'((E17.8))',advance='NO') negf%ldos_mat(i,idos_proj)/negf%eneconv
           end do
           write(iu,*)
 

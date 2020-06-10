@@ -56,7 +56,7 @@ module integrations
  public :: real_axis_int_p_def ! integration of VB on real axis
 
  public :: tunneling_int_def  !
- public :: tunneling_and_dos  ! computes of T(E) & LDOS(E)
+ public :: tunneling_and_dos  ! computes of T(E) & dos_proj(E)
  public :: meir_wingreen      ! computes effective T(E) with el-ph
  public :: electron_current   ! computes terminal currents
  public :: electron_current_meir_wingreen                                   !DAR
@@ -181,7 +181,7 @@ contains
 
     Nstep = size(negf%en_grid)
 
-    call log_allocate(negf%ldos_mat,Nstep,negf%nLDOS)
+    call log_allocate(negf%ldos_mat, Nstep, negf%ndos_proj)
     negf%ldos_mat(:,:)=0.d0
 
     do i = 1, Nstep
@@ -199,8 +199,8 @@ contains
        call getdiag(Gr,diag)
        diag = - aimag(diag)/pi
 
-       do i1 = 1, size(negf%LDOS)
-           negf%ldos_mat(i, i1) = real(sum(diag(negf%LDOS(i1)%indexes)))
+       do i1 = 1, size(negf%dos_proj)
+           negf%ldos_mat(i, i1) = real(sum(diag(negf%dos_proj(i1)%indexes)))
        enddo
 
        call destroy(Gr)
@@ -1228,8 +1228,8 @@ contains
   end subroutine tunneling_int_def
 
   !-----------------------------------------------------------------------------
-  !  Routine to compute T(E) and (optionally) LDOS(E)
-  !  PDOS is computed if negf%nLDOS > 0
+  !  Routine to compute T(E) and (optionally) dos_proj(E)
+  !  PDOS is computed if negf%ndos_proj > 0
   !  When only T(E) is needed, a fast algorithm is used (reduction to one block)
   !-----------------------------------------------------------------------------
   subroutine tunneling_and_dos(negf)
@@ -1249,7 +1249,7 @@ contains
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
 
-    Logical :: do_LEDOS            ! performs or not LDOS
+    Logical :: do_LEDOS            ! performs or not dos_proj
 
 
     ! Get out immediately if Emax<Emin
@@ -1264,7 +1264,7 @@ contains
     !-------------------------------------------------------
 
     do_LEDOS = .false.
-    if(negf%nLDOS.gt.0) do_LEDOS=.true.
+    if(negf%ndos_proj.gt.0) do_LEDOS=.true.
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
@@ -1287,8 +1287,8 @@ contains
        if (allocated(negf%ldos_mat)) then
          call log_deallocate(negf%ldos_mat)
        end if
-       call log_allocate(negf%ldos_mat,Nstep,negf%nLDOS)
-       call log_allocate(LEDOS,negf%nLDOS)
+       call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
+       call log_allocate(LEDOS,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.d0
     endif
 
@@ -1317,7 +1317,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str,TUN_MAT)
+                             & negf%str, negf%tun_proj, TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
        else
@@ -1325,7 +1325,7 @@ contains
           LEDOS(:) = 0.d0
 
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                           & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
+                             & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
@@ -1646,8 +1646,8 @@ contains
 
 
   !-----------------------------------------------------------------------
-  !  Routine to compute T(E) and (optionally) LDOS(E)
-  !  PDOS is computed if negf%nLDOS > 0
+  !  Routine to compute T(E) and (optionally) dos_proj(E)
+  !  PDOS is computed if negf%ndos_proj > 0
   !  When only T(E) is needed, a fast algorithm is used (reduction to one block)
   !-------------------------------------------------------------------------------
   subroutine phonon_tunneling(negf)
@@ -1667,7 +1667,7 @@ contains
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
     Complex(dp) :: delta
-    Logical :: do_LEDOS            ! performs or not LDOS
+    Logical :: do_LEDOS            ! performs or not dos_proj
 
     ! Get out immediately if Emax<Emin
     if (negf%Emax.le.negf%Emin) then
@@ -1679,7 +1679,7 @@ contains
     !-------------------------------------------------------
 
     do_LEDOS = .false.
-    if(negf%nLDOS.gt.0) do_LEDOS=.true.
+    if(negf%ndos_proj.gt.0) do_LEDOS=.true.
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
@@ -1693,8 +1693,8 @@ contains
     negf%tunn_mat = 0.0_dp
 
     if (do_LEDOS) then
-       call log_allocate(negf%ldos_mat,Nstep,negf%nLDOS)
-       call log_allocate(LEDOS,negf%nLDOS)
+       call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
+       call log_allocate(LEDOS,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.d0
     endif
     !-------------------------------------------------------
@@ -1727,7 +1727,7 @@ contains
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str,TUN_MAT)
+                             & negf%str, negf%tun_proj, TUN_MAT)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
        else
@@ -1735,7 +1735,7 @@ contains
           LEDOS(:) = 0.d0
 
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                           & negf%nLDOS, negf%LDOS, negf%str, TUN_MAT, LEDOS)
+                             & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
 
           negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
           negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
@@ -1744,10 +1744,7 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
        do icont=1,ncont
-          call destroy(Tlc(icont))
-          call destroy(Tcl(icont))
-          call destroy(SelfEneR(icont))
-          call destroy(GS(icont))
+         call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
        enddo
 
     enddo !Loop on energy
