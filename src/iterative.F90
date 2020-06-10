@@ -59,7 +59,7 @@ module iterative
   public :: calculate_Gn_tridiag_blocks
   public :: calculate_Gr_outer
   public :: calculate_Gn_outer
-  !public :: Outer_A_mem_dns
+  !public :: Outer_A_dns
   public :: iterative_meir_wingreen
   public :: transmission_BP_corrected
 
@@ -197,8 +197,6 @@ CONTAINS
   !   Sum   [f_j(E)-f_r(E)] Gr Gam_j Ga
   !   j!=r
   !
-  ! NOTE: The subroutine assumes that
-  !
   !****************************************************************************
 
   subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
@@ -294,7 +292,7 @@ CONTAINS
     ! -------------------------------------------------------------
     ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
     ! 2. rbl<lbl  => lbl=rbl-2 has been computed
-    ! Make_Gr does not compute if sbl>nbl or sbl<1
+    ! calculate_Gr does not compute if sbl>nbl or sbl<1
     call calculate_Gr_tridiag_blocks(ESH,rbl)
     call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
     call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
@@ -329,7 +327,7 @@ CONTAINS
     call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
-    !NOTE:  Make_Gn_mem has factor [f_i - f_ref], hence all terms will contain this factor
+    !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
       call destroy_gsm(gsmr)
@@ -634,7 +632,6 @@ CONTAINS
       tun_mat(nn) = Trans(NumOrbs+ni,NumOrbs+nf) + dot_product(R, Trans(:,NumOrbs+nf))
     end do
 
-
     deallocate(Trans,GG)
     deallocate(R)
 
@@ -747,8 +744,7 @@ CONTAINS
     case(3)
       stop "Deprecated"
     case default
-      write(*,*) 'Elph model not yet implemented'
-      stop 0
+      stop 'Elph model not yet implemented'
     end select
 
   end subroutine update_elph_r
@@ -777,8 +773,7 @@ CONTAINS
     case(3)
       stop "Deprecated"
     case default
-      write(*,*) 'Elph model not yet implemented'
-      stop 0
+      stop 'Elph model not yet implemented'
     end select
 
   end subroutine update_elph_n
@@ -833,8 +828,7 @@ CONTAINS
       end do
       deallocate(Sigma_ph_r)
     case default
-      write(*,*) 'Elph model not yet implemented'
-      stop 0
+      stop 'Elph model not yet implemented'
     end select
 
   end subroutine add_elph_sigma_r
@@ -1030,7 +1024,7 @@ CONTAINS
 
     if (debug) then
       WRITE(*,*) '********************'
-      WRITE(*,*) 'Make_gsml_mem done'
+      WRITE(*,*) 'calculate_gsml done'
       WRITE(*,*) '********************'
     endif
 
@@ -1193,7 +1187,7 @@ CONTAINS
     nbl = size(ESH,1)
 
     if (n.GT.nbl) THEN
-      STOP 'Error in Make_Grcol_mem : n is greater than nbl'
+      STOP 'Error in calculate_Grcol : n is greater than nbl'
     endif
 
     !***************************************
@@ -1246,9 +1240,9 @@ CONTAINS
     endif
 
     if (debug) then
-      WRITE(*,*) '********************'
-      WRITE(*,*) 'Make_Grcol_mem done column',n
-      WRITE(*,*) '********************'
+      WRITE(*,*) '******************************'
+      WRITE(*,*) 'calculate_Grcol done column',n
+      WRITE(*,*) '******************************'
     endif
 
   end subroutine calculate_Gr_column_blocks
@@ -1359,7 +1353,7 @@ CONTAINS
     !if (debug) call writePeakInfo(6)
     if (debug) then
       WRITE(*,*) '**********************'
-      WRITE(*,*) 'Make_GreenR_mem done'
+      WRITE(*,*) 'calculate_GreenR done'
       WRITE(*,*) '**********************'
     endif
 
@@ -1684,66 +1678,6 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_elph_contributions
 
-  !****************************************************************************
-  !
-  ! Calculate G_p=iG> contributions due to el-ph
-  ! Writing on memory
-  !
-  !****************************************************************************
-!!$  subroutine Make_Gp_ph(negf,ESH,iter,Gp)
-!!$
-!!$    type(Tnegf) :: negf
-!!$    type(z_DNS), dimension(:,:) :: ESH, Gp
-!!$    integer :: iter
-!!$
-!!$    Type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_p
-!!$    Type(z_DNS) :: Ga, work1, work2
-!!$    integer :: n, k, nbl, nrow, ierr
-!!$
-!!$    nbl = negf%str%num_PLs
-!!$    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
-!!$    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
-!!$
-!!$
-!!$    do n = 1, nbl
-!!$
-!!$      nrow = ESH(n,n)%nrow
-!!$
-!!$      call create(Sigma_ph_p(n,n), nrow, nrow)
-!!$
-!!$      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
-!!$      if (iter .gt. 0) then
-!!$         call read_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
-!!$      else
-!!$         call write_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
-!!$      endif
-!!$
-!!$    end do
-!!$
-!!$    do n = 1, nbl
-!!$
-!!$      do k = 1, nbl
-!!$
-!!$         if (Gr(n,k)%nrow.gt.0) then
-!!$            call zdagger(Gr(n,k),Ga)
-!!$            call prealloc_mult(Gr(n,k), Sigma_ph_p(k,k), work1)
-!!$            call prealloc_mult(work1, Ga, work2)
-!!$            Gp(n,n)%val = Gp(n,n)%val + work2%val
-!!$            call destroy(work1, work2, Ga)
-!!$         endif
-!!$
-!!$      end do
-!!$
-!!$    end do
-!!$
-!!$    do n = 1, nbl
-!!$      call destroy(Sigma_ph_p(n,n))
-!!$    end do
-!!$
-!!$    DEALLOCATE(Sigma_ph_p)
-!!$
-!!$  end subroutine Make_Gp_ph
-
   subroutine blk2dns(G,str,Gdns)
     type(z_DNS), dimension(:,:), intent(in) :: G
     type(Tstruct_info), intent(in) :: str
@@ -1774,7 +1708,7 @@ CONTAINS
 
 
   !Concatenation for every contact in G_n. Performs a sum on elements, not a replacement
-  !Similar to Make_GreenR_mem2, except for sum of elements
+  !Similar to calculate_GreenR2, except for sum of elements
   !Note: to backup old version zconcat calls (and Glsub deallocations) must be
   !      uncommented and all this part removed
   !If only one block is present, concatenation is not needed and it's implemented in a
@@ -2967,112 +2901,6 @@ CONTAINS
 
   end subroutine write_blkmat
 
-  !****************************************************************************
-  !
-  !  Calculate Gn contributions for all contacts but collector, in the
-  !  contacts regions, where overlap with device orbitals is non-zero
-  !  writing on memory
-  !
-  !****************************************************************************
-
-  !subroutine Outer_A_mem_dns(Tlc,Tcl,gsurfR,struct,Aout)
-
-  !****************************************************************************
-  !Input:
-  !Tlc: sparse arraymatrices array containing contact-device interacting blocks
-  !     ESH-H
-  !Tlc: sparse arraymatrices array containing device-contact interacting blocks
-  !     ESH-H
-  !gsurfR: sparse matrices array containing contacts surface green
-  !
-  !global variables needed: nbl, indblk(nbl+1), ncont, cblk(ncont),
-  !cindblk(ncont), Gr in the diagonal block related to the interaction layer
-  !
-  !Output:
-  !Aout: sparse matrix containing density matrix in the region
-  !      corresponding to non-zero overlap
-  !
-  !****************************************************************************
-
-  !    implicit none
-
-  !In/Out
-  !    type(z_CSR), dimension(:) :: Tlc,Tcl,gsurfR
-  !    type(Tstruct_Info), intent(in) :: struct
-  !    type(z_CSR), intent(out) :: Aout
-
-  !Work
-  !    type(z_CSR) :: work1,GrCSR
-  !    type(z_CSR) :: Asub, Grlc, Grcl
-  !    integer :: i,cb,i1,j1
-  !    integer :: ncont,nrow_tot,nbl
-  !    integer, dimension(:), pointer :: indblk, cblk
-
-  !    ncont = struct%num_conts
-  !    nbl = struct%num_PLs
-  !    nrow_tot = struct%total_dim
-  !    indblk => struct%mat_PL_start
-  !    cblk => struct%cblk
-
-  !Righe totali del conduttore effettivo nrow_tot
-  !nrow_tot=indblk(nbl+1)-1
-  !do i=1,ncont
-  !   nrow_tot=nrow_tot+ncdim(i)   !gsurfR(i)%nrow
-  !end do
-  !    call create(Aout,nrow_tot,nrow_tot,0)
-  !    Aout%rowpnt(:)=1
-
-
-
-  !    do i=1,ncont
-
-  !Numero di blocco del contatto
-  !       cb=cblk(i)
-
-  !converto Gr(cb,cb) da denso a sparso
-  !       call create(GrCSR,Gr(cb,cb)%nrow,Gr(cb,cb)%ncol,Gr(cb,cb)%nrow*Gr(cb,cb)%ncol)
-  !       call dns2csr(Gr(cb,cb),GrCSR)
-
-  !Calcolo di Grlc
-  !       call prealloc_mult(GrCSR,Tlc(i),(-1.0_dp, 0.0_dp),work1)
-  !Nota: numero colonne di Tlc = numero di righe di gsurf(i)
-
-  !       call prealloc_mult(work1,gsurfR(i),Grlc)
-  !       call destroy(work1)
-
-  !Calcolo di Grcl
-  !       call prealloc_mult(gsurfR(i),Tcl(i),(-1.0_dp, 0.0_dp),work1)
-
-  !       call prealloc_mult(work1,GrCSR,Grcl)
-  !       call destroy(work1)
-
-  !Calcolo della spectral density
-  !       call zspectral(Grlc,Grcl,0,Asub)
-
-  !Dellocazione delle Green Retarded corrispondenti
-  !       call destroy(Grlc)
-  !       call destroy(Grcl)
-
-  !Concatenazione di Asub nella posizione corrispondente
-  !       i1=indblk(cb)
-  !       j1=struct%mat_B_start(i)-struct%central_dim+indblk(nbl+1)-1
-  !       call concat(Aout,Asub,i1,j1)
-  !       call destroy(Asub)
-
-  !       call destroy(GrCSR)
-
-  !    end do
-
-
-
-  !    if (debug) then
-  !       WRITE(*,*) '********************'
-  !       WRITE(*,*) 'Outer_A_mem done'
-  !       WRITE(*,*) '********************'
-  !    endif
-
-  !  end subroutine Outer_A_mem_dns
-
 
   !****************************************************************************
   !
@@ -3185,7 +3013,7 @@ CONTAINS
 
     if (debug) then
       WRITE(*,*) '********************'
-      WRITE(*,*) 'Outer_GreenR_mem done'
+      WRITE(*,*) 'Outer_GreenR done'
       WRITE(*,*) '********************'
     endif
 
@@ -3400,7 +3228,7 @@ CONTAINS
 
     if (debug) then
       WRITE(*,*) '********************'
-      WRITE(*,*) 'Outer_Gl_mem done'
+      WRITE(*,*) 'Outer_Gl done'
       WRITE(*,*) '********************'
     endif
 
@@ -3521,7 +3349,6 @@ CONTAINS
   !  Useful only when there are 2 contacts
   !                ===================
   !************************************************************************
-
 
   subroutine calculate_single_transmission_2_contacts(ni,nf,ESH,SelfEneR,cblk,tun_proj,TUN)
     integer, intent(in) :: ni,nf
@@ -3902,190 +3729,62 @@ CONTAINS
 end module iterative
 
 
-
-
-!****************************************************************************
-!
-!  Calculate Spectral Density - writing on memory
-!
-!****************************************************************************
-
-!  subroutine Make_Spectral_mem(struct,A)
-
-!****************************************************************************
-!Input:
-!nrow_tot: total device matrix rows
-!
-!global variable needed: nbl, indblk(nbl+1), Gr(:,:)
-!
-!Output:
-!A: sparse matrix containing spectral density of device (allocated internally)
-!****************************************************************************
-
-!    implicit none
-
-!In/Out
-!    type(z_CSR) :: A
-!    type(Tstruct_info) :: struct
-
-!Work
-!    integer :: i,nrow,nrow_prev,i1,j1,ierr,nrow_tot,nbl
-!    type(z_CSR), dimension(:,:), allocatable :: Asub
-!    integer, dimension(:), pointer :: indblk
-
-!    nbl = struct%num_PLs
-!    indblk => struct%mat_PL_start
-!    nrow_tot = struct%total_dim
-
-
-!Allocazione dell'array di sparse Asub e di A
-!    ALLOCATE(Asub(nbl,nbl),stat=ierr)
-!    if (ierr.NE.0) THEN
-!       STOP 'ALLOCATION ERROR: could not allocate Asub(nbl,nbl)'
-!    endif
-
-!    call create(A,nrow_tot,nrow_tot,0)
-!    A%rowpnt(:)=1
-
-!***
-!A(1,1)
-!***
-!    nrow=indblk(2)-indblk(1)
-
-!    call zspectral(Gr(1,1),Gr(1,1),0,Asub(1,1))
-
-!    call concat(A,Asub(1,1),1,1)
-!    call destroy(Asub(1,1))
-
-!***
-!Diagonal, Subdiagonal and Super diagonal blocks
-!***
-
-!    do i=2,nbl
-
-!       nrow=indblk(i+1)-indblk(i)
-
-!       i1=indblk(i)
-!       j1=indblk(i)
-
-!       call zspectral(Gr(i,i),Gr(i,i),0,Asub(i,i))
-
-!       call concat(A,Asub(i,i),i1,j1)
-!       call destroy(Asub(i,i))
-
-!       i1=indblk(i-1)
-!       j1=indblk(i)
-
-!       call zspectral(Gr(i-1,i),Gr(i,i-1),0,Asub(i-1,i))
-!       call concat(A,Asub(i-1,i),i1,j1)
-!       call destroy(Asub(i-1,i))
-
-!       i1=indblk(i)
-!       j1=indblk(i-1)
-
-!       call zspectral(Gr(i,i-1),Gr(i-1,i),0,Asub(i,i-1))
-
-!Blocks concatenation
-!       call concat(A,Asub(i,i-1),i1,j1)
-!       call destroy(Asub(i,i-1))
-
-!    end do
-
-!    DEALLOCATE(Asub)
-
-!    if (debug) then
-!       WRITE(*,*) '**********************'
-!       WRITE(*,*) 'Make_Spectral_mem done'
-!       WRITE(*,*) '**********************'
-!    endif
-
-!  end subroutine Make_Spectral_mem
-
-
-
-
-
-!****************************************************************************
-!
-!  Calculate Green Retarded - writing on memory
-!
-!****************************************************************************
-
-!!$  subroutine Make_GreenR_mem(nrow_tot,A)
+  !****************************************************************************
+  !
+  ! Calculate G_p=iG> contributions due to el-ph
+  ! Writing on memory
+  !
+  !****************************************************************************
+!!$  subroutine calculate_Gp_ph(negf,ESH,iter,Gp)
 !!$
-!!$    !****************************************************************************
-!!$    !Input:
-!!$    !nrow_tot: total device matrix rows
-!!$    !
-!!$    !global variable needed: nbl, indblk(nbl+1), Gr(:,:)
-!!$    !
-!!$    !Output:
-!!$    !A: sparse matrix containing Green Retarded of device (allocated internally)
-!!$    !****************************************************************************
+!!$    type(Tnegf) :: negf
+!!$    type(z_DNS), dimension(:,:) :: ESH, Gp
+!!$    integer :: iter
 !!$
-!!$    implicit none
+!!$    Type(z_DNS), dimension(:,:), allocatable :: Sigma_ph_p
+!!$    Type(z_DNS) :: Ga, work1, work2
+!!$    integer :: n, k, nbl, nrow, ierr
 !!$
-!!$    !In/Out
-!!$    integer :: nrow_tot
-!!$    type(z_CSR) :: A
-!!$
-!!$    !type(z_CSR), dimension(nbl,nbl) :: ESH
-!!$
-!!$    !Work
-!!$    integer :: i,nrow,i1,j1,ierr
-!!$
-!!$    call create(A,nrow_tot,nrow_tot,0)
-!!$    A%rowpnt(:)=1
-!!$
-!!$    !write(*,*) 'A created'
-!!$
-!!$    !***
-!!$    !A(1,1)
-!!$    !***
-!!$    nrow=indblk(2)-indblk(1)
-!!$
-!!$    call concat(A,Gr(1,1),1,1)
-!!$
-!!$    !***
-!!$    !Diagonal, Subdiagonal and Superdiagonal blocks
-!!$    !***
-!!$    do i=2,nbl
-!!$
-!!$       nrow=indblk(i+1)-indblk(i)
-!!$
-!!$       !       write(*,*) 'nrow=',nrow
-!!$
-!!$       i1=indblk(i)
-!!$       j1=indblk(i)
-!!$
-!!$       call concat(A,Gr(i,i),i1,j1)
-!!$
-!!$       !       write(*,*) 'Gr',i,i,'concat'
-!!$
-!!$       i1=indblk(i-1)
-!!$       j1=indblk(i)
-!!$
-!!$       call concat(A,Gr(i-1,i),i1,j1)
-!!$
-!!$       !       write(*,*) 'Gr',i-1,i,'concat'
-!!$
-!!$       i1=indblk(i)
-!!$       j1=indblk(i-1)
-!!$
-!!$       call concat(A,Gr(i,i-1),i1,j1)
-!!$
-!!$       !       write(*,*) 'Gr',i,i-1,'concat'
+!!$    nbl = negf%str%num_PLs
+!!$    ALLOCATE(Sigma_ph_p(nbl,nbl),stat=ierr)
+!!$    if (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 !!$
 !!$
-!!$       !       write(*,*) 'Gr dealloc'
+!!$    do n = 1, nbl
+!!$
+!!$      nrow = ESH(n,n)%nrow
+!!$
+!!$      call create(Sigma_ph_p(n,n), nrow, nrow)
+!!$
+!!$      Sigma_ph_p(n,n)%val = (0.0_dp, 0.0_dp)
+!!$      if (iter .gt. 0) then
+!!$         call read_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
+!!$      else
+!!$         call write_blkmat(Sigma_ph_p(n,n),negf%scratch_path,'Sigma_ph_p_',n,n,negf%iE)
+!!$      endif
 !!$
 !!$    end do
 !!$
-!!$    !if (debug) call writePeakInfo(6)
-!!$    if (debug) then
-!!$       WRITE(*,*) '**********************'
-!!$       WRITE(*,*) 'Make_GreenR_mem done'
-!!$       WRITE(*,*) '**********************'
-!!$    endif
+!!$    do n = 1, nbl
 !!$
-!!$  end subroutine Make_GreenR_mem
+!!$      do k = 1, nbl
+!!$
+!!$         if (Gr(n,k)%nrow.gt.0) then
+!!$            call zdagger(Gr(n,k),Ga)
+!!$            call prealloc_mult(Gr(n,k), Sigma_ph_p(k,k), work1)
+!!$            call prealloc_mult(work1, Ga, work2)
+!!$            Gp(n,n)%val = Gp(n,n)%val + work2%val
+!!$            call destroy(work1, work2, Ga)
+!!$         endif
+!!$
+!!$      end do
+!!$
+!!$    end do
+!!$
+!!$    do n = 1, nbl
+!!$      call destroy(Sigma_ph_p(n,n))
+!!$    end do
+!!$
+!!$    DEALLOCATE(Sigma_ph_p)
+!!$
+!!$  end subroutine calculate_Gp_ph
