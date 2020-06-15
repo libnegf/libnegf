@@ -17,13 +17,13 @@ function(find_or_build_mpifx)
 
     message("mpifx not found: adding a target to install from github")
     set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external/mpifx)
+    set(MPIFX_INCLUDE_DIR ${EXTERNAL_INSTALL_LOCATION}/include PARENT_SCOPE)
+    set(MPIFX_LIBRARY "${EXTERNAL_INSTALL_LOCATION}/lib/libmpifx.a" PARENT_SCOPE)
     ExternalProject_Add(ext_mpifx
         GIT_REPOSITORY https://github.com/dftbplus/mpifx/
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION}
     )
 
-    set(MPIFX_INCLUDE_DIR ${EXTERNAL_INSTALL_LOCATION}/include PARENT_SCOPE)
-    set(MPIFX_LIBRARY "${EXTERNAL_INSTALL_LOCATION}/lib/libmpifx.a" PARENT_SCOPE)
   endif()
 
   include_directories(${MPIFX_INCLUDE_DIR})
