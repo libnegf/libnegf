@@ -26,6 +26,6 @@ function(find_or_build_mpifx)
 
   endif()
 
-  include_directories(${MPIFX_INCLUDE_DIR})
+#   include_directories(${MPIFX_INCLUDE_DIR})
 
 endfunction()
