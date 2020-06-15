@@ -22,6 +22,7 @@ function(find_or_build_mpifx)
     ExternalProject_Add(ext_mpifx
         GIT_REPOSITORY https://github.com/dftbplus/mpifx/
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION}
+        -DCMAKE_POSITION_INDEPENDENT_CODE=${BUILD_SHARED_LIBS}
     )
 
   endif()
