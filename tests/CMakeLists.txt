@@ -10,15 +10,6 @@ set(test-directories
         f90block_partition
         )
 
-# Make BLAS and LAPACK available to be linked in the tests.
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-if(WITH_MPI)
-  set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} ${MPI_Fortran_LIBRARIES})
-else()
-  set(libs ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-endif()
-
 # Define a function wich copies over the content of the tests.
 # This is used to support out-of-source build, as the test
 # directory contain input files which we don't want to specify.
@@ -38,7 +29,7 @@ endfunction()
 function(setup_c_test testname source)
     add_executable(${testname} ${source})
     transfer_test_data(${testname})
-    target_link_libraries(${testname} negf ${libs})
+    target_link_libraries(${testname} negf)
     target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
     add_test(${testname} ${testname})
 endfunction()
@@ -47,7 +38,7 @@ endfunction()
 function(setup_f90_test testname source)
     add_executable(${testname} ${source})
     transfer_test_data(${testname})
-    target_link_libraries(${testname} negf ${libs})
+    target_link_libraries(${testname} negf)
     target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
     add_test(${testname} ${testname})
 endfunction()

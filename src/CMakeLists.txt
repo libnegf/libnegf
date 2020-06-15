@@ -65,16 +65,16 @@ target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:$<TARGET_PROPERTY:syscalls_objlib,INTERFACE_INCLUDE_DIRECTORIES>>)
 
-#target_link_libraries(negf PRIVATE sparskit)
-
 set(BUILD_MOD_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 if(WITH_MPI)
   find_package(MPI REQUIRED)
   target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
-  target_link_libraries(negf PRIVATE mpifx)
+  target_link_libraries(negf PRIVATE ${MPIFX_LIBRARY} ${MPI_Fortran_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 endif()
 
 target_include_directories(negf PUBLIC
