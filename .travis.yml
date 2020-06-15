@@ -29,5 +29,5 @@ install:
 script:
 - cd ${TRAVIS_BUILD_DIR} && mkdir _build && cd _build
 - cmake -DWITH_MPI=${WITH_MPI} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON ..
-- make -j 2
-- ctest -j 2
+- make
+- ctest
