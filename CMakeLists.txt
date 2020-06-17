@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(externalMpifx)
 
 find_program(FYPP "fypp" PATHS "${CMAKE_SOURCE_DIR}/ext_fypp/bin")

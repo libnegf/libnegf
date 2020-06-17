@@ -7,7 +7,10 @@
 #Compiled library
 *.a
 *.so
+build
 # User defined configuration
 Makefile.user
+custom.cmake
 # Test output files
 tunneling*
+
