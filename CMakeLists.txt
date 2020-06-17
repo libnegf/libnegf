@@ -32,7 +32,13 @@ option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is f
 
 # Requirements.
 find_package(BLAS REQUIRED)
+message(STATUS "BLAS found:" ${BLAS_LIBRARIES})
+message(STATUS "BLAS vendor:" ${BLAS_VENDOR_FOUND})
+message(STATUS "BLAS linker flags:" ${BLAS_LINKER_FLAGS})
 find_package(LAPACK REQUIRED)
+message(STATUS "LAPACK found:" ${LAPACK_LIBRARIES})
+message(STATUS "LAPACK linker flags:" ${LAPACK_LINKER_FLAGS})
+
 if(WITH_MPI)
   find_package(MPI REQUIRED)
   find_or_build_mpifx()
