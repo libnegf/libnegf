@@ -810,17 +810,13 @@ subroutine zinv(inA,A,n)
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
-  !integer :: lwork=n
-  INTEGER :: ipiv(n),info, lwork, NB
+  INTEGER :: ipiv(n),info
   integer, external :: ilaenv
-  complex(dp), dimension(:), allocatable  :: work
+  complex(dp), dimension(:,:), allocatable :: LU
   
-  lwork = n*ilaenv(1,'zgetri','',n,-1,-1,-1)
-
-  call log_allocate(work,lwork)
-
-  inA=A
-  call zgetrf( n, n, inA, n, ipiv, info )
+  call log_allocate(LU,n,n)
+  LU=A
+  call zgetrf( n, n, LU, n, ipiv, info )
 
   if (info.ne.0)  then
      write(*,*)
@@ -828,14 +824,20 @@ subroutine zinv(inA,A,n)
      stop
   end if
 
-  call zgetri( n, inA, n, ipiv, work, lwork, info )
+! Set inA to Identity matrix
+  inA=(0.d0, 0.d0)
+  do i=1,n
+      inA(i,i)=(1.D0,0.D0)
+  enddo
+  
+  call zgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in INVERSION part 2',info
-     stop
+      write(*,*)
+      write(*,*) 'ERROR in INVERSION part 2',info
+      stop
   end if
 
-  call log_deallocate(work)
+  call log_deallocate(LU)
   
 end subroutine zinv
 !---------------------------------------------------------------------------
