@@ -810,7 +810,7 @@ subroutine zinv(inA,A,n)
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
-  INTEGER :: ipiv(n),info
+  INTEGER :: i,ipiv(n),info
   integer, external :: ilaenv
   complex(dp), dimension(:,:), allocatable :: LU
   
