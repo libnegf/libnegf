@@ -24,7 +24,6 @@ addons:
       - libscalapack-openmpi-dev
 
 install:
-- pip3 install fypp
 
 script:
 - cd ${TRAVIS_BUILD_DIR} && mkdir _build && cd _build
