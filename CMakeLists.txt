@@ -4,7 +4,8 @@ project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(externalMpifx)
 
-find_program(FYPP "fypp" PATHS "${CMAKE_SOURCE_DIR}/ext_fypp/bin")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ext_fypp/;${CMAKE_PREFIX_PATH}")
+find_program(FYPP "fypp")
 
 set(FYPP "fypp" CACHE STRING "Fypp preprocessor")
 
