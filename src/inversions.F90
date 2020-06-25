@@ -768,37 +768,41 @@ end subroutine zINV_LAPACK
 
 
 ! --------------------------------------------------------------------------
-! Single precision inversion routine
+! Single precision inversion routine - modified as zinv
+! 
 subroutine cinv(inA,A,n)
   implicit none
-  complex, dimension(:,:) :: inA, A
+  complex(sp), dimension(:,:) :: inA, A
   integer :: n
 
-  INTEGER :: ipiv(n),info, lwork, NB
-  integer, external :: ilaenv
-  complex(dp), dimension(:), allocatable  :: work
+  INTEGER :: ipiv(n),info,i 
+  complex(sp), dimension(:,:), allocatable  :: LU
  
-  lwork = n*ilaenv(1,'cgetri','',n,-1,-1,-1)
-  call log_allocate(work,lwork)
+  call log_allocate(LU,n,n)
   
-  inA=A
+  LU=A
   call cgetrf( n, n, inA, n, ipiv, info )
 
   if (info.ne.0)  then
      write(*,*)
-     write(*,*) 'ERROR in INVERSION (cinv) part 1',info
+     write(*,*) 'ERROR in LU factorization (cgetrf)',info
      stop
   end if
+  
+  inA = (0.0_sp, 0.0_sp)
+  do i = 1, n
+    inA(i,i) = (1.0_sp, 0.0_sp)
+  end do
 
-  call cgetri( n, inA, n, ipiv, work, lwork, info )
+  call cgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
 
   if (info.ne.0)  then
      write(*,*)
-     write(*,*) 'ERROR in INVERSION (cinv) part 2',info
+     write(*,*) 'ERROR in INVERSION (cgetrs)',info
      stop
   end if
 
-  call log_deallocate(work)
+  call log_deallocate(LU)
   
 end subroutine cinv  
 

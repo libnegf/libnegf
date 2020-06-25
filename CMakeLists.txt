@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+include(externalMpifx)
 
-find_program(FYPP "fypp" PATHS "${CMAKE_SOURCE_DIR}/ext_fypp/bin")
+set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ext_fypp/;${CMAKE_PREFIX_PATH}")
+find_program(FYPP "fypp")
 
 set(FYPP "fypp" CACHE STRING "Fypp preprocessor")
 
@@ -26,12 +29,23 @@ option(INSTALL_INCLUDE_FILES "Whether module files and headers should be install
 
 option(BUILD_TESTING "Whether the tests should be built" FALSE)
 
+option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is found in the system" FALSE)
+
+# Requirements.
+find_package(BLAS REQUIRED)
+message(STATUS "BLAS found:" ${BLAS_LIBRARIES})
+message(STATUS "BLAS vendor:" ${BLAS_VENDOR_FOUND})
+message(STATUS "BLAS linker flags:" ${BLAS_LINKER_FLAGS})
+find_package(LAPACK REQUIRED)
+message(STATUS "LAPACK found:" ${LAPACK_LIBRARIES})
+message(STATUS "LAPACK linker flags:" ${LAPACK_LINKER_FLAGS})
+
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  set(MPIFX_INCLUDE_DIR "/usr/local/include/mpifx" CACHE PATH
-    "Include directory of the MPIFX library (only if built with MPI)")
+  find_or_build_mpifx()
 endif()
 
+# Subdirectories.
 add_subdirectory(ext_sparskit)
 add_subdirectory(ext_system)
 add_subdirectory(src)

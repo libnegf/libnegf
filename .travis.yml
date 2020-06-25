@@ -24,14 +24,9 @@ addons:
       - libscalapack-openmpi-dev
 
 install:
-- pip3 install fypp
-- git clone https://github.com/dftbplus/mpifx.git
-- cd mpifx && mkdir _build && cd _build
-- cmake -DCMAKE_INSTALL_PREFIX=/usr/  -DINSTALL_MOD_DIR=/usr/include/mpifx -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} ..
-- make && sudo make install
 
 script:
 - cd ${TRAVIS_BUILD_DIR} && mkdir _build && cd _build
-- cmake -DWITH_MPI=${WITH_MPI} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON -DMPIFX_INCLUDE_DIR=/usr/include/mpifx ..
-- make -j 2
-- ctest -j 2
+- cmake -DWITH_MPI=${WITH_MPI} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DBUILD_TESTING=ON ..
+- make
+- ctest
