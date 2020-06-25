@@ -29,8 +29,12 @@ function(find_or_build_mpifx)
         -DCMAKE_POSITION_INDEPENDENT_CODE=${BUILD_SHARED_LIBS}
 	  -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
 	  -DCMAKE_Fortran_FLAGS=${CMAKE_Fortran_FLAGS}
-	  -DCMAKE_Fortran_FLAGS_RELEASE=${CMAKE_Fortran_FLAGS_RELEASE}
+    -DCMAKE_Fortran_FLAGS_RELEASE=${CMAKE_Fortran_FLAGS_RELEASE}
+    -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
     )
+
+    add_library(mpifx STATIC IMPORTED)
+    set_target_properties(mpifx PROPERTIES IMPORTED_LOCATION ${MPIFX_LIB})
 
   endif()
 
