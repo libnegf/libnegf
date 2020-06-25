@@ -810,62 +810,71 @@ subroutine zinv(inA,A,n)
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
-  !integer :: lwork=n
-  INTEGER :: ipiv(n),info, lwork, NB
-  integer, external :: ilaenv
-  complex(dp), dimension(:), allocatable  :: work
-  
-  lwork = n*ilaenv(1,'zgetri','',n,-1,-1,-1)
+  INTEGER :: ipiv(n), info, i
+  complex(dp), dimension(:,:), allocatable  :: LU 
 
-  call log_allocate(work,lwork)
+  call log_allocate(LU,n,n)
 
-  inA=A
-  call zgetrf( n, n, inA, n, ipiv, info )
+  LU=A
+  call zgetrf( n, n, LU, n, ipiv, info )
 
   if (info.ne.0)  then
      write(*,*)
-     write(*,*) 'ERROR in INVERSION part 1',info
+     write(*,*) 'ERROR in LU factorization (zgetrf)',info
      stop
   end if
 
-  call zgetri( n, inA, n, ipiv, work, lwork, info )
+  inA = (0.0_dp, 0.0_dp)
+  do i = 1, n
+    inA(i,i) = (1.0_dp, 0.0_dp)
+  end do
+
+  call zgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
   if (info.ne.0)  then
      write(*,*)
-     write(*,*) 'ERROR in INVERSION part 2',info
+     write(*,*) 'ERROR in INVERSION (zgetrs)',info
      stop
   end if
 
-  call log_deallocate(work)
+  call log_deallocate(LU)
   
 end subroutine zinv
+
 !---------------------------------------------------------------------------
-!---------- INTERFACE FOR LAPACK INVERSION (SYMMETRIC MATRICES) -------------
+! Modified like zinv
+!---------------------------------------------------------------------------
 subroutine rinv(inA,A,n)
   Implicit none
   real(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
-  INTEGER :: ipiv(n),info, lwork, NB
-  integer, external :: ilaenv
-  complex(dp), dimension(:), allocatable  :: work
+  INTEGER :: ipiv(n), info, i
+  complex(dp), dimension(:,:), allocatable  :: LU 
  
-  lwork = n * ilaenv(1,'dgetri','',N,-1,-1,-1)
+  call log_allocate(LU,n,n)
+  
+  LU=A
+  call  dgetrf(n, n, LU, n, ipiv, info )
 
-  call log_allocate(work,lwork)
-  
-  inA=A
-  call  dgetrf(n, n, inA, n, ipiv, info )
   if (info.ne.0)  then
-     write(*,*) 'ERROR in INVERSION part 1',info
-     stop
-  end if
-  call dgetri( n, inA, n, ipiv, work, lwork, info )
-  if (info.ne.0)  then
-     write(*,*) 'ERROR in INVERSION part 2',info
+     write(*,*)
+     write(*,*) 'ERROR in LU factorization (dgetrf)',info
      stop
   end if
   
-  call log_deallocate(work)
+  inA = 0.0_dp
+  do i = 1, n
+    inA(i,i) = 1.0_dp
+  end do
+
+  call dgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
+  if (info.ne.0)  then
+     write(*,*)
+     write(*,*) 'ERROR in INVERSION (dgetrs)',info
+     stop
+  end if
+
+  call log_deallocate(LU)
 
 end subroutine rinv
 
