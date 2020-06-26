@@ -5,9 +5,9 @@ function(find_or_build_mpifx)
 
   # mpifx provided as target by top project.
   if (TARGET mpifx)
-    set(MPIFX_LIB $<TARGET_FILE:mpifx>)
     message(STATUS "MPIFX library: ${MPIFX_LIB}")
     message(STATUS "MPIFX includes: ${MPIFX_INCLUDE_DIR}")
+    return()
   endif()
 
   # mpifx provided as path to existing library.
@@ -23,17 +23,29 @@ function(find_or_build_mpifx)
 
   # mpifx searched as system library.
   find_library(
-      MPIFX_LIB_SYSTEM
+      MPIFX_LIB_FIND
       NAMES mpifx
       PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64
       DOC "Find system mpifx")
-  get_filename_component(MPIFX_DIRECTORY "${MPIFX_LIB}" DIRECTORY)
-  set(MPIFX_INCLUDE_DIR "${MPIFX_DIRECTORY}/../include")
-  set(MPIFX_LIB "${MPIFX_LIB_SYSTEM}")
-  message(STATUS "MPIFX found: ${MPIFX_LIB}")
+  find_path(
+      MPIFX_INCLUDE_DIR_FIND
+      NAMES libmpifx_module.mod
+      PATHS /usr/lib/mpifx /usr/lib64/mpifx /usr/local/ /usr/local/mpifx
+      PATH_SUFFIXES include includes modfiles modules
+  )
+  set(MPIFX_LIB "${MPIFX_LIB_FIND}")
+  set(MPIFX_INCLUDE_DIR "${MPIFX_INCLUDE_DIR_FIND}")
+  if (MPIFX_LIB)
+    message(STATUS "MPIFX found: ${MPIFX_LIB}")
+  endif()
+  if (MPIFX_INCLUDE_DIR)
+    message(STATUS "MPIFX include found: ${MPIFX_INCLUDE_DIR}")
+  endif()
+
+  add_library(mpifx UNKNOWN IMPORTED)
 
   # Everything failed: pull and compile from github.
-  if (NOT MPIFX_LIB OR NOT EXISTS "${MPIFX_INCLUDE_DIR}/libmpifx_module.mod" OR FORCE_MPIFX_INSTALL)
+  if (NOT MPIFX_LIB OR NOT MPIFX_INCLUDE_DIR OR FORCE_MPIFX_INSTALL)
     message(STATUS "MPIFX: installing from https://github.com/dftbplus/mpifx/")
     set(EXTERNAL_INSTALL_LOCATION ${CMAKE_BINARY_DIR}/external/mpifx)
     ExternalProject_Add(ext_mpifx
@@ -48,12 +60,10 @@ function(find_or_build_mpifx)
 
     set(MPIFX_INCLUDE_DIR ${EXTERNAL_INSTALL_LOCATION}/include)
     set(MPIFX_LIB "${EXTERNAL_INSTALL_LOCATION}/lib/libmpifx.a")
-
-    endif()
+    add_dependencies(mpifx ext_mpifx)
+  endif()
 
   set(MPIFX_INCLUDE_DIR ${MPIFX_INCLUDE_DIR} PARENT_SCOPE)
-  set(MPIFX_LIB ${MPIFX_LIB} PARENT_SCOPE)
-  add_library(mpifx UNKNOWN IMPORTED)
   set_property(TARGET mpifx PROPERTY IMPORTED_LOCATION ${MPIFX_LIB})
 
 endfunction()
