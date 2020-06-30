@@ -87,9 +87,9 @@ contains
        allocate(str%mat_B_start(ncont))
        allocate(str%mat_C_start(ncont))
        allocate(str%mat_C_end(ncont))
-       allocate(str%cblk(ncont))
        allocate(str%cont_dim(ncont))
-    endif
+     endif
+     allocate(str%cblk(ncont))
 
     if(ncont.gt.0) then
        str%mat_B_start(1) =  PL_end(nbl)+1
