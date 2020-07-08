@@ -92,19 +92,7 @@ contains
        allocate(str%cont_dim(ncont))
     endif
 
-    ! Alex debug. Here the subroutine assumes the contact are defined
-    ! by increasing indexes. We remove the unused surface for now.
-    if(ncont.gt.0) then
-       str%mat_B_start(1) =  surf_start(1)
-       str%mat_C_start(1) =  surf_end(1)+1 
-       str%mat_C_end(1)   =  cont_end(1)    
-       str%mat_B_start(1) =  str%mat_C_start(1) 
-       str%cblk(1) = cblk(1)
-       str%cont_dim(1) =  str%mat_C_end(1) - str%mat_B_start(1) + 1
-    endif
-       
-
-    do i=2,ncont
+    do i=1,ncont
        str%mat_B_start(i) = surf_start(i)
        str%mat_C_start(i) = surf_end(i) + 1 
        str%mat_C_end(i)   = cont_end(i)

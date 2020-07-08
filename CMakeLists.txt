@@ -35,16 +35,16 @@ option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is f
 
 option(LINK_LAPACK "Link LAPACK dependencies" TRUE)
 
-if(LAPACK_LIBRARIES AND LAPACK_LIBRARY_DIR)
+if(LAPACK_LIBRARIES AND LAPACK_LIBRARY_DIRS)
   message(STATUS "libNEGF BLAS: " ${BLAS_LIBRARIES})
   message(STATUS "libNEGF LAPACK: " ${LAPACK_LIBRARIES})
-  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIR})
+  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIRS})
 else()	
   message(STATUS "libNEGF MKLROOT: " $ENV{MKLROOT})
   find_package(LAPACK REQUIRED)
   message(STATUS "libNEGF BLAS found: " ${BLAS_LIBRARIES})
   message(STATUS "libNEGF LAPACK found: " ${LAPACK_LIBRARIES})
-  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIR})
+  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIRS})
 endif()
 
 if(WITH_MPI)
