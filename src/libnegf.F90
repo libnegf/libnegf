@@ -458,10 +458,10 @@ contains
   !!  surfend = [60, 80]
   !!  npl = 1
   !!  plend = [60]
-  subroutine init_structure(negf, ncont, contend, surfend, npl, plend, cblk)
+  subroutine init_structure(negf, ncont, surfstart, surfend, contend, npl, plend, cblk)
      type(Tnegf) :: negf
      integer, intent(in) :: ncont
-     integer, intent(in) :: contend(:), surfend(:)
+     integer, intent(in) :: surfstart(:), surfend(:), contend(:)
      integer, intent(in) :: npl
      integer, intent(in) :: plend(:)
      integer, intent(in) :: cblk(:)
@@ -475,13 +475,17 @@ contains
        stop "Error in set_structure: ncont not compatible with previous initialization."
      end if
      ! More sanity checks.
-     if (size(contend) .ne. ncont) then
-       write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont     
-       stop "Error in set_structure: contend and ncont mismatch"
+     if (size(surfstart) .ne. ncont) then
+       write(*, *) 'size(surfstart)=',size(surfstart),'<->  ncont=',ncont     
+       stop "Error in set_structure: surfend and ncont mismatch"
      end if
      if (size(surfend) .ne. ncont) then
        write(*, *) 'size(surfend)=',size(surfend),'<->  ncont=',ncont     
        stop "Error in set_structure: surfend and ncont mismatch"
+     end if
+     if (size(contend) .ne. ncont) then
+       write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont     
+       stop "Error in set_structure: contend and ncont mismatch"
      end if
      if (npl .ne. 0 .and. size(plend) .ne. npl) then
        write(*, *) 'size(plend)=',size(plend),'<->  npl=',npl    
@@ -489,15 +493,16 @@ contains
      end if
 
      if (npl .eq. 0) then
+       ! supposedly performs an internal block partitioning but it is not reliable.     
        call log_allocate(plend_tmp, MAXNUMPLs)
        call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
        call log_allocate(cblk_tmp, MAXNUMPLs)
-       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, contend, surfend, cblk_tmp)
-       call create_Tstruct(ncont, npl_tmp, plend_tmp, contend, surfend, cblk_tmp, negf%str)
+       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk_tmp)
+       call create_Tstruct(ncont, npl_tmp, plend_tmp, surfstart, surfend, contend, cblk_tmp, negf%str)
        call log_deallocate(plend_tmp)
        call log_deallocate(cblk_tmp)
      else
-       call create_Tstruct(ncont, npl, plend, contend, surfend, cblk, negf%str)
+       call create_Tstruct(ncont, npl, plend, surfstart, surfend, contend, cblk, negf%str)
      end if
 
   end subroutine init_structure
@@ -885,11 +890,12 @@ contains
   !> Initialize and set parameters from input file negf.in
   subroutine read_negf_in(negf)
     type(Tnegf) :: negf
-    Integer :: ncont, nbl, ii, jj, ist, iend
-    Integer, dimension(:), allocatable :: PL_end, cont_end, surf_end
+    
+    integer :: ncont, nbl, ii, jj, ist, iend
+    integer, dimension(:), allocatable :: PL_end, cont_end, surf_end
+    integer, dimension(:), allocatable :: surf_start, cblk 
     character(32) :: tmp
     character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
-    integer, dimension(:), allocatable :: cblk
 
     open(101, file="negf.in", form='formatted')
 
@@ -912,23 +918,26 @@ contains
     !! Used for debug
     read(101,*) tmp, ncont
     call log_allocate(cblk, ncont)
+    call log_allocate(surf_start,ncont)
+    call log_allocate(surf_end,ncont)
     call log_allocate(cont_end,ncont)
-    surf_end = cont_end
-    !call log_allocate(surf_end,ncont)
+    
     read(101,*) tmp, nbl
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
        read(101,*) tmp, PL_end(1:nbl)
     end if
-    read(101,*) tmp, cont_end(1:ncont)
+    read(101,*) tmp, surf_start(1:ncont)
     read(101,*) tmp, surf_end(1:ncont)
-
-    call find_cblocks(negf%H, ncont, nbl, PL_end, cont_end, surf_end, cblk)
-    call init_structure(negf, ncont, cont_end, surf_end, nbl, PL_end, cblk)
+    read(101,*) tmp, cont_end(1:ncont)
+  
+    call find_cblocks(negf%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
+    call init_structure(negf, ncont, surf_start, surf_end, cont_end, nbl, PL_end, cblk)
 
     call log_deallocate(PL_end)
     call log_deallocate(cont_end)
     call log_deallocate(surf_end)
+    call log_deallocate(surf_start)
     call log_deallocate(cblk)
 
     read(101,*)  tmp, negf%Ec, negf%Ev
@@ -971,8 +980,6 @@ contains
     negf%cont(1:ncont)%mu = negf%cont(1:ncont)%mu_n
 
     close(101)
-
-    !print*, '(init NEGF) done'
 
   end subroutine read_negf_in
 
@@ -1843,13 +1850,13 @@ contains
   end subroutine errormsg
 
 !----------------------------------------------------------------------------
-  subroutine find_cblocks(mat ,ncont, nbl, PL_end, cont_end, surf_end, cblk)
+  subroutine find_cblocks(mat ,ncont, nbl, PL_end, surf_start, cont_end, cblk)
     type(z_CSR), intent(in) :: mat
     integer, intent(in) :: ncont
     integer, intent(in) :: nbl
     integer, dimension(:), intent(in) :: PL_end
+    integer, dimension(:), intent(in) :: surf_start
     integer, dimension(:), intent(in) :: cont_end
-    integer, dimension(:), intent(in) :: surf_end
     integer, dimension(:), allocatable, intent(out) :: cblk
 
     integer :: j1,k,i,min,max
@@ -1870,7 +1877,7 @@ contains
        max = 0
        min = 400000000
 
-       do k = surf_end(j1)+1, cont_end(j1)
+       do k = surf_start(j1), cont_end(j1)
 
           do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
 

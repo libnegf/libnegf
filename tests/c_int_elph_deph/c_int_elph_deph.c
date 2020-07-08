@@ -12,6 +12,7 @@ int main()
   int *hand = &handler[0];
   char realmat[7] = "HR.dat";
   char imagmat[7] = "HI.dat";
+  int surfstart[2] = {61,81};
   int surfend[2] = {60,80};
   int contend[2] = {80,100};
   int plend[6] = {10, 20, 30, 40, 50, 60};
@@ -19,6 +20,7 @@ int main()
   double currents[1];
   double coupling[60];
   int leadpairs;
+  int i;
   int foo[1] = {0};
 
   printf("Initializing libNEGF \n");
@@ -27,7 +29,7 @@ int main()
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
   negf_set_s_id(hand, 100);
   negf_init_contacts(hand, 2);
-  negf_init_structure(hand, 2, &contend[0], &surfend[0], 6, &plend[0], &cblk[0]);
+  negf_init_structure(hand, 2, &surfstart[0], &surfend[0], &contend[0], 6, &plend[0], &cblk[0]);
 
   //Set parameters
   negf_get_params(hand, &params);
@@ -42,7 +44,7 @@ int main()
   negf_set_params(hand, &params);
 
   // Set the dephasing model.
-  for (int i = 0; i < 60; ++i)
+  for (i = 0; i < 60; ++i)
   {
     coupling[i] = 0.05;
   }

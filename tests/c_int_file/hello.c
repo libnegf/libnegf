@@ -12,6 +12,7 @@ int main()
   char realmat[7] = "HR.dat";
   char imagmat[7] = "HI.dat";
   struct lnparams params;
+  int surfstart[2] = {61,81};
   int surfend[2] = {60,80};
   int contend[2] = {80,100};
   int plend[1] = {60};

@@ -10,9 +10,11 @@ find_program(FYPP "fypp")
 set(FYPP "fypp" CACHE STRING "Fypp preprocessor")
 
 option(WITH_MPI "Whether MPI-parallelised library should be built" FALSE)
+message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
 
 # Note, this option does not work yet, so leave it to false
 option(WITH_INELASTIC "Whether to build with inelastic scattering" FALSE)
+message(STATUS "libNEGF WITH_INELASTIC: " ${WITH_INELASTIC})
 
 set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH
   "Installation directory for libraries")
@@ -27,18 +29,23 @@ option(BUILD_SHARED_LIBS "Whether the library should be shared" FALSE)
 
 option(INSTALL_INCLUDE_FILES "Whether module files and headers should be installed" TRUE)
 
-option(BUILD_TESTING "Whether the tests should be built" FALSE)
+option(BUILD_TESTING "Whether the tests should be built" TRUE)
 
 option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is found in the system" FALSE)
 
-# Requirements.
-find_package(BLAS REQUIRED)
-message(STATUS "BLAS found:" ${BLAS_LIBRARIES})
-message(STATUS "BLAS vendor:" ${BLAS_VENDOR_FOUND})
-message(STATUS "BLAS linker flags:" ${BLAS_LINKER_FLAGS})
-find_package(LAPACK REQUIRED)
-message(STATUS "LAPACK found:" ${LAPACK_LIBRARIES})
-message(STATUS "LAPACK linker flags:" ${LAPACK_LINKER_FLAGS})
+option(LINK_LAPACK "Link LAPACK dependencies" TRUE)
+
+if(LAPACK_LIBRARIES AND LAPACK_LIBRARY_DIR)
+  message(STATUS "libNEGF BLAS: " ${BLAS_LIBRARIES})
+  message(STATUS "libNEGF LAPACK: " ${LAPACK_LIBRARIES})
+  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIR})
+else()	
+  message(STATUS "libNEGF MKLROOT: " $ENV{MKLROOT})
+  find_package(LAPACK REQUIRED)
+  message(STATUS "libNEGF BLAS found: " ${BLAS_LIBRARIES})
+  message(STATUS "libNEGF LAPACK found: " ${LAPACK_LIBRARIES})
+  message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIR})
+endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)

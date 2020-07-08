@@ -138,12 +138,13 @@ end subroutine negf_init
 !! partitioning is invoked.
 !! @param [in] handler:  handler Number for the LIBNEGF instance
 !! @param [int] ncont (int): the number of contacts.
+!! @param [int] surfstart (array): the first index of each contact (size ncont)
+!! @param [int] surfend (array): the last index of contact surface (size ncont)
 !! @param [int] contend (array): the last index of each contact (size ncont)
-!! @param [int] surfend (array): the last index before each contact (size ncont)
 !! @param [int] npl (int): the number of principal layers
 !! @param [int] plend (array): the indices of the layer end (size npl)
 !! @param [int] cblks (array): the indices of the blocks interacting with the contacts (size ncont)
-subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cblk) bind(c)
+subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl, plend, cblk) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
@@ -151,26 +152,30 @@ subroutine negf_init_structure(handler, ncont, contend, surfend, npl, plend, cbl
   integer(c_int), intent(inout) :: handler(DAC_handlerSize)  ! if:var:inout
   integer(c_int), intent(in), value :: ncont ! if:var:inout
   integer(c_int), intent(in), value :: npl ! if:var:inout
+  integer(c_int), intent(in) :: surfstart(*) ! if:var:inout
   integer(c_int), intent(in) :: surfend(*) ! if:var:inout
   integer(c_int), intent(in) :: contend(*) ! if:var:inout
   integer(c_int), intent(in) :: plend(*)   ! if:var:inout
   integer(c_int), intent(in) :: cblk(*) ! if:var:inout
 
-  integer, allocatable :: surfend_al(:), contend_al(:), plend_al(:), cblk_al(:)
+  integer, allocatable :: surfstart_al(:), surfend_al(:), contend_al(:)
+  integer, allocatable :: plend_al(:), cblk_al(:)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
 
+  allocate(surfstart_al(ncont))
   allocate(surfend_al(ncont))
   allocate(contend_al(ncont))
   allocate(cblk_al(ncont))
   allocate(plend_al(npl))
   plend_al(1:npl) = plend(1:npl)
+  surfstart_al(1:ncont) = surfstart(1:ncont)
   surfend_al(1:ncont) = surfend(1:ncont)
   contend_al(1:ncont) = contend(1:ncont)
   cblk_al(1:ncont) = cblk(1:ncont)
 
-  call init_structure(LIB%pNEGF, ncont, contend_al, surfend_al, npl, plend_al, cblk_al)
+  call init_structure(LIB%pNEGF, ncont, surfstart_al, surfend_al, contend_al, npl, plend_al, cblk_al)
 
 end subroutine negf_init_structure
 

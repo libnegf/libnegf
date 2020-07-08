@@ -2766,7 +2766,10 @@ CONTAINS
     integer :: nnz
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       STOP 'ERROR (zextract_csr): bad indeces specification';
+       print*, 'ERROR (zextract_csr): bad indeces specification';
+       print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol  
+       print*, 'Indices Rows',i1,i2,'Cols',j1,j2  
+       STOP
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
@@ -2792,7 +2795,10 @@ CONTAINS
     integer :: i,k
 
     IF ((i1.GT.i2).OR.(j1.GT.j2).OR.(i2.GT.A_csr%nrow).OR.(j2.GT.A_csr%ncol)) THEN
-       STOP 'ERROR (zextract_dns): bad indeces specification';
+       print*, 'ERROR (zextract_dns): bad indeces specification';
+       print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol  
+       print*, 'Indices Rows',i1,i2,'Cols',j1,j2  
+       STOP 
     ENDIF
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
