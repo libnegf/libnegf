@@ -28,10 +28,11 @@ program hello
   Type(Tnegf), target :: negf
   Type(Tnegf), pointer :: pnegf
   Type(lnParams) :: params
-  integer, allocatable :: surfend(:), contend(:), plend(:), cblk(:)
+  integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:)
   real(kind(1.d0)), dimension(:,:), pointer :: transmission
 
+  surfstart = [61,81]
   surfend = [60,80]
   contend = [80,100]
   plend = [60]
@@ -48,7 +49,7 @@ program hello
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
-  call init_structure(pnegf, 2, contend, surfend, 1, plend, cblk)
+  call init_structure(pnegf, 2, surfstart, surfend, contend, 1, plend, cblk)
 
   ! Here we set the parameters, only the ones different from default
   call get_params(pnegf, params)

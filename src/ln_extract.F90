@@ -49,6 +49,7 @@ contains
 
     ncont =  negf%str%num_conts
     do i=1,ncont
+       !print*, '(Cont)',i,negf%str%mat_C_start(i),negf%str%mat_B_start(i),negf%str%mat_C_end(i)
        cstart(i) = negf%str%mat_B_start(i)
        cend(i)   = negf%str%mat_C_end(i)
        ncdim(i)  = cend(i)-cstart(i)+1

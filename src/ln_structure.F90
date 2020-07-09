@@ -58,14 +58,15 @@ contains
   ! ncont:                   number of contacts
   ! nbl:                     number of PLs
   ! PL_end(nbl)              array of size nbl with the end of each block
-  ! cont_end(ncont)          array containing the end of each contact
+  ! surf_start(ncont)          array containing the start of each contact surface
   ! surf_end(ncont)          array containing the end of each contact surface
+  ! cont_end(ncont)          array containing the end of each contact
   ! cblk(ncont)              array containing the PL-contact position
   !
-  subroutine create_TStruct(ncont, nbl, PL_end, cont_end, surf_end, cblk, str)
+  subroutine create_TStruct(ncont, nbl, PL_end, surf_start, surf_end, cont_end, cblk, str)
     integer, intent(in) :: ncont
     integer, intent(in) :: nbl
-    integer, dimension(:) :: PL_end, cont_end, surf_end, cblk   
+    integer, dimension(:), intent(in) :: PL_end, surf_start, surf_end, cont_end, cblk   
     type(TStruct_Info), intent(inout) :: str
 
     
@@ -91,17 +92,8 @@ contains
      endif
      allocate(str%cblk(ncont))
 
-    if(ncont.gt.0) then
-       str%mat_B_start(1) =  PL_end(nbl)+1
-       str%mat_C_start(1) =  surf_end(1)+1 
-       str%mat_C_end(1)   =  cont_end(1)    
-       str%cblk(1) = cblk(1)
-       str%cont_dim(1) =  str%mat_C_end(1) - str%mat_B_start(1) + 1
-    endif
-       
-
-    do i=2,ncont
-       str%mat_B_start(i) = cont_end(i-1) + 1  
+    do i=1,ncont
+       str%mat_B_start(i) = surf_start(i)
        str%mat_C_start(i) = surf_end(i) + 1 
        str%mat_C_end(i)   = cont_end(i)
        str%cblk(i) = cblk(i)

@@ -28,12 +28,13 @@ program test_block_partition
   Type(Tnegf), target :: negf
   Type(Tnegf), pointer :: pnegf
   Type(lnParams) :: params
-  integer, allocatable :: surfend(:), contend(:), plend(:), cblk(:)
+  integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:)
   real(kind(1.d0)), dimension(:,:), pointer :: transmission
 
   ! Use the the partition algorithm on a linear chain.
   ! We should get blocks of the minimum allowed size (2).
+  surfstart = [61,81]
   surfend = [60,80]
   contend = [80,100]
   mu = [0.d0, 0.d0]
@@ -46,7 +47,7 @@ program test_block_partition
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
-  call init_structure(pnegf, 2, contend, surfend, 0, plend, cblk)
+  call init_structure(pnegf, 2, surfstart, surfend, contend, 0, plend, cblk)
 
   ! Verify that the structure is correct. We should have
   ! 30 blocks and interaction with the first and last.
