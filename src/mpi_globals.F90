@@ -37,15 +37,15 @@ module mpi_globals
 
   contains
 
-    subroutine negf_mpi_init(energyComm, ioMaster)
+    subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
-      logical, optional :: ioMaster
+      logical, optional :: ioProc
 
       id =energyComm%rank
       numprocs = energyComm%size
 
-      if (present(ioMaster)) then
-        id0 = ioMaster
+      if (present(ioProc)) then
+        id0 = ioProc
       else
         id0 = (id == 0)
       end if

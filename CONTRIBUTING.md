@@ -5,7 +5,7 @@ How to contribute
 =================
 
 The preferred method is to fork the project on and then create a
-pull request. Your changes should be based on the master branch. Before you
+pull request. Your changes should be based on the default branch. Before you
 start, please read the style convention below.
 
 libNEGF has been contributed by several authors, and a lot of the code
