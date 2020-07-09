@@ -29,7 +29,7 @@ option(BUILD_SHARED_LIBS "Whether the library should be shared" FALSE)
 
 option(INSTALL_INCLUDE_FILES "Whether module files and headers should be installed" TRUE)
 
-option(BUILD_TESTING "Whether the tests should be built" TRUE)
+option(BUILD_TESTING "Whether the tests should be built" FALSE)
 
 option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is found in the system" FALSE)
 
