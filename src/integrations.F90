@@ -1636,9 +1636,7 @@ contains
 
     negf%currents=0.d0
     do ii=1,size_ni
-       mu1=negf%cont(negf%ni(ii))%mu
-       mu2=negf%cont(negf%nf(ii))%mu
-       negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), mu1, mu2, &
+       negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), &
                           & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
@@ -1871,12 +1869,12 @@ contains
   ! Function to integrate the current density I(E) !!! and get the current
   ! for meir_wingreen
   !************************************************************************
-  function integrate_el_meir_wingreen(TUN_TOT,mu1,mu2,emin,emax,estep,spin_g)
+  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep,spin_g)
 
     implicit none
 
     real(dp) :: integrate_el_meir_wingreen
-    real(dp), intent(in) :: mu1,mu2,emin,emax,estep
+    real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: spin_g
 
