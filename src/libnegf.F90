@@ -92,6 +92,9 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
+ public :: compute_dephasing_transmission ! high-level wrapping routines
+                                          ! Extract HM and SM
+                                          ! run total current calculation
 
  public ::  write_tunneling_and_dos ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed
@@ -1444,7 +1447,7 @@ contains
   !> Since the "real" landauer-like formula is not implemented yet, we use
   !> a dirty trick only valid for 2 contacts.
   !! @param negf input/output container
-  subroutine compute_effective_transmission(negf)
+  subroutine compute_dephasing_transmission(negf)
 
     type(Tnegf) :: negf
     real(dp), allocatable, dimension(:) :: mu
@@ -1453,10 +1456,15 @@ contains
       error stop "Effective transmission is only supported for 2 electrodes"
     end if
 
+    if (negf%elph%model .gt. 3) then
+      error stop "Effective transmission is only supported for 2 electrodes"
+    end if
+
     call extract_cont(negf)
     call tunneling_int_def(negf)
     ! Dirty trick. Set the chemical potential such that the energy resolved current
-    ! is indeed a transmission.
+    ! is indeed a transmission. To make sure that the Fermi distribution is
+    ! either 1 or 0 we take a large number of kt (20) as buffer.
     mu = (/ negf%cont(1)%mu, negf%cont(2)%mu /)
     if (mu(1) .le. mu(2)) then
       negf%cont(1)%mu = negf%Emin - 20 * negf%cont(1)%kbT_t
@@ -1478,7 +1486,7 @@ contains
     call electron_current(negf)
     call destroy_matrices(negf)
 
-  end subroutine compute_effective_transmission
+  end subroutine compute_dephasing_transmission
 
   !-------------------------------------------------------------------------------
   !> Calculate current, tunneling and, if specified, density of states using
@@ -1487,11 +1495,6 @@ contains
   subroutine compute_meir_wingreen(negf)
 
     type(Tnegf) :: negf
-
-    if (negf%str%num_conts .eq. 2) then
-      call compute_effective_transmission(negf)
-      return
-    end if
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
