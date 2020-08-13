@@ -1450,7 +1450,7 @@ contains
   subroutine compute_dephasing_transmission(negf)
 
     type(Tnegf) :: negf
-    real(dp), allocatable, dimension(:) :: mu
+    real(dp), allocatable, dimension(:) :: occupations
 
     if (negf%str%num_conts .ne. 2) then
       error stop "Effective transmission is only supported for 2 electrodes"
@@ -1462,26 +1462,22 @@ contains
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    ! Dirty trick. Set the chemical potential such that the energy resolved current
-    ! is indeed a transmission. To make sure that the Fermi distribution is
-    ! either 1 or 0 we take a large number of kt (20) as buffer.
-    mu = (/ negf%cont(1)%mu, negf%cont(2)%mu /)
-    if (mu(1) .le. mu(2)) then
-      negf%cont(1)%mu = negf%Emin - 20 * negf%cont(1)%kbT_t
-      negf%cont(2)%mu = negf%Emax + 20 * negf%cont(2)%kbT_t
+    ! Dirty trick. Set the contact population to 1 or 0 on the reference (depending
+    ! whether maximum or minimum chemical potential was chosen), and opposite on the
+    ! other contact.
+    allocate(occupations(2))
+    if (negf%min_or_max .eq. 0) then
+      occupations(negf%refcont) = 0
+      occupations(mod(negf%refcont, 2) + 1) = 1
     else
-      negf%cont(2)%mu = negf%Emin - 20 * negf%cont(2)%kbT_t
-      negf%cont(1)%mu = negf%Emax + 20 * negf%cont(1)%kbT_t
+      occupations(negf%refcont) = 1
+      occupations(mod(negf%refcont, 2) + 1) = 0
     end if
 
-    call meir_wingreen(negf)
+    call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
     ! TODO: check why I need to flip sign here. How is the sign convention for the current?
     negf%tunn_mat = - negf%curr_mat
-
-    ! Restore the correct chemical potential for integration.
-    negf%cont(1)%mu = mu(1)
-    negf%cont(2)%mu = mu(2)
 
     call electron_current(negf)
     call destroy_matrices(negf)
