@@ -1457,27 +1457,20 @@ contains
     end if
 
     if (negf%elph%model .gt. 3) then
-      error stop "Effective transmission is only supported for 2 electrodes"
+      error stop "Effective transmission is only supported for dephasing models"
     end if
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    ! Dirty trick. Set the contact population to 1 or 0 on the reference (depending
-    ! whether maximum or minimum chemical potential was chosen), and opposite on the
-    ! other contact.
+    ! Dirty trick. Set the contact population to 1 on the final contact and
+    ! 1 on the initial one.
     allocate(occupations(2))
-    if (negf%min_or_max .eq. 0) then
-      occupations(negf%refcont) = 0
-      occupations(mod(negf%refcont, 2) + 1) = 1
-    else
-      occupations(negf%refcont) = 1
-      occupations(mod(negf%refcont, 2) + 1) = 0
-    end if
+    occupations(negf%ni(1)) = 0.d0
+    occupations(negf%nf(1)) = 1.d0
 
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
-    ! TODO: check why I need to flip sign here. How is the sign convention for the current?
-    negf%tunn_mat = - negf%curr_mat
+    negf%tunn_mat = negf%curr_mat
 
     call electron_current(negf)
     call destroy_matrices(negf)
