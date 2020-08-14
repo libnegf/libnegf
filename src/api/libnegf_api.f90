@@ -579,39 +579,6 @@ subroutine negf_solve_density_dft(handler) bind(C)
 end subroutine negf_solve_density_dft
 
 
-!>
-!! Get current value for a specific couple of leads
-!!  @param[in] handler: handler Number for the LIBNEGF instance
-!! @param [in] lead_pair: specifies which leads are considered
-!!             for retrieving current (as ordered in ni, nf)
-!!  @param[in] unitsOfH: units modifer for energy (write"unknown"
-!!                   for default)
-!!  @param[in] unitsOfJ: units modifier for current (write"unknown"
-!!                  for default)
-!!  @param[out] current: current value
-subroutine negf_get_current(handler, leadPair, unitsOfH, unitsOfJ, current)
-  use libnegfAPICommon  ! if:mod:use
-  use libnegf   ! if:mod:use
-  use ln_constants ! if:mod:use
-  use globals  ! if:mod:use
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: leadPair      !if:var:in
-  real(dp) :: current       !if:var:inout
-  character(SST) :: unitsOfH !if:var:in
-  character(SST) :: unitsOfJ !if:var:in
-
-  type(NEGFpointers) :: LIB
-  type(units) :: unitsH, unitsJ
-
-  unitsH%name=trim(unitsOfH)
-  unitsJ%name=trim(unitsOfJ)
-  LIB = transfer(handler, LIB)
-  current = LIB%pNEGF%currents(leadPair) ! just take first value (2 contacts)
-  ! units conversion.
-  current = current * convertCurrent(unitsH, unitsJ)
-end subroutine negf_get_current
-
 !> Copy the energy axis on all processors (for output, plot, debug)
 !! Uses a fixed size array interface
 !! @param [in] handler:  handler Number for the LIBNEGF instance
@@ -863,44 +830,6 @@ subroutine negf_write_tunneling_and_dos(handler) bind(C)
 
 end subroutine negf_write_tunneling_and_dos
 
-
-!!* Sets iteration in self-consistent loops
-!!* @param handler Number for the LIBNEGF instance to destroy.
-!! SAME, IS IT REALLY NEEDED??
-subroutine negf_set_output(handler, out_path)
-  use libnegfAPICommon    ! if:mod:use
-  use globals             ! if:mod:use
-  use libnegf             ! if:mod:use
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  character(LST) :: out_path(1)    ! if:var:in
-
-  type(NEGFpointers) :: LIB
-
-  LIB = transfer(handler, LIB)
-
-  LIB%pNEGF%out_path = trim( out_path(1) ) // '/'
-
-end subroutine negf_set_output
-
-
-!!* Sets iteration in self-consistent loops
-!!* @param handler Number for the LIBNEGF instance to destroy.
-subroutine negf_set_scratch(handler, scratch_path)
-  use libnegfAPICommon    ! if:mod:use
-  use globals             ! if:mod:use
-  use libnegf             ! if:mod:use
-  implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  character(LST) :: scratch_path(1)    ! if:var:in
-
-  type(NEGFpointers) :: LIB
-
-  LIB = transfer(handler, LIB)
-
-  LIB%pNEGF%scratch_path = trim( scratch_path(1) ) // '/'
-
-end subroutine negf_set_scratch
 
 !!* Instructs whether the device-contact part of the Density-Mat
 !!* needs to be computed (Relevant for charges in non-orthogonal bases)
