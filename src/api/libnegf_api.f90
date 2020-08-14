@@ -546,6 +546,23 @@ subroutine negf_solve_landauer(handler) bind(C)
 end subroutine negf_solve_landauer
 
 !>
+!! Calculate transmission using a meir wingreen with dummy occupations.
+!! Only for 2 contacts and elastic interaction models.
+!! @param[in]  handler: handler Number for the LIBNEGF instance
+subroutine negf_calculate_dephasing_transmission(handler) bind(C)
+  use iso_c_binding, only : c_int  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+  call compute_dephasing_transmission(LIB%pNEGF)
+end subroutine negf_calculate_dephasing_transmission
+
+!>
 !! Calculate the density matrix for the dft problem
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 subroutine negf_solve_density_dft(handler) bind(C)
