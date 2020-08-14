@@ -33,6 +33,7 @@ module iterative
   use mpi_globals, only : id, numprocs, id0                                 !DAR
   use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
   use clock
+  use ln_blockmat
   !use transform
 
   implicit none
@@ -121,7 +122,7 @@ CONTAINS
     integer, intent(in) :: outer
 
     !Work
-    type(z_DNS), dimension(:,:), allocatable :: ESH
+    type(TSquareBlockZDns) :: ESH
     type(z_CSR) :: ESH_tot, Ain
     integer :: i,ierr, nbl, ncont,ii,n
 
@@ -131,31 +132,30 @@ CONTAINS
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
 
-    call allocate_blk_dns(ESH,nbl)
+    call create_blockmat(ESH, nbl)
 
-    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
+    call zcsr2blk_sod(ESH_tot, ESH%blocks, negf%str%mat_PL_start)
 
     call destroy(ESH_tot)
 
     associate(cblk=>negf%str%cblk)
     do i=1,ncont
-      ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+      ESH%blocks(cblk(i),cblk(i))%val = ESH%blocks(cblk(i),cblk(i))%val-SelfEneR(i)%val
     end do
     end associate
 
     !! Add interaction self energy contribution, if any
-    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
+    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
 
     call allocate_gsm(gsmr,nbl)
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
 
-    call calculate_Gr_tridiag_blocks(ESH,1)
-    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,1)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,2,nbl)
 
-    call destroy_ESH(ESH)
-    call deallocate_blk_dns(ESH)
+    call destroy_blockmat(ESH)
 
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
@@ -309,7 +309,7 @@ CONTAINS
         call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
       endif
     end do
-    
+
     !If not interactions are present we can already destroy gsmr, gsml.
     !Otherwise they are still needed to calculate columns ont-the-fly.
     if (.not.allocated(negf%inter)) then
@@ -502,7 +502,7 @@ CONTAINS
 
     call destroy_ESH(ESH)
     DEALLOCATE(ESH)
-      
+
     end associate
 
   end subroutine iterative_meir_wingreen
@@ -2197,7 +2197,7 @@ CONTAINS
 
     allocate(Sigma_r(nbl,nbl))
     allocate(G_r(nbl,nbl))
-    
+
     associate(indblk => negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
@@ -3288,7 +3288,7 @@ CONTAINS
       else
         nt1 = str%cblk(nft)
       endif
-    
+
       if (icpl == 1) then
         ! Iterative calculation of Gr down to nt
         nt = nt1
@@ -3304,7 +3304,7 @@ CONTAINS
           call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
           nt = nt1
         endif
-      end if   
+      end if
 
       select case(ncont)
       case(1)
@@ -3523,34 +3523,34 @@ CONTAINS
 
   end subroutine calculate_single_transmission_N_contacts
 
-  ! Based on projection indices build a logical mask just on contact block 
+  ! Based on projection indices build a logical mask just on contact block
   subroutine get_tun_mask(ESH,nbl,tun_proj,tun_mask)
     Type(z_DNS), intent(in) :: ESH(:,:)
     integer, intent(in) :: nbl
     type(intarray), intent(in) :: tun_proj
-    logical, intent(out), allocatable :: tun_mask(:)    
-    
+    logical, intent(out), allocatable :: tun_mask(:)
+
     integer :: ii, istart, iend, ind
 
     call log_allocate(tun_mask, ESH(nbl,nbl)%nrow)
 
     if (allocated(tun_proj%indexes)) then
       tun_mask = .false.
-       
+
       ! set the start/end indices of nbl
       ! NB: istart has offset -1 to avoid +/-1 operations
       istart = 0
       do ii = 1, nbl-1
         istart = istart + ESH(ii,ii)%nrow
       end do
-      iend = istart + ESH(nbl,nbl)%nrow + 1  
- 
-      ! select the indices in tun_proj 
+      iend = istart + ESH(nbl,nbl)%nrow + 1
+
+      ! select the indices in tun_proj
       do ii = 1, size(tun_proj%indexes)
          ind = tun_proj%indexes(ii)
          if (ind > istart .and. ind < iend) then
-            tun_mask(ind - istart) = .true. 
-         end if     
+            tun_mask(ind - istart) = .true.
+         end if
       end do
     else
       tun_mask = .true.
