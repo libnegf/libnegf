@@ -58,7 +58,7 @@ module ln_blockmat
 
 contains
 
-!> Create a block matrix. The individual blocks are not allocated here.
+  !> Create a block matrix. The individual blocks are not allocated here.
   subroutine create_blockmat_zdns(matrix, nrow)
     !> The matrix to be created.
     type(TSquareBlockZDns), intent(out) :: matrix
@@ -74,7 +74,7 @@ contains
 
   end subroutine create_blockmat_zdns
 
-!> Destroy a block matrix.
+  !> Destroy a block matrix.
   subroutine destroy_blockmat_zdns(matrix)
     !> The matrix to be created.
     type(TSquareBlockZDns), intent(out) :: matrix
@@ -86,8 +86,8 @@ contains
 
   end subroutine destroy_blockmat_zdns
 
-!> Initialize a tridiagonal block matrix with the same blocks
-!> as a sample one, but filled with zeros.
+  !> Initialize a tridiagonal block matrix with the same blocks
+  !> as a sample one, but filled with zeros.
   subroutine init_tridiagonal_blockmat_zdns(sample_matrix, matrix)
     !> The matrix which provides the tridiagonal blocks size
     type(TSquareBlockZDns), intent(in) :: sample_matrix
@@ -125,8 +125,8 @@ contains
 
   end subroutine init_tridiagonal_blockmat_zdns
 
-!> Convert a CSR matrix to a tridiagonal block square. Entries out of the
-!> tridiagonal blocks are ignored. The block matrix is constructed internally.
+  !> Convert a CSR matrix to a tridiagonal block square. Entries out of the
+  !> tridiagonal blocks are ignored. The block matrix is constructed internally.
   subroutine zcsr_to_tridiagonal_blockmat_zdns(csr_matrix, indices, block_matrix)
     !> The CSR matrix to copy values from.
     type(z_CSR), intent(in) :: csr_matrix
@@ -155,7 +155,7 @@ contains
 
   end subroutine zcsr_to_tridiagonal_blockmat_zdns
 
-!> Subtract a dense matrix from a block, e.g. block_matrix(row, column) -= dns_matrix.
+  !> Subtract a dense matrix from a block, e.g. block_matrix(row, column) -= dns_matrix.
   subroutine subtract_from_block_zdns(block_matrix, dns_matrix, row, column)
     !> The block matrix to subtract from.
     type(TSquareBlockZDns), intent(inout) :: block_matrix
