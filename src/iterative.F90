@@ -132,17 +132,12 @@ CONTAINS
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
 
-    call create_blockmat(ESH, nbl)
-
-    call zcsr2blk_sod(ESH_tot, ESH%blocks, negf%str%mat_PL_start)
-
+    call csr_to_tridiagonal_blockmat(ESH_tot, negf%str%mat_PL_start, ESH)
     call destroy(ESH_tot)
 
-    associate(cblk=>negf%str%cblk)
-    do i=1,ncont
-      ESH%blocks(cblk(i),cblk(i))%val = ESH%blocks(cblk(i),cblk(i))%val-SelfEneR(i)%val
+    do i=1, ncont
+      call subtract_from_block(ESH, SelfEneR(i), negf%str%cblk(i), negf%str%cblk(i))
     end do
-    end associate
 
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
@@ -235,7 +230,7 @@ CONTAINS
     integer :: ref, iter
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
-    type(z_DNS), dimension(:,:), allocatable :: ESH
+    type(TSquareBlockZDns) :: ESH
     type(z_DNS), dimension(:,:), allocatable :: Gn
     integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
@@ -252,19 +247,16 @@ CONTAINS
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
-    call allocate_blk_dns(ESH,nbl)
-
-    call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start)
-
+    call csr_to_tridiagonal_blockmat(ESH_tot, negf%str%mat_PL_start, ESH)
     call destroy(ESH_tot)
 
-    do i=1,ncont
-      ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+    do i=1, ncont
+      call subtract_from_block(ESH, SelfEneR(i), cblk(i), cblk(i))
     end do
 
     !! Add interaction self energy if any and initialize scba counter
     if (allocated(negf%inter)) then
-      call negf%inter%add_sigma_r(ESH)
+      call negf%inter%add_sigma_r(ESH%blocks)
       if (allocated(negf%inter)) iter = negf%inter%scba_iter
     end if
 
@@ -284,8 +276,8 @@ CONTAINS
       lbl = maxval(cblk(1:ncont),mask(1:ncont))
     endif
 
-    call calculate_gsmr_blocks(ESH,nbl,rbl+1)
-    call calculate_gsml_blocks(ESH,1,lbl-1)
+    call calculate_gsmr_blocks(ESH%blocks,nbl,rbl+1)
+    call calculate_gsml_blocks(ESH%blocks,1,lbl-1)
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -293,9 +285,9 @@ CONTAINS
     ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
     ! 2. rbl<lbl  => lbl=rbl-2 has been computed
     ! calculate_Gr does not compute if sbl>nbl or sbl<1
-    call calculate_Gr_tridiag_blocks(ESH,rbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,rbl)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,rbl+1,nbl)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,rbl-1,1)
     !Passing Gr to interaction that builds Sigma_n
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
@@ -306,7 +298,7 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
+        call calculate_Gr_column_blocks(ESH%blocks,cblk(i),indblk)
       endif
     end do
 
@@ -322,14 +314,14 @@ CONTAINS
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
 
-    call init_blkmat(Gn,ESH)
+    call init_blkmat(Gn,ESH%blocks)
 
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks(ESH%blocks,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
-      call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH%blocks,iter,Gn,Gr_columns)
       call destroy_gsm(gsmr)
       call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
@@ -342,6 +334,8 @@ CONTAINS
     call blk2csr(Gn,negf%str,negf%S,Glout)
 
     end associate
+
+    call destroy_blockmat(ESH)
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
     SELECT CASE (outblocks)
@@ -358,8 +352,6 @@ CONTAINS
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
 
-    call destroy_ESH(ESH)
-    DEALLOCATE(ESH)
 
   end subroutine calculate_Gn_neq_components
 
