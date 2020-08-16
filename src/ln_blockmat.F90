@@ -33,7 +33,8 @@ module ln_blockmat
 !> A square block matrix with blocks of type z_DNS.
   type TSquareBlockZDns
     type(z_DNS), dimension(:, :), allocatable :: blocks
-    integer :: nrow = 0
+    integer :: nblocks = 0
+    integer, dimension(:), allocatable :: blockind
   end type TSquareBlockZDns
 
   !> Empty block matrix constructor
@@ -48,7 +49,7 @@ module ln_blockmat
 
     !> Initialized tridiagonal block matrix constructor
   interface create_tridiagonal_blockmat
-    module procedure create_tridiagonal_from_blockmat_zdns
+    module procedure create_zeroed_tridiagonal_zdns
     module procedure create_tridiagonal_from_zcsr_zdns
   end interface
 
@@ -60,18 +61,20 @@ module ln_blockmat
 contains
 
   !> Create a block matrix. The individual blocks are not allocated here.
-  subroutine create_blockmat_zdns(this, nrow)
+  subroutine create_blockmat_zdns(this, blockind)
     !> The matrix to be created.
     type(TSquareBlockZDns), intent(out) :: this
-    !> The number of block rows.
-    integer, intent(in) :: nrow
+    !> The array with the starting index of each diagonal block. The last element
+    !> must contain the end of the last block + 1.
+    integer, dimension(:), intent(in) :: blockind
 
     if (allocated(this%blocks)) then
       call destroy_blockmat(this)
     end if
 
-    allocate (this%blocks(nrow, nrow))
-    this%nrow = nrow
+    this%nblocks = size(blockind) - 1
+    allocate (this%blocks(this%nblocks, this%nblocks))
+    this%blockind = blockind
 
   end subroutine create_blockmat_zdns
 
@@ -83,48 +86,57 @@ contains
     if (allocated(this%blocks)) then
       deallocate (this%blocks)
     end if
-    this%nrow = 0
+    if (allocated(this%blockind)) then
+      deallocate (this%blockind)
+    end if
+    this%nblocks = 0
 
   end subroutine destroy_blockmat_zdns
 
+  !> Initialize a block to a zero matrix.
+  subroutine init_block_to_zero(this, i, j)
+    !> The block matrix.
+    type(TSquareBlockZDns), intent(inout) :: this
+    !> The block row index.
+    integer, intent(in) :: i
+    !> The coumn block index.
+    integer, intent(in) :: j
+
+    integer nrow, ncol
+
+    nrow = this%blockind(i + 1) - this%blockind(i)
+    ncol = this%blockind(i + 1) - this%blockind(i)
+
+    call create(this%blocks(i, j), nrow, ncol)
+    this%blocks(i, j)%val = (0.d0, 0.d0)
+
+  end subroutine init_block_to_zero
+
   !> Initialize a tridiagonal block matrix with the same blocks
   !> as a sample one, but filled with zeros.
-  subroutine create_tridiagonal_from_blockmat_zdns(this, sample_matrix)
-    !> The matrix which provides the tridiagonal blocks size
-    type(TSquareBlockZDns), intent(in) :: sample_matrix
+  subroutine create_zeroed_tridiagonal_zdns(this, blockind)
     !> The matrix to initialize
     type(TSquareBlockZDns), intent(out) :: this
+    !> The array with the starting index of each diagonal block.
+    integer, dimension(:), intent(in) :: blockind
 
     integer :: nbl, j
 
-    call create_blockmat(this, sample_matrix%nrow)
+    call create_blockmat(this, blockind)
 
-    nbl = sample_matrix%nrow
+    nbl = this%nblocks
 
-    associate (bl => sample_matrix%blocks)
+    call init_block_to_zero(this, 1, 1)
+    do j = 2, nbl - 1
+      call init_block_to_zero(this, j - 1, j)
+      call init_block_to_zero(this, j, j)
+      call init_block_to_zero(this, j, j - 1)
+    end do
+    if (nbl .gt. 1) then
+      call init_block_to_zero(this, nbl, nbl)
+    end if
 
-      call create(this%blocks(1, 1), bl(1, 1)%nrow, bl(1, 1)%ncol)
-      this%blocks(1, 1)%val = (0.0_dp, 0.0_dp)
-      do j = 2, nbl - 1
-        call create(this%blocks(j - 1, j), bl(j - 1, j)%nrow, bl(j - 1, j)%ncol)
-        this%blocks(j - 1, j)%val = (0.0_dp, 0.0_dp)
-        call create(this%blocks(j, j), bl(j, j)%nrow, bl(j, j)%ncol)
-        this%blocks(j, j)%val = (0.0_dp, 0.0_dp)
-        call create(this%blocks(j, j - 1), bl(j, j - 1)%nrow, bl(j, j - 1)%ncol)
-        this%blocks(j, j - 1)%val = (0.0_dp, 0.0_dp)
-      end do
-      if (nbl .gt. 1) then
-        call create(this%blocks(nbl, nbl), bl(nbl, nbl)%nrow, bl(nbl, nbl)%ncol)
-        this%blocks(nbl, nbl)%val = (0.0_dp, 0.0_dp)
-        call create(this%blocks(nbl - 1, nbl), bl(nbl - 1, nbl)%nrow, bl(nbl - 1, nbl)%ncol)
-        this%blocks(nbl - 1, nbl)%val = (0.0_dp, 0.0_dp)
-        call create(this%blocks(nbl, nbl - 1), bl(nbl, nbl - 1)%nrow, bl(nbl, nbl - 1)%ncol)
-        this%blocks(nbl, nbl - 1)%val = (0.0_dp, 0.0_dp)
-      end if
-
-    end associate
-
-  end subroutine create_tridiagonal_from_blockmat_zdns
+  end subroutine create_zeroed_tridiagonal_zdns
 
   !> Convert a CSR matrix to a tridiagonal block square. Entries out of the
   !> tridiagonal blocks are ignored. The block matrix is constructed internally.
@@ -138,16 +150,14 @@ contains
 
     integer :: i, nbl
 
-    nbl = size(indices) - 1
+    call create_blockmat(this, indices)
 
-    call create_blockmat(this, nbl)
-
-    do i = 1, nbl
+    do i = 1, this%nblocks
       call extract(csr_matrix, indices(i), indices(i + 1) - 1, indices(i), &
           & indices(i + 1) - 1, this%blocks(i, i))
     end do
 
-    do i = 2, nbl
+    do i = 2, this%nblocks
       call extract(csr_matrix, indices(i - 1), indices(i) - 1, indices(i), &
           & indices(i + 1) - 1, this%blocks(i - 1, i))
       call extract(csr_matrix, indices(i), indices(i + 1) - 1, indices(i - 1), &

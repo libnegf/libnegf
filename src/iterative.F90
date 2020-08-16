@@ -230,8 +230,7 @@ CONTAINS
     integer :: ref, iter
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
-    type(TSquareBlockZDns) :: ESH
-    type(z_DNS), dimension(:,:), allocatable :: Gn
+    type(TSquareBlockZDns) :: ESH, Gn
     integer, dimension(:), allocatable :: Gr_columns
     type(z_CSR) :: ESH_tot, Gl
     logical :: mask(MAXNCONT)
@@ -312,30 +311,30 @@ CONTAINS
     end if
 
     !Computing device G_n
-    call allocate_blk_dns(Gn,nbl)
+    call create_tridiagonal_blockmat(Gn, ESH%blockind)
 
-    call init_blkmat(Gn,ESH%blocks)
+    call calculate_Gn_tridiag_blocks(ESH%blocks,SelfEneR,frm,ref,negf%str,Gn%blocks)
 
-    call calculate_Gn_tridiag_blocks(ESH%blocks,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
-      call calculate_Gn_tridiag_elph_contributions(negf,ESH%blocks,iter,Gn,Gr_columns)
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH%blocks,iter,Gn%blocks,Gr_columns)
       call destroy_gsm(gsmr)
       call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
       call deallocate_gsm(gsml)
     end if
 
-    !Passing G^n to interaction that builds Sigma^n
-    if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
+    call destroy_blockmat(ESH)
 
-    call blk2csr(Gn,negf%str,negf%S,Glout)
+    !Passing G^n to interaction that builds Sigma^n
+    if (allocated(negf%inter)) call negf%inter%set_Gn(Gn%blocks, negf%iE)
+
+    call blk2csr(Gn%blocks,negf%str,negf%S,Glout)
 
     end associate
 
-    call destroy_blockmat(ESH)
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
     SELECT CASE (outblocks)
@@ -346,8 +345,7 @@ CONTAINS
       call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
     end SELECT
 
-    call destroy_blk(Gn)
-    DEALLOCATE(Gn)
+    call destroy_blockmat(Gn)
 
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
@@ -386,7 +384,7 @@ CONTAINS
     integer :: i,ierr,ncont,nbl,lbl,ii,n
     integer :: pl_start, pl_end
     integer :: ref, iter, lead, lead_blk, ref_blk
-    type(z_DNS), dimension(:,:), allocatable :: ESH, Gn
+    type(TSquareBlockZDns) :: ESH, Gn
     integer, dimension(:), allocatable :: Gr_columns
     type(z_DNS) :: work1, work2, Gam, A
     type(z_CSR) :: ESH_tot, Gl
@@ -405,42 +403,36 @@ CONTAINS
     Ec=cmplx(E,0.0_dp,dp)
 
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
-
-    call allocate_blk_dns(ESH,nbl)
-
-    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
-
+    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
     call destroy(ESH_tot)
 
     ! Add contact self energies
     do i=1,ncont
-      ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val-SelfEneR(i)%val
+      call subtract_from_block(ESH, SelfEneR(i), cblk(i), cblk(i))
     end do
 
     !! Add el-ph self energy if any
-    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
+    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
 
     call allocate_gsm(gsmr,nbl)
     call allocate_gsm(gsml,nbl)
 
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
 
     if ( ncont.gt.1 ) then
-      call calculate_gsml_blocks(ESH,1,nbl-2)
+      call calculate_gsml_blocks(ESH%blocks,1,nbl-2)
     endif
 
     call allocate_blk_dns(Gr,nbl)
 
-    call calculate_Gr_tridiag_blocks(ESH,1)
-    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,1)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,2,nbl)
 
     !! Give Gr to interaction model if any
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
     !! Never calculate outer blocks
-    call allocate_blk_dns(Gn, nbl)
-
-    call init_blkmat(Gn,ESH)
+    call create_tridiagonal_blockmat(Gn, ESH%blockind)
 
     !! TEMPORARY AND INEFFICIENT:
     !! CALCULATE THE FULL Gn WHEN THE CONTACT BLOCK WHOULD BE ENOUGH
@@ -449,14 +441,16 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)
+        call calculate_Gr_column_blocks(ESH%blocks, cblk(i), negf%str%mat_PL_start)
       endif
     end do
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks(ESH%blocks,SelfEneR,frm,ref,negf%str,Gn%blocks)
 
     if (allocated(negf%inter)) then
-      call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
+      call calculate_Gn_tridiag_elph_contributions(negf,ESH%blocks,iter,Gn%blocks, Gr_columns)
     end if
+
+    call destroy_blockmat(ESH)
 
     ! The gsmr, gsml are used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
     ! can destroy them here.
@@ -470,13 +464,13 @@ CONTAINS
       lead_blk = cblk(lead)
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gam)
       if (lead.eq.ref) then
-        call prealloc_mult(Gam, Gn(lead_blk, lead_blk), (-1.0_dp, 0.0_dp), work1)
+        call prealloc_mult(Gam, Gn%blocks(lead_blk, lead_blk), (-1.0_dp, 0.0_dp), work1)
         curr_mat(i) = real(trace(work1))
         call destroy(work1)
       else
         call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
         tmp = frm(lead)-frm(ref)
-        call prealloc_sum(A, Gn(lead_blk, lead_blk), tmp, (-1.0_dp, 0.0_dp), work1)
+        call prealloc_sum(A, Gn%blocks(lead_blk, lead_blk), tmp, (-1.0_dp, 0.0_dp), work1)
         call destroy(A)
         call prealloc_mult(Gam, work1, work2)
         call destroy(work1)
@@ -486,14 +480,10 @@ CONTAINS
       call destroy(Gam)
     end do
     !Convert to output CSR format.
-    call blk2csr(Gn,negf%str,negf%S,Gl)
-    DEALLOCATE(Gn)
+    call destroy_blockmat(Gn)
 
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
-
-    call destroy_ESH(ESH)
-    DEALLOCATE(ESH)
 
     end associate
 
@@ -634,36 +624,6 @@ CONTAINS
   !------------------------------------------------------------------------------!
 
   !**********************************************************************
-  subroutine init_blkmat(Matrix,S)
-    type(z_DNS), dimension(:,:) :: Matrix,S
-
-    integer :: nbl, j
-
-    nbl = SIZE(Matrix,1)
-
-    call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
-    Matrix(1,1)%val=(0.0_dp,0.0_dp)
-    do j=2,nbl-1
-      call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
-      Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
-      call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
-      Matrix(j,j)%val=(0.0_dp,0.0_dp)
-      call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
-      Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
-    end do
-    if (nbl.gt.1) then
-      call create(Matrix(nbl,nbl),S(nbl,nbl)%nrow,S(nbl,nbl)%ncol)
-      Matrix(nbl,nbl)%val=(0.0_dp,0.0_dp)
-      call create(Matrix(nbl-1,nbl),S(nbl-1,nbl)%nrow,S(nbl-1,nbl)%ncol)
-      Matrix(nbl-1,nbl)%val=(0.0_dp,0.0_dp)
-      call create(Matrix(nbl,nbl-1),S(nbl,nbl-1)%nrow,S(nbl,nbl-1)%ncol)
-      Matrix(nbl,nbl-1)%val=(0.0_dp,0.0_dp)
-    endif
-
-  end subroutine init_blkmat
-
-
-  !**********************************************************************
   subroutine destroy_gsm(gsm)
     type(z_DNS), dimension(:) :: gsm
     integer :: i, i1, nbl
@@ -692,24 +652,6 @@ CONTAINS
     end do
 
   end subroutine destroy_blk
-
-  !**********************************************************************
-  subroutine destroy_ESH(ESH)
-
-    integer :: i, nbl
-    type(z_DNS), dimension(:,:) :: ESH
-
-    nbl=size(ESH,1)
-
-    do i=1,nbl
-      call destroy(ESH(i,i))
-    end do
-    do i=2,nbl
-      call destroy(ESH(i-1,i))
-      call destroy(ESH(i,i-1))
-    end do
-
-  end subroutine destroy_ESH
 
 
   !***********************************************************************
@@ -3242,7 +3184,7 @@ CONTAINS
     Real(dp), Dimension(:) :: tun_mat
 
     ! Local variables
-    Type(z_DNS), Dimension(:,:), allocatable :: ESH
+    Type(TSquareBlockZDns) :: ESH
     Real(dp) :: tun
     Integer :: nbl,ncont,ibl
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
@@ -3252,20 +3194,17 @@ CONTAINS
     !Calculation of ES-H and brak into blocks
     call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
-    call allocate_blk_dns(ESH,nbl)
-
-    call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
+    call create_tridiagonal_blockmat(ESH, ESH_tot, str%mat_PL_start)
     call destroy(ESH_tot)
 
     !Inclusion of the contact Self-Energies to the relevant blocks
     do i=1,ncont
-      ibl = str%cblk(i)
-      ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
+      call subtract_from_block(ESH, SelfEneR(i), str%cblk(i), str%cblk(i))
     end do
     call allocate_gsm(gsmr,nbl)
 
     !Iterative calculation up with gsmr
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
 
     do icpl = 1, size(ni)
 
@@ -3285,15 +3224,15 @@ CONTAINS
         ! Iterative calculation of Gr down to nt
         nt = nt1
         call allocate_blk_dns(Gr,nbl)
-        call calculate_Gr_tridiag_blocks(ESH,1)
+        call calculate_Gr_tridiag_blocks(ESH%blocks,1)
         if (nt.gt.1) then
-          call calculate_Gr_tridiag_blocks(ESH,2,nt)
+          call calculate_Gr_tridiag_blocks(ESH%blocks,2,nt)
         end if
       else
         ! When more contacts are present sometimes we can re-use previous GF
         ! if nt1 > nt extend the Gr calculation
         if (nt1 .gt. nt) then
-          call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
+          call calculate_Gr_tridiag_blocks(ESH%blocks,nt+1,nt1)
           nt = nt1
         endif
       end if
@@ -3302,9 +3241,9 @@ CONTAINS
       case(1)
         tun = 0.0_dp
       case(2)
-        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+        call calculate_single_transmission_2_contacts(nit,nft,ESH%blocks,SelfEneR,str%cblk,tun_proj,tun)
       case default
-        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+        call calculate_single_transmission_N_contacts(nit,nft,ESH%blocks,SelfEneR,str%cblk,tun_proj,tun)
       end select
 
       tun_mat(icpl) = tun
@@ -3325,8 +3264,7 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-    call destroy_ESH(ESH)
-    call deallocate_blk_dns(ESH)
+    call destroy_blockmat(ESH)
 
   end subroutine calculate_transmissions
 
@@ -3569,7 +3507,7 @@ CONTAINS
 
     ! Local variables
     Type(z_CSR) :: ESH_tot, GrCSR
-    Type(z_DNS), Dimension(:,:), allocatable :: ESH
+    Type(TSquareBlockZDns) :: ESH
     Type(r_CSR) :: Grm                          ! Green Retarded nella molecola
     real(dp), dimension(:), allocatable :: diag
     Real(dp) :: tun
@@ -3586,24 +3524,22 @@ CONTAINS
 
     !Calculation of ES-H and brak into blocks
     call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
-
-    call allocate_blk_dns(ESH,nbl)
-    call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
+    call create_tridiagonal_blockmat(ESH, ESH_tot, str%mat_PL_start)
     call destroy(ESH_tot)
 
     !Inclusion of the contact Self-Energies to the relevant blocks
     do i=1,ncont
-      ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR(i)%val
+      call subtract_from_block(ESH, SelfEneR(i), str%cblk(i), str%cblk(i))
     end do
 
     call allocate_gsm(gsmr,nbl)
 
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
 
-    call calculate_Gr_tridiag_blocks(ESH,1)
-    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,1)
+    call calculate_Gr_tridiag_blocks(ESH%blocks,2,nbl)
 
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
     do icpl=1,size(ni)
@@ -3615,9 +3551,9 @@ CONTAINS
       case(1)
         tun = 0.0_dp
       case(2)
-        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+        call calculate_single_transmission_2_contacts(nit,nft,ESH%blocks,SelfEneR,str%cblk,tun_proj,tun)
       case default
-        call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+        call calculate_single_transmission_N_contacts(nit,nft,ESH%blocks,SelfEneR,str%cblk,tun_proj,tun)
       end select
 
       TUN_MAT(icpl) = tun
@@ -3633,8 +3569,7 @@ CONTAINS
       call destroy(Gr(i-1,i))
       call destroy(Gr(i,i-1))
     end do
-    call destroy_ESH(ESH)
-    call deallocate_blk_dns(ESH)
+    call destroy_blockmat(ESH)
 
     call create(Grm,str%mat_PL_start(nbl+1)-1,str%mat_PL_start(nbl+1)-1,0)
 
