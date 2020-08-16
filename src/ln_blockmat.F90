@@ -133,7 +133,7 @@ contains
     type(TSquareBlockZDns), intent(inout) :: this
     !> The CSR matrix to copy values from.
     type(z_CSR), intent(in) :: csr_matrix
-    !> The starting index of each box. The last index must be the final row + 1.
+    !> The starting index of each block. The last index must be the final row + 1.
     integer, dimension(:), allocatable, intent(in) :: indices
 
     integer :: i, nbl
