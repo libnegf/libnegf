@@ -132,7 +132,7 @@ CONTAINS
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
 
-    call csr_to_tridiagonal_blockmat(ESH_tot, negf%str%mat_PL_start, ESH)
+    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
     call destroy(ESH_tot)
 
     do i=1, ncont
@@ -247,7 +247,7 @@ CONTAINS
     ! Take CSR H,S and build ES-H in dense blocks
     call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
-    call csr_to_tridiagonal_blockmat(ESH_tot, negf%str%mat_PL_start, ESH)
+    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
     call destroy(ESH_tot)
 
     do i=1, ncont

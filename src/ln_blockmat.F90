@@ -28,7 +28,7 @@ module ln_blockmat
 
   public :: TSquareBlockZDns
   public :: create_blockmat, destroy_blockmat, create_tridiagonal_blockmat, &
-            csr_to_tridiagonal_blockmat, subtract_from_block
+            subtract_from_block
 
 !> A square block matrix with blocks of type z_DNS.
   type TSquareBlockZDns
@@ -36,22 +36,23 @@ module ln_blockmat
     integer :: nrow = 0
   end type TSquareBlockZDns
 
+  !> Empty block matrix constructor
   interface create_blockmat
     module procedure create_blockmat_zdns
   end interface
 
+  !> Destructor
   interface destroy_blockmat
     module procedure destroy_blockmat_zdns
   end interface
 
+    !> Initialized tridiagonal block matrix constructor
   interface create_tridiagonal_blockmat
-    module procedure create_tridiagonal_blockmat_zdns
+    module procedure create_tridiagonal_from_blockmat_zdns
+    module procedure create_tridiagonal_from_zcsr_zdns
   end interface
 
-  interface csr_to_tridiagonal_blockmat
-    module procedure zcsr_to_tridiagonal_blockmat_zdns
-  end interface
-
+  !> Subtract a matrix from a specific block.
   interface subtract_from_block
     module procedure subtract_from_block_zdns
   end interface
@@ -88,7 +89,7 @@ contains
 
   !> Initialize a tridiagonal block matrix with the same blocks
   !> as a sample one, but filled with zeros.
-  subroutine create_tridiagonal_blockmat_zdns(this, sample_matrix)
+  subroutine create_tridiagonal_from_blockmat_zdns(this, sample_matrix)
     !> The matrix which provides the tridiagonal blocks size
     type(TSquareBlockZDns), intent(in) :: sample_matrix
     !> The matrix to initialize
@@ -123,37 +124,37 @@ contains
 
     end associate
 
-  end subroutine create_tridiagonal_blockmat_zdns
+  end subroutine create_tridiagonal_from_blockmat_zdns
 
   !> Convert a CSR matrix to a tridiagonal block square. Entries out of the
   !> tridiagonal blocks are ignored. The block matrix is constructed internally.
-  subroutine zcsr_to_tridiagonal_blockmat_zdns(csr_matrix, indices, block_matrix)
+  subroutine create_tridiagonal_from_zcsr_zdns(this, csr_matrix, indices)
+    !> The output block matrix.
+    type(TSquareBlockZDns), intent(inout) :: this
     !> The CSR matrix to copy values from.
     type(z_CSR), intent(in) :: csr_matrix
     !> The starting index of each box. The last index must be the final row + 1.
     integer, dimension(:), allocatable, intent(in) :: indices
-    !> The output block matrix.
-    type(TSquareBlockZDns), intent(out) :: block_matrix
 
     integer :: i, nbl
 
     nbl = size(indices) - 1
 
-    call create_blockmat(block_matrix, nbl)
+    call create_blockmat(this, nbl)
 
     do i = 1, nbl
       call extract(csr_matrix, indices(i), indices(i + 1) - 1, indices(i), &
-          & indices(i + 1) - 1, block_matrix%blocks(i, i))
+          & indices(i + 1) - 1, this%blocks(i, i))
     end do
 
     do i = 2, nbl
       call extract(csr_matrix, indices(i - 1), indices(i) - 1, indices(i), &
-          & indices(i + 1) - 1, block_matrix%blocks(i - 1, i))
+          & indices(i + 1) - 1, this%blocks(i - 1, i))
       call extract(csr_matrix, indices(i), indices(i + 1) - 1, indices(i - 1), &
-          & indices(i) - 1, block_matrix%blocks(i, i - 1))
+          & indices(i) - 1, this%blocks(i, i - 1))
     end do
 
-  end subroutine zcsr_to_tridiagonal_blockmat_zdns
+  end subroutine create_tridiagonal_from_zcsr_zdns
 
   !> Subtract a dense matrix from a block, e.g. block_matrix(row, column) -= dns_matrix.
   subroutine subtract_from_block_zdns(this, dns_matrix, row, column)
