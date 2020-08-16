@@ -123,21 +123,14 @@ CONTAINS
 
     !Work
     type(TSquareBlockZDns) :: ESH
-    type(z_CSR) :: ESH_tot, Ain
+    type(z_CSR) :: Ain
     integer :: i,ierr, nbl, ncont,ii,n
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
 
-    ! Take CSR H,S and build ES-H in dense blocks
-    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
-
-    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
-    call destroy(ESH_tot)
-
-    do i=1, ncont
-      call subtract_from_block(ESH, SelfEneR(i), negf%str%cblk(i), negf%str%cblk(i))
-    end do
+    ! Initialize ES - H as block matrix.
+    call init_esh(ESH, negf%H, negf%S, SelfEneR, E, negf%str)
 
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
@@ -232,7 +225,7 @@ CONTAINS
     integer :: i,ierr,ncont,nbl, lbl, rbl
     type(TSquareBlockZDns) :: ESH, Gn
     integer, dimension(:), allocatable :: Gr_columns
-    type(z_CSR) :: ESH_tot, Gl
+    type(z_CSR) :: Gl
     logical :: mask(MAXNCONT)
 
 
@@ -243,15 +236,8 @@ CONTAINS
 
     Ec = cmplx(E,0.0_dp,dp)
 
-    ! Take CSR H,S and build ES-H in dense blocks
-    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
-
-    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
-    call destroy(ESH_tot)
-
-    do i=1, ncont
-      call subtract_from_block(ESH, SelfEneR(i), cblk(i), cblk(i))
-    end do
+    ! Initialize ES - H as block matrix.
+    call init_esh(ESH, negf%H, negf%S, SelfEneR, Ec, negf%str)
 
     !! Add interaction self energy if any and initialize scba counter
     if (allocated(negf%inter)) then
@@ -387,7 +373,7 @@ CONTAINS
     type(TSquareBlockZDns) :: ESH, Gn
     integer, dimension(:), allocatable :: Gr_columns
     type(z_DNS) :: work1, work2, Gam, A
-    type(z_CSR) :: ESH_tot, Gl
+    type(z_CSR) :: Gl
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
@@ -402,14 +388,8 @@ CONTAINS
 
     Ec=cmplx(E,0.0_dp,dp)
 
-    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
-    call create_tridiagonal_blockmat(ESH, ESH_tot, negf%str%mat_PL_start)
-    call destroy(ESH_tot)
-
-    ! Add contact self energies
-    do i=1,ncont
-      call subtract_from_block(ESH, SelfEneR(i), cblk(i), cblk(i))
-    end do
+    ! Initialize ES - H as block matrix.
+    call init_esh(ESH, negf%H, negf%S, SelfEneR, Ec, negf%str)
 
     !! Add el-ph self energy if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
@@ -3178,7 +3158,6 @@ CONTAINS
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR
     Integer :: ni(:)
     Integer :: nf(:)
-    Type(z_CSR) :: ESH_tot
     Type(TStruct_Info) :: str
     type(intarray), intent(in) :: tun_proj
     Real(dp), Dimension(:) :: tun_mat
@@ -3191,16 +3170,10 @@ CONTAINS
 
     nbl = str%num_PLs
     ncont = str%num_conts
-    !Calculation of ES-H and brak into blocks
-    call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
-    call create_tridiagonal_blockmat(ESH, ESH_tot, str%mat_PL_start)
-    call destroy(ESH_tot)
+    ! Initialize ES - H as block matrix.
+    call init_esh(ESH, H, S, SelfEneR, Ec, str)
 
-    !Inclusion of the contact Self-Energies to the relevant blocks
-    do i=1,ncont
-      call subtract_from_block(ESH, SelfEneR(i), str%cblk(i), str%cblk(i))
-    end do
     call allocate_gsm(gsmr,nbl)
 
     !Iterative calculation up with gsmr
@@ -3653,8 +3626,36 @@ CONTAINS
 
   end subroutine deallocate_blk_dns
 
-end module iterative
+  !> Utility to initialize ESH
+  subroutine init_esh(esh, hamiltonian, overlap, self_energies, energy, structure)
+    !> The ESH block matrix to be initialized.
+    type(TSquareBlockZDns), intent(out) :: esh
+    !> Hamiltonian as csr matrix
+    type(z_CSR), intent(in) :: hamiltonian
+    !> Overlap as csr matrix
+    type(z_CSR), intent(in) :: overlap
+    !> The array of self energies
+    type(z_DNS), dimension(:), intent(in) :: self_energies
+    !> The energy point
+    complex(dp), intent(in) :: energy
+    !> The structure descriptor
+    type(TStruct_Info) :: structure
 
+    type(z_CSR) :: esh_csr
+    integer :: i
+
+    call prealloc_sum(hamiltonian, overlap, (-1.0_dp, 0.0_dp), energy, esh_csr)
+    call create_tridiagonal_blockmat(esh, esh_csr, structure%mat_PL_start)
+    call destroy(esh_csr)
+
+    do i=1, structure%num_conts
+      call subtract_from_block(esh, self_energies(i), structure%cblk(i), structure%cblk(i))
+    end do
+
+  end subroutine init_esh
+
+
+end module iterative
 
   !****************************************************************************
   !
