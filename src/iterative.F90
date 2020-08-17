@@ -146,7 +146,6 @@ CONTAINS
     call destroy_blockmat(ESH)
 
     call destroy_gsm(gsmr)
-    call deallocate_gsm(gsmr)
 
 
     ! SAVE ON FILES/MEMORY (for elph).........................
@@ -291,9 +290,7 @@ CONTAINS
     !Otherwise they are still needed to calculate columns ont-the-fly.
     if (.not.allocated(negf%inter)) then
       call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
     end if
 
     !Computing device G_n
@@ -307,9 +304,7 @@ CONTAINS
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH%blocks,iter,Gn%blocks,Gr_columns)
       call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
       call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
     end if
 
     call destroy_blockmat(ESH)
@@ -435,9 +430,7 @@ CONTAINS
     ! The gsmr, gsml are used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
     ! can destroy them here.
     call destroy_gsm(gsmr)
-    call deallocate_gsm(gsmr)
     call destroy_gsm(gsml)
-    call deallocate_gsm(gsml)
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
@@ -605,7 +598,7 @@ CONTAINS
 
   !**********************************************************************
   subroutine destroy_gsm(gsm)
-    type(z_DNS), dimension(:) :: gsm
+    type(z_DNS), dimension(:), allocatable :: gsm
     integer :: i, i1, nbl
 
     nbl=size(gsm,1)
@@ -613,6 +606,7 @@ CONTAINS
     do i=1,nbl
       if (allocated(gsm(i)%val)) call destroy(gsm(i))
     end do
+    deallocate(gsm)
 
   end subroutine destroy_gsm
 
@@ -3235,7 +3229,6 @@ CONTAINS
 
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
-    call deallocate_gsm(gsmr)
 
     call destroy_blockmat(ESH)
 
@@ -3535,7 +3528,6 @@ CONTAINS
 
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
-    call deallocate_gsm(gsmr)
 
     !Distruzione dei blocchi fuori-diagonale
     do i=2,nbl
