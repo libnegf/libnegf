@@ -28,7 +28,7 @@ module ln_blockmat
 
   public :: TSquareBlockZDns
   public :: create_blockmat, destroy_blockmat, create_tridiagonal_blockmat, &
-            subtract_from_block
+            subtract_from_block, blockmat_to_masked_csr
 
 !> A square block matrix with blocks of type z_DNS.
   type TSquareBlockZDns
@@ -181,28 +181,28 @@ contains
 
   end subroutine subtract_from_block_zdns
 
-  !TODO: FINISH ME
   !> Convert a block matrix to a CSR folowing a given non-zero values pattern
   !> Note: this has been probably been used only on tri-diagonal matrices.
-  subroutine blockmat_to_masked_csr(G, indices, P, Gcsr)
-
-    type(z_DNS), dimension(:,:) :: G
-    integer, dimension(:), intent(in) :: indices
-    type(z_CSR) :: Gcsr
-    type(z_CSR) :: P, G_sp
+  subroutine blockmat_to_masked_csr(this, pattern, out_csr)
+    !> The input block matrix
+    type(TSquareBlockZDns) :: this
+    !> The masking pattern
+    type(z_CSR) :: pattern
+    !> The output matrix
+    type(z_CSR) :: out_csr
 
     integer :: nbl, oldx, row, col, iy, ix, x, y, ii, jj, nrows
 
-    nbl = size(indices)
-    nrows = indices(nbl) - 1
+    nbl = size(this%blockind)
+    nrows = this%blockind(nbl + 1) - 1
 
-    !create Gcsr with same pattern of P
-    call create(Gcsr,P%nrow,P%ncol,P%nnz)
-    Gcsr%rowpnt = P%rowpnt
-    Gcsr%colind = P%colind
-    Gcsr%nzval = (0.0_dp, 0.0_dp)
+    !create out_csr with the desired pattern.
+    call create(out_csr, pattern%nrow, pattern%ncol, pattern%nnz)
+    out_csr%rowpnt = pattern%rowpnt
+    out_csr%colind = pattern%colind
+    out_csr%nzval = (0.0_dp, 0.0_dp)
 
-    associate(indblk=>indices)
+    associate(indblk=>this%blockind)
     !Cycle upon all rows
     x = 1
     do ii = 1, nrows
@@ -219,41 +219,41 @@ contains
       !Offset: row is the index for separate blocks
       row = ii - indblk(x) + 1
 
-      !Cycle upon columns of Gcsr (which has been ALREADY MASKED by S)
-      do jj = Gcsr%rowpnt(ii), Gcsr%rowpnt(ii+1) -1
-        if (Gcsr%colind(jj).gt.nrows) CYCLE
+      !Cycle upon columns of out_csr (which has been ALREADY MASKED by S)
+      do jj = out_csr%rowpnt(ii), out_csr%rowpnt(ii+1) -1
+        if (out_csr%colind(jj).gt.nrows) cycle
         !Choose which block column we're dealing with
         y = 0
         if (x.eq.1) then
-          if ( (Gcsr%colind(jj).GE.indblk(x)).AND.(Gcsr%colind(jj).LT.indblk(x + 1)) ) then
+          if ( (out_csr%colind(jj).GE.indblk(x)).AND.(out_csr%colind(jj).LT.indblk(x + 1)) ) then
             y = 1
-          ELSEif ( (Gcsr%colind(jj).GE.indblk(x + 1)).AND.(Gcsr%colind(jj).LT.indblk(x + 2)) ) then
+          else if ( (out_csr%colind(jj).GE.indblk(x + 1)).AND.(out_csr%colind(jj).LT.indblk(x + 2)) ) then
             y = 2
           endif
         elseif (x.eq.nbl) then
-          if ( (Gcsr%colind(jj).GE.indblk(x)).AND.(Gcsr%colind(jj).LT.indblk(x + 1)) ) then
+          if ( (out_csr%colind(jj).GE.indblk(x)).AND.(out_csr%colind(jj).LT.indblk(x + 1)) ) then
             y = nbl
-          ELSEif ( (Gcsr%colind(jj).GE.indblk(x - 1)).AND.(Gcsr%colind(jj).LT.indblk(x)) ) then
+          else if ( (out_csr%colind(jj).GE.indblk(x - 1)).AND.(out_csr%colind(jj).LT.indblk(x)) ) then
             y = nbl - 1
           endif
         else
           do iy = x-1, x+1
-            if ( (Gcsr%colind(jj).GE.indblk(iy)).AND.(Gcsr%colind(jj).LT.indblk(iy + 1)) ) y = iy
+            if ( (out_csr%colind(jj).GE.indblk(iy)).AND.(out_csr%colind(jj).LT.indblk(iy + 1)) ) y = iy
           end do
         endif
 
         if (y.EQ.0) THEN
           write(*,*)
           write(*,*) 'ERROR in blk2csr: probably wrong PL size', x
-          write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
+          write(*,*) 'row',ii,nrows,out_csr%colind(jj)
           write(*,*) 'block indeces:',indblk(1:nbl)
           STOP
         endif
 
-        col = Gcsr%colind(jj) - indblk(y) + 1
+        col = out_csr%colind(jj) - indblk(y) + 1
 
-        if (allocated(G(x,y)%val)) THEN
-          Gcsr%nzval(jj) = Gcsr%nzval(jj) + G(x,y)%val(row,col)
+        if (allocated(this%blocks(x,y)%val)) then
+          out_csr%nzval(jj) = out_csr%nzval(jj) + this%blocks(x,y)%val(row,col)
         endif
 
       end do

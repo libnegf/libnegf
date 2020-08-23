@@ -160,7 +160,7 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr%blocks, negf%iE)
     !-----------------------------------------------------------
 
-    call blk2csr(Gr%blocks,negf%str,negf%S,Grout)
+    call blockmat_to_masked_csr(Gr, negf%S, Grout)
 
     SELECT CASE (outer)
     CASE(0)
@@ -311,7 +311,7 @@ CONTAINS
     !Passing G^n to interaction that builds Sigma^n
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn%blocks, negf%iE)
 
-    call blk2csr(Gn%blocks,negf%str,negf%S,Glout)
+    call blockmat_to_masked_csr(Gn, negf%S, Glout)
 
     end associate
 
@@ -1612,91 +1612,6 @@ CONTAINS
 
   end subroutine blk2dns
 
-
-  !Concatenation for every contact in G_n. Performs a sum on elements, not a replacement
-  !Similar to calculate_GreenR2, except for sum of elements
-  !Note: to backup old version zconcat calls (and Glsub deallocations) must be
-  !      uncommented and all this part removed
-  !If only one block is present, concatenation is not needed and it's implemented in a
-  !more trivial way
-  subroutine blk2csr(G,struct,P,Gcsr)
-
-    type(z_DNS), dimension(:,:) :: G
-    type(Tstruct_info), intent(in) :: struct
-    type(z_CSR) :: Gcsr
-    type(z_CSR) :: P, G_sp
-
-    integer :: nbl, oldx, row, col, iy, ix, x, y, ii, jj, nrows
-
-    nbl = struct%num_PLs
-    nrows = struct%mat_PL_end(nbl)
-
-    !create Gcsr with same pattern of P
-    call create(Gcsr,P%nrow,P%ncol,P%nnz)
-    Gcsr%rowpnt = P%rowpnt
-    Gcsr%colind = P%colind
-    Gcsr%nzval = (0.0_dp, 0.0_dp)
-
-    associate(indblk=>struct%mat_PL_start)
-    !Cycle upon all rows
-    x = 1
-    do ii = 1, nrows
-      !Search block x containing row ii
-      oldx = x
-      if (oldx.EQ.nbl) THEN
-        x = oldx
-      ELSE
-        do ix = oldx, oldx+1
-          if ( (ii.GE.indblk(ix)).AND.(ii.LT.indblk(ix+1)) ) x = ix
-        end do
-      endif
-
-      !Offset: row is the index for separate blocks
-      row = ii - indblk(x) + 1
-
-      !Cycle upon columns of Gcsr (which has been ALREADY MASKED by S)
-      do jj = Gcsr%rowpnt(ii), Gcsr%rowpnt(ii+1) -1
-        if (Gcsr%colind(jj).gt.nrows) CYCLE
-        !Choose which block column we're dealing with
-        y = 0
-        if (x.eq.1) then
-          if ( (Gcsr%colind(jj).GE.indblk(x)).AND.(Gcsr%colind(jj).LT.indblk(x + 1)) ) then
-            y = 1
-          ELSEif ( (Gcsr%colind(jj).GE.indblk(x + 1)).AND.(Gcsr%colind(jj).LT.indblk(x + 2)) ) then
-            y = 2
-          endif
-        elseif (x.eq.nbl) then
-          if ( (Gcsr%colind(jj).GE.indblk(x)).AND.(Gcsr%colind(jj).LT.indblk(x + 1)) ) then
-            y = nbl
-          ELSEif ( (Gcsr%colind(jj).GE.indblk(x - 1)).AND.(Gcsr%colind(jj).LT.indblk(x)) ) then
-            y = nbl - 1
-          endif
-        else
-          do iy = x-1, x+1
-            if ( (Gcsr%colind(jj).GE.indblk(iy)).AND.(Gcsr%colind(jj).LT.indblk(iy + 1)) ) y = iy
-          end do
-        endif
-
-        if (y.EQ.0) THEN
-          write(*,*)
-          write(*,*) 'ERROR in blk2csr: probably wrong PL size', x
-          write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
-          write(*,*) 'block indeces:',indblk(1:nbl)
-          STOP
-        endif
-
-        col = Gcsr%colind(jj) - indblk(y) + 1
-
-        if (allocated(G(x,y)%val)) THEN
-          Gcsr%nzval(jj) = Gcsr%nzval(jj) + G(x,y)%val(row,col)
-        endif
-
-      end do
-
-    end do
-    end associate
-
-  end subroutine blk2csr
 
   ! ******************************************************************************
   ! Computes Sigma_ph_n and save it file
