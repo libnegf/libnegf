@@ -32,8 +32,12 @@ module ln_blockmat
 
 !> A square block matrix with blocks of type z_DNS.
   type TSquareBlockZDns
+    !> The array contaning the dense matrices
     type(z_DNS), dimension(:, :), allocatable :: blocks
+    !> The number of block (and column) rows
     integer :: nblocks = 0
+    !> The array with the starting index of each block row, including an
+    !> element nblock + 1 with the last row + 1.
     integer, dimension(:), allocatable :: blockind
   end type TSquareBlockZDns
 
@@ -105,7 +109,7 @@ contains
     integer nrow, ncol
 
     nrow = this%blockind(i + 1) - this%blockind(i)
-    ncol = this%blockind(i + 1) - this%blockind(i)
+    ncol = this%blockind(j + 1) - this%blockind(j)
 
     call create(this%blocks(i, j), nrow, ncol)
     this%blocks(i, j)%val = (0.d0, 0.d0)
