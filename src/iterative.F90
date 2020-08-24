@@ -136,7 +136,7 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH%blocks)
 
     call allocate_gsm(gsmr,nbl)
-    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     call create_blockmat(Gr, negf%str%mat_PL_start)
 
@@ -259,8 +259,8 @@ CONTAINS
       lbl = maxval(cblk(1:ncont),mask(1:ncont))
     endif
 
-    call calculate_gsmr_blocks(ESH%blocks,nbl,rbl+1)
-    call calculate_gsml_blocks(ESH%blocks,1,lbl-1)
+    call calculate_gsmr_blocks(ESH,nbl,rbl+1)
+    call calculate_gsml_blocks(ESH,1,lbl-1)
 
     call create_blockmat(Gr, negf%str%mat_PL_start)
 
@@ -390,10 +390,10 @@ CONTAINS
     call allocate_gsm(gsmr,nbl)
     call allocate_gsm(gsml,nbl)
 
-    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     if ( ncont.gt.1 ) then
-      call calculate_gsml_blocks(ESH%blocks,1,nbl-2)
+      call calculate_gsml_blocks(ESH,1,nbl-2)
     endif
 
     call create_blockmat(Gr, negf%str%mat_PL_start)
@@ -811,7 +811,7 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(TSquareBlockZDns), intent(in) :: ESH
     integer, intent(in) :: sbl,ebl                 ! start block, end block
 
     !Work
@@ -822,26 +822,26 @@ CONTAINS
 
     if (sbl.lt.ebl) return
 
-    nbl = size(ESH,1)
+    nbl = ESH%nblocks
 
     if (nbl.eq.1) return
 
-    nrow=ESH(sbl,sbl)%nrow
+    nrow=ESH%blocks(sbl,sbl)%nrow
 
     call create(gsmr(sbl),nrow,nrow)
 
-    call compGreen(gsmr(sbl),ESH(sbl,sbl),nrow)
+    call compGreen(gsmr(sbl),ESH%blocks(sbl,sbl),nrow)
 
 
     do i=sbl-1,ebl,-1
 
-      call prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.0_dp, 0.0_dp),work1)
+      call prealloc_mult(ESH%blocks(i,i+1),gsmr(i+1),(-1.0_dp, 0.0_dp),work1)
 
-      call prealloc_mult(work1,ESH(i+1,i),work2)
+      call prealloc_mult(work1,ESH%blocks(i+1,i),work2)
 
       call destroy(work1)
 
-      call prealloc_sum(ESH(i,i),work2,work1)
+      call prealloc_sum(ESH%blocks(i,i),work2,work1)
 
       call destroy(work2)
 
@@ -883,7 +883,7 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(TSquareBlockZDns), intent(in) :: ESH
     integer, intent(in) :: sbl,ebl                       ! start block, end block
 
     !Work
@@ -894,28 +894,28 @@ CONTAINS
 
     if (sbl.gt.ebl) return
 
-    nbl = size(ESH,1)
+    nbl = ESH%nblocks
 
     if (nbl.eq.1) return
 
-    nrow=ESH(sbl,sbl)%nrow
+    nrow=ESH%blocks(sbl,sbl)%nrow
 
     call create(gsml(sbl),nrow,nrow)
 
-    call compGreen(gsml(sbl),ESH(sbl,sbl),nrow)
+    call compGreen(gsml(sbl),ESH%blocks(sbl,sbl),nrow)
 
 
     do i=sbl+1,ebl
 
-      nrow=ESH(i,i)%nrow
+      nrow=ESH%blocks(i,i)%nrow
 
-      call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+      call prealloc_mult(ESH%blocks(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
 
-      call prealloc_mult(work1,ESH(i-1,i),work2)
+      call prealloc_mult(work1,ESH%blocks(i-1,i),work2)
 
       call destroy(work1)
 
-      call prealloc_sum(ESH(i,i),work2,work1)
+      call prealloc_sum(ESH%blocks(i,i),work2,work1)
 
       call destroy(work2)
 
@@ -3084,7 +3084,7 @@ CONTAINS
     call allocate_gsm(gsmr,nbl)
 
     !Iterative calculation up with gsmr
-    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     do icpl = 1, size(ni)
 
@@ -3413,7 +3413,7 @@ CONTAINS
 
     call allocate_gsm(gsmr,nbl)
 
-    call calculate_gsmr_blocks(ESH%blocks,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,2)
 
     call create_blockmat(Gr, str%mat_PL_start)
 
