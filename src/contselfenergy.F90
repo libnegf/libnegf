@@ -36,7 +36,6 @@ module ContSelfEnergy
  use clock
  use mpi_globals
  use complexbands
- use ln_cache
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
 #:endif
@@ -211,7 +210,7 @@ contains
           !*** save in file ***
           if (flag.eq.2) then
 
-            call add_surface_green_to_cache(GS, i, nkp, pnt, nsp)
+            call pnegf%surface_green_cache%add(GS, i, nkp, pnt, nsp)
 
             !  open (newunit=tmpUnit,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
 
@@ -222,7 +221,7 @@ contains
 
        else         !*** load from file ***
 
-         call retrieve_surface_green_from_cache(GS, i, nkp, pnt, nsp)
+         call pnegf%surface_green_cache%retrieve(GS, i, nkp, pnt, nsp)
 
          !  open (newunit=tmpUnit,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
 

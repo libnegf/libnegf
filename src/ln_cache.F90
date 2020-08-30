@@ -20,45 +20,49 @@
 
 module ln_cache
 
-  use lib_param
   use mat_def, only: z_DNS
 
   implicit none
 
-  public :: add_surface_green_to_cache, retrieve_surface_green_from_cache
+  public :: TSurfaceGreenCache
 
   private
 
   !> Linked list to store surface green in memory
-  type :: TCachedSurfaceGreen
-    type(TCachedSurfaceGreen), pointer :: next => null()
-    type(z_DNS) :: surface_green
+  type :: TSurfaceGreenCacheEntry
+    type(TSurfaceGreenCacheEntry), pointer :: next => null()
+    type(z_DNS), allocatable :: surface_green
     integer :: kpoint = -1
     integer :: energy_point = -1
     integer :: spin = -1
     integer :: contact = -1
   end type
 
-  type(TCachedSurfaceGreen), target, allocatable, save :: cache_start
+  type :: TSurfaceGreenCache
+    type(TSurfaceGreenCacheEntry), pointer :: first => null()
+  contains
+    procedure :: add => add_surface_green_to_cache
+    procedure :: retrieve => retrieve_surface_green_from_cache
+    procedure :: destroy => destroy_surface_green_cache
+  end type
 
 contains
 
-  subroutine add_surface_green_to_cache(surface_green, contact, nkp, pnt, nsp)
-    type(z_DNS) :: surface_green
+  subroutine add_surface_green_to_cache(this, surface_green, contact, nkp, pnt, nsp)
+    class(TSurfaceGreenCache) :: this
+    type(z_DNS):: surface_green
     integer :: nkp
     integer :: pnt
     integer :: nsp
     integer :: contact
 
-    type(TCachedSurfaceGreen), pointer :: p
+    type(TSurfaceGreenCacheEntry), pointer :: p
 
-    write(*,*) "Add ", nkp, pnt, nsp
-    if (.not.allocated(cache_start)) then
-        write(*,*) "Here"
-      allocate(cache_start)
-      p => cache_start
+    if (.not. associated(this%first)) then
+      allocate (this%first)
+      p => this%first
     else
-      p => cache_start
+      p => this%first
       do
         !while (associated(p%next))
         ! If the point is already present, substitute and exit
@@ -67,14 +71,12 @@ contains
         & p%spin .eq. nsp .and. p%contact .eq. contact) then
 
           p%surface_green = surface_green
-          write (*, *) 'Substitute ', nkp, pnt, nsp
           return
 
-        else if (.not.associated(p%next)) then
-            write (*, *) 'From scratch ', nkp, pnt, nsp
-            allocate (p%next)
-            p => p%next
-            exit
+        else if (.not. associated(p%next)) then
+          allocate (p%next)
+          p => p%next
+          exit
         end if
         p => p%next
       end do
@@ -88,37 +90,52 @@ contains
 
   end subroutine
 
-  subroutine retrieve_surface_green_from_cache(surface_green, contact, nkp, pnt, nsp)
+  subroutine retrieve_surface_green_from_cache(this, surface_green, contact, nkp, pnt, nsp)
+    class(TSurfaceGreenCache) :: this
     type(z_DNS) :: surface_green
     integer :: nkp
     integer :: pnt
     integer :: nsp
     integer :: contact
 
-    type(TCachedSurfaceGreen), pointer :: p
+    type(TSurfaceGreenCacheEntry), pointer :: p
 
-    write(*,*) "Retrieve ", nkp, pnt, nsp
-    if (.not. allocated(cache_start)) then
+    if (.not. associated(this%first)) then
       error stop "No entry in surface green cache"
     else
-      p => cache_start
+      p => this%first
     end if
 
     do while (associated(p))
-        write(*,*) "Points B ", p%kpoint, p%energy_point, p%spin
-        if (p%kpoint .eq. nkp .and. &
-        & p%energy_point .eq. pnt .and. &
-        & p%spin .eq. nsp .and. p%contact .eq. contact) then
-            write(*,*) "found during loop B"
-            surface_green = p%surface_green
-            return
-        end if
-        p => p%next
+      if (p%kpoint .eq. nkp .and. &
+      & p%energy_point .eq. pnt .and. &
+      & p%spin .eq. nsp .and. p%contact .eq. contact) then
+        surface_green = p%surface_green
+        return
+      end if
+      p => p%next
     end do
-    write(*,*) "Points C ", p%kpoint, p%energy_point, p%spin
 
     error stop "Entry not found in surface green cache"
 
-      end subroutine
+  end subroutine
 
-      end module
+  subroutine destroy_surface_green_cache(this)
+    class(TSurfaceGreenCache) :: this
+
+    type(TSurfaceGreenCacheEntry), pointer :: p, previous
+
+    if (.not.associated(this%first)) then
+      return
+    end if
+
+    p => this%first
+    do while (associated(p))
+      previous => p
+      p => p%next
+      deallocate (previous)
+    end do
+
+  end subroutine
+
+end module

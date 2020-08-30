@@ -1048,7 +1048,7 @@ contains
     end if
     call destroy_DM(negf)
     call destroy_matrices(negf)
-    !if (allocated(negf%cont)) deallocate(negf%cont)
+    call negf%surface_green_cache%destroy()
 
   end subroutine destroy_negf
 
