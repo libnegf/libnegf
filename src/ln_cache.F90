@@ -209,7 +209,8 @@ contains
     type(TSurfaceGreenCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
-      error stop "No entry in surface green cache"
+      val = .false.
+      return
     else
       p => this%first
     end if
