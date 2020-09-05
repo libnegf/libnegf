@@ -265,7 +265,7 @@ contains
     integer :: file_unit
 
     call disk_indices_to_filename(filename, contact, nkp, pnt, nsp)
-    open (newunit=file_unit, file=trim((this%scratch_path)//filename), form='UNFORMATTED')
+    open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
     call outmat_c(file_unit, .false., surface_green%val, surface_green%nrow, surface_green%ncol)
     close (file_unit)
 
@@ -297,7 +297,7 @@ contains
       error stop "Cannot retrieve surface green function from disk: file not found"
     end if
 
-    open (newunit=file_unit, file=trim((this%scratch_path)//filename), form='UNFORMATTED')
+    open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
     call inmat_c(file_unit, .false., surface_green%val, surface_green%nrow, surface_green%ncol)
     close (file_unit)
 
