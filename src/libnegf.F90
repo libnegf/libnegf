@@ -702,6 +702,11 @@ contains
        stop
     end if
     negf%scratch_path = trim(scratchpath)//'/GS/'
+    ! Update the cache object if needed.
+    select type (sgf => negf%surface_green_cache)
+      type is (TSurfaceGreenCacheDisk)
+        sgf%scratch_path = negf%scratch_path
+    end select
 
   end subroutine set_scratch
   !----------------------------------------------------------
