@@ -89,13 +89,8 @@ contains
                                ! flag=1 Compute
                                ! flag=2 Compute and save
     real(kind=dp) :: dens
-    character(2) :: ofcont
-    character(1) :: ofspin
-    character(10) :: ofkpnt
     character(10) :: ofpnt
-    character(64) :: filename
     logical :: lex
-    integer :: tmpUnit
 
     pnt = pnegf%iE    ! Step of the energy integration
     i = pnegf%activecont
@@ -112,21 +107,10 @@ contains
     ncyc=0
     nfc=0
 
-    write(ofcont,'(i2.2)') i
-
-    if (nkp.le.99)  write(ofkpnt,'(i2.2)') nkp
-    if (nkp.gt.99.and.id.le.999)  write(ofkpnt,'(i3.3)') nkp
-    if (nkp.gt.999.and.id.le.9999)  write(ofkpnt,'(i4.4)') nkp
-    if (nkp.gt.9999) stop 'ERROR: too many k-points (> 9999)'
-    if (pnt.le.999) write(ofpnt,'(i3.3)') pnt
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt
-    if (pnt.gt.99999) stop 'ERROR: too many contour points (> 99999)'
-    if (nsp.eq.1) ofspin='u'
-    if (nsp.eq.2) ofspin='d'
 
-    filename = 'GS'//ofspin//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
-    inquire(file=trim(pnegf%scratch_path)//filename,EXIST=lex)
+    lex = pnegf%surface_green_cache%is_cached(contact=i, nkp=nkp, pnt=pnt, nsp=nsp)
 
     if (.not.lex .and. flag.eq.0) then
         flag = 2
@@ -212,22 +196,11 @@ contains
 
             call pnegf%surface_green_cache%add(GS, i, nkp, pnt, nsp)
 
-            !  open (newunit=tmpUnit,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
-
-            !  call outmat_c(tmpUnit,.false.,GS%val,ngs,ngs)
-            !  !note: only the first of the 2 PL is saved
-            !  close (tmpUnit)
           endif
 
        else         !*** load from file ***
 
          call pnegf%surface_green_cache%retrieve(GS, i, nkp, pnt, nsp)
-
-         !  open (newunit=tmpUnit,file=trim(pnegf%scratch_path)//filename, form='UNFORMATTED')
-
-         !  call inmat_c(tmpUnit,.false.,GS%val,ngs,ngs)
-
-         !  close(tmpUnit)
 
        endif
 
