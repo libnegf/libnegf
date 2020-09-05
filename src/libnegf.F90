@@ -609,7 +609,16 @@ contains
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
-    params%SGFcache = negf%SGFs_cache_destination
+    select type (sgf => negf%surface_green_cache)
+    type is (TSurfaceGreenCacheDisk)
+      params%SGFcache = 0
+    type is (TSurfaceGreenCacheMem)
+      params%SGFcache = 1
+    type is (TSurfaceGreenCacheDummy)
+      params%SGFcache = 2
+    class default
+      params%SGFcache = 2
+    end select
 
   end subroutine get_params
 
@@ -672,10 +681,9 @@ contains
     call set_ref_cont(negf)
 
     ! Initialize the surface green cache.
-    negf%SGFs_cache_destination = params%SGFcache
-    if (negf%SGFs_cache_destination .eq. 0) then
+    if (params%SGFcache .eq. 0) then
       negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
-    else if (negf%SGFs_cache_destination .eq. 1) then
+    else if (params%SGFcache .eq. 1) then
       negf%surface_green_cache = TSurfaceGreenCacheMem()
     else
       negf%surface_green_cache = TSurfaceGreenCacheDummy()

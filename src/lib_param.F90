@@ -135,7 +135,6 @@ module lib_param
    integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
    character(len=LST) :: scratch_path    ! Folder for scratch work
    character(len=LST) :: out_path        ! Folder for output data
-   integer :: SGFs_cache_destination   ! 0: cache on disk 1: cache in memory 2: dummy cache
    real(dp) :: g_spin            ! spin degeneracy
    real(dp) :: delta             ! delta for G.F.
    real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS
@@ -378,7 +377,6 @@ contains
                              ! Only in adaptive refinement
      negf%ndos_proj = 0
 
-     negf%SGFs_cache_destination = 1
      negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
 
    end subroutine set_defaults
