@@ -33,7 +33,7 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create
   use elphdb, only : ElPhonDephB, ElPhonDephB_create
   use elphds, only : ElPhonDephS, ElPhonDephS_create
-  use ln_cache, only : TSurfaceGreenCache
+  use ln_cache
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
 #:endif
@@ -135,6 +135,7 @@ module lib_param
    integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
    character(len=LST) :: scratch_path    ! Folder for scratch work
    character(len=LST) :: out_path        ! Folder for output data
+   integer :: SGFs_cache_destination   ! 0: cache on disk 1: cache in memory 2: dummy cache
    real(dp) :: g_spin            ! spin degeneracy
    real(dp) :: delta             ! delta for G.F.
    real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS
@@ -248,7 +249,7 @@ module lib_param
    integer :: readOldSGF
 
    ! Work variable: surface green cache.
-   type(TSurfaceGreenCache) :: surface_green_cache
+   class(TSurfaceGreenCache), allocatable :: surface_green_cache
 
  end type Tnegf
 
@@ -376,6 +377,9 @@ contains
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
      negf%ndos_proj = 0
+
+     negf%SGFs_cache_destination = 2
+     negf%surface_green_cache = TSurfaceGreenCacheDummy()
 
    end subroutine set_defaults
 

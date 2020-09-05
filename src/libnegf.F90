@@ -25,6 +25,7 @@ module libnegf
  use ln_constants
  use ln_allocation
  use lib_param
+ use ln_cache
  use globals, only : LST
  use mpi_globals
  use input_output
@@ -129,6 +130,8 @@ module libnegf
    integer(c_int)  :: readOldDM_SGFs
    !> Managing SGF readwrite for Tunn: 0: Read 1: compute 2: comp & save
    integer(c_int)  :: readOldT_SGFs
+   !> SGF cache destination: 0 for disk, 1 for memory, 2 for a dummy cache (no save performed)
+   integer(c_int) :: SGFcache
    !> Spin component (for io)
    integer(c_int)  :: spin
    !> k-point index (for io)
@@ -606,6 +609,7 @@ contains
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
+    params%SGFcache = negf%SGFs_cache_destination
 
   end subroutine get_params
 
@@ -662,9 +666,20 @@ contains
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
     negf%isSid = params%isSid
+
     !! Some internal variables in libnegf are set internally
     !! after parameters are available
     call set_ref_cont(negf)
+
+    ! Initialize the surface green cache.
+    negf%SGFs_cache_destination = params%SGFcache
+    if (negf%SGFs_cache_destination .eq. 0) then
+      negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
+    else if (negf%SGFs_cache_destination .eq. 1) then
+      negf%surface_green_cache = TSurfaceGreenCacheMem()
+    else
+      negf%surface_green_cache = TSurfaceGreenCacheDummy()
+    end if
 
   end subroutine set_params
 
