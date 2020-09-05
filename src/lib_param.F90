@@ -378,8 +378,8 @@ contains
                              ! Only in adaptive refinement
      negf%ndos_proj = 0
 
-     negf%SGFs_cache_destination = 2
-     negf%surface_green_cache = TSurfaceGreenCacheDummy()
+     negf%SGFs_cache_destination = 1
+     negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
 
    end subroutine set_defaults
 
