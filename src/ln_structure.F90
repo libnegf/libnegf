@@ -85,12 +85,21 @@ contains
 
    
     if(ncont.gt.0) then
-       allocate(str%mat_B_start(ncont))
-       allocate(str%mat_C_start(ncont))
-       allocate(str%mat_C_end(ncont))
-       allocate(str%cont_dim(ncont))
-     endif
-     allocate(str%cblk(ncont))
+      if (allocated(str%mat_B_start)) then
+        deallocate(str%mat_B_start)
+        deallocate(str%mat_C_start)
+        deallocate(str%mat_C_end)
+        deallocate(str%cont_dim)
+      end if
+      allocate(str%mat_B_start(ncont))
+      allocate(str%mat_C_start(ncont))
+      allocate(str%mat_C_end(ncont))
+      allocate(str%cont_dim(ncont))
+    endif
+    if (allocated(str%cblk)) then
+      deallocate(str%cblk)
+    end if
+    allocate(str%cblk(ncont))
 
     do i=1,ncont
        str%mat_B_start(i) = surf_start(i)
@@ -100,6 +109,10 @@ contains
        str%cont_dim(i) =  str%mat_C_end(i) - str%mat_B_start(i) + 1
     enddo
 
+    if (allocated(str%mat_PL_start)) then
+      deallocate(str%mat_PL_start)
+      deallocate(str%mat_PL_end)
+    end if
     allocate(str%mat_PL_start(nbl+1))
     allocate(str%mat_PL_end(nbl))
     
