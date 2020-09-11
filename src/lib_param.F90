@@ -142,7 +142,7 @@ module lib_param
    real(dp) :: wmax              ! Maximum frequency in Mingo's model
                                  ! See 'Numerical Heat Transfer, Part B', 51:333, 2007
    real(dp) :: eneconv           ! Energy conversion factor
-   integer  :: spin              ! spin component
+   integer  :: spin = 1          ! spin component
    real(dp) :: wght              ! k-point weight
    integer :: kpoint             ! k-point index
    character(1) :: DorE          ! Density or En.Density

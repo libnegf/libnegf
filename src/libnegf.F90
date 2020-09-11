@@ -74,7 +74,8 @@ module libnegf
  public :: set_convfactor, set_fictcont
  public :: read_negf_in
  public :: negf_version
- public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S,rho,rhoE)
+ public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S)
+ public :: destroy_DM ! cleanup matrices in Tnegf container (rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly
  public :: negf_partition_info  !write down partition info
