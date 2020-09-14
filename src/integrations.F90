@@ -1358,15 +1358,21 @@ contains
   !  leads and stored on negf%tunn_mat. The leads are specified in negf%ni
   !  We don't use the collector negf%nf because we need to specify only the
   !  lead for integration
+  !
+  ! The Fermi distribution for the contacts can be specified as optional input.
+  ! In this case the chemical potential and temperature are ignored and the
+  ! values must be constant in energy. This can be used for example to
+  ! calculate the effective transmission by forcing the value to be 0 or 1.
   !---------------------------------------------------------------------------
-  subroutine meir_wingreen(negf)
+  subroutine meir_wingreen(negf, fixed_occupations)
     type(Tnegf) :: negf
 
     integer :: scba_iter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Real(dp), Dimension(:), allocatable :: curr_mat
-    real(dp), DIMENSION(:), allocatable :: frm
+    real(dp), dimension(:), allocatable, optional :: fixed_occupations
+    real(dp), dimension(:), allocatable :: frm
     integer :: size_ni, ii, Nstep, outer, ncont, npl, j1, icont, jj
     complex(dp) :: Ec
     real(dp) :: scba_error
@@ -1383,7 +1389,10 @@ contains
       call log_allocate(negf%curr_mat,Nstep,size_ni)
     end if
     negf%curr_mat = 0.0_dp
-    call log_allocate(frm,ncont)
+    call log_allocate(frm, ncont)
+    if (present(fixed_occupations)) then
+      frm = fixed_occupations
+    end if
 
     call create_SGF_SE(negf)
     call read_SGF_SE(negf)
@@ -1399,9 +1408,11 @@ contains
       negf%iE = negf%en_grid(ii)%pt
       negf%trans%el%IndexEnergy=ii  !DAR
 
-      do j1 = 1,ncont
-         frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
-      enddo
+      if (.not. present(fixed_occupations)) then
+        do j1 = 1,ncont
+          frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
+        enddo
+      endif
 
       if(negf%tCalcSelfEnergies) then
          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
@@ -1636,9 +1647,7 @@ contains
 
     negf%currents=0.d0
     do ii=1,size_ni
-       mu1=negf%cont(negf%ni(ii))%mu
-       mu2=negf%cont(negf%nf(ii))%mu
-       negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), mu1, mu2, &
+       negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), &
                           & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
     enddo
 
@@ -1871,12 +1880,12 @@ contains
   ! Function to integrate the current density I(E) !!! and get the current
   ! for meir_wingreen
   !************************************************************************
-  function integrate_el_meir_wingreen(TUN_TOT,mu1,mu2,emin,emax,estep,spin_g)
+  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep,spin_g)
 
     implicit none
 
     real(dp) :: integrate_el_meir_wingreen
-    real(dp), intent(in) :: mu1,mu2,emin,emax,estep
+    real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: spin_g
 

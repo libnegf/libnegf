@@ -92,6 +92,9 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
+ public :: compute_dephasing_transmission ! high-level wrapping routines
+                                          ! Extract HM and SM
+                                          ! run total current calculation
 
  public ::  write_tunneling_and_dos ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed
@@ -471,29 +474,29 @@ contains
 
      ! Make sure we called init_contacts in a consistent way.
      if (size(negf%cont) .ne. ncont) then
-       write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont     
+       write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont
        stop "Error in set_structure: ncont not compatible with previous initialization."
      end if
      ! More sanity checks.
      if (size(surfstart) .ne. ncont) then
-       write(*, *) 'size(surfstart)=',size(surfstart),'<->  ncont=',ncont     
+       write(*, *) 'size(surfstart)=',size(surfstart),'<->  ncont=',ncont
        stop "Error in set_structure: surfend and ncont mismatch"
      end if
      if (size(surfend) .ne. ncont) then
-       write(*, *) 'size(surfend)=',size(surfend),'<->  ncont=',ncont     
+       write(*, *) 'size(surfend)=',size(surfend),'<->  ncont=',ncont
        stop "Error in set_structure: surfend and ncont mismatch"
      end if
      if (size(contend) .ne. ncont) then
-       write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont     
+       write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont
        stop "Error in set_structure: contend and ncont mismatch"
      end if
      if (npl .ne. 0 .and. size(plend) .ne. npl) then
-       write(*, *) 'size(plend)=',size(plend),'<->  npl=',npl    
+       write(*, *) 'size(plend)=',size(plend),'<->  npl=',npl
        stop "Error in set_structure: plend and npl mismatch"
      end if
 
      if (npl .eq. 0) then
-       ! supposedly performs an internal block partitioning but it is not reliable.     
+       ! supposedly performs an internal block partitioning but it is not reliable.
        call log_allocate(plend_tmp, MAXNUMPLs)
        call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
        call log_allocate(cblk_tmp, MAXNUMPLs)
@@ -796,7 +799,7 @@ contains
       if (size(negf%tun_proj%indexes) /= size(idx)) then
          write(*,*) 'ERROR in set_tun_indexes size mismatch'
          return
-      end if   
+      end if
     end if
     negf%tun_proj%indexes = idx
 
@@ -890,10 +893,10 @@ contains
   !> Initialize and set parameters from input file negf.in
   subroutine read_negf_in(negf)
     type(Tnegf) :: negf
-    
+
     integer :: ncont, nbl, ii, jj, ist, iend
     integer, dimension(:), allocatable :: PL_end, cont_end, surf_end
-    integer, dimension(:), allocatable :: surf_start, cblk 
+    integer, dimension(:), allocatable :: surf_start, cblk
     character(32) :: tmp
     character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
 
@@ -921,7 +924,7 @@ contains
     call log_allocate(surf_start,ncont)
     call log_allocate(surf_end,ncont)
     call log_allocate(cont_end,ncont)
-    
+
     read(101,*) tmp, nbl
     if (nbl .gt. 0) then
        call log_allocate(PL_end,nbl)
@@ -930,7 +933,7 @@ contains
     read(101,*) tmp, surf_start(1:ncont)
     read(101,*) tmp, surf_end(1:ncont)
     read(101,*) tmp, cont_end(1:ncont)
-  
+
     call find_cblocks(negf%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
     call init_structure(negf, ncont, surf_start, surf_end, cont_end, nbl, PL_end, cblk)
 
@@ -1438,6 +1441,41 @@ contains
     call destroy_matrices(negf)
 
   end subroutine compute_landauer
+
+  !-------------------------------------------------------------------------------
+  !> Calculate current and tunnelling for elastic el-ph dephasing models.
+  !> Since the "real" landauer-like formula is not implemented yet, we use
+  !> a dirty trick only valid for 2 contacts.
+  !! @param negf input/output container
+  subroutine compute_dephasing_transmission(negf)
+
+    type(Tnegf) :: negf
+    real(dp), allocatable, dimension(:) :: occupations
+
+    if (negf%str%num_conts .ne. 2) then
+      error stop "Effective transmission is only supported for 2 electrodes"
+    end if
+
+    if (negf%elph%model .gt. 3) then
+      error stop "Effective transmission is only supported for dephasing models"
+    end if
+
+    call extract_cont(negf)
+    call tunneling_int_def(negf)
+    ! Dirty trick. Set the contact population to 1 on the final contact and
+    ! 1 on the initial one.
+    allocate(occupations(2))
+    occupations(negf%ni(1)) = 0.d0
+    occupations(negf%nf(1)) = 1.d0
+
+    call meir_wingreen(negf, fixed_occupations=occupations)
+    ! Assign the current matrix values to the transmission.
+    negf%tunn_mat = negf%curr_mat
+
+    call electron_current(negf)
+    call destroy_matrices(negf)
+
+  end subroutine compute_dephasing_transmission
 
   !-------------------------------------------------------------------------------
   !> Calculate current, tunneling and, if specified, density of states using

@@ -32,6 +32,7 @@ program hello
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:), coupling(:)
   real(kind(1.d0)), dimension(:,:), pointer :: transmission
+  real(kind(1.d0)) :: current
 
   surfstart = [61, 81]
   surfend = [60, 80]
@@ -77,12 +78,22 @@ program hello
   coupling = 0.05
   call destroy_elph_model(pnegf)
   call set_elph_dephasing(pnegf, coupling, 5)
-  write(*,*) 'Compute current'
   call compute_current(pnegf)
-  write(*,*) 'Current ', pnegf%currents(1)
+  current = pnegf%currents(1)
+  write(*,*) 'Current with Meir-Wingreen', current
   ! The current with dephasing is smaller than the ballistic current.
-  if (pnegf%currents(1) > 1.95 .or. pnegf%currents(1) < 1.90) error stop "Wrong current for finite coupling"
+  if (current > 1.95 .or. current < 1.90) error stop "Wrong current for finite coupling"
   deallocate(coupling)
+
+  ! Check that the effective transmission produces the same current.
+  ! call destroy_elph_model(pnegf)
+  ! call set_elph_dephasing(pnegf, coupling, 5)
+  call compute_dephasing_transmission(pnegf)
+  write(*,*) 'Current from effective transmission', pnegf%currents(1)
+  if (abs(pnegf%currents(1) - current) .gt. 1e-6) then
+    error stop "Current evaluated with effective transmission does not match Meir Wingreen"
+  end if
+
   write(*,*) 'Destroy negf'
   call destroy_negf(pnegf)
   write(*,*) 'Done'
