@@ -140,25 +140,10 @@ contains
       allocate (this%first)
       p => this%first
     else
-      p => this%first
-      do
-        !while (associated(p%next))
-        ! If the point is already present, substitute and exit
-        if (p%kpoint .eq. nkp .and. &
-        & p%energy_point .eq. pnt .and. &
-        & p%spin .eq. nsp .and. p%contact .eq. contact) then
-
-          p%surface_green = surface_green
-          return
-
-        else if (.not. associated(p%next)) then
-          allocate (p%next)
-          p => p%next
-          exit
-        end if
-        p => p%next
-      end do
-
+      ! Always add at the beginning, because it is faster.
+      allocate(p)
+      p%next => this%first
+      this%first => p
     end if
     p%surface_green = surface_green
     p%kpoint = nkp
