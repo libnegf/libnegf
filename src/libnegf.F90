@@ -75,6 +75,7 @@ module libnegf
  public :: read_negf_in
  public :: negf_version
  public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S)
+ public :: destroy_surface_gren_cache ! Clean surface green cache (useful for memory cache)
  public :: destroy_DM ! cleanup matrices in Tnegf container (rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly
@@ -610,25 +611,32 @@ contains
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
-    select type (sgf => negf%surface_green_cache)
-    type is (TSurfaceGreenCacheDisk)
-      params%SGFcache = 0
-    type is (TSurfaceGreenCacheMem)
-      params%SGFcache = 1
-    type is (TSurfaceGreenCacheDummy)
-      params%SGFcache = 2
-    class default
-      params%SGFcache = 2
-    end select
+    params%SGFcache = get_surface_green_cache_type(negf)
 
   end subroutine get_params
+
+  function get_surface_green_cache_type(negf) result(idx)
+    type(Tnegf) :: negf
+    integer :: idx
+
+    select type (sgf => negf%surface_green_cache)
+    type is (TSurfaceGreenCacheDisk)
+      idx = 0
+    type is (TSurfaceGreenCacheMem)
+      idx = 1
+    type is (TSurfaceGreenCacheDummy)
+      idx = 2
+    class default
+      idx = 2
+    end select
+  end function get_surface_green_cache_type
 
   !> Assign parameters to libnegf
   subroutine set_params(negf, params)
     type(Tnegf) :: negf
     type(lnParams), intent(in) :: params
 
-    integer :: nn
+    integer :: nn, tmp
 
     negf%verbose = params%verbose
     negf%readOldDM_SGFs = params%readOldDM_SGFs
@@ -681,11 +689,19 @@ contains
     !! after parameters are available
     call set_ref_cont(negf)
 
-    ! Initialize the surface green cache.
+    ! The surface green cache is created if there's none. Otherwise
+    ! it is reset only if the type is changed. If the energy integral
+    ! is changed and the cache type is not, it must be forcibly destroyed
+    ! using destroy_surface_green_cache
+    tmp = get_surface_green_cache_type(negf)
     if (params%SGFcache .eq. 0) then
-      negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
+      if (tmp .ne. 0 .or. .not. allocated(negf%surface_green_cache)) then
+        negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
+      end if
     else if (params%SGFcache .eq. 1) then
-      negf%surface_green_cache = TSurfaceGreenCacheMem()
+      if (tmp .ne. 1 .or. .not. allocated(negf%surface_green_cache)) then
+        negf%surface_green_cache = TSurfaceGreenCacheMem()
+      end if
     else
       negf%surface_green_cache = TSurfaceGreenCacheDummy()
     end if
@@ -1077,9 +1093,17 @@ contains
     end if
     call destroy_DM(negf)
     call destroy_matrices(negf)
-    call negf%surface_green_cache%destroy()
+    call destroy_surface_green_cache(negf)
 
   end subroutine destroy_negf
+
+  !> Destroy the surface green cache.
+  subroutine destroy_surface_green_cache(negf)
+    type(Tnegf) :: negf
+
+    call negf%surface_green_cache%destroy()
+
+  end subroutine destroy_surface_green_cache
 
 
   !--------------------------------------------------------------------
