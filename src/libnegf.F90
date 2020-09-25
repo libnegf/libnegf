@@ -696,14 +696,19 @@ contains
     tmp = get_surface_green_cache_type(negf)
     if (params%SGFcache .eq. 0) then
       if (tmp .ne. 0 .or. .not. allocated(negf%surface_green_cache)) then
+        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
         negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
       end if
     else if (params%SGFcache .eq. 1) then
       if (tmp .ne. 1 .or. .not. allocated(negf%surface_green_cache)) then
+        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
         negf%surface_green_cache = TSurfaceGreenCacheMem()
       end if
     else
-      negf%surface_green_cache = TSurfaceGreenCacheDummy()
+      if (tmp .ne. 2 .or. .not. allocated(negf%surface_green_cache)) then
+        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
+        negf%surface_green_cache = TSurfaceGreenCacheDummy()
+      end if
     end if
 
   end subroutine set_params
