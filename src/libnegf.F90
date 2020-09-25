@@ -75,7 +75,7 @@ module libnegf
  public :: read_negf_in
  public :: negf_version
  public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S)
- public :: destroy_surface_gren_cache ! Clean surface green cache (useful for memory cache)
+ public :: destroy_surface_green_cache ! Clean surface green cache (useful for memory cache)
  public :: destroy_DM ! cleanup matrices in Tnegf container (rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly
