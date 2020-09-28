@@ -3265,7 +3265,6 @@ CONTAINS
     Real(dp) :: tun
     Integer :: nbl,ncont,ibl
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
-    logical :: keepall = .false.
 
     if (ncont == 1) then
       tun_mat = 0.0_dp
@@ -3287,26 +3286,22 @@ CONTAINS
       ibl = str%cblk(i)
       ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
     end do
+      
+    nit=ni(1)
+    nft=nf(1)
+    ! find the contact with smaller block index
+    if (str%cblk(nit).lt.str%cblk(nft)) then
+      nt = str%cblk(nit)
+    else
+      nt = str%cblk(nft)
+    endif
 
     ! Fall here when there are 2 contacts for fast transmission
-    if (ncont == 2 .and. size(ni) == 1) then
-      nit=ni(1)
-      nft=nf(1)
-      ! order blocks in such a way that nt is that with smaller index
-      if (str%cblk(nit).lt.str%cblk(nft)) then
-        nt = str%cblk(nit)
-      else
-        nt = str%cblk(nft)
-      endif
+    if (ncont == 2 .and. size(ni) == 1 .and. nt == 1) then
       call allocate_gsm(gsmr,nbl)
-      call calculate_gsmr_blocks(ESH,nbl,2,keepall)
+      call calculate_gsmr_blocks(ESH,nbl,2,.false.)
       call allocate_blk_dns(Gr,nbl)
       call calculate_Gr_tridiag_blocks(ESH,1)
-      ! This is needed if the lowest block is not 1
-      if (nt.gt.1) then
-        call calculate_Gr_tridiag_blocks(ESH,2,nt)
-      end if
-      ! the sub recomputes internally nt
       call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
       tun_mat(1) = tun
 
