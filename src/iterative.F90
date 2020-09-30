@@ -889,7 +889,7 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine calculate_gsmr_blocks(ESH,sbl,ebl)
+  subroutine calculate_gsmr_blocks(ESH,sbl,ebl,keepall)
 
     !***********************************************************************
     !Input:
@@ -908,18 +908,25 @@ CONTAINS
     !In/Out
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     integer, intent(in) :: sbl,ebl                 ! start block, end block
+    logical, intent(in), optional :: keepall
 
     !Work
     !type(z_DNS), dimension(:,:), allocatable :: INV
     type(z_DNS) :: work1, work2
     integer :: nrow, M, N
     integer :: i, nbl
+    logical :: keep
 
     if (sbl.lt.ebl) return
 
     nbl = size(ESH,1)
 
     if (nbl.eq.1) return
+
+    keep = .true.
+    if (present(keepall)) then
+      keep = keepall
+    end if
 
     nrow=ESH(sbl,sbl)%nrow
 
@@ -931,6 +938,10 @@ CONTAINS
     do i=sbl-1,ebl,-1
 
       call prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.0_dp, 0.0_dp),work1)
+
+      if (.not.keep) then
+        call destroy(gsmr(i+1))
+      end if
 
       call prealloc_mult(work1,ESH(i+1,i),work2)
 
@@ -3255,6 +3266,11 @@ CONTAINS
     Integer :: nbl,ncont,ibl
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
 
+    if (ncont == 1) then
+      tun_mat = 0.0_dp
+      return
+    end if
+
     nbl = str%num_PLs
     ncont = str%num_conts
     !Calculation of ES-H and brak into blocks
@@ -3270,54 +3286,66 @@ CONTAINS
       ibl = str%cblk(i)
       ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
     end do
-    call allocate_gsm(gsmr,nbl)
+      
+    nit=ni(1)
+    nft=nf(1)
+    ! find the contact with smaller block index
+    if (str%cblk(nit).lt.str%cblk(nft)) then
+      nt = str%cblk(nit)
+    else
+      nt = str%cblk(nft)
+    endif
 
-    !Iterative calculation up with gsmr
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    ! Fall here when there are 2 contacts for fast transmission
+    if (ncont == 2 .and. size(ni) == 1 .and. nt == 1) then
+      call allocate_gsm(gsmr,nbl)
+      call calculate_gsmr_blocks(ESH,nbl,2,.false.)
+      call allocate_blk_dns(Gr,nbl)
+      call calculate_Gr_tridiag_blocks(ESH,1)
+      call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
+      tun_mat(1) = tun
 
-    do icpl = 1, size(ni)
+    else
+      ! MULTITERMINAL case
+      call allocate_gsm(gsmr,nbl)
+      call calculate_gsmr_blocks(ESH,nbl,2)
 
-      !Computation of transmission(s) between contacts ni(:) -> nf(:)
-      nit=ni(icpl)
-      nft=nf(icpl)
+      do icpl = 1, size(ni)
 
-      !Arrange contacts in a way that the order between first and second is always the
-      !same (always ct1 < ct2), so nt is the largest contact block
-      if (str%cblk(nit).gt.str%cblk(nft)) then
-        nt1 = str%cblk(nit)
-      else
-        nt1 = str%cblk(nft)
-      endif
-    
-      if (icpl == 1) then
-        ! Iterative calculation of Gr down to nt
-        nt = nt1
-        call allocate_blk_dns(Gr,nbl)
-        call calculate_Gr_tridiag_blocks(ESH,1)
-        if (nt.gt.1) then
-          call calculate_Gr_tridiag_blocks(ESH,2,nt)
-        end if
-      else
-        ! When more contacts are present sometimes we can re-use previous GF
-        ! if nt1 > nt extend the Gr calculation
-        if (nt1 .gt. nt) then
-          call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
-          nt = nt1
+        !Computation of transmission(s) between contacts ni(:) -> nf(:)
+        nit=ni(icpl)
+        nft=nf(icpl)
+
+        ! find the largest contact block between the two terminals
+        if (str%cblk(nit).gt.str%cblk(nft)) then
+          nt1 = str%cblk(nit)
+        else
+          nt1 = str%cblk(nft)
         endif
-      end if   
 
-      select case(ncont)
-      case(1)
-        tun = 0.0_dp
-      case(2)
-        call calculate_single_transmission_2_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
-      case default
+        if (icpl == 1) then
+          ! Iterative calculation of Gr down to nt
+          nt = nt1
+          call allocate_blk_dns(Gr,nbl)
+          call calculate_Gr_tridiag_blocks(ESH,1)
+          if (nt.gt.1) then
+            call calculate_Gr_tridiag_blocks(ESH,2,nt)
+          end if
+        else
+          ! When more contacts are present sometimes we can re-use previous GF
+          ! if nt1 > nt extend the Gr calculation
+          if (nt1 .gt. nt) then
+            call calculate_Gr_tridiag_blocks(ESH,nt+1,nt1)
+            nt = nt1
+          endif
+        end if
+
         call calculate_single_transmission_N_contacts(nit,nft,ESH,SelfEneR,str%cblk,tun_proj,tun)
-      end select
 
-      tun_mat(icpl) = tun
+        tun_mat(icpl) = tun
 
-    end do
+      end do
+    end if
 
     !Distruzione delle Green
     do i=2, nt
@@ -3605,11 +3633,9 @@ CONTAINS
     end do
 
     call allocate_gsm(gsmr,nbl)
-
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
-
     call calculate_Gr_tridiag_blocks(ESH,1)
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
