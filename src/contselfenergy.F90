@@ -80,7 +80,7 @@ contains
     type(z_DNS), intent(out) :: GS
 
 
-    complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co
+    complex(kind=dp), DIMENSION(:,:), allocatable :: Ao,Bo,Co,Go
     type(z_DNS) :: gt
 
     integer :: i,i1,n0,n1,n2,n3,n4,nd,npl,ngs,nkp,nsp
@@ -103,10 +103,14 @@ contains
     nkp = pnegf%kpoint
     flag = pnegf%ReadOldSGF
     verbose = pnegf%verbose
-    contdim = pnegf%str%mat_C_end(i) - pnegf%str%mat_C_start(i) + 1
+    contdim = pnegf%str%cont_dim(i)
     surfdim = pnegf%str%mat_C_Start(i) - pnegf%str%mat_B_Start(i)
     ! ngs space for surface + 1 PL
-    ngs = (contdim + surfdim)/2
+    !   +--------+-----+-----+
+    !      Surf    PL1   PL2
+    ! contdim = surfdim + 2 PL => 
+    ! ngs = surfdim + PL = surfdim + (contdim-surfdim)/2
+    ngs = (surfdim + contdim)/2
 
     avncyc=0.0
     ncyc=0
@@ -163,23 +167,20 @@ contains
        n2 = n0+npl                !end of half real contact
        n3 = n2+1                  !start of the second half real contact
        n4 = contdim               !end of second half real contact
-
-       do i1=1,ngs
-          GS%val(i1,i1)=(1.D0,0.D0)
-       end do
-
+       
        if(flag.ge.1) then
 
           call log_allocate(Ao,npl,npl)
           call log_allocate(Bo,npl,npl)
           call log_allocate(Co,npl,npl)
+          call log_allocate(Go,npl,npl)
 
           Ao=E*SC%val(n1:n2,n1:n2)-HC%val(n1:n2,n1:n2)
           Bo=E*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(transpose(Co))
 
-          call decimation2(E,GS,Ao,Bo,Co,npl,n1,n2,ncyc)
+          call decimation(Go,Ao,Bo,Co,npl,ncyc)
 
           call log_deallocate(Ao)
           call log_deallocate(Bo)
@@ -194,7 +195,8 @@ contains
                 gt%val(i1,i1)=(1.D0,0.D0)
              enddo
              !Here we define the Green's function related to bound states.
-             call inverse(gt%val(n1:n2,n1:n2),GS%val(n1:n2,n1:n2),npl)
+             call inverse(gt%val(n1:n2,n1:n2),Go,npl)
+             call log_deallocate(Go)
 
              gt%val(1:n0,1:n0)=E*SC%val(1:n0,1:n0)-HC%val(1:n0,1:n0)
              gt%val(1:n0,n1:n2)=E*SC%val(1:n0,n1:n2)-HC%val(1:n0,n1:n2)
@@ -203,6 +205,9 @@ contains
              call inverse(GS%val,gt%val,ngs)
              !End finally the full Green's function of the contacts.
              call destroy(gt)
+          else
+             GS%val = Go
+             call log_deallocate(Go)
           endif
 
           !print*,'GS',maxval(abs(GS%val))
@@ -239,87 +244,74 @@ contains
 
   end subroutine surface_green
   !---------------------------------------------------------------------------------------
-  !subroutine savedensity(g,n,E,icon,dens)
-  !
-  !  implicit none
-  !
-  !  integer :: n
-  !  complex(kind=dp) :: g(n,n)
-  !  integer :: i,icon
-  !  complex(kind=dp) :: E,dens
-  !
-  !  dens=(0.D0,0.D0)
-  !  do i=1,n
-  !    dens = dens + g(i,i)
-  !  enddo
-  !  dens = (-2.D0/pi)*dens
-  !
-  !endsubroutine savedensity
+  ! --------------------------------------------------------------------
+  subroutine decimation(Go,Ao,Bo,Co,n,ncyc)
+    integer, intent(in) :: n
+    complex(dp), DIMENSION(n,n), intent(out) :: Go
+    complex(dp), DIMENSION(n,n), intent(inout) :: Ao,Bo,Co
+    integer, intent(out) :: ncyc
 
-  !--------------------------------------------------------------------
-  subroutine decimation2(E,GS,Ao,Bo,Co,n,n1,n2,ncyc)
+    complex(dp), parameter :: one = (1.d0,0.d0)  ! For LAPACK
+    complex(dp), parameter :: zero = (0.d0,0.d0) ! MATRIX MULT.
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, A1, B1, C1
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self 
+    integer :: i1, err
+    logical :: okCo = .false.
 
-    implicit none
-
-    complex(dp), parameter :: alfa = (1.d0,0.d0)  ! For LAPAK
-    complex(dp), parameter :: beta = (0.d0,0.d0)  ! MATRIX MULT.
-
-    integer :: n,n1,n2,ncyc
-
-    type(z_DNS) :: GS
-    complex(dp), DIMENSION(n,n) :: Ao,Bo,Co
-
-    integer :: i1,err
-    complex(dp) :: E
-
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s,A1,B1,C1,A1_s
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: inAo, inAoXCo
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: inAoXBo, Gamma
-
-    allocate(Ao_s(n,n),stat=err);
-    allocate(A1(n,n),stat=err);allocate(B1(n,n),stat=err);
-    allocate(C1(n,n),stat=err);allocate(A1_s(n,n),stat=err);
-    allocate(inAo(n,n),stat=err);allocate(inAoXCo(n,n),stat=err);
-    allocate(Gamma(n,n),stat=err);allocate(inAoXBo(n,n),stat=err);
-    if (err /= 0) STOP 'no space for allocation in decimation'
-
+    call log_allocate(Ao_s, n, n) 
     Ao_s=Ao;
 
     do i1 = 1, 300
-      call compGreen(inAo,Ao,n)
+      call compGreen(Go,Ao,n)
 
-      call ZGEMM('N','N',n,n,n, alfa, inAo, n, Bo, n,  beta, inAoXBo, n)
-      call ZGEMM('N','N',n,n,n, alfa, inAo, n, Co, n,  beta, inAoXCo, n)
-      call ZGEMM('N','N',n,n,n, alfa, Bo, n, inAoXCo, n, beta, Gamma, n)
+      call log_allocate(GoXCo, n, n)
+      call ZGEMM('N','N',n,n,n, one, Go, n, Co, n,  zero, GoXCo, n)
 
-      A1_s  = Ao_s - Gamma
-      A1    = Ao - Gamma
-
-      call ZGEMM('N','N',n,n,n, -alfa, Co, n, inAoXBo, n, alfa, A1, n)
-      call ZGEMM('N','N',n,n,n,  alfa, Bo, n, inAoXBo, n, beta, B1, n)
-      call ZGEMM('N','N',n,n,n,  alfa, Co, n, inAoXCo, n, beta, C1, n)
-
-      if((maxval(abs(Co)).le.SGFACC).and.(maxval(abs(C1)).le.SGFACC)) then
-        ncyc=i1
-        exit;
+      call log_allocate(C1, n, n)
+      call ZGEMM('N','N',n,n,n,  one, Co, n, GoXCo, n, zero, C1, n)
+      
+      if (maxval(abs(C1)).le.SGFACC) then
+         if (okCo) then
+            call log_deallocate(GoXCo)
+            call log_deallocate(C1)
+            exit;
+         else
+            okCo = .true.   
+         endif
+      else
+         okCo = .false.   
       endif
+      
+      call log_allocate(Self, n, n)
+      call ZGEMM('N','N',n,n,n, one, Bo, n, GoXCo, n, zero, Self, n)
+      call log_deallocate(GoXCo)
+      Ao_s  = Ao_s - Self
+      Ao    = Ao - Self
+      call log_deallocate(Self)
 
-      Ao=A1
-      Ao_s=A1_s
-      Bo=B1
-      Co=C1
+      call log_allocate(GoXBo, n, n)
+      call ZGEMM('N','N',n,n,n, one, Go, n, Bo, n,  zero, GoXBo, n)
+
+      call log_allocate(B1, n, n)
+      call ZGEMM('N','N',n,n,n,  one, Bo, n, GoXBo, n, zero, B1, n)
+      Bo = B1
+      call log_deallocate(B1)
+
+      call ZGEMM('N','N',n,n,n, -one, Co, n, GoXBo, n, one, Ao, n)
+     
+      Co = C1
+      call log_deallocate(C1)
+      call log_deallocate(GoXBo)
 
     end do
-    call compGreen(Gamma,A1_s,n)
+        
+    ncyc=i1
 
-    GS%val(n1:n2,n1:n2) = Gamma(1:n,1:n)
+    call compGreen(Go,Ao_s,n)
+    call log_deallocate(Ao_s)
 
-    deallocate(Ao_s,A1,A1_s,B1,C1)
-    deallocate(inAo,inAoXCo,inAoXBo,Gamma)
-
-    return
-
-  end subroutine decimation2
+  end subroutine decimation
 
 !-------------------------------------------------------------------------------
 
