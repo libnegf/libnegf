@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 
+# Allow defining cache variables as normal variables in a host project.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+    cmake_policy(SET CMP0077 NEW)
+endif()
+
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(externalMpifx)
