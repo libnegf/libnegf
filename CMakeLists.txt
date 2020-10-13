@@ -21,14 +21,14 @@ message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
 option(WITH_INELASTIC "Whether to build with inelastic scattering" FALSE)
 message(STATUS "libNEGF WITH_INELASTIC: " ${WITH_INELASTIC})
 
-set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH
-  "Installation directory for libraries")
+include(GNUInstallDirs)
 
-set(INSTALL_MOD_DIR "${CMAKE_INSTALL_PREFIX}/include/libnegf/modfiles" CACHE PATH
-  "Installation directory for Fortran module files")
+set(INSTALL_INCLUDE_DIR "libnegf" CACHE PATH
+  "Installation directory for C and C++ header files (within standard include folder)")
 
-set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include/libnegf" CACHE PATH
-  "Installation directory for C and C++ header files")
+set(INSTALL_MOD_DIR "${INSTALL_INCLUDE_DIR}/modfiles" CACHE PATH
+  "Installation directory for Fortran module files (within standard include folder)")
+
 
 option(BUILD_SHARED_LIBS "Whether the library should be shared" FALSE)
 
