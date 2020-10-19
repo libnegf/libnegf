@@ -6,8 +6,10 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
 endif()
 
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(externalMpifx)
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ext_fypp/;${CMAKE_PREFIX_PATH}")
 find_program(FYPP "fypp")
@@ -63,3 +65,32 @@ if(BUILD_TESTING)
   enable_testing()
   add_subdirectory(tests)
 endif()
+
+
+#
+# Installation
+#
+add_library(Negf INTERFACE)
+target_link_libraries(Negf INTERFACE negf)
+install(TARGETS Negf EXPORT negf-targets)
+
+install(EXPORT negf-targets
+  FILE negf-targets.cmake
+  NAMESPACE Negf::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/negf"
+  EXPORT_LINK_INTERFACE_LIBRARIES)
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/utils/export/negf-config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/negf-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/negf)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/negf-config-version.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion)
+
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/cmake/negf-config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/cmake/negf-config-version.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/negf)

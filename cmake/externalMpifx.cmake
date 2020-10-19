@@ -4,7 +4,7 @@ function(find_or_build_mpifx)
   if(TARGET MpiFx::MpiFx)
     return()
   endif()
-  
+
   # If user has set up library explicitely, take that choice withouth further checks.
   set(MPIFX_LIBRARY "" CACHE STRING "MpiFx library path")
   set(MPIFX_INCLUDE_DIRECTORY "" CACHE STRING "MpiFx include path")
