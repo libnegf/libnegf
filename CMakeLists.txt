@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 # Allow defining cache variables as normal variables in a host project.
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-    cmake_policy(SET CMP0077 NEW)
+  cmake_policy(SET CMP0077 NEW)
 endif()
 
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
@@ -11,8 +11,6 @@ include(externalMpifx)
 
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ext_fypp/;${CMAKE_PREFIX_PATH}")
 find_program(FYPP "fypp")
-
-set(FYPP "fypp" CACHE STRING "Fypp preprocessor")
 
 option(WITH_MPI "Whether MPI-parallelised library should be built" FALSE)
 message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
@@ -36,15 +34,14 @@ option(INSTALL_INCLUDE_FILES "Whether module files and headers should be install
 
 option(BUILD_TESTING "Whether the tests should be built" FALSE)
 
-option(FORCE_MPIFX_INSTALL "Install mpifx from repository even if a version is found in the system" FALSE)
-
-option(LINK_LAPACK "Link LAPACK dependencies" TRUE)
+option(FORCE_MPIFX_DOWNLOAD
+  "Force mpifx download from repository (do not search for installed package) " FALSE)
 
 if(LAPACK_LIBRARIES AND LAPACK_LIBRARY_DIRS)
   message(STATUS "libNEGF BLAS: " ${BLAS_LIBRARIES})
   message(STATUS "libNEGF LAPACK: " ${LAPACK_LIBRARIES})
   message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIRS})
-else()	
+else()
   message(STATUS "libNEGF MKLROOT: " $ENV{MKLROOT})
   find_package(LAPACK REQUIRED)
   message(STATUS "libNEGF BLAS found: " ${BLAS_LIBRARIES})
