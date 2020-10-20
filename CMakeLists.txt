@@ -1,9 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
-
-# Allow defining cache variables as normal variables in a host project.
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-  cmake_policy(SET CMP0077 NEW)
-endif()
+cmake_minimum_required(VERSION 3.16)
 
 project(libNEGF VERSION 0.3 LANGUAGES Fortran C)
 
