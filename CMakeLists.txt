@@ -53,7 +53,7 @@ endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  find_or_build_mpifx()
+  find_or_fetch_mpifx()
 endif()
 
 # Subdirectories.
