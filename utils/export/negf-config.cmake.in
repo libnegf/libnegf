@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+set(Negf_WITH_MPI @WITH_MPI@)
+
+include(CMakeFindDependencyMacro)
+
+if(NOT TARGET Negf::Negf)
+  if (Negf_WITH_MPI AND NOT TARGET MpiFx::MpiFx)
+    find_dependency(MpiFx)
+  endif()
+  include(${CMAKE_CURRENT_LIST_DIR}/negf-targets.cmake)
+endif()

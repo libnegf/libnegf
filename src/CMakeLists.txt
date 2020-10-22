@@ -71,19 +71,16 @@ set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  add_dependencies(negf mpifx)
-  target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
-  target_link_libraries(negf PRIVATE mpifx ${MPI_Fortran_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-else()
-  target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
 endif()
+target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:${BUILD_MOD_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${INSTALL_MOD_DIR}>)
 
 install(TARGETS negf
-  EXPORT ${INSTALL_EXPORT_NAME}
+  EXPORT negf-targets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
