@@ -3,6 +3,7 @@ set(sources-fpp
   ln_extract.F90
   complexbands.F90
   input_output.F90
+  ln_cache.F90
   lib_param.F90
   elph.F90
   phph.F90
@@ -71,22 +72,19 @@ set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  add_dependencies(negf mpifx)
-  target_include_directories(negf PRIVATE ${MPIFX_INCLUDE_DIR})
-  target_link_libraries(negf PRIVATE mpifx ${MPI_Fortran_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-else()
-  target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
 endif()
+target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:${BUILD_MOD_DIR}>
-  $<INSTALL_INTERFACE:${INSTALL_MOD_DIR}>)
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${INSTALL_MOD_DIR}>)
 
 install(TARGETS negf
-  EXPORT ${INSTALL_EXPORT_NAME}
-  ARCHIVE DESTINATION ${INSTALL_LIB_DIR}
-  LIBRARY DESTINATION ${INSTALL_LIB_DIR})
+  EXPORT negf-targets
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 if(INSTALL_INCLUDE_FILES)
-  install(DIRECTORY ${BUILD_MOD_DIR}/ DESTINATION ${INSTALL_MOD_DIR})
+  install(DIRECTORY ${BUILD_MOD_DIR}/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${INSTALL_MOD_DIR})
 endif()

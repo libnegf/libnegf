@@ -33,5 +33,5 @@ add_custom_command(
 list(APPEND negf-interface-headers ${CMAKE_CURRENT_BINARY_DIR}/lnParams.h)
 
 if(INSTALL_INCLUDE_FILES)
-    install(FILES ${negf-interface-headers} DESTINATION ${INSTALL_INCLUDE_DIR})
+    install(FILES ${negf-interface-headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()

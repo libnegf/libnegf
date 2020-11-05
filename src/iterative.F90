@@ -3266,13 +3266,14 @@ CONTAINS
     Integer :: nbl,ncont,ibl
     Integer :: i, ierr, icpl, nit, nft, nt, nt1
 
+    nbl = str%num_PLs
+    ncont = str%num_conts
+
     if (ncont == 1) then
       tun_mat = 0.0_dp
       return
     end if
 
-    nbl = str%num_PLs
-    ncont = str%num_conts
     !Calculation of ES-H and brak into blocks
     call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
 
