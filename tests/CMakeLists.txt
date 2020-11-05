@@ -5,6 +5,7 @@ set(test-directories
         c_int_file
         f90int
         f90int_file
+        f90sgf_cache
         f90elph_deph
         f90issue6
         f90block_partition

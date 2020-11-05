@@ -8,6 +8,7 @@ struct lnparams {
   int verbose;
   int readold_t_sgf;
   int readold_dm_sgf;
+  int sgfcache;
   int spin;
   int kpoint;
   double g_spin;
