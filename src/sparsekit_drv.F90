@@ -214,6 +214,10 @@ MODULE sparsekit_drv
      module procedure zspectral_csr
      module procedure zspectral_dns
   end interface
+  interface check_if_hermitian
+     module procedure check_hermitian_csr   
+     module procedure check_hermitian_dns   
+  end interface
 
   integer, parameter :: MISMATCH = 1
   integer, parameter :: CONVERR = 2
@@ -3476,7 +3480,25 @@ CONTAINS
   end function zgetelm_csr
 !---------------------------------------------
 
-  SUBROUTINE check_if_hermitian(ham)
+  subroutine check_hermitian_dns(M)
+    TYPE(z_DNS) :: M
+
+    integer :: ii, jj, file_num
+
+    open(newunit=file_num,file='herm_check.dat')
+    do jj = 1, size(M%val,2)
+      do ii = jj+1, size(M%val,1)
+         if (abs(M%val(ii,jj)-conjg(M%val(jj,ii))) > 1e-10 ) then
+            write(file_num,*) 'elements',ii,jj,'non-hermitian:'
+            write(file_num,*) M%val(ii,jj)
+            write(file_num,*) M%val(jj,ii)
+         end if
+       end do
+    end do
+    close(file_num)
+  end subroutine check_hermitian_dns
+
+  SUBROUTINE check_hermitian_csr(ham)
 
     TYPE(z_CSR) :: ham
 
@@ -3487,9 +3509,7 @@ CONTAINS
 
     call msort(ham)
 
-    file_num = 111
-
-    open(file_num,file='herm_check.dat')
+    open(newunit=file_num,file='herm_check.dat')
 
     count = 0
     do row = 1, ham%nrow
@@ -3518,7 +3538,7 @@ CONTAINS
 
     close(file_num)
 
-  END SUBROUTINE check_if_hermitian
+  END SUBROUTINE check_hermitian_csr
 
   !--------------------------------------------------------------
   ! Returns value of element M(row, col) from sparse matrix
