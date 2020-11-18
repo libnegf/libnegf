@@ -48,9 +48,6 @@ module ContSelfEnergy
   public :: SelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
-  public :: create_SGF_SE
-  public :: read_SGF_SE
-  public :: write_SGF_SE
   public :: sgf_complx
 
   interface SelfEnergy
@@ -558,126 +555,6 @@ contains
     deallocate(TT1,TT2)
 
   end subroutine sgf_complx
-
-  ! ------------------------------------------------------------------------------------------
-  ! READ WRITE SELF-ENERGIES OR SURFACE G.F. (written by DAR)
-  ! ------------------------------------------------------------------------------------------
-  subroutine create_SGF_SE(negf)
-    type(Tnegf) :: negf
-
-    integer :: icont, npl, ngs
-
-    do icont=1,negf%str%num_conts
-      if (negf%cont(icont)%tReadSelfEnergy .or. &
-         negf%cont(icont)%tWriteSelfEnergy.or.negf%tManyBody) then
-         npl=negf%str%mat_PL_start(negf%str%cblk(icont)+1)- &
-            &negf%str%mat_PL_start(negf%str%cblk(icont))
-         allocate(negf%cont(icont)%SelfEnergy(npl,npl,size(negf%en_grid)))
-      end if
-
-      if(negf%cont(icont)%tReadSurfaceGF.or.negf%cont(icont)%tWriteSurfaceGF) then
-         ngs=(negf%str%mat_C_end(icont)+ 1- negf%str%mat_B_Start(icont))/2
-         allocate(negf%cont(icont)%SurfaceGF(ngs,ngs,size(negf%en_grid)))
-      end if
-    end do
-
-  end subroutine create_SGF_SE
-
-  subroutine read_SGF_SE(negf)
-    type(Tnegf) :: negf
-
-    integer :: icont,ncont,i,Nstep
-    integer :: npl,ngs
-    real(dp) :: Ec_check
-
-    integer :: tmpUnit
-
-    ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
-
-    do icont=1,ncont
-
-       if(negf%cont(icont)%tReadSelfEnergy) then
-          open(newunit=tmpUnit,file=trim(negf%cont(icont)%name)//'-SelfEnergy.mgf', &
-              & form="unformatted", action="read")
-          do i = 1, Nstep
-             read(tmpUnit) Ec_check,negf%cont(icont)%SelfEnergy(:,:,i)
-             if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
-                write(*,*) 'Self-Energy file is not consistent. The program is terminated.'
-                stop
-             end if
-          end do
-          close(tmpUnit)
-          if (id0) write(*,"('    The retarded contact self-energy is read from the file ',A)") &
-               trim(negf%cont(icont)%name)//'-SelfEnergy.mgf'
-       else
-          negf%tCalcSelfEnergies = .true.
-       end if
-
-       if(negf%cont(icont)%tReadSurfaceGF) then
-          open(newunit=tmpUnit,file=trim(negf%cont(icont)%name)//'-SurfaceGF.mgf', &
-              & form="unformatted", action="read")
-          do i = 1, Nstep
-             read(tmpUnit) Ec_check,negf%cont(icont)%SurfaceGF(:,:,i)
-             if(Ec_check.ne.real(negf%en_grid(i)%Ec)) then
-                write(*,*)'SurfaceGF is not consistent. The program is terminated.'
-                stop
-             end if
-          end do
-          close(tmpUnit)
-          if (id0) write(*,"('    The retarded contact Surface GF is read from the file ',A)") &
-               trim(negf%cont(icont)%name)//'-SurfaceGF.mgf'
-       end if
-
-    end do
-
-  end subroutine read_SGF_SE
-
-  subroutine write_SGF_SE(negf)
-    type(Tnegf) :: negf
-
-    integer :: icont, npl, ngs, i, tmpUnit
-
-    do icont=1,negf%str%num_conts
-      if (negf%cont(icont)%tWriteSelfEnergy) then
-        ! note: reduce just on node 0 (writing node)
-#:if defined("MPI")
-        call mpifx_reduceip(negf%mpicomm, negf%cont(icont)%SelfEnergy, MPI_SUM)
-#:endif
-        if (id0) then
-          open(newUnit=tmpUnit,form="unformatted",file=trim(negf%cont(icont)%name)&
-              & //'-SelfEnergy.mgf',action="write")
-          do i = 1, size(negf%en_grid)
-             write(tmpUnit)real(negf%en_grid(i)%Ec),negf%cont(icont)%SelfEnergy(:,:,i)
-          end do
-          close(tmpUnit)
-          write(*,"('    The retarded contact self-energy is written into the file ',A)") &
-               trim(negf%cont(icont)%name)//'-SelfEnergy.mgf'
-        end if
-      end if
-    end do
-
-
-    do icont=1,negf%str%num_conts
-      if (negf%cont(icont)%tWriteSurfaceGF) then
-        ! note: reduce just on node 0 (writing node)
-#:if defined("MPI")
-        call mpifx_reduceip(negf%mpicomm, negf%cont(icont)%SurfaceGF, MPI_SUM)
-#:endif
-        if (id0) then
-          open(newunit=tmpUnit,form="unformatted",file=trim(negf%cont(icont)%name)&
-              & //'-SurfaceGF.mgf',action="write")
-          do i = 1, size(negf%en_grid)
-             write(tmpUnit)real(negf%en_grid(i)%Ec),negf%cont(icont)%SurfaceGF(:,:,i)
-          end do
-          close(tmpUnit)
-          write(*,"('    The retarded contact self-energy is written into the file ',A)") &
-               trim(negf%cont(icont)%name)//'-SurfaceGF.mgf'
-        end if
-      end if
-    end do
-
-  end subroutine write_SGF_SE
 
 end module ContSelfEnergy
 
