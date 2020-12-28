@@ -57,8 +57,8 @@ module libnegf
 
  public :: id, id0
 #:if defined("MPI")
- public :: set_mpi_comm
- public :: negf_mpi_init !from mpi_globals
+ public :: set_energy_comm, set_kpoint_comm, set_cart_comm
+ public :: negf_mpi_init, negf_cart_init !from mpi_globals
 #:endif
  public :: set_mpi_bare_comm
 
@@ -857,16 +857,38 @@ contains
   ! -------------------------------------------------------------------
 
 #:if defined("MPI")
-  !> Set a global mpifx communicator.
+  !> Set the energy communicator.
   !!
   !! @param [in] negf: libnegf container instance
-  !! @param [in] mpicomm: an mpifx communicator
-  subroutine set_mpi_comm(negf, mpicomm)
+  !! @param [in] eneComm: an mpifx communicator
+  subroutine set_energy_comm(negf, eneComm)
     type(Tnegf) :: negf
-    type(mpifx_comm) :: mpicomm
+    type(mpifx_comm) :: eneComm
 
-    negf%mpicomm = mpicomm
-  end subroutine
+    negf%energyComm = eneComm
+  end subroutine set_energy_comm
+
+  !> Set the k-point communicator.
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] kComm: an mpifx communicator
+  subroutine set_kpoint_comm(negf, kComm)
+    type(Tnegf) :: negf
+    type(mpifx_comm) :: kComm
+
+    negf%kComm = kComm
+  end subroutine set_kpoint_comm
+
+  !> Set the 2D cartesian communicator.
+  !!
+  !! @param [in] negf: libnegf container instance
+  !! @param [in] cartComm: an mpifx communicator
+  subroutine set_cart_comm(negf, cartComm)
+    type(Tnegf) :: negf
+    type(mpifx_comm) :: cartComm
+
+    negf%cartComm = cartComm
+  end subroutine set_cart_comm
 
   !> Set a global mpifx communicator from a bare communicator.
   !!
@@ -876,11 +898,8 @@ contains
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: mpicomm
 
-    type(mpifx_comm) :: mpifxcomm
-
-    call mpifxcomm%init(mpicomm)
-    negf%mpicomm = mpifxcomm
-    call negf_mpi_init(negf%mpicomm)
+    call negf%globalComm%init(mpicomm)
+    call negf_mpi_init(negf%globalComm)
 
   end subroutine
 #:else
