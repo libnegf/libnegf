@@ -56,10 +56,10 @@ module mpi_globals
     subroutine negf_cart_init(inComm, nk, cartComm, energyComm, kComm)
       type(mpifx_comm), intent(in) :: inComm
       integer, intent(in) :: nk
+      type(mpifx_comm), intent(out) :: cartComm
       type(mpifx_comm), intent(out) :: energyComm
       type(mpifx_comm), intent(out) :: kComm
 
-      type(mpifx_comm) :: cartComm
       integer :: outComm
       integer :: ndims = 2
       integer :: dims(2)
