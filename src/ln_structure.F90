@@ -37,11 +37,11 @@ type TStruct_Info
    integer, dimension(:), allocatable :: cont_dim     ! total contact dim
 
    integer, dimension(:), allocatable :: cblk         !contact int block
-   integer :: central_dim
-   integer :: total_dim
-   integer :: num_PLs
-   integer :: num_conts
-   integer :: active_cont
+   integer :: central_dim = 0
+   integer :: total_dim = 0
+   integer :: num_PLs = 0
+   integer :: num_conts = 0
+   integer :: active_cont = 0
 end type TStruct_Info
 
 
