@@ -52,6 +52,43 @@ module mpi_globals
 
     end subroutine negf_mpi_init
 
+    ! Initialize a 2D cartesian grid
+    subroutine negf_cart_init(inComm, nk, cartComm, energyComm, kComm)
+      type(mpifx_comm), intent(in) :: inComm
+      integer, intent(in) :: nk
+      type(mpifx_comm), intent(out) :: energyComm
+      type(mpifx_comm), intent(out) :: kComm
+
+      type(mpifx_comm) :: cartComm
+      integer :: outComm
+      integer :: ndims = 2
+      integer :: dims(2)
+      integer :: period(2) = 0
+      integer :: remain_dims(2)
+      integer :: nE
+      integer :: reorder = 1
+      integer :: mpierr
+
+      if (mod(inComm%size,nk) /=0 ) then
+        stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
+      end if
+      nE = inComm%size/nk
+      dims(1)=nk; dims(2)=nE
+
+      call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
+      call cartComm%init(outComm, mpierr)
+
+      remain_dims = (/0, 1/)
+      call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
+      call energyComm%init(outComm, mpierr)
+
+      remain_dims = (/1, 0/)
+      call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
+      call kComm%init(outComm, mpierr)
+
+    end subroutine negf_cart_init
+
+
 #:endif
 
 end module mpi_globals

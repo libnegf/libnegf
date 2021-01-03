@@ -1394,8 +1394,8 @@ contains
       frm = fixed_occupations
     end if
 
-    call create_SGF_SE(negf)
-    call read_SGF_SE(negf)
+    !call create_SGF_SE(negf)
+    !call read_SGF_SE(negf)
 
     negf%readOldSGF = negf%readOldT_SGFs
     !! Loop on energy points
