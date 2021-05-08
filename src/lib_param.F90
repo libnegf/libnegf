@@ -129,7 +129,10 @@ module lib_param
    !! General
    integer :: verbose
 #:if defined("MPI")
-   type(mpifx_comm) :: mpicomm
+   type(mpifx_comm) :: globalComm
+   type(mpifx_comm) :: cartComm
+   type(mpifx_comm) :: energyComm
+   type(mpifx_comm) :: kComm
 #:endif
    integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
    integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
