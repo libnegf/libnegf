@@ -24,12 +24,11 @@ module mpi_globals
 
 #:if defined("MPI")
 
-  use mpi, only : mpi_cart_create, mpi_cart_sub
+  use mpi
   use libmpifx_module, only : mpifx_comm
 
 #:endif
 
-  INTEGER, SAVE ::  mpi_comm
   INTEGER, SAVE ::  numprocs = 1
   INTEGER, SAVE ::  id = 0
   LOGICAL, SAVE ::  id0 = .true.
