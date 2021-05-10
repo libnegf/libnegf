@@ -33,7 +33,7 @@ PAT_ARG_SEP = re.compile(r"""\s*,\s*""", REFLAGS)
 
 PAT_MODULE_DEF = re.compile(r"""use\s+(?P<name>\w+)\s*""", REFLAGS)
 
-PAT_PARANTHESIS = re.compile(r"""(?P<obj>\w+)(?:\((?P<arg>[^\)]*)\))?""",
+PAT_PARENTHESIS = re.compile(r"""(?P<obj>\w+)(?:\((?P<arg>[^\)]*)\))?""",
                              REFLAGS)
 
 
@@ -106,7 +106,7 @@ def parse(txt):
             split2 = split[0].split("::", 1)
             split3 = split2[0].split(",", 1)
             varNameAndArgs = split2[1].strip()
-            match3 = PAT_PARANTHESIS.search(varNameAndArgs)
+            match3 = PAT_PARENTHESIS.search(varNameAndArgs)
             varName = match3.group("obj")
             varArgStr = match3.group("arg")
             if varArgStr:

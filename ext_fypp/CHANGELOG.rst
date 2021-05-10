@@ -189,7 +189,7 @@ Added
 Changed
 -------
 
-* Remove paranthesis from direct call.
+* Remove parenthesis from direct call.
 
 
 0.11
