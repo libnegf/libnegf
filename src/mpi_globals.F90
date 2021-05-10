@@ -24,11 +24,11 @@ module mpi_globals
 
 #:if defined("MPI")
 
-  use libmpifx_module
+  use mpi
+  use libmpifx_module, only : mpifx_comm
 
 #:endif
 
-  INTEGER, SAVE ::  mpi_comm
   INTEGER, SAVE ::  numprocs = 1
   INTEGER, SAVE ::  id = 0
   LOGICAL, SAVE ::  id0 = .true.
@@ -61,13 +61,17 @@ module mpi_globals
 
       type(mpifx_comm) :: cartComm
       integer :: outComm
-      integer :: ndims = 2
+      integer :: ndims
       integer :: dims(2)
-      integer :: period(2) = 0
-      integer :: remain_dims(2)
+      logical :: periods(2)
+      logical :: remain_dims(2)
       integer :: nE
-      integer :: reorder = 1
+      logical :: reorder
       integer :: mpierr
+
+      ndims = 2
+      periods(:) = .false.
+      reorder = .true.
 
       if (mod(inComm%size,nk) /=0 ) then
         stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
@@ -78,11 +82,11 @@ module mpi_globals
       call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
 
-      remain_dims = (/0, 1/)
+      remain_dims(:) = [.false., .true.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
       call energyComm%init(outComm, mpierr)
 
-      remain_dims = (/1, 0/)
+      remain_dims(:) = [.true., .false.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
       call kComm%init(outComm, mpierr)
 
