@@ -184,7 +184,7 @@ module skit_blassm
   ! performs the matrix by matrix product C = s*A B 
   !-----------------------------------------------------------------------
   ! All the rest is like zamub
-  subroutine zamubs(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
+  subroutine zamubs(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)            !Commento: è identica a zamub
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)

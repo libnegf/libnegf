@@ -271,7 +271,8 @@ module skit_unary
              diag(i)= a(k)
              idiag(i) = k
              len = len+1
-             goto 6
+             !goto 6
+             exit                                                !Commento: goto 6 di troppo: probabilmente correggere con exit 
           endif
        end do 
     end do   
@@ -324,7 +325,8 @@ module skit_unary
              diag(i)= a(k)
              idiag(i) = k
              len = len+1
-             goto 6
+             !goto 6                                                !Commento: goto 6 di troppo: probabilmente correggere con exit
+             exit 
           endif
        end do 
     end do   
@@ -595,7 +597,7 @@ module skit_unary
   ! way that the column indices are in increasing order within each row.
   ! iwork(1:nnz) contains the permutation used  to rearrange the elements.
   !----------------------------------------------------------------------- 
-  subroutine rcsort(n,a,ja,ia,iwork,values) 
+  subroutine rcsort(n,a,ja,ia,iwork,values)                                    !Commento: Manca il codice, viene copiato da zcsort 
     integer, intent(in) :: n
     real(dp), intent(inout) :: a(:) 
     integer, intent(inout) :: ja(:), ia(:), iwork(:) 
@@ -603,6 +605,61 @@ module skit_unary
 
     integer i, k, j, ifirst, nnz, next  
     
+    iwork = 0
+    do i = 1, nrow
+      do k = ia(i), ia(i+1)-1 
+         j = ja(k)+1
+         iwork(j) = iwork(j)+1
+      end do
+    end do
+    ! compute pointers from lengths. 
+    iwork(1) = 1
+    do i = 1, nrow
+       iwork(i+1) = iwork(i) + iwork(i+1)
+    end do
+
+    ! get the positions of the nonzero elements in order of columns.
+    ifirst = ia(1) 
+    nnz = ia(n+1)-ifirst
+    do i = 1, nrow
+       do k = ia(i),ia(i+1)-1 
+          j = ja(k) 
+          next = iwork(j) 
+          iwork(nnz+next) = k
+          iwork(j) = next+1
+       end do
+    end do
+    ! convert to coordinate format
+    do i=1, nrow
+       do k=ia(i), ia(i+1)-1 
+          iwork(k) = i
+       end do
+    end do
+
+    ! loop to find permutation: for each element find the correct 
+    ! position in (sorted) arrays a, ja. Record this in iwork. 
+ 
+    do k = 1, nnz
+       ko = iwork(nnz+k) 
+       irow = iwork(ko)
+       next = ia(irow)
+
+       ! the current element should go in next position in row. iwork
+       ! records this position. 
+       iwork(ko) = next
+       ia(irow)  = next+1
+    end do
+
+    ! perform an in-place permutation of the  arrays.
+
+    call vperm(nnz, ja(ifirst), iwork) 
+    if (values) call vperm(nnz, a(ifirst), iwork) 
+
+    ! reshift the pointers of the original matrix back.
+    do i = nrow, 1, -1
+       ia(i+1) = ia(i)
+    end do
+    ia(1) = ifirst 
   end subroutine rcsort
   ! -------- Cmplx version -------------------------------------------------
   subroutine zcsort(nrow,a,ja,ia,iwork,values) 
