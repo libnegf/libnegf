@@ -17,18 +17,44 @@ module skit_blassm
   use ln_precision
   implicit none
   private
- 
+
+  public :: amub, amubs, aplb, aplb1, cplsamub
+  public :: as1pls2b, copymat
+
   interface amub
     module procedure :: ramub    
     module procedure :: zamub    
   end interface amub
+  
+  interface amubs
+    !module procedure :: ramub    
+    module procedure :: zamubs    
+  end interface amubs
 
   interface aplb
     module procedure :: raplb    
     module procedure :: zaplb    
   end interface aplb 
 
+  interface aplb1
+    module procedure :: raplb1    
+    module procedure :: zaplb1    
+  end interface aplb1 
 
+  interface cplsamub
+    !module procedure :: rcplsamub   
+    module procedure :: zcplsamub   
+  end interface cplsamub 
+
+  interface as1pls2b
+    !module procedure :: ras1pls2b     
+    module procedure :: zas1pls2b 
+  end interface as1pls2b
+
+  interface copymat 
+    !module procedure :: rcopymat     
+    module procedure :: zcopymat 
+  end interface copymat
 
   contains
   !-----------------------------------------------------------------------
