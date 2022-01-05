@@ -483,6 +483,93 @@ module skit_unary
 
   end subroutine rtransp
 
+  subroutine ztransp(nrow,ncol,a,ja,ia,iwk,ierr)
+    integer, intent(in) :: nrow
+    complex(dp), intent(in) :: a(:) 
+    integer, intent(in) :: ia(:), ja(:), iwk(:)
+    integer, intent(out) :: ierr, ncol
+
+    complex(dp) :: t, t1
+    integer :: k, jcol, nnz
+    logical :: found
+
+    ierr = 0
+    nnz = ia(nrow+1)-1
+    jcol = 0
+    do k = 1, nnz
+       jcol = max(jcol,ja(k))
+    end do
+    if (jcol .gt. ncol) then
+       ierr = jcol
+       return
+    endif
+    ! convert to coordinate format. use iwk for row indices
+    ncol = jcol
+    do i = 1, nrow
+       do k = ia(i), ia(i+1)-1
+          iwk(k) = i
+       end do
+    end do   
+    !   find pointer array for transpose. 
+    do i = 1, ncol+1
+       ia(i) = 0
+    end do
+    do k = 1, nnz
+       i = ja(k)
+       ia(i+1) = ia(i+1)+1
+    end do 
+    ia(1) = 1 
+    do i = 1, ncol
+       ia(i+1) = ia(i) + ia(i+1)
+    end do 
+     
+    !  loop for a cycle in chasing process. 
+    init = 1
+    k = 0
+    mainloop: do 
+       t = a(init)
+       i = ja(init)
+       j = iwk(init)
+       iwk(init) = -1
+       do 
+          k = k+1     
+          ! current row number is i.  determine  where to go. 
+          l = ia(i)
+          !  save the chased element. 
+          t1 = a(l)
+          inext = ja(l)
+          ! then occupy its location.
+          a(l)  = t
+          ja(l) = j
+          ! update pointer information for next element to be put in row i. 
+          ia(i) = l+1
+          ! determine  next element to be chased
+          if (iwk(l) .lt. 0) exit
+          
+          t = t1
+          i = inext
+          j = iwk(l)
+          iwk(l) = -1
+          if (k .ge. nnz) exit mainloop
+       end do
+
+       do 
+          init = init + 1
+          if (init .gt. nnz) exit mainloop
+          if (iwk(init) .ge. 0) exit
+       end do
+       ! restart chasing --  
+    end do mainloop
+
+    do i = ncol,1,-1 
+       ia(i+1) = ia(i)
+    end do
+    ia(1) = 1
+
+  end subroutine ztransp
+
+
+
   !-----------------------------------------------------------------------
   ! This routine sorts the elements of  a matrix (stored in Compressed
   ! Sparse Row Format) in increasing order of their column indices within 
