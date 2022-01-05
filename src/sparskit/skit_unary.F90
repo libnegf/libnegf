@@ -271,8 +271,7 @@ module skit_unary
              diag(i)= a(k)
              idiag(i) = k
              len = len+1
-             !goto 6
-             exit                                                !Commento: goto 6 di troppo: probabilmente correggere con exit 
+             exit
           endif
        end do 
     end do   
@@ -325,7 +324,6 @@ module skit_unary
              diag(i)= a(k)
              idiag(i) = k
              len = len+1
-             !goto 6                                                !Commento: goto 6 di troppo: probabilmente correggere con exit
              exit 
           endif
        end do 
@@ -597,8 +595,8 @@ module skit_unary
   ! way that the column indices are in increasing order within each row.
   ! iwork(1:nnz) contains the permutation used  to rearrange the elements.
   !----------------------------------------------------------------------- 
-  subroutine rcsort(n,a,ja,ia,iwork,values)                                    !Commento: Manca il codice, viene copiato da zcsort 
-    integer, intent(in) :: n
+  subroutine rcsort(row,a,ja,ia,iwork,values)
+    integer, intent(in) :: nrow
     real(dp), intent(inout) :: a(:) 
     integer, intent(inout) :: ja(:), ia(:), iwork(:) 
     logical, intent(in) :: values

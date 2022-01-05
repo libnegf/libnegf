@@ -231,7 +231,7 @@ module skit_blassm
     do ii = 1, nrow 
       do ka = ia(ii), ia(ii+1)-1 
         if (values) then
-           scal = a(ka)
+           scal = a(ka)*s
         end if   
         jj = ja(ka)
         do kb = ib(jj), ib(jj+1)-1
