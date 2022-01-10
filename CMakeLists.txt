@@ -52,10 +52,11 @@ if(WITH_MPI)
 endif()
 
 # Subdirectories.
-add_subdirectory(ext_sparskit)
+#add_subdirectory(ext_sparskit)
 add_subdirectory(ext_system)
 add_subdirectory(src)
 add_subdirectory(src/api)
+add_subdirectory(src/sparskit)
 if(BUILD_TESTING)
   enable_testing()
   add_subdirectory(tests)

@@ -490,7 +490,7 @@ module skit_formats
     real(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
     real(dp), intent(inout) :: ao(:)
-    integer, intent(in) :: jao(:), iao(:)
+    integer, intent(inout) :: jao(:), iao(:)
 
     call rcsrcsc2(n,n,job,ipos,a,ja,ia,ao,jao,iao)
   end subroutine rcsrcsc
@@ -500,7 +500,7 @@ module skit_formats
     complex(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
     complex(dp), intent(inout) :: ao(:)
-    integer, intent(in) :: jao(:), iao(:)
+    integer, intent(inout) :: jao(:), iao(:)
 
     call zcsrcsc2(n,n,job,ipos,a,ja,ia,ao,jao,iao)
   end subroutine zcsrcsc
@@ -550,7 +550,7 @@ module skit_formats
     real(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
     real(dp), intent(inout) :: ao(:)
-    integer, intent(inout) :: jao(:), iao(:)
+    integer, dimension(:), intent(inout) :: jao, iao
 
     integer :: i, j, k, next
 
@@ -668,7 +668,7 @@ module skit_formats
     real(dp), intent(inout) :: ao(:)
     integer, intent(inout) :: jao(:),iao(:)
 
-    integer :: i, j, k, k1, k2, klen
+    integer :: i, j, k, k1, k2, klen, ii
     nr = i2-i1+1
     nc = j2-j1+1
     if ( nr .le. 0 .or. nc .le. 0) return
@@ -702,7 +702,7 @@ module skit_formats
     complex(dp), intent(inout) :: ao(:)
     integer, intent(inout) :: jao(:),iao(:)
 
-    integer :: i, j, k, k1, k2, klen
+    integer :: i, j, k, k1, k2, klen, ii
     nr = i2-i1+1
     nc = j2-j1+1
     if ( nr .le. 0 .or. nc .le. 0) return

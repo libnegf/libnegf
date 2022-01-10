@@ -90,7 +90,7 @@ module skit_unary
   real(dp) function rgetelm(i,j,a,ja,ia,iadd,sorted) 
     integer, intent(in) :: i,j
     integer, intent(in) :: ia(:), ja(:) 
-    integer, intent(in) :: iadd
+    integer, intent(inout) :: iadd
     real(dp), intent(in) :: a(:)
     logical, intent(in) :: sorted 
 
@@ -140,7 +140,7 @@ module skit_unary
   complex(dp) function zgetelm(i,j,a,ja,ia,iadd,sorted) 
     integer, intent(in) :: i,j
     integer, intent(in) :: ia(:), ja(:) 
-    integer, intent(in) :: iadd
+    integer, intent(inout) :: iadd
     complex(dp), intent(in) :: a(:)
     logical, intent(in) :: sorted 
 
@@ -247,8 +247,8 @@ module skit_unary
   !----------------------------------------------------------------------c
   subroutine rgetdia(nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
     integer, intent(in) :: nrow, ncol, job   
-    real(dp), intent(in) :: a(:)
-    integer, intent(in) :: ia(:), ja(:)
+    real(dp), intent(inout) :: a(:)
+    integer, intent(inout) :: ia(:), ja(:)
     integer, intent(in) :: ioff 
     integer, intent(out) :: len
     real(dp), intent(inout) :: diag(:)
@@ -300,8 +300,8 @@ module skit_unary
 
   subroutine zgetdia(nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
     integer, intent(in) :: nrow, ncol, job   
-    complex(dp), intent(in) :: a(:)
-    integer, intent(in) :: ia(:), ja(:)
+    complex(dp), intent(inout) :: a(:)
+    integer, intent(inout) :: ia(:), ja(:)
     integer, intent(in) :: ioff 
     integer, intent(out) :: len
     complex(dp), intent(inout) :: diag(:)
@@ -400,12 +400,12 @@ module skit_unary
   !----------------------------------------------------------------------
   subroutine rtransp(nrow,ncol,a,ja,ia,iwk,ierr)
     integer, intent(in) :: nrow
-    real(dp), intent(in) :: a(:) 
-    integer, intent(in) :: ia(:), ja(:), iwk(:)
+    real(dp), intent(inout) :: a(:) 
+    integer, intent(inout) :: ia(:), ja(:), iwk(:)
     integer, intent(out) :: ierr, ncol
 
     real(dp) :: t, t1
-    integer :: k, jcol, nnz
+    integer :: k, jcol, nnz, i, j, l, init, inext
     logical :: found
 
     ierr = 0
@@ -485,12 +485,12 @@ module skit_unary
 
   subroutine ztransp(nrow,ncol,a,ja,ia,iwk,ierr)
     integer, intent(in) :: nrow
-    complex(dp), intent(in) :: a(:) 
-    integer, intent(in) :: ia(:), ja(:), iwk(:)
+    complex(dp), intent(inout) :: a(:) 
+    integer, intent(inout) :: ia(:), ja(:), iwk(:)
     integer, intent(out) :: ierr, ncol
 
     complex(dp) :: t, t1
-    integer :: k, jcol, nnz
+    integer :: k, jcol, nnz, i, j, l, init, inext
     logical :: found
 
     ierr = 0
@@ -595,13 +595,13 @@ module skit_unary
   ! way that the column indices are in increasing order within each row.
   ! iwork(1:nnz) contains the permutation used  to rearrange the elements.
   !----------------------------------------------------------------------- 
-  subroutine rcsort(row,a,ja,ia,iwork,values)
+  subroutine rcsort(nrow,a,ja,ia,iwork,values)
     integer, intent(in) :: nrow
     real(dp), intent(inout) :: a(:) 
-    integer, intent(inout) :: ja(:), ia(:), iwork(:) 
+    integer, intent(inout), dimension(:) :: ja, ia, iwork 
     logical, intent(in) :: values
 
-    integer i, k, j, ifirst, nnz, next  
+    integer i, k, j, ifirst, nnz, next, ko, irow  
     
     iwork = 0
     do i = 1, nrow
@@ -618,7 +618,7 @@ module skit_unary
 
     ! get the positions of the nonzero elements in order of columns.
     ifirst = ia(1) 
-    nnz = ia(n+1)-ifirst
+    nnz = ia(nrow+1)-ifirst
     do i = 1, nrow
        do k = ia(i),ia(i+1)-1 
           j = ja(k) 
@@ -650,8 +650,8 @@ module skit_unary
 
     ! perform an in-place permutation of the  arrays.
 
-    call vperm(nnz, ja(ifirst), iwork) 
-    if (values) call vperm(nnz, a(ifirst), iwork) 
+    call vperm(nnz, ja, iwork)                  !Commento: era inizialmente call vperm(nnz, ja(ifirst), iwork)
+    if (values) call vperm(nnz, a, iwork)       !Commento: era inizialmente call vperm(nnz, a(ifirst), iwork)
 
     ! reshift the pointers of the original matrix back.
     do i = nrow, 1, -1
@@ -666,7 +666,7 @@ module skit_unary
     integer, intent(inout) :: ja(:), ia(:), iwork(:) 
     logical, intent(in) :: values
 
-    integer i, k, j, ifirst, nnz, next  
+    integer i, k, j, ifirst, nnz, next, ko, irow  
       
     iwork = 0
     do i = 1, nrow
@@ -683,7 +683,7 @@ module skit_unary
 
     ! get the positions of the nonzero elements in order of columns.
     ifirst = ia(1) 
-    nnz = ia(n+1)-ifirst
+    nnz = ia(nrow+1)-ifirst
     do i = 1, nrow
        do k = ia(i),ia(i+1)-1 
           j = ja(k) 
@@ -715,8 +715,8 @@ module skit_unary
 
     ! perform an in-place permutation of the  arrays.
 
-    call vperm(nnz, ja(ifirst), iwork) 
-    if (values) call vperm(nnz, a(ifirst), iwork) 
+    call vperm(nnz, ja, iwork) 
+    if (values) call vperm(nnz, a, iwork) 
 
     ! reshift the pointers of the original matrix back.
     do i = nrow, 1, -1
@@ -750,7 +750,7 @@ module skit_unary
     integer, intent(inout) :: perm(n)
       
     integer :: ii, k, init
-    integer :: tmp1
+    integer :: tmp, tmp1, next
 
     init      = 1
     tmp = ix(init)  
@@ -793,11 +793,11 @@ module skit_unary
     real(dp), intent(inout) :: x(n)
     integer, intent(inout) :: perm(n)
       
-    integer :: ii, k, init
-    real(dp) :: tmp1
+    integer :: ii, k, init, next
+    real(dp) :: tmp, tmp1
 
     init      = 1
-    tmp = ix(init)  
+    tmp = x(init)  
     ii  = perm(init)
     perm(init)= -perm(init)
     k = 0
@@ -805,8 +805,8 @@ module skit_unary
     mainloop: do
        do
           k = k+1
-          tmp1    = ix(ii) 
-          ix(ii)     = tmp
+          tmp1    = x(ii) 
+          x(ii)     = tmp
           next    = perm(ii) 
           if (next .lt. 0 ) exit
           if (k .gt. n) exit mainloop
@@ -821,7 +821,7 @@ module skit_unary
           if (init .gt. n) exit mainloop
           if (perm(init) .ge. 0) exit
        end do
-       tmp = ix(init)
+       tmp = x(init)
        ii  = perm(init)
        perm(init)=-perm(init)
     end do mainloop 
@@ -836,11 +836,11 @@ module skit_unary
     complex(dp), intent(inout) :: x(n)
     integer, intent(inout) :: perm(n)
       
-    integer :: ii, k, init
-    complex(dp) :: tmp1
+    integer :: ii, k, init, next
+    complex(dp) :: tmp, tmp1
 
     init      = 1
-    tmp = ix(init)  
+    tmp = x(init)  
     ii  = perm(init)
     perm(init)= -perm(init)
     k = 0
@@ -848,8 +848,8 @@ module skit_unary
     mainloop: do
        do
           k = k+1
-          tmp1    = ix(ii) 
-          ix(ii)     = tmp
+          tmp1    = x(ii) 
+          x(ii)     = tmp
           next    = perm(ii) 
           if (next .lt. 0 ) exit
           if (k .gt. n) exit mainloop
@@ -864,7 +864,7 @@ module skit_unary
           if (init .gt. n) exit mainloop
           if (perm(init) .ge. 0) exit
        end do
-       tmp = ix(init)
+       tmp = x(init)
        ii  = perm(init)
        perm(init)=-perm(init)
     end do mainloop 

@@ -105,9 +105,9 @@ module skit_blassm
   subroutine ramub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), jb(:), ia(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), jb(:), ia(:), ib(:)
     real(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
 
     integer :: len, ii, jj, kk, ka, kb, jpos, jcol
@@ -157,9 +157,9 @@ module skit_blassm
   subroutine zamub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), jb(:), ia(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), jb(:), ia(:), ib(:)
     complex(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
 
     integer :: len, ii, jj, kk, ka, kb, jpos, jcol
@@ -213,9 +213,9 @@ module skit_blassm
   subroutine zamubs(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)            !Commento: è identica a zamub
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
 
     integer :: len, ii, jj, kk, ka, kb, jpos, jcol
@@ -305,12 +305,12 @@ module skit_blassm
   subroutine raplb(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     real(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
     
-    integer :: ii, jj, kk, ka, kb, jcol, jpos   
+    integer :: ii, jj, kk, ka, kb, jcol, jpos, len   
     logical :: values
     
     values = (job .ne. 0) 
@@ -358,12 +358,12 @@ module skit_blassm
   subroutine zaplb(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
     
-    integer :: ii, jj, kk, ka, kb, jcol, jpos   
+    integer :: ii, jj, kk, ka, kb, jcol, jpos, len   
     logical :: values
     
     values = (job .ne. 0) 
@@ -455,7 +455,7 @@ module skit_blassm
   subroutine raplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     real(dp), intent(inout) :: c(:)
     integer, intent(inout) :: jc(:), ic(:)
     integer, intent(out) :: ierr 
@@ -507,14 +507,14 @@ module skit_blassm
              return
           end if   
        end do
-       ic(i+1) = kc
+       ic(ii+1) = kc
      end do 
   end subroutine raplb1
   
   subroutine zaplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:)
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
     integer, intent(inout) :: jc(:), ic(:)
     integer, intent(out) :: ierr 
@@ -566,7 +566,7 @@ module skit_blassm
              return
           end if   
        end do
-       ic(i+1) = kc
+       ic(ii+1) = kc
     end do 
   end subroutine zaplb1
       
@@ -617,9 +617,9 @@ module skit_blassm
   subroutine raplsb(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:), s
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     real(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
 
     integer :: ii, kk, ka, kb, len, jcol, jpos
@@ -670,9 +670,9 @@ module skit_blassm
   subroutine zaplsb(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
 
     integer :: ii, kk, ka, kb, len, jcol, jpos
@@ -768,9 +768,9 @@ module skit_blassm
   subroutine zcplsamub(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
-    integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
       
     integer :: ii, jj, kk, ka, kb, jpos, jcol, len
@@ -798,9 +798,9 @@ module skit_blassm
                 endif
                 jc(len) = jcol
                 iw(jcol)= len
-                if (values) c(len)  = c(len) + alpha*scal*b(kb)
+                if (values) c(len)  = c(len) + scal*b(kb)
              else
-                if (values) c(jpos) = c(jpos) + alpha*scal*b(kb)
+                if (values) c(jpos) = c(jpos) + scal*b(kb)
              endif
           end do
        end do 
@@ -907,6 +907,7 @@ module skit_blassm
           iw(jc(kk)) = 0
        end do
        ic(ii+1) = len+1
+     end do
 
   end subroutine zas1pls2b
 
