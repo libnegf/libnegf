@@ -18,7 +18,7 @@ module skit_blassm
   implicit none
   private
 
-  public :: amub, amubs, aplb, aplb1, cplsamub
+  public :: amub, amubs, aplb, aplb1, cplsamub, aplsb
   public :: as1pls2b, copymat
 
   interface amub
@@ -26,6 +26,11 @@ module skit_blassm
     module procedure :: zamub    
   end interface amub
   
+  interface aplsb
+    module procedure :: raplsb
+    module procedure :: zaplsb
+  end interface aplsb
+
   interface amubs
     !module procedure :: ramub    
     module procedure :: zamubs    
@@ -860,9 +865,10 @@ module skit_blassm
   subroutine zas1pls2b(nrow,ncol,job,a,ja,ia,s1,s2,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s1, s2
-    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:), iw(:)
+    integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
     complex(dp), intent(inout) :: c(:)
     integer, intent(inout) :: jc(:), ic(:)
+    integer, intent(inout) :: iw(:)
     integer, intent(out) :: ierr 
 
     integer :: ii, kk, ka, kb, len, jcol, jpos
@@ -937,7 +943,7 @@ module skit_blassm
     complex(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
     complex(dp), intent(inout) :: ao(:)
-    integer, intent(in) :: jao(:), iao(:)
+    integer, intent(inout) :: jao(:), iao(:)
 
     integer kst, i, k 
       

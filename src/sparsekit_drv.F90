@@ -227,288 +227,6 @@ MODULE sparsekit_drv
   integer, parameter :: ALLOCERR = 5
 
 
-!  interface
-!    function getelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
-!      import :: dp
-!      integer, intent(in) :: ii, jj
-!      real(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ia(*), ja(*)
-!      integer, intent(in)  :: iadd
-!      logical, intent(in) :: sorted
-!      real(dp) :: res
-!    end function getelm
-!
-!    function zgetelm(ii, jj, aa, ja, ia, iadd, sorted) result(res)
-!      import :: dp
-!      integer, intent(in) :: ii, jj
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ia(*), ja(*)
-!      integer, intent(in) :: iadd
-!      logical, intent(in) :: sorted
-!      complex(dp) :: res
-!    end function zgetelm
-!     
-!    subroutine dnscsr(nrow, ncol, nnz, aa, nr, bb, colind, rowpnt, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol
-!      integer, intent(inout) :: nnz
-!      real(dp), intent(in) :: aa(*)  
-!      integer, intent(in) :: nr
-!      real(dp), intent(inout) :: bb(*)  
-!      integer, intent(inout) :: colind(*), rowpnt(*)
-!      integer, intent(inout) :: ierr
-!    end subroutine dnscsr
-!
-!    subroutine zdnscsr(nrow, ncol, nnz, aa, nr, bb, colind, rowpnt, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol
-!      integer, intent(inout) :: nnz
-!      complex(dp), intent(in) :: aa(*)  
-!      integer, intent(in) :: nr
-!      complex(dp), intent(inout) :: bb(*)  
-!      integer, intent(inout) :: colind(*), rowpnt(*)
-!      integer, intent(inout) :: ierr
-!    end subroutine zdnscsr
-!       
-!    subroutine zcoocsr(nrow, nnz, aa, ia, ja, bb, jb, ib)
-!      import :: dp
-!      integer, intent(in) :: nrow, nnz
-!      complex(dp), intent(in) :: aa(*)  
-!      integer, intent(in) :: ia(*), ja(*)
-!      complex(dp), intent(inout) :: bb(*)
-!      integer, intent(inout) :: jb(*), ib(*)
-!    end subroutine zcoocsr
-!    
-!    subroutine zcsrdns(nrow, ncol, aa, ja, ia, bb, nr, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol
-!      complex(dp), intent(in) :: aa(*)  
-!      integer, intent(in) :: ja(*), ia(*)
-!      complex(dp), intent(inout) :: bb(*)  
-!      integer, intent(inout) :: nr
-!      integer, intent(inout) :: ierr
-!    end subroutine zcsrdns
-!
-!    subroutine zcsrcoo(nrow, job, nnz, aa, ja, ia, innz, bb, ib, jb, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, job, nnz
-!      complex(dp), intent(in) :: aa(*)  
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: innz
-!      complex(dp), intent(inout) :: bb(*)  
-!      integer, intent(inout) :: ib(*), jb(*)
-!      integer, intent(inout) :: ierr
-!    end subroutine zcsrcoo
-!            
-!    subroutine zcsrcsc(nrow, job, ipos, aa, colind, rowpnt, bb, rowind, colpnt)
-!      import :: dp
-!      integer, intent(in) :: nrow, job, ipos
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: rowind(*), colpnt(*)
-!      complex(dp), intent(inout) :: bb(*)
-!      integer, intent(inout) :: colind(*), rowpnt(*)
-!    end subroutine zcsrcsc
-!
-!    subroutine zcsrcsc2(nrow, ncol, job, ipos, aa, colind, rowpnt, bb, rowind, colpnt)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job, ipos
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: colind(*), rowpnt(*)
-!      complex(dp), intent(inout) :: bb(*)
-!      integer, intent(inout) :: rowind(*), colpnt(*)
-!    end subroutine zcsrcsc2
-!
-!    subroutine amub(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      real(dp), intent(in) :: aa(*), bb(*)
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      real(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(inout) :: nnz, iw(*), ierr
-!    end subroutine amub
-!
-!    subroutine zamub(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine zamub
-!          
-!    subroutine zamubs(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      complex(dp), intent(in) :: s
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine zamubs
-!          
-!    subroutine aplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      real(dp), intent(in) :: aa(*), bb(*)
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      real(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine aplb
-!
-!    subroutine aplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      real(dp), intent(in) :: aa(*), bb(*)
-!      real(dp), intent(in) :: s
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      real(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine aplsb
-!
-!    subroutine zaplb(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine zaplb
-!    
-!    subroutine zaplsb(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      complex(dp), intent(in) :: s
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine zaplsb
-!
-!    subroutine zaplb1(nrow, ncol, job, aa, ja, ia, bb, jb, ib, cc, jc, ic, nnz, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: ierr
-!    end subroutine zaplb1
-!    
-!    subroutine zcplsamub(nrow, ncol, job, aa, ja, ia, s, bb, jb, ib, cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*), bb(*)
-!      complex(dp), intent(in) :: s
-!      integer, intent(in) :: ja(*), jb(*), ia(*), ib(*)
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(in) :: nnz
-!      integer, intent(inout) :: iw(*), ierr
-!    end subroutine zcplsamub
-!
-!    subroutine zcsort(nrow, aa, ja, ia, iw, vals)
-!      import :: dp
-!      integer, intent(in) :: nrow
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: iw(*)
-!      logical, intent(in) :: vals 
-!    end subroutine zcsort
-!
-!    subroutine ztransp(nrow,ncol,aa,ja,ia,iwk,ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol
-!      complex(dp), intent(inout) :: aa(*)
-!      integer, intent(inout) :: ja(*), ia(*)
-!      integer, intent(inout) :: iwk(*)
-!      integer, intent(inout) :: ierr 
-!    end subroutine ztransp
-!
-!    subroutine zsubmat(nrow,job,i1,i2,j1,j2,aa,ja,ia,nr,nc,bb,jb,ib)
-!      import :: dp
-!      integer, intent(in) :: nrow, job, i1, i2, j1, j2 
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: nr, nc    
-!      complex(dp), intent(inout) :: bb(*)
-!      integer, intent(inout) :: jb(*), ib(*)
-!    end subroutine zsubmat
-!
-!    subroutine zcopmat(nrow,aa,ja,ia,bb,jb,ib,job,ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow 
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      complex(dp), intent(inout) :: bb(*)
-!      integer, intent(inout) :: jb(*), ib(*)
-!      integer, intent(in) :: job, ierr
-!    end subroutine zcopmat
-!  
-!    subroutine bandwidth(ncol, ja, ia, ml, mu, a_bw, bndav)
-!      import :: dp
-!      integer, intent(in) :: ncol 
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: ml, mu, a_bw, bndav
-!    end subroutine bandwidth
-!   
-!    !call zas1pls2b(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
-!    !       B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
-!    !       C_csr%nnz,iw,ierr)
-!    subroutine zas1pls2b(nrow, ncol, job, aa, ja, ia, s1, s2, bb, jb, ib, &
-!                 & cc, jc, ic, nnz, iw, ierr)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      complex(dp), intent(in) :: bb(*)
-!      integer, intent(in) :: jb(*), ib(*)
-!      complex(dp), intent(in) :: s1, s2
-!      complex(dp), intent(inout) :: cc(*)
-!      integer, intent(inout) :: jc(*), ic(*)
-!      integer, intent(inout) :: nnz
-!      integer, intent(inout) :: iw(*)
-!      integer, intent(inout) :: ierr
-!    end subroutine zas1pls2b
-!      
-!    subroutine getdia(nrow, ncol, job, aa, ja, ia, len, dd, idiag, ioff)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      real(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: len
-!      real(dp), intent(inout) :: dd(*)
-!      integer, intent(inout) :: idiag(*)
-!      integer, intent(in) :: ioff
-!    end subroutine getdia
-!    
-!    subroutine zgetdia(nrow, ncol, job, aa, ja, ia, len, dd, idiag, ioff)
-!      import :: dp
-!      integer, intent(in) :: nrow, ncol, job
-!      complex(dp), intent(in) :: aa(*)
-!      integer, intent(in) :: ja(*), ia(*)
-!      integer, intent(inout) :: len
-!      complex(dp), intent(inout) :: dd(*)
-!      integer, intent(inout) :: idiag(*)
-!      integer, intent(in) :: ioff
-!    end subroutine zgetdia
-!
-!    !call ziluk(A_csr%nrow, A_csr%nzval, A_csr%colind, A_csr%rowpnt, lfil, &
-!    !     LU_msr%nzval, LU_msr%index, LU_ju, LU_levs, LU_iwk, w, jw, ierr)
-!  end interface      
 
 CONTAINS
   ! -------------------------------------------------------------------------
@@ -566,8 +284,9 @@ CONTAINS
     ENDIF
 
     IF (sp%nnz.NE.0) THEN
-       CALL rcsrcoo(coo%nrow,3,sp%nzval,sp%nzval,sp%colind,sp%rowpnt,coo%nzval, &
-            coo%nzval,coo%index_i,coo%index_j,ierr)
+    !   CALL csrcoo(coo%nrow,3,sp%nzval,sp%nzval,sp%colind,sp%rowpnt,coo%nzval, &
+    !        coo%nzval,coo%index_i,coo%index_j,ierr)
+       CALL csrcoo(coo%nrow,3,sp%nnz,sp%nzval,sp%colind,sp%rowpnt,coo%nnz,coo%nzval,coo%index_i,coo%index_j,ierr)
 
 
     ENDIF
@@ -597,8 +316,7 @@ CONTAINS
 
     IF (sp%nnz.NE.0) THEN
 
-       CALL csrdns(sp%nrow,sp%ncol,sp%nzval,sp%colind,sp%rowpnt, &
-                       dense%val,dense%nrow,ierr)
+       CALL csrdns(sp%nrow,sp%ncol,sp%nzval,sp%colind,sp%rowpnt,dense%val,ierr)
 
     ENDIF
 
@@ -626,7 +344,7 @@ CONTAINS
     endif
 
     IF (sp%nnz.NE.0) THEN
-       call dnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,dense%nrow,&
+       call dnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,&
             sp%nzval,sp%colind,sp%rowpnt,ierr)
 
        sp%nnz=sp%rowpnt(sp%nrow+1)-1
@@ -921,7 +639,7 @@ CONTAINS
   allocate(iw(A%ncol),stat=ierr)
   IF (ierr.ne.0) call error_msg('(zmask)',ALLOCERR)
 
-  CALL zamask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
+  CALL amask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
               M%rowpnt,C%nzval,C%colind,C%rowpnt,iw,C%nnz,ierr)
 
   IF (ierr.GT.1) call error_msg('(zmask)',CONVERR)
@@ -1038,8 +756,7 @@ CONTAINS
 
     IF (sp%nnz.NE.0) THEN
 
-       call zdnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,dense%nrow,&
-            sp%nzval,sp%colind,sp%rowpnt,ierr)
+       call dnscsr(dense%nrow,dense%ncol,sp%nnz,dense%val,sp%nzval,sp%colind,sp%rowpnt,ierr)
 
        sp%nnz=sp%rowpnt(sp%nrow+1)-1
 
@@ -1074,8 +791,7 @@ CONTAINS
     IF (sp%nnz.NE.0) THEN
 
        call create(sp_csr,dense%nrow,dense%ncol,sp%nnz)
-       call zdnscsr(dense%nrow,dense%ncol,sp_csr%nnz,dense%val,dense%nrow,&
-            sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,ierr)
+       call dnscsr(dense%nrow,dense%ncol,sp_csr%nnz,dense%val,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,ierr)
        call zcsrcsc_st(sp_csr,sp)
        call destroy(sp_csr)
 
@@ -1112,8 +828,7 @@ CONTAINS
     ierr=0
     IF (sp%nnz.NE.0) THEN
 
-       CALL zcsrdns(sp%nrow,sp%ncol,sp%nzval,sp%colind,sp%rowpnt, &
-                       dense%val,dense%nrow,ierr)
+       CALL csrdns(sp%nrow,sp%ncol,sp%nzval,sp%colind,sp%rowpnt,dense%val,ierr)
 
     ENDIF
 
@@ -1148,8 +863,7 @@ CONTAINS
        call create(sp_csr,sp%nrow,sp%ncol,sp%nnz)
 
        call zcsccsr_st(sp, sp_csr)
-       call zcsrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,&
-            dense%val,dense%nrow,ierr)
+       call csrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,dense%val,ierr)
        call destroy(sp_csr)
 
     else
@@ -1187,13 +901,13 @@ CONTAINS
 
     if (coo%nnz.ne.0) then
 
-       call zcoocsr(coo%nrow,sp%nnz,coo%nzval,coo%index_i,coo%index_j,sp%nzval,sp%colind,sp%rowpnt)
+       call coocsr(coo%nrow,sp%nnz,coo%nzval,coo%index_i,coo%index_j,sp%nzval,sp%colind,sp%rowpnt)
 
        allocate(iwork(2*sp%nnz), stat=ierr)
        if (ierr.ne.0) call error_msg('(zcoocsr_st)',ALLOCERR)
        values= .true.
 
-       call zcsort(sp%nrow,sp%nzval,sp%colind,sp%rowpnt,iwork,values)
+       call csort(sp%nrow,sp%nzval,sp%colind,sp%rowpnt,iwork,values)
 
        sp%sorted = .true.
        deallocate(iwork)
@@ -1225,7 +939,7 @@ CONTAINS
 
     if (csr%nnz.ne.0) then
 
-       call zcsrcoo(csr%nrow,3,coo%nnz,csr%nzval,csr%colind,csr%rowpnt,&
+       call csrcoo(csr%nrow,3,coo%nnz,csr%nzval,csr%colind,csr%rowpnt,&
             csr%nnz,coo%nzval,coo%index_i,coo%index_j,ierr)
 
        if(ierr.ne.0) call error_msg('(zcsrcoo_st)',CONVERR)
@@ -1256,7 +970,7 @@ CONTAINS
 
        job=1
        ipos=1
-       call zcsrcsc2(A_csr%nrow, A_csr%ncol, job, ipos, A_csr%nzval, A_csr%colind, &
+       call csrcsc2(A_csr%nrow, A_csr%ncol, job, ipos, A_csr%nzval, A_csr%colind, &
             A_csr%rowpnt, A_csc%nzval, A_csc%rowind, A_csc%colpnt)
 
     ELSE
@@ -1292,7 +1006,7 @@ CONTAINS
 
        job=1
        ipos=1
-       call zcsrcsc(A_csc%nrow, job, ipos, A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
+       call csrcsc(A_csc%nrow, job, ipos, A_csc%nzval, A_csc%rowind, A_csc%colpnt, &
             A_csr%nzval, A_csr%colind, A_csr%rowpnt)
 
     ELSE
@@ -1504,7 +1218,7 @@ CONTAINS
     else
 
        call log_allocate(iwk,A_csr%nnz)
-       call ztransp(nrow,ncol,A_csr%nzval,A_csr%colind,A_csr%rowpnt,iwk,ierr)
+       call transp(nrow,ncol,A_csr%nzval,A_csr%colind,A_csr%rowpnt,iwk,ierr)
 
        call log_deallocate(iwk)
        if (ierr.ne.0) call error_msg('(ztransp_st)',CONVERR)
@@ -1537,7 +1251,7 @@ CONTAINS
        B_csr%rowpnt=1
     ELSE
 
-    call zcsrcsc2(A_csr%nrow,ncol,1,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call csrcsc2(A_csr%nrow,ncol,1,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                      B_csr%nzval,B_csr%colind,B_csr%rowpnt)
 
     ENDIF
@@ -1570,7 +1284,7 @@ CONTAINS
 
     IF (A_csr%nnz.NE.0) THEN
 
-       call zsubmat(A_csr%nrow,job,i1,i2,j1,j2,A_csr%nzval,A_csr%colind,A_csr%rowpnt,nr,nc,&
+       call submat(A_csr%nrow,job,i1,i2,j1,j2,A_csr%nzval,A_csr%colind,A_csr%rowpnt,nr,nc,&
             Asub_csr%nzval,Asub_csr%colind,Asub_csr%rowpnt)
 
     ELSE
@@ -1597,7 +1311,7 @@ CONTAINS
 
     IF (A_csr%nnz.NE.0) THEN
 
-       call zcopmat(A_csr%nrow,A_csr%nzval,A_csr%colind,A_csr%rowpnt,B_csr%nzval,&
+       call copymat(A_csr%nrow,A_csr%nzval,A_csr%colind,A_csr%rowpnt,B_csr%nzval,&
             B_csr%colind,B_csr%rowpnt,1,MISMATCH)
 
     ELSE
@@ -1639,7 +1353,7 @@ CONTAINS
     B_ncol=B_csr%ncol
     call log_allocate(iw,B_ncol)
 
-    call zamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call amub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
@@ -1679,7 +1393,7 @@ CONTAINS
 
     call log_allocate(iw,A_ncol)
 
-    call zaplb (A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call aplb (A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                 B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
                 C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -1723,7 +1437,7 @@ CONTAINS
      ! integer ja(*),jb(*),jc(*),ia(nrow+1),ib(*),ic(*),iw(ncol)
      ! integer job : 0 = no comp , 1 = comp
 
-    call zcplsamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
+    call cplsamub(A_csr%nrow,B_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
          B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
          C_csr%nnz,iw,ierr)
 
@@ -1789,7 +1503,7 @@ CONTAINS
     !Allocazione work array iw
     call log_allocate(iw,A_ncol)
 
-    call zamub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call amub(A_csr%nrow,B_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,A_csr%nrow*B_ncol,iw,ierr)
 
@@ -1842,7 +1556,7 @@ CONTAINS
     !Allocazione work array iw
     call log_allocate(iw,A_ncol)
 
-    call zaplb (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call aplb (A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                 B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
                 C_csr%rowpnt,A_csr%nrow*A_ncol,iw,ierr)
 
@@ -1896,7 +1610,7 @@ CONTAINS
     call log_allocate(colind,A_csr%nrow*A_ncol)
     call log_allocate(rowpnt,A_csr%nrow+1)
 
-    call zaplb1(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+    call aplb1(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                  B_csr%nzval,B_csr%colind,B_csr%rowpnt,nzval,colind,&
                  rowpnt,A_csr%nrow*A_ncol,ierr)
 
@@ -2032,7 +1746,8 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,nnz
-    integer :: a_bw, b_bw, ml, mu, iband, bndav
+    integer :: a_bw, b_bw, ml, mu, iband
+    real(dp) :: bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
        call error_msg('(zmult_csr)',MISMATCH)
@@ -2066,7 +1781,7 @@ CONTAINS
 
        !Allocazione work array iw
        call log_allocate(iw,B_csr%ncol)
-       call zamub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call amub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
             nnz,iw,ierr)
 
@@ -2086,7 +1801,7 @@ CONTAINS
           call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
           !Prodotto C_csr=A_csr*B_csr
-          call zamub(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+          call amub(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2129,11 +1844,14 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     complex(kind=dp) :: s
     integer :: ierr,nnz
-    integer :: a_bw, b_bw, ml, mu, bndav
+    integer :: a_bw, b_bw, ml, mu
+    real(dp) :: bndav
     integer, DIMENSION(:), ALLOCATABLE :: iw
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
         call error_msg('(zmultccsr)',MISMATCH)
     ENDIF
+        
+    !Comment: routine "bandwidth()" does not longer accept argument bndav as integer, so it has been defined as real(dp)
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
 
@@ -2165,7 +1883,7 @@ CONTAINS
        !Allocazione work array iw
        call log_allocate(iw,B_csr%ncol)
 
-       call zamub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call amub(A_csr%nrow,B_csr%ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,nnz,iw,ierr)
 
@@ -2183,7 +1901,7 @@ CONTAINS
           call create(C_csr,A_csr%nrow,B_csr%ncol,nnz)
 
           !Prodotto C_csr=A_csr*B_csr
-          call zamubs(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
+          call amubs(A_csr%nrow,B_csr%ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s, &
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2435,7 +2153,7 @@ CONTAINS
        !Allocazione work array iw
        call log_allocate(iw,A_ncol)
 
-       call zaplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2449,7 +2167,7 @@ CONTAINS
        call log_allocate(C_csr%nzval,C_csr%nnz)
        call log_allocate(C_csr%colind,C_csr%nnz)
 
-       call zaplb(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2501,7 +2219,7 @@ CONTAINS
        call log_allocate(C_csr%colind,C_csr%nnz)
        call log_allocate(C_csr%rowpnt,(C_csr%nrow+1))
 
-       call zaplb1(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb1(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,ierr)
 
@@ -2515,7 +2233,7 @@ CONTAINS
        call log_allocate(C_csr%nzval,C_csr%nnz)
        call log_allocate(C_csr%colind,C_csr%nnz)
 
-       call zaplb1(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb1(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind, &
             C_csr%rowpnt,C_csr%nnz,ierr)
 
@@ -2569,7 +2287,7 @@ CONTAINS
 
        call log_allocate(iw,A_ncol)
 
-       call zaplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2585,7 +2303,7 @@ CONTAINS
        call log_allocate(C_csr%nzval,C_csr%nnz)
        call log_allocate(C_csr%colind,C_csr%nnz)
 
-       call zaplsb(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s,&
+       call aplsb(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2644,7 +2362,7 @@ CONTAINS
        !call zas1pls2b(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
        !     B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
        !     C_csr%nnz,iw,ierr)
-       call zaplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call aplb(A_csr%nrow,A_ncol,0,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
@@ -2658,7 +2376,7 @@ CONTAINS
        call log_allocate(C_csr%nzval,C_csr%nnz)
        call log_allocate(C_csr%colind,C_csr%nnz)
 
-       call zas1pls2b(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
+       call as1pls2b(A_csr%nrow,A_ncol,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,s1,s2,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,C_csr%rowpnt,&
             C_csr%nnz,iw,ierr)
 
@@ -3074,7 +2792,7 @@ CONTAINS
 
     else
 
-       call zcsrcsc2(A_csr%nrow,A_ncol,1,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
+       call csrcsc2(A_csr%nrow,A_ncol,1,1,A_csr%nzval,A_csr%colind,A_csr%rowpnt,&
             B_csr%nzval,B_csr%colind,B_csr%rowpnt)
 
        !Operazione di coniugio su B_csr
@@ -3201,7 +2919,7 @@ CONTAINS
 
    if (.not.A%sorted) then
      CALL log_allocate(iwork,MAX(A%nrow+1,2*A%nnz))
-     CALL zcsort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
+     CALL csort(A%nrow,A%nzval,A%colind,A%rowpnt,iwork,.true.)
      call log_deallocate(iwork)
      A%sorted = .true.
    endif
@@ -3359,7 +3077,7 @@ CONTAINS
 
     call log_allocate(idiag,A_csr%nrow)
 
-    call zgetdia(A_csr%nrow,A_csr%ncol,0,A_csr%nzval,A_csr%colind, &
+    call getdia(A_csr%nrow,A_csr%ncol,0,A_csr%nzval,A_csr%colind, &
                  A_csr%rowpnt,len,D_vec,idiag,0)
 
     call log_deallocate(idiag)
@@ -3458,7 +3176,7 @@ CONTAINS
   function rgetelm_csr(i1,i2,Grm) result(getelm_out)
     type(r_CSR) :: Grm
     integer :: i1, i2, iadd
-    real(dp) :: getelm_out, getelm
+    real(dp) :: getelm_out
 
     if (Grm%sorted) then
       getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
@@ -3470,12 +3188,12 @@ CONTAINS
   function zgetelm_csr(i1,i2,Grm) result(getelm_out)
     type(z_CSR) :: Grm
     integer :: i1, i2, iadd
-    complex(dp) :: getelm_out, zgetelm
+    complex(dp) :: getelm_out
 
     if (Grm%sorted) then
-      getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
+      getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.true.)
     else
-      getelm_out = zgetelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
+      getelm_out = getelm(i1,i2,Grm%nzval,Grm%colind,Grm%rowpnt,iadd,.false.)
     endif
 
   end function zgetelm_csr

@@ -22,6 +22,7 @@ module skit_unary
   public :: transp
   public :: bandwidth
   public :: getdia
+  public :: amask 
 
   interface getelm
     module procedure :: rgetelm    
@@ -48,6 +49,11 @@ module skit_unary
     module procedure :: rgetdia
     module procedure :: zgetdia  
   end interface getdia
+
+  interface amask 
+    module procedure :: ramask 
+    module procedure :: zamask
+  end interface amask 
 
   contains
 
@@ -87,7 +93,7 @@ module skit_unary
   !-----------------------------------------------------------------------
   !     noel m. nachtigal october 28, 1990 -- youcef saad jan 20, 1991.
   !----------------------------------------------------------------------- 
-  real(dp) function rgetelm(i,j,a,ja,ia,iadd,sorted) 
+  function rgetelm(i,j,a,ja,ia,iadd,sorted) result(getelm) 
     integer, intent(in) :: i,j
     integer, intent(in) :: ia(:), ja(:) 
     integer, intent(inout) :: iadd
@@ -95,9 +101,10 @@ module skit_unary
     logical, intent(in) :: sorted 
 
     integer :: ibeg, iend, imid, k
+    real(dp) :: getelm
       
     iadd = 0 
-    rgetelm = 0.0_dp
+    getelm = 0.0_dp
     ibeg = ia(i)
     iend = ia(i+1)-1
       
@@ -106,7 +113,7 @@ module skit_unary
           if (ja(k) .eq.  j) then
              iadd = k 
              if (iadd .ne. 0) then
-                rgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           endif
@@ -118,13 +125,13 @@ module skit_unary
           if (ja(imid).eq.j) then
              iadd = imid 
              if (iadd .ne. 0) then
-                rgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           endif
           if (ibeg .ge. iend) then
              if (iadd .ne. 0) then
-                rgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           end if
@@ -137,17 +144,18 @@ module skit_unary
     endif
   end function rgetelm
 
-  complex(dp) function zgetelm(i,j,a,ja,ia,iadd,sorted) 
+  function zgetelm(i,j,a,ja,ia,iadd,sorted) result(getelm) 
     integer, intent(in) :: i,j
     integer, intent(in) :: ia(:), ja(:) 
     integer, intent(inout) :: iadd
     complex(dp), intent(in) :: a(:)
     logical, intent(in) :: sorted 
 
+    complex(dp) :: getelm
     integer :: ibeg, iend, imid, k
       
     iadd = 0 
-    zgetelm = (0.0_dp, 0.0_dp)
+    getelm = (0.0_dp, 0.0_dp)
     ibeg = ia(i)
     iend = ia(i+1)-1
       
@@ -156,7 +164,7 @@ module skit_unary
           if (ja(k) .eq.  j) then
              iadd = k 
              if (iadd .ne. 0) then
-                zgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           endif
@@ -168,13 +176,13 @@ module skit_unary
           if (ja(imid).eq.j) then
              iadd = imid 
              if (iadd .ne. 0) then
-                zgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           endif
           if (ibeg .ge. iend) then
              if (iadd .ne. 0) then
-                zgetelm = a(iadd)
+                getelm = a(iadd)
                 return 
              end if 
           end if
@@ -930,7 +938,142 @@ module skit_unary
   end subroutine bandwidth
 
 
+!-----------------------------------------------------------------------
+! This subroutine builds a sparse matrix from an input matrix by 
+! extracting only elements in positions defined by the mask jmask, imask
+!-----------------------------------------------------------------------
+! On entry:
+!---------
+! nrow  = integer. row dimension of input matrix 
+! ncol  = integer. Column dimension of input matrix.
+!
+! a,
+! ja,
+! ia  = matrix in Compressed Sparse Row format
+!
+! jmask,
+! imask = matrix defining mask (pattern only) stored in compressed
+!         sparse row format.
+!
+! nzmax = length of arrays c and jc. see ierr.
+! 
+! On return:
+!-----------
+!
+! a, ja, ia and jmask, imask are unchanged.
+!
+! c
+! jc, 
+! ic  = the output matrix in Compressed Sparse Row format.
+! 
+! ierr  = integer. serving as error message.c
+!         ierr = 1  means normal return
+!         ierr .gt. 1 means that amask stopped when processing
+!         row number ierr, because there was not enough space in
+!         c, jc according to the value of nzmax.
+!
+! work arrays:
+!------------- 
+! iw  = logical work array of length ncol.
+!
+! note: 
+!------ the  algorithm is in place: c, jc, ic can be the same as 
+! a, ja, ia in which cas the code will overwrite the matrix c
+! on a, ja, ia
+!
+!-----------------------------------------------------------------------
 
+  subroutine ramask(nrow,ncol,a,ja,ia,jmask,imask,c,jc,ic,iw,nzmax,ierr)
+      real(dp) :: a(:),c(:) 
+      integer, intent(in) :: nrow, ncol, nzmax
+      integer, intent(in) :: ia(:),ja(:), jmask(:)
+      integer, intent(inout) :: jc(:), ic(:), imask(:) 
+      integer, intent(out) :: ierr
+      logical :: iw(:)
+ 
+      integer :: ii, j, k, len, k1, k2
+
+      ierr = 0
+      len = 0
+
+      iw = .false.
+
+!     unpack the mask for row ii in iw
+      do ii=1, nrow
+!     save pointer in order to be able to do things in place
+         do k=imask(ii), imask(ii+1)-1
+            iw(jmask(k)) = .true.
+         end do
+!     add umasked elemnts of row ii
+         k1 = ia(ii)
+         k2 = ia(ii+1)-1
+         ic(ii) = len+1
+         do k = k1,k2 
+            j = ja(k)
+            if (iw(j)) then
+               len = len+1
+               if (len .gt. nzmax) then
+                  ierr = ii
+                  return
+               endif
+               jc(len) = j
+               c(len) = a(k)
+            endif
+         end do       
+     
+         do k = imask(ii), imask(ii+1)-1
+            iw(jmask(k)) = .false.
+         end do
+      end do 
+      ic(nrow+1)=len+1
+
+   end subroutine ramask
+
+  subroutine zamask(nrow,ncol,a,ja,ia,jmask,imask,c,jc,ic,iw,nzmax,ierr)
+      complex(dp) :: a(:),c(:) 
+      integer, intent(in) :: nrow, ncol, nzmax
+      integer, intent(in) :: ia(:),ja(:), jmask(:)
+      integer, intent(inout) :: jc(:), ic(:), imask(:) 
+      integer, intent(out) :: ierr
+      logical :: iw(:)
+ 
+      integer :: ii, j, k, len, k1, k2
+
+      ierr = 0
+      len = 0
+
+      iw = .false.
+
+!     unpack the mask for row ii in iw
+      do ii=1, nrow
+!     save pointer in order to be able to do things in place
+         do k=imask(ii), imask(ii+1)-1
+            iw(jmask(k)) = .true.
+         end do
+!     add umasked elemnts of row ii
+         k1 = ia(ii)
+         k2 = ia(ii+1)-1
+         ic(ii) = len+1
+         do k = k1,k2 
+            j = ja(k)
+            if (iw(j)) then
+               len = len+1
+               if (len .gt. nzmax) then
+                  ierr = ii
+                  return
+               endif
+               jc(len) = j
+               c(len) = a(k)
+            endif
+         end do       
+     
+         do k = imask(ii), imask(ii+1)-1
+            iw(jmask(k)) = .false.
+         end do
+      end do 
+      ic(nrow+1)=len+1
+
+   end subroutine zamask
 
 end module skit_unary
 
