@@ -28,6 +28,7 @@ module libnegfAPICommon
 
   public :: DAC_handlerSize, NEGFPointers
   public :: TNegf 
+  public :: convert_c_string
 
   !!* Contains a pointer to a TUPTIn and an OUPT instance
   type NEGFPointers
@@ -37,6 +38,37 @@ module libnegfAPICommon
   ! Size handler 4 bytes * 4 = 16 bytes
   integer, parameter :: DAC_handlerSize = 4  
 
+
+  contains
+
+    !!* Convert a c_char array to a fortran string
+    subroutine convert_c_string(c_str, f_str)
+      use iso_c_binding, only : c_char, c_null_char  ! if:mod:use
+      use globals             ! if:mod:use
+      implicit none
+      character(kind=c_char), intent(in) :: c_str(*) ! if:var:in
+      character(len=*), intent(inout)    :: f_str    ! if:var:inout
+
+      integer :: nn, n_char
+
+      !Padding and converting to fortran string
+      n_char = 1
+      do while(c_str(n_char).ne.c_null_char)
+        n_char = n_char + 1
+      end do
+  
+      ! need this, otherwise it will result padded with char(0)
+      f_str = " "
+
+      if (len(f_str) .lt. n_char) then
+        n_char = len(f_str)
+      end if
+
+      do nn=1,n_char-1
+        f_str(nn:nn) = c_str(nn)
+      end do
+      
+    end subroutine convert_c_string
   
 end module libnegfAPICommon
 

@@ -80,7 +80,7 @@ module libnegf
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly
  public :: negf_partition_info  !write down partition info
- private :: find_cblocks        ! Find interacting contact block
+ public :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
@@ -156,6 +156,10 @@ module libnegf
    real(c_double) :: ec
    !> Valence band edge
    real(c_double) :: ev
+   !> Safe guard energy below Ec
+   real(c_double) :: deltaec
+   !> Safe guard energy above Ev
+   real(c_double) :: deltaev
    !! Real axis integral
    !> Minimum energy for real axis (current integration, DOS, tunneling)
    real(c_double) :: emin
@@ -598,6 +602,8 @@ contains
     params%n_poles = negf%n_poles
     params%Ec = negf%Ec
     params%Ev = negf%Ev
+    params%DeltaEc = negf%DeltaEc
+    params%DeltaEv = negf%DeltaEv
     params%Emin = negf%Emin
     params%Emax = negf%Emax
     params%Estep = negf%Estep
@@ -661,11 +667,14 @@ contains
       negf%kbT = params%kbT_dm(1)
     end if
     negf%Np_n = params%Np_n
+    negf%Np_p = params%Np_p
     negf%Np_real = params%Np_real
     negf%n_kt = params%n_kt
     negf%n_poles = params%n_poles
     negf%Ec = params%Ec
     negf%Ev = params%Ev
+    negf%DeltaEc = params%DeltaEc
+    negf%DeltaEv = params%DeltaEv
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
@@ -723,7 +732,9 @@ contains
        print*, "ERROR: scratch string longer than",LST
        stop
     end if
-    negf%scratch_path = trim(scratchpath)//'/GS/'
+    !negf%scratch_path = trim(scratchpath)//'/GS/'
+    negf%scratch_path = trim(scratchpath)//'/'
+ 
     ! Update the cache object if needed.
     select type (sgf => negf%surface_green_cache)
       type is (TSurfaceGreenCacheDisk)
@@ -969,7 +980,9 @@ contains
     character(32) :: tmp
     character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
 
-    open(101, file="negf.in", form='formatted')
+    !open(101, file="negf.in", form='formatted')
+    !open(101, file=trim(negf%scratch_path)//'/'//trim(negf%file_struct), form='formatted')
+    open(101, file=trim(negf%scratch_path)//'/negf.in', form='formatted')
 
     read(101,*) tmp, file_re_H
     read(101,*) tmp, file_im_H
@@ -977,13 +990,17 @@ contains
     read(101,*) tmp, file_re_S
     read(101,*) tmp, file_im_S
 
-    call read_HS(negf, file_re_H, file_im_H, 0)
-    negf%H%nzval=negf%H%nzval/27.21138469   !DAR
-    if (trim(file_re_S).eq.'identity') then
+    if (trim(file_re_H).ne.'memory') then
+      call read_HS(negf, file_re_H, file_im_H, 0)
+      negf%H%nzval=negf%H%nzval/27.21138469   !DAR
+    end if
+    if (trim(file_re_S).ne.'memory') then
+      if (trim(file_re_S).eq.'identity') then
          negf%isSid = .true.
          call set_S_id(negf, negf%H%nrow)
-    else
-      call read_HS(negf, file_re_S, file_im_S, 1)
+      else
+        call read_HS(negf, file_re_S, file_im_S, 1)
+      end if
     end if
 
     !! A dummy descriptor must be present at the beginning of each line
@@ -1420,6 +1437,14 @@ contains
     call extract_cont(negf)
 
     call create_DM(negf)
+    ! it is not zeroed out at end of integration, so we have to do it here
+    ! (otherwise k-integration from tibercad will not work)
+    if (allocated(negf%rho%nzval)) then
+      call destroy(negf%rho)
+    end if
+
+    ! Reference contact for contour/real axis separation
+    call set_ref_cont(negf)
 
     if (particle == 1) then
       negf%muref = negf%mu_n
@@ -1449,7 +1474,8 @@ contains
        else
           call real_axis_int_p_def(negf)
        endif
-       ! why use contour int here and not real_axis_int ??
+       ! we use contour_int here because it integrates Gr, while
+       ! real_axis_int integrates Gn
        call contour_int(negf)
     endif
 
@@ -1506,7 +1532,6 @@ contains
   subroutine compute_landauer(negf)
 
     type(Tnegf) :: negf
-
     call extract_cont(negf)
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
@@ -1727,9 +1752,12 @@ contains
       if (negf%min_or_max .eq. 0) then
          negf%muref = minval(negf%cont(1:ncont)%mu)
          nc_vec = minloc(negf%cont(1:ncont)%mu)
-      else
+      elseif (negf%min_or_max .eq. 1) then
          negf%muref = maxval(negf%cont(1:ncont)%mu)
          nc_vec = maxloc(negf%cont(1:ncont)%mu)
+      else
+         nc_vec = ncont + 1
+         negf%muref = maxval(negf%cont(1:ncont)%mu)
       endif
       negf%refcont = nc_vec(1)
     else

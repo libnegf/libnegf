@@ -258,7 +258,7 @@ contains
       Lambda = 2.d0* negf%n_poles * KbT * pi
     endif
 
-    Emin = negf%Ec + negf%DeltaEc
+    Emin = negf%Ec - negf%DeltaEc
 
     if ((Emin < (muref + 1.d-3)) .and. &
         (Emin > (muref - 1.d-3))) then
@@ -271,6 +271,7 @@ contains
     endif
 
     Ntot = negf%Np_n(1) + negf%Np_n(2) + Npoles
+    call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
     ! *******************************************************************************
@@ -440,6 +441,7 @@ contains
     endif
 
     Ntot=negf%Np_p(1)+negf%Np_p(2)+Npoles
+    call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
     ! *******************************************************************************
@@ -962,12 +964,13 @@ contains
     endif
 
     Ntot = negf%Np_real(1)
+    call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
 
-    call gauleg(mumin+negf%Ec+negf%DeltaEc, mumax+Omega,pnts,wght,Ntot)
+    call gauleg(negf%Ec-negf%DeltaEc, max(mumax, negf%Ec) + Omega,pnts,wght,Ntot)
 
     do i = 1, Ntot
        negf%en_grid(i)%path = 1
@@ -1023,6 +1026,7 @@ contains
     endif
 
     Ntot = negf%Np_real(1)
+    call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
     allocate(pnts(Ntot))
@@ -1200,7 +1204,6 @@ contains
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix
-  ! DOES INCLUDE FACTOR 2 FOR SPIN !!
   !-----------------------------------------------------------------------
   subroutine tunneling_int_def(negf)
     type(Tnegf) :: negf
@@ -1603,6 +1606,7 @@ contains
     !print *, 'negf%ni',negf%ni
     !print *, 'negf%nf',negf%nf
     !print *, 'negf%ref',negf%refcont
+    !print *, 'negf%cont',size(negf%cont)
 
     ! If previous calculation is there, destroy it
     if (allocated(negf%currents)) call log_deallocate(negf%currents)

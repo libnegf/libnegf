@@ -1,6 +1,12 @@
 #ifndef _LNPARAMS_H
 #define _LNPARAMS_H
 
+#ifdef __cplusplus
+# include <cstdbool>
+#else
+# include <stdbool.h>
+#endif
+
 #define MAXNCONT 10
 
 
@@ -20,6 +26,8 @@ struct lnparams {
   double wght;
   double ec;
   double ev;
+  double deltaec;
+  double deltaev;
   double emin;
   double emax;
   double estep;
@@ -27,7 +35,7 @@ struct lnparams {
   double mu_p[MAXNCONT];
   double mu[MAXNCONT];
   double contact_dos[MAXNCONT];
-  _Bool fictcont[MAXNCONT];
+  bool fictcont[MAXNCONT];
   double kbt_dm[MAXNCONT];
   double kbt_t[MAXNCONT];
   int np_n[2];
@@ -39,7 +47,7 @@ struct lnparams {
   int nf[MAXNCONT];
   char dore[1];
   int min_or_max;
-  _Bool is_s_is;
+  bool is_s_is;
   };
 
 #endif
