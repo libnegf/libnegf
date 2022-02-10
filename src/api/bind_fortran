@@ -467,10 +467,15 @@ class FormatterCpp(FormatterC):
           (cVarType, isScalar) = self.typeMap[varType]
         else:
           raise FormatterError("No corresponding C++-type for '%s'" % varType)
+
         if varIntent == INTENT_IN:
           if varArgs == None and isScalar:
-            # intent(in) scalar variables mapped to const&,
-            strVarType = "%s const&" % cVarType
+            if "value" in argProps[3]:
+              # intent(in), value scalar variables passed by value,
+              strVarType = "%s" % cVarType
+            else:
+              # intent(in) scalar variables mapped to const&,
+              strVarType = "%s const&" % cVarType
           else:
             # intent(in) array variables mapped to const*
             strVarType = "%s const*" % cVarType

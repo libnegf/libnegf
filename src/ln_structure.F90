@@ -58,7 +58,7 @@ contains
   ! ncont:                   number of contacts
   ! nbl:                     number of PLs
   ! PL_end(nbl)              array of size nbl with the end of each block
-  ! surf_start(ncont)          array containing the start of each contact surface
+  ! surf_start(ncont)        array containing the start of each contact surface
   ! surf_end(ncont)          array containing the end of each contact surface
   ! cont_end(ncont)          array containing the end of each contact
   ! cblk(ncont)              array containing the PL-contact position
