@@ -647,7 +647,8 @@ contains
     negf%verbose = params%verbose
     negf%readOldDM_SGFs = params%readOldDM_SGFs
     negf%readOldT_SGFs = params%readOldT_SGFs
-    negf%g_spin = params%g_spin
+    !negf%g_spin = params%g_spin
+    negf%g_spin = 1                         !Warning: degeneracy is set to 1 only for the version that interfaces to tiberCAD 
     negf%delta = params%delta
     negf%deltaModel = params%deltaModel
     negf%wmax = params%wmax
