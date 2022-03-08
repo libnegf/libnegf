@@ -1480,6 +1480,62 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_blocks
 
+  subroutine calculate_gns(ESH,SelfEneR,struct,gns)
+    implicit none
+
+    !In/Out
+    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(z_DNS), dimension(:,:), intent(inout) :: gns
+    type(z_DNS), dimension(:), intent(in) :: SelfEneR
+    type(Tstruct_info), intent(in) :: struct
+
+    !Work
+    type(z_DNS) :: work, work1, work2, work3, factors 
+    type(z_DNS) :: Ga, gsmrDag, ESHdag
+    integer :: i,j,cb
+    integer :: nbl
+
+    nbl = struct%num_PLs
+    
+    !g^n(nbl) = Gr(nbl,nbl) Sigma(nbl,nbl) Ga(nbl,nbl)
+    call zdagger(Gr(nbl,nbl),Ga)
+    call prealloc_mult(Gr(nbl,nbl), SelfEneR(nbl,nbl), work1)
+    call prealloc_mult(work1, Ga, gns(nbl))
+    call destroy(Ga, work1)
+
+    !gns(i) = gsmr(i) * [Sigma(i,i) + ESH(i,i+1) gns(i+1) ESH^dag(i+1,i) - ESH(i,i+1) gsmr(i+1) Sigma(i+1,i) - 
+    !                    Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)] * gsmr^dag(i)
+    do i = 1, nbl-1, -1
+        !work1 = ESH(i,i+1) gns(i+1) ESH^dag(i+1,i)
+        call zdagger(ESH(i,i+1), ESHdag)
+        call prealloc_mult(ESH(i+1,i), gns(i+1), work)
+        call prealloc_mult(work, ESHdag, work1)
+        call destroy(work)
+
+        !work2 = Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)
+        call zdagger(gsmr(i+1), gsmrDag)
+        call prealloc_mult(SelfEneR(i,i+1), gsmrDag, work)
+        call prealloc_mult(work, ESHdag, work2)
+        call destroy(work, gsmrDag, ESHdag)
+
+        !work3 = ESH(i,i+1) gsmr(i+1) Sigma(i+1,i)
+        call prealloc_mult(ESH(i,i+1), gsmr(i+1), work)
+        call prealloc_mult(work, SelfEneR(i+1,i), work3)
+        call destroy(work)
+
+        !sum of the four factors
+        call create(factors, SelfEneR(i,i)%nrow, SelfEneR(i,i)%ncol)
+        factors%val = SelfEneR(i,i)%val + work1%val - work2%val - work3%val
+
+        !gsmr(i) * factors * gsmr^dag(i)
+        call zdagger(gsmr(i), gsmrDag)
+        call prealloc_mult(gsmr(i), factors, work)
+        call prealloc_mult(work, gsmrDag, gns(i))
+
+        call destroy(factors, work, gsmrDag)
+    end do 
+
+  end subroutine calculate_gns
   !****************************************************************************
   !
   ! Calculate G_n contributions for all contacts (except reference)
