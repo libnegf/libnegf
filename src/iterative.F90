@@ -1480,23 +1480,98 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_blocks
 
-  subroutine calculate_gns(ESH,SelfEneR,struct,gns)
+  subroutine calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,struct,Gn)
+
     implicit none
 
     !In/Out
     type(z_DNS), dimension(:,:), intent(in) :: ESH
-    type(z_DNS), dimension(:,:), intent(inout) :: gns
-    type(z_DNS), dimension(:), intent(in) :: SelfEneR
+    type(z_DNS), dimension(:,:), intent(in) :: SelfEneR
+    type(z_DNS), dimension(:,:), intent(inout) :: Gn
     type(Tstruct_info), intent(in) :: struct
+
+    !Work
+    Type(z_DNS), dimension(:) :: gns 
+    type(z_DNS) :: work1, work2, work3
+    type(z_DNS) :: Ga, ESHdag, gsmrDag, factors
+    integer :: i
+    integer :: nbl
+
+    nbl = struct%num_PLs
+
+    !Gn(1,1) = gns(1)
+    call allocate_gsm(gns, nbl)
+    call calculate_gns(ESH, SelfEneR, nbl, gns)
+    call create(Gn(1,1), gns(1)%nrow, gns(1)%ncol)
+    Gn(1,1)%val = gns(1)%val
+    call deallocate_gsm(gns)
+    
+    do i = 1,nbl-1
+        !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - ESH(i+1,i)Gn(i,i)]
+        call zdagger(Gr(i,i), Ga)
+        call prealloc_mult(SelfEneR(i+1,i), Ga, work1)
+        call destroy(Ga)
+
+        call zdagger(Gr(i,i+1), Ga)
+        call prealloc_mult(SelfEneR(i+1,i+1), Ga, work2)
+        call destroy(Ga)
+
+        call prealloc_mult(ESH(i+1,i), Gn(i,i), work3)
+        call create(factors, work1%nrow, work1%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i)
+        call destroy(factors, work1, work2, work3)
+
+        !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)ESH^dag(i,i+1)] * gsmr^dag(i+1)
+        call pralloc_mult(Gr(i,i), SelfEneR(i,i+1), work1)
+        call prealloc_mult(Gr(i,i+1), SelfEneR(i+1,i+1), work2)
+
+        call zdagger(ESH(i+1,i), ESHdag)
+        call prealloc_mult(Gn(i,i), ESHdag, work3)
+        call destroy(ESHdag)
+
+        call create(factors, work1%nrow, work1,%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call zdagger(gsmr(i+1), gsmrDag)
+        call prealloc_mult(factors, gsmrDag, Gn(i,i+1))
+        call destroy(factors, gsmrDag, work1, work2, work3)
+
+        !Gn(i+1,i+1) = gsmr(i+1) * [Sigma(i+1,i)Ga(i,i+1) + Sigma(i+1,i+1)Ga(i+1,i+1) - ESH(i+1,i)Gn(i,i+1)]
+        call zdagger(Gr(i+1,i), Ga)
+        call prealloc_mult(SelfEneR(i+1,i), Ga, work1)
+        call destroy(Ga)
+
+        call zdagger(Gr(i+1,i+1), Ga)
+        call prealloc_mult(SelfEneR(i+1,i+1), Ga, work2)
+        call destroy(Ga)
+
+        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), work3)
+        call create(factors, work1%nrow, work1%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i+1))
+        call destroy(factors, work1, work2, work3)
+
+    end do
+
+  end subroutine calculate_Gn_tridiag_blocks_new
+
+  subroutine calculate_gns(ESH,SelfEneR,nbl,gns)
+    implicit none
+
+    !In/Out
+    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(z_DNS), dimension(:,:), intent(in) :: SelfEneR
+    integer, intent(in) :: nbl
+    type(z_DNS), dimension(:), intent(inout) :: gns
 
     !Work
     type(z_DNS) :: work, work1, work2, work3, factors 
     type(z_DNS) :: Ga, gsmrDag, ESHdag
-    integer :: i,j,cb
-    integer :: nbl
+    integer :: i
 
-    nbl = struct%num_PLs
-    
     !g^n(nbl) = Gr(nbl,nbl) Sigma(nbl,nbl) Ga(nbl,nbl)
     call zdagger(Gr(nbl,nbl),Ga)
     call prealloc_mult(Gr(nbl,nbl), SelfEneR(nbl,nbl), work1)
