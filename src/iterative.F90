@@ -1602,7 +1602,7 @@ CONTAINS
         call create(factors, SelfEneR(i,i)%nrow, SelfEneR(i,i)%ncol)
         factors%val = SelfEneR(i,i)%val + work1%val - work2%val - work3%val
 
-        !gsmr(i) * factors * gsmr^dag(i)
+        !gns(i) = gsmr(i) * factors * gsmr^dag(i)
         call zdagger(gsmr(i), gsmrDag)
         call prealloc_mult(gsmr(i), factors, work)
         call prealloc_mult(work, gsmrDag, gns(i))
