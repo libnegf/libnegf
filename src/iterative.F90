@@ -1480,7 +1480,7 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_blocks
 
-  subroutine calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,struct,Gn)
+  subroutine calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,struct,Gn)
 
     implicit none
 
@@ -1488,32 +1488,60 @@ CONTAINS
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     type(z_DNS), dimension(:,:), intent(in) :: SelfEneR
     type(z_DNS), dimension(:,:), intent(inout) :: Gn
+    real(dp), dimension(:), intent(in) :: frm
+    integer, intent(in) :: ref
     type(Tstruct_info), intent(in) :: struct
 
     !Work
     Type(z_DNS), dimension(:) :: gns 
+    Type(z_DNS), dimension(:,:) :: Sigma_n 
     type(z_DNS) :: work1, work2, work3
-    type(z_DNS) :: Ga, ESHdag, gsmrDag, factors
-    integer :: i
-    integer :: nbl
+    type(z_DNS) :: Ga, ESHdag, gsmrDag, factors, Sigma
+    type(z_DNS) :: Sigma, Gam
+    complex(dp) :: frmdiff
+    integer :: i, j
+    integer :: nbl, ncont, cb
 
+    ncont = struct%num_conts
     nbl = struct%num_PLs
+
+    !build Sigma_n from SelfEneR
+    call allocate_blk_dns(Sigma_n, nbl)
+    call init_blkmat(Sigma_n, ESH)
+    do j=1,ncont
+      if (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.EPS) THEN
+
+        cb=struct%cblk(j) ! block corresponding to contact j
+
+        call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
+        call create(Sigma, Gam%nrow, Gam%ncol)
+        frmdiff = frm(j) - frm(ref)
+        Sigma%val = frmdiff*Gam%val
+        
+        call create(Sigma_n(cb,cb), Sigma%nrow, Sigma%ncol)
+        Sigma_n(cb,cb)%val = Sigma%val
+        
+        call destroy(Sigma, Gam)
+
+      endif
+    end do 
 
     !Gn(1,1) = gns(1)
     call allocate_gsm(gns, nbl)
-    call calculate_gns(ESH, SelfEneR, nbl, gns)
+    call calculate_gns(ESH, Sigma_n, nbl, gns)
     call create(Gn(1,1), gns(1)%nrow, gns(1)%ncol)
     Gn(1,1)%val = gns(1)%val
+    call destroy_gsm(gns)
     call deallocate_gsm(gns)
-    
+
     do i = 1,nbl-1
         !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - ESH(i+1,i)Gn(i,i)]
         call zdagger(Gr(i,i), Ga)
-        call prealloc_mult(SelfEneR(i+1,i), Ga, work1)
+        call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
         call destroy(Ga)
 
         call zdagger(Gr(i,i+1), Ga)
-        call prealloc_mult(SelfEneR(i+1,i+1), Ga, work2)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
         call destroy(Ga)
 
         call prealloc_mult(ESH(i+1,i), Gn(i,i), work3)
@@ -1524,8 +1552,8 @@ CONTAINS
         call destroy(factors, work1, work2, work3)
 
         !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)ESH^dag(i,i+1)] * gsmr^dag(i+1)
-        call pralloc_mult(Gr(i,i), SelfEneR(i,i+1), work1)
-        call prealloc_mult(Gr(i,i+1), SelfEneR(i+1,i+1), work2)
+        call pralloc_mult(Gr(i,i), Sigma_n(i,i+1), work1)
+        call prealloc_mult(Gr(i,i+1), Sigma_n(i+1,i+1), work2)
 
         call zdagger(ESH(i+1,i), ESHdag)
         call prealloc_mult(Gn(i,i), ESHdag, work3)
@@ -1540,11 +1568,11 @@ CONTAINS
 
         !Gn(i+1,i+1) = gsmr(i+1) * [Sigma(i+1,i)Ga(i,i+1) + Sigma(i+1,i+1)Ga(i+1,i+1) - ESH(i+1,i)Gn(i,i+1)]
         call zdagger(Gr(i+1,i), Ga)
-        call prealloc_mult(SelfEneR(i+1,i), Ga, work1)
+        call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
         call destroy(Ga)
 
         call zdagger(Gr(i+1,i+1), Ga)
-        call prealloc_mult(SelfEneR(i+1,i+1), Ga, work2)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
         call destroy(Ga)
 
         call prealloc_mult(ESH(i+1,i), Gn(i,i+1), work3)
@@ -1556,14 +1584,16 @@ CONTAINS
 
     end do
 
+    call destroy_ESH(Sigma_n)
+    call deallocate_blk_dns(Sigma_n)
   end subroutine calculate_Gn_tridiag_blocks_new
 
-  subroutine calculate_gns(ESH,SelfEneR,nbl,gns)
+  subroutine calculate_gns(ESH,Sigma_n,nbl,gns)
     implicit none
 
     !In/Out
     type(z_DNS), dimension(:,:), intent(in) :: ESH
-    type(z_DNS), dimension(:,:), intent(in) :: SelfEneR
+    type(z_DNS), dimension(:,:), intent(in) :: Sigma_n
     integer, intent(in) :: nbl
     type(z_DNS), dimension(:), intent(inout) :: gns
 
@@ -1574,7 +1604,7 @@ CONTAINS
 
     !g^n(nbl) = Gr(nbl,nbl) Sigma(nbl,nbl) Ga(nbl,nbl)
     call zdagger(Gr(nbl,nbl),Ga)
-    call prealloc_mult(Gr(nbl,nbl), SelfEneR(nbl,nbl), work1)
+    call prealloc_mult(Gr(nbl,nbl), Sigma_n(nbl,nbl), work1)
     call prealloc_mult(work1, Ga, gns(nbl))
     call destroy(Ga, work1)
 
@@ -1589,18 +1619,18 @@ CONTAINS
 
         !work2 = Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)
         call zdagger(gsmr(i+1), gsmrDag)
-        call prealloc_mult(SelfEneR(i,i+1), gsmrDag, work)
+        call prealloc_mult(Sigma_n(i,i+1), gsmrDag, work)
         call prealloc_mult(work, ESHdag, work2)
         call destroy(work, gsmrDag, ESHdag)
 
         !work3 = ESH(i,i+1) gsmr(i+1) Sigma(i+1,i)
         call prealloc_mult(ESH(i,i+1), gsmr(i+1), work)
-        call prealloc_mult(work, SelfEneR(i+1,i), work3)
+        call prealloc_mult(work, Sigma_n(i+1,i), work3)
         call destroy(work)
 
         !sum of the four factors
-        call create(factors, SelfEneR(i,i)%nrow, SelfEneR(i,i)%ncol)
-        factors%val = SelfEneR(i,i)%val + work1%val - work2%val - work3%val
+        call create(factors, Sigma_n(i,i)%nrow, Sigma_n(i,i)%ncol)
+        factors%val = Sigma_n(i,i)%val + work1%val - work2%val - work3%val
 
         !gns(i) = gsmr(i) * factors * gsmr^dag(i)
         call zdagger(gsmr(i), gsmrDag)
