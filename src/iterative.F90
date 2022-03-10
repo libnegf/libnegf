@@ -269,7 +269,7 @@ CONTAINS
     end if
 
     call allocate_gsm(gsmr,nbl)
-    call allocate_gsm(gsml,nbl)
+    !call allocate_gsm(gsml,nbl)   !Not needed if using calculate_Gn_tridiag_blocks_new
 
     ! Determine the leftmost and rightmost contact blocks to determine
     ! which column blocks are needed and hence which gsmr and gsml. In the case
@@ -284,8 +284,9 @@ CONTAINS
       lbl = maxval(cblk(1:ncont),mask(1:ncont))
     endif
 
-    call calculate_gsmr_blocks(ESH,nbl,rbl+1)
-    call calculate_gsml_blocks(ESH,1,lbl-1)
+    !call calculate_gsmr_blocks(ESH,nbl,rbl+1)
+    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
+    !call calculate_gsml_blocks(ESH,1,lbl-1)   !Not needed if using calculate_Gn_tridiag_blocks_new
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -305,36 +306,37 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
+        Gr_columns(i) = cblk(i)                              
+        !call calculate_Gr_column_blocks(ESH,cblk(i),indblk)    !Not needed if using calculate_Gn_tridiag_blocks_new
       endif
     end do
     
-    !If not interactions are present we can already destroy gsmr, gsml.
-    !Otherwise they are still needed to calculate columns ont-the-fly.
-    if (.not.allocated(negf%inter)) then
-      call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
-    end if
+    
+    !We still need gsmr for calculate_Gn_tridiag_blocks_new, gsml does not exist --> Next lines commented:
+    !if (.not.allocated(negf%inter)) then
+      !call destroy_gsm(gsmr)                    
+      !call deallocate_gsm(gsmr)
+      !call destroy_gsm(gsml)
+      !call deallocate_gsm(gsml)
+    !end if
 
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
 
     call init_blkmat(Gn,ESH)
 
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
-      call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
+      !call destroy_gsm(gsml)
+      !call deallocate_gsm(gsml)
     end if
+
+    call destroy_gsm(gsmr)
+    call deallocate_gsm(gsmr)
 
     !Passing G^n to interaction that builds Sigma^n
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
@@ -429,13 +431,14 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
     call allocate_gsm(gsmr,nbl)
-    call allocate_gsm(gsml,nbl)
+    !call allocate_gsm(gsml,nbl)   !Not needed if using calculate_Gn_tridiag_blocks_new
 
-    call calculate_gsmr_blocks(ESH,nbl,2)
+    !call calculate_gsmr_blocks(ESH,nbl,2)
+    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
 
-    if ( ncont.gt.1 ) then
-      call calculate_gsml_blocks(ESH,1,nbl-2)
-    endif
+    !if ( ncont.gt.1 ) then                      !Not needed if using calculate_Gn_tridiag_blocks_new
+    !  call calculate_gsml_blocks(ESH,1,nbl-2)
+    !endif
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -457,10 +460,10 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)
+        !call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)    !Not needed if using calculate_Gn_tridiag_blocks_new
       endif
     end do
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
@@ -470,8 +473,8 @@ CONTAINS
     ! can destroy them here.
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
-    call destroy_gsm(gsml)
-    call deallocate_gsm(gsml)
+    !call destroy_gsm(gsml)
+    !call deallocate_gsm(gsml)
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
