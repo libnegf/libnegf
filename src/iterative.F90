@@ -269,7 +269,7 @@ CONTAINS
     end if
 
     call allocate_gsm(gsmr,nbl)
-    call allocate_gsm(gsml,nbl)   !Needed only because of the method below of computing Gr
+    !call allocate_gsm(gsml,nbl)   !Needed only because of the method below of computing Gr
 
     ! Determine the leftmost and rightmost contact blocks to determine
     ! which column blocks are needed and hence which gsmr and gsml. In the case
