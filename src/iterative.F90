@@ -274,19 +274,19 @@ CONTAINS
     ! Determine the leftmost and rightmost contact blocks to determine
     ! which column blocks are needed and hence which gsmr and gsml. In the case
     ! of interactions we need to be able to calculate all columns.
-    if (allocated(negf%inter)) then
-      rbl = 1
-      lbl = nbl - 1
-    else
-      mask = .true.
-      mask(ref) = .false.
-      rbl = minval(cblk(1:ncont),mask(1:ncont))
-      lbl = maxval(cblk(1:ncont),mask(1:ncont))
-    endif
+    !if (allocated(negf%inter)) then
+    !  rbl = 1
+    !  lbl = nbl - 1
+    !else
+    !  mask = .true.
+    !  mask(ref) = .false.
+    !  rbl = minval(cblk(1:ncont),mask(1:ncont))
+    !  lbl = maxval(cblk(1:ncont),mask(1:ncont))
+    !endif
 
     !call calculate_gsmr_blocks(ESH,nbl,rbl+1)
     call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
-    call calculate_gsml_blocks(ESH,1,lbl-1)    !Needed only because of the method below of computing Gr
+    !call calculate_gsml_blocks(ESH,1,lbl-1)    !Needed only because of the method below of computing Gr
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -294,9 +294,11 @@ CONTAINS
     ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
     ! 2. rbl<lbl  => lbl=rbl-2 has been computed
     ! calculate_Gr does not compute if sbl>nbl or sbl<1
-    call calculate_Gr_tridiag_blocks(ESH,rbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
+    !call calculate_Gr_tridiag_blocks(ESH,rbl)
+    !call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
+    !call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
     !Passing Gr to interaction that builds Sigma_n
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
@@ -313,12 +315,12 @@ CONTAINS
     
     
     !We still need gsmr for calculate_Gn_tridiag_blocks_new
-    if (.not.allocated(negf%inter)) then
-      !call destroy_gsm(gsmr)                    
-      !call deallocate_gsm(gsmr)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
-    end if
+    !if (.not.allocated(negf%inter)) then
+    !  !call destroy_gsm(gsmr)                    
+    !  !call deallocate_gsm(gsmr)
+    !  call destroy_gsm(gsml)
+    !  call deallocate_gsm(gsml)
+    !end if
 
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
@@ -331,8 +333,8 @@ CONTAINS
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
+    !  call destroy_gsm(gsml)
+    !  call deallocate_gsm(gsml)
     end if
 
     call destroy_gsm(gsmr)
