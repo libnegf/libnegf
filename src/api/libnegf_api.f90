@@ -143,7 +143,7 @@ end subroutine negf_init
 !! @param [int] contend (array): the last index of each contact (size ncont)
 !! @param [int] npl (int): the number of principal layers
 !! @param [int] plend (array): the indices of the layer end (size npl)
-subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl, plend) bind(c)
+subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl, plend, cblk) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
@@ -155,6 +155,7 @@ subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl,
   integer(c_int), intent(in) :: surfend(*) ! if:var:in
   integer(c_int), intent(in) :: contend(*) ! if:var:in
   integer(c_int), intent(in) :: plend(*)   ! if:var:in
+  integer(c_int), intent(in) :: cblk(*)   ! if:var:in
 
   integer, allocatable :: surfstart_al(:), surfend_al(:), contend_al(:)
   integer, allocatable :: plend_al(:), cblk_al(:)
@@ -171,13 +172,57 @@ subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl,
   surfstart_al(1:ncont) = surfstart(1:ncont)
   surfend_al(1:ncont) = surfend(1:ncont)
   contend_al(1:ncont) = contend(1:ncont)
+  cblk_al(1:ncont) = cblk(1:ncont)
 
-  ! Hamiltonian has to be read/passed before
-  call find_cblocks(LIB%pNEGF%H, ncont, npl, plend_al, surfstart_al, contend_al, cblk_al)
   call init_structure(LIB%pNEGF, ncont, surfstart_al, surfend_al, contend_al, npl, plend_al, cblk_al)
 
 end subroutine negf_init_structure
 
+
+!> Computes the block indices of the contact self-energies 
+!> The Hamiltonian has to be read/passed before
+subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl, plend, cblk) bind(c)
+  use iso_c_binding, only : c_int  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  implicit none
+  integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
+  integer(c_int), intent(in), value :: ncont ! if:var:in
+  integer(c_int), intent(in), value :: npl ! if:var:in
+  integer(c_int), intent(in) :: surfstart(*) ! if:var:in
+  integer(c_int), intent(in) :: surfend(*) ! if:var:in
+  integer(c_int), intent(in) :: contend(*) ! if:var:in
+  integer(c_int), intent(in) :: plend(*)   ! if:var:in
+  integer(c_int), intent(inout) :: cblk(*)   ! if:var:inout
+
+  integer, allocatable :: surfstart_al(:), surfend_al(:), contend_al(:)
+  integer, allocatable :: plend_al(:), cblk_al(:)
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+
+  if (.not.associated(LIB%pNEGF%H)) then
+    write(*,*) 'Error: H not created before invoking negf_contact_block'
+    stop
+  end if      
+
+  allocate(surfstart_al(ncont))
+  allocate(surfend_al(ncont))
+  allocate(contend_al(ncont))
+  allocate(cblk_al(ncont))
+  allocate(plend_al(npl))
+  plend_al(1:npl) = plend(1:npl)
+  surfstart_al(1:ncont) = surfstart(1:ncont)
+  surfend_al(1:ncont) = surfend(1:ncont)
+  contend_al(1:ncont) = contend(1:ncont)
+
+  call find_cblocks(LIB%pNEGF%H, ncont, npl, plend_al, surfstart_al, contend_al, cblk_al)
+  
+  cblk(1:ncont) = cblk_al(1:ncont)
+
+end subroutine negf_contact_blocks
+
+      
 !> Retrieve the arrays describing the hamiltonina principal layer partitions for the
 !! block iterative algorithm.
 !! @param [in] handler:  handler Number for the LIBNEGF instance
