@@ -293,7 +293,6 @@ contains
     allocate(pnts(negf%Np_n(1)))
 
     call gauleg(0.d0,1.d0,pnts,wght,negf%Np_n(1))
-    !call trapez(0.d0,1.d0,pnts,wght,negf%Np_n(1))
 
     do i = 1, negf%Np_n(1)
       Ec = z1 + pnts(i) * z_diff
@@ -324,7 +323,6 @@ contains
     allocate(pnts(negf%Np_n(2)))
 
     call gauleg(0.d0,1.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
-    !call trapez(0.d0,1.d0,pnts,wght,negf%Np_n(2))    !Setting weights for integration
 
     z1 = z2
     z2 = muref + Omega + j*Lambda
@@ -467,8 +465,8 @@ contains
     do i = 1, negf%Np_p(1)
       Ec = z1 + pnts(i) * z_diff
       ff = fermi(-Ec,-muref,KbT)   ! 1-f(E-muref)
-      zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
-
+      zt = - negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi) !zt is with minus sign because the integration of holes is in
+                                                              !the opposite direction compared to the one of electrons
       negf%en_grid(i)%path = 1
       negf%en_grid(i)%pt = i
       negf%en_grid(i)%pt_path = i
@@ -500,12 +498,12 @@ contains
     z_diff = z2 - z1
 
     ioffs = negf%Np_p(1)
-
+    
     do i = 1, negf%Np_p(2)
       Ec = z1 + pnts(i) * z_diff
       ff = fermi(-Ec,-muref,KbT)
-      zt = negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)
-
+      zt = - negf%g_spin * z_diff * ff * wght(i) / (2.d0 *pi)  !zt is with minus sign because the integration of holes is in  
+                                                               !the opposite direction compared to the one of electrons 
       negf%en_grid(ioffs+i)%path = 2
       negf%en_grid(ioffs+i)%pt = ioffs + i
       negf%en_grid(ioffs+i)%pt_path = ioffs + i
@@ -527,11 +525,10 @@ contains
     !                                              (-kb*T) <- Residue
     !---------------------------------------------------------------------
     ioffs = negf%Np_p(1)+negf%Np_p(2)
-
     do i = 1, Npoles
       Ec = muref + j * KbT *pi* (2.d0*i - 1.d0)
-      zt= -j * KbT * negf%g_spin *(1.d0,0.d0)
-
+      zt = j * KbT * negf%g_spin *(1.d0,0.d0)  !zt is with plus sign because the integration of holes is in the opposite
+                                               !direction compared to the one of electrons  
       negf%en_grid(ioffs+i)%path = 3
       negf%en_grid(ioffs+i)%pt = ioffs + i
       negf%en_grid(ioffs+i)%pt_path = ioffs + i

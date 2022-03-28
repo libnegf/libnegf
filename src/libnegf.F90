@@ -1476,7 +1476,8 @@ contains
        endif
        ! we use contour_int here because it integrates Gr, while
        ! real_axis_int integrates Gn
-       call contour_int(negf)
+       !call contour_int(negf)
+       call real_axis_int(negf)
     endif
 
     ! We need not to include S:
