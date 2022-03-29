@@ -980,9 +980,7 @@ contains
     character(32) :: tmp
     character(LST) :: file_re_H, file_im_H, file_re_S, file_im_S
 
-    !open(101, file="negf.in", form='formatted')
-    !open(101, file=trim(negf%scratch_path)//'/'//trim(negf%file_struct), form='formatted')
-    open(101, file=trim(negf%scratch_path)//'/negf.in', form='formatted')
+    open(101, file="negf.in", form='formatted')
 
     read(101,*) tmp, file_re_H
     read(101,*) tmp, file_im_H
@@ -992,7 +990,6 @@ contains
 
     if (trim(file_re_H).ne.'memory') then
       call read_HS(negf, file_re_H, file_im_H, 0)
-      negf%H%nzval=negf%H%nzval/27.21138469   !DAR
     end if
     if (trim(file_re_S).ne.'memory') then
       if (trim(file_re_S).eq.'identity') then
