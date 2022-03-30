@@ -37,6 +37,8 @@ int main()
   params.estep = 0.01;
   params.kbt_t[0] = 0.001;
   params.kbt_t[1] = 0.001;
+  //use default for Np_n = (20,20); n_kt=10; n_poles=3; 
+  // delta = 1e-4; dos_delta = 1e-4; g_spin = 2;
   negf_set_params(hand, &params);
 
   //Set ldos parameters

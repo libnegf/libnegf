@@ -1345,7 +1345,7 @@ CONTAINS
           endif
           if (y.eq.0) then
             write(*,*)
-            write(*,*) 'ERROR in blk2csr: probably wrong PL size',x
+            write(*,*) 'ERROR in Gr_blk2csr: probably wrong PL size',x
             write(*,*) 'row',i,A%colind(j)
             write(*,*) 'block indeces:',indblk(1:nbl)
             stop
@@ -3692,14 +3692,18 @@ CONTAINS
     if (size(dos_proj).gt.0) then
       call log_allocate(diag, Grm%nrow)
       call getdiag(Grm,diag)
-      do iLDOS=1,size(dos_proj)
-        do i = 1, size(dos_proj(iLDOS)%indexes)
-          i2 = dos_proj(iLDOS)%indexes(i)
-          if (i2 .le. str%central_dim) then
-            LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)
-          end if
+      if (size(dos_proj) == size(diag) .and. dos_proj(1)%indexes(1) == 0) then
+          LEDOS(:) = LEDOS(:) + diag(:)
+       else
+        do iLDOS=1,size(dos_proj)
+          do i = 1, size(dos_proj(iLDOS)%indexes)
+            i2 = dos_proj(iLDOS)%indexes(i)
+            if (i2 .le. str%central_dim) then
+              LEDOS(iLDOS) = LEDOS(iLDOS) + diag(i2)
+            end if
+          end do
         end do
-      end do
+      endif
       call log_deallocate(diag)
     endif
 

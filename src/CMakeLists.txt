@@ -29,7 +29,11 @@ set(sources-fpp
   interactions.F90
   elphdd.F90
   elphdb.F90
-  elphds.F90)
+  elphds.F90
+  sparskit/skit_blassm.F90
+  sparskit/skit_formats.F90
+  sparskit/skit_module.F90
+  sparskit/skit_unary.F90)
 
 if(WITH_INELASTIC)
   list(APPEND sources-fpp transform.F90)
@@ -60,7 +64,8 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
+#add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
+add_library(negf ${sources-fpp-f90} ${sources-f90})
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC
