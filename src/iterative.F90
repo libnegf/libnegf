@@ -269,23 +269,8 @@ CONTAINS
     end if
 
     call allocate_gsm(gsmr,nbl)
-    call allocate_gsm(gsml,nbl)
 
-    ! Determine the leftmost and rightmost contact blocks to determine
-    ! which column blocks are needed and hence which gsmr and gsml. In the case
-    ! of interactions we need to be able to calculate all columns.
-    if (allocated(negf%inter)) then
-      rbl = 1
-      lbl = nbl - 1
-    else
-      mask = .true.
-      mask(ref) = .false.
-      rbl = minval(cblk(1:ncont),mask(1:ncont))
-      lbl = maxval(cblk(1:ncont),mask(1:ncont))
-    endif
-
-    call calculate_gsmr_blocks(ESH,nbl,rbl+1)
-    call calculate_gsml_blocks(ESH,1,lbl-1)
+    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -293,9 +278,8 @@ CONTAINS
     ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
     ! 2. rbl<lbl  => lbl=rbl-2 has been computed
     ! calculate_Gr does not compute if sbl>nbl or sbl<1
-    call calculate_Gr_tridiag_blocks(ESH,rbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl+1,nbl)
-    call calculate_Gr_tridiag_blocks(ESH,rbl-1,1)
+    call calculate_Gr_tridiag_blocks(ESH,1)
+    call calculate_Gr_tridiag_blocks(ESH,2,nbl)
     !Passing Gr to interaction that builds Sigma_n
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
@@ -305,36 +289,26 @@ CONTAINS
     Gr_columns = 0
     do i=1,ncont
       if (i.NE.ref) THEN
-        Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH,cblk(i),indblk)
+        Gr_columns(i) = cblk(i)                              
+        !call calculate_Gr_column_blocks(ESH,cblk(i),indblk)    !Not needed if using calculate_Gn_tridiag_blocks_new
       endif
     end do
     
-    !If not interactions are present we can already destroy gsmr, gsml.
-    !Otherwise they are still needed to calculate columns ont-the-fly.
-    if (.not.allocated(negf%inter)) then
-      call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
-    end if
-
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
 
     call init_blkmat(Gn,ESH)
 
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
-      call destroy_gsm(gsmr)
-      call deallocate_gsm(gsmr)
-      call destroy_gsm(gsml)
-      call deallocate_gsm(gsml)
     end if
+
+    call destroy_gsm(gsmr)
+    call deallocate_gsm(gsmr)
 
     !Passing G^n to interaction that builds Sigma^n
     if (allocated(negf%inter)) call negf%inter%set_Gn(Gn, negf%iE)
@@ -429,13 +403,8 @@ CONTAINS
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
     call allocate_gsm(gsmr,nbl)
-    call allocate_gsm(gsml,nbl)
 
-    call calculate_gsmr_blocks(ESH,nbl,2)
-
-    if ( ncont.gt.1 ) then
-      call calculate_gsml_blocks(ESH,1,nbl-2)
-    endif
+    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -457,21 +426,19 @@ CONTAINS
     do i=1,ncont
       if (i.NE.ref) THEN
         Gr_columns(i) = cblk(i)
-        call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)
+        !call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)    !Not needed if using calculate_Gn_tridiag_blocks_new
       endif
     end do
-    call calculate_Gn_tridiag_blocks(ESH,SelfEneR,frm,ref,negf%str,Gn)
+    call calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     if (allocated(negf%inter)) then
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
     end if
 
-    ! The gsmr, gsml are used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
+    ! The gsmr is used to calculate columns on-the-fly in calculate_Gn_tridiag_elph_contributions, we
     ! can destroy them here.
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
-    call destroy_gsm(gsml)
-    call deallocate_gsm(gsml)
 
     do i=1,size(negf%ni)
       lead = negf%ni(i)
@@ -1480,6 +1447,167 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_blocks
 
+  subroutine calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,struct,Gn)
+
+    implicit none
+
+    !In/Out
+    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(z_DNS), dimension(:), intent(in) :: SelfEneR
+    type(z_DNS), dimension(:,:), intent(inout) :: Gn
+    real(dp), dimension(:), intent(in) :: frm
+    integer, intent(in) :: ref
+    type(Tstruct_info), intent(in) :: struct
+
+    !Work
+    type(z_DNS), dimension(:), allocatable :: gns 
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_n 
+    type(z_DNS) :: work1, work2, work3
+    type(z_DNS) :: Ga, ESHdag, gsmrDag, factors
+    type(z_DNS) :: Sigma, Gam
+    complex(dp) :: frmdiff
+    integer :: i, j
+    integer :: nbl, ncont, cb
+
+    ncont = struct%num_conts
+    nbl = struct%num_PLs
+
+    !build Sigma_n from SelfEneR
+    call allocate_blk_dns(Sigma_n, nbl)
+    call init_blkmat(Sigma_n, ESH)
+    do j=1,ncont
+
+      if (j.NE.ref .AND. ABS(frm(j)-frm(ref)).GT.EPS) THEN
+        cb=struct%cblk(j) ! block corresponding to contact j
+        call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
+        call create(Sigma, Gam%nrow, Gam%ncol)
+        frmdiff = frm(j) - frm(ref)
+        Sigma%val = frmdiff*Gam%val
+        
+        Sigma_n(cb,cb)%val = Sigma%val
+        
+        call destroy(Sigma, Gam)
+      endif
+    end do 
+
+    !Gn(1,1) = gns(1)
+    call allocate_gsm(gns, nbl)
+    call calculate_gns(ESH, Sigma_n, nbl, gns)
+    Gn(1,1)%val = gns(1)%val
+    call destroy_gsm(gns)
+    call deallocate_gsm(gns)
+
+    do i = 1,nbl-1
+        !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - ESH(i+1,i)Gn(i,i)]
+        call zdagger(Gr(i,i), Ga)
+        call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
+        call destroy(Ga)
+
+        call zdagger(Gr(i,i+1), Ga)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
+        call destroy(Ga)
+
+        call prealloc_mult(ESH(i+1,i), Gn(i,i), work3)
+        call create(factors, work1%nrow, work1%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i))
+        call destroy(factors, work1, work2, work3)
+
+        !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)ESH^dag(i,i+1)] * gsmr^dag(i+1)
+        call prealloc_mult(Gr(i,i), Sigma_n(i,i+1), work1)
+        call prealloc_mult(Gr(i,i+1), Sigma_n(i+1,i+1), work2)
+
+        call zdagger(ESH(i+1,i), ESHdag)
+        call prealloc_mult(Gn(i,i), ESHdag, work3)
+        call destroy(ESHdag)
+
+        call create(factors, work1%nrow, work1%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call zdagger(gsmr(i+1), gsmrDag)
+        call prealloc_mult(factors, gsmrDag, Gn(i,i+1))
+        call destroy(factors, gsmrDag, work1, work2, work3)
+
+        !Gn(i+1,i+1) = gsmr(i+1) * [Sigma(i+1,i)Ga(i,i+1) + Sigma(i+1,i+1)Ga(i+1,i+1) - ESH(i+1,i)Gn(i,i+1)]
+        call zdagger(Gr(i+1,i), Ga)
+        call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
+        call destroy(Ga)
+
+        call zdagger(Gr(i+1,i+1), Ga)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
+        call destroy(Ga)
+
+        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), work3)
+        call create(factors, work1%nrow, work1%ncol)
+        factors%val = work1%val + work2%val - work3%val
+
+        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i+1))
+        call destroy(factors, work1, work2, work3)
+
+    end do
+
+    call destroy_ESH(Sigma_n)
+    call deallocate_blk_dns(Sigma_n)
+  end subroutine calculate_Gn_tridiag_blocks_new
+
+  subroutine calculate_gns(ESH,Sigma_n,nbl,gns)
+    implicit none
+
+    !In/Out
+    type(z_DNS), dimension(:,:), intent(in) :: ESH
+    type(z_DNS), dimension(:,:), intent(in) :: Sigma_n
+    integer, intent(in) :: nbl
+    type(z_DNS), dimension(:), intent(inout) :: gns
+
+    !Work
+    type(z_DNS) :: work, work1, work2, work3, factors 
+    type(z_DNS) :: Ga, gsmrDag, ESHdag
+    integer :: i
+
+    !g^n(nbl) = Gr(nbl,nbl) Sigma(nbl,nbl) Ga(nbl,nbl)
+    call zdagger(Gr(nbl,nbl),Ga)
+    call prealloc_mult(Gr(nbl,nbl), Sigma_n(nbl,nbl), work1)
+    call prealloc_mult(work1, Ga, gns(nbl))
+    call destroy(Ga, work1)
+
+    !gns(i) = gsmr(i) * [Sigma(i,i) + ESH(i,i+1) gns(i+1) ESH^dag(i+1,i) - ESH(i,i+1) gsmr(i+1) Sigma(i+1,i) - 
+    !                    Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)] * gsmr^dag(i)
+
+    if (nbl.eq.1) return
+
+    do i = nbl-1,1, -1
+        !work1 = ESH(i,i+1) gns(i+1) ESH^dag(i+1,i)
+        call zdagger(ESH(i,i+1), ESHdag)
+        call prealloc_mult(ESH(i,i+1), gns(i+1), work)
+        call prealloc_mult(work, ESHdag, work1)
+        call destroy(work)
+
+        !work2 = Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)
+        call zdagger(gsmr(i+1), gsmrDag)
+        call prealloc_mult(Sigma_n(i,i+1), gsmrDag, work)
+        call prealloc_mult(work, ESHdag, work2)
+        call destroy(work, gsmrDag, ESHdag)
+
+        !work3 = ESH(i,i+1) gsmr(i+1) Sigma(i+1,i)
+        call prealloc_mult(ESH(i,i+1), gsmr(i+1), work)
+        call prealloc_mult(work, Sigma_n(i+1,i), work3)
+        call destroy(work)
+
+        !sum of the four factors
+        call create(factors, Sigma_n(i,i)%nrow, Sigma_n(i,i)%ncol)
+        factors%val = Sigma_n(i,i)%val + work1%val - work2%val - work3%val
+        call destroy(work1, work2, work3)
+
+        !gns(i) = gsmr(i) * factors * gsmr^dag(i)
+        call zdagger(gsmr(i), gsmrDag)
+        call prealloc_mult(gsmr(i), factors, work)
+        call prealloc_mult(work, gsmrDag, gns(i))
+
+        call destroy(factors, work, gsmrDag)
+    end do 
+
+  end subroutine calculate_gns
   !****************************************************************************
   !
   ! Calculate G_n contributions for all contacts (except reference)
