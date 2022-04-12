@@ -270,30 +270,19 @@ CONTAINS
 
     call allocate_gsm(gsmr,nbl)
 
-    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
+    !Note: it has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
+    call calculate_gsmr_blocks(ESH,nbl,1)
 
     call allocate_blk_dns(Gr,nbl)
 
-    ! -------------------------------------------------------------
-    ! 1. rbl>lbl  => lbl+1=rbl-1 => compute first Gr(rbl-1,rbl-1)
-    ! 2. rbl<lbl  => lbl=rbl-2 has been computed
-    ! calculate_Gr does not compute if sbl>nbl or sbl<1
+    ! compute Gr(1,1)
     call calculate_Gr_tridiag_blocks(ESH,1)
+    ! compute Gr(n,n), Gr(n-1,n), Gr(n, n-1);  n = 2 .. nbl
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
+
     !Passing Gr to interaction that builds Sigma_n
     if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
 
-    !Computes the columns of Gr for the contacts != reference
-    ! Keep track of the calculated column indices in the array Gr_columns.
-    allocate(Gr_columns(ncont))
-    Gr_columns = 0
-    do i=1,ncont
-      if (i.NE.ref) THEN
-        Gr_columns(i) = cblk(i)                              
-        !call calculate_Gr_column_blocks(ESH,cblk(i),indblk)    !Not needed if using calculate_Gn_tridiag_blocks_new
-      endif
-    end do
-    
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
 
@@ -304,6 +293,8 @@ CONTAINS
     !Adding el-ph part: G^n = G^n + G^r Sigma^n G^a (at first call does nothing)
     !NOTE:  calculate_Gn has factor [f_i - f_ref], hence all terms will contain this factor
     if (allocated(negf%inter)) then
+      allocate(Gr_columns(ncont))
+      Gr_columns = 0
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn,Gr_columns)
     end if
 
@@ -321,9 +312,9 @@ CONTAINS
     SELECT CASE (outblocks)
     CASE(0)
     CASE(1)
-      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.false.,Glout)
+      call calculate_Gn_outer_new(Tlc,gsurfR,negf%str,frm,ref,.false.,Gn,Glout)
     CASE(2)
-      call calculate_Gn_outer(Tlc,gsurfR,SelfEneR,negf%str,frm,ref,.true.,Glout)
+      call calculate_Gn_outer_new(Tlc,gsurfR,negf%str,frm,ref,.true.,Gn,Glout)
     end SELECT
 
     call destroy_blk(Gn)
@@ -404,7 +395,8 @@ CONTAINS
 
     call allocate_gsm(gsmr,nbl)
 
-    call calculate_gsmr_blocks(ESH,nbl,1)      !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
+    call calculate_gsmr_blocks(ESH,nbl,1)
+    !It has to go up to gsmr(1) in order to use calculate_Gn_tridiag_blocks_new
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -419,19 +411,13 @@ CONTAINS
 
     call init_blkmat(Gn,ESH)
 
-    !! TEMPORARY AND INEFFICIENT:
-    !! CALCULATE THE FULL Gn WHEN THE CONTACT BLOCK WHOULD BE ENOUGH
-    allocate(Gr_columns(ncont))
-    Gr_columns = 0
-    do i=1,ncont
-      if (i.NE.ref) THEN
-        Gr_columns(i) = cblk(i)
-        !call calculate_Gr_column_blocks(ESH, cblk(i), negf%str%mat_PL_start)    !Not needed if using calculate_Gn_tridiag_blocks_new
-      endif
-    end do
     call calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,negf%str,Gn)
 
     if (allocated(negf%inter)) then
+      !! TEMPORARY AND INEFFICIENT:
+      !! CALCULATE THE FULL Gn WHEN THE CONTACT BLOCK WHOULD BE ENOUGH
+      allocate(Gr_columns(ncont))
+      Gr_columns = 0
       call calculate_Gn_tridiag_elph_contributions(negf,ESH,iter,Gn, Gr_columns)
     end if
 
@@ -469,7 +455,7 @@ CONTAINS
 
     call destroy_ESH(ESH)
     DEALLOCATE(ESH)
-      
+
     end associate
 
   end subroutine iterative_meir_wingreen
@@ -1447,6 +1433,10 @@ CONTAINS
 
   end subroutine calculate_Gn_tridiag_blocks
 
+  ! Implements a new algorithm based on an iterative scheme to solve
+  ! [ES - H - SigmaR] Gr = Sigma< Ga
+  ! The subroutine uses the gsmr(:) computed before and makes an iteration
+  ! upward to build gsmn and then downward to build the 3-diagonal blocks
   subroutine calculate_Gn_tridiag_blocks_new(ESH,SelfEneR,frm,ref,struct,Gn)
 
     implicit none
@@ -1460,8 +1450,8 @@ CONTAINS
     type(Tstruct_info), intent(in) :: struct
 
     !Work
-    type(z_DNS), dimension(:), allocatable :: gns 
-    type(z_DNS), dimension(:,:), allocatable :: Sigma_n 
+    type(z_DNS), dimension(:), allocatable :: gns
+    type(z_DNS), dimension(:,:), allocatable :: Sigma_n
     type(z_DNS) :: work1, work2, work3
     type(z_DNS) :: Ga, ESHdag, gsmrDag, factors
     type(z_DNS) :: Sigma, Gam
@@ -1483,12 +1473,12 @@ CONTAINS
         call create(Sigma, Gam%nrow, Gam%ncol)
         frmdiff = frm(j) - frm(ref)
         Sigma%val = frmdiff*Gam%val
-        
+
         Sigma_n(cb,cb)%val = Sigma%val
-        
+
         call destroy(Sigma, Gam)
       endif
-    end do 
+    end do
 
     !Gn(1,1) = gns(1)
     call allocate_gsm(gns, nbl)
@@ -1561,7 +1551,7 @@ CONTAINS
     type(z_DNS), dimension(:), intent(inout) :: gns
 
     !Work
-    type(z_DNS) :: work, work1, work2, work3, factors 
+    type(z_DNS) :: work, work1, work2, work3, factors
     type(z_DNS) :: Ga, gsmrDag, ESHdag
     integer :: i
 
@@ -1571,7 +1561,7 @@ CONTAINS
     call prealloc_mult(work1, Ga, gns(nbl))
     call destroy(Ga, work1)
 
-    !gns(i) = gsmr(i) * [Sigma(i,i) + ESH(i,i+1) gns(i+1) ESH^dag(i+1,i) - ESH(i,i+1) gsmr(i+1) Sigma(i+1,i) - 
+    !gns(i) = gsmr(i) * [Sigma(i,i) + ESH(i,i+1) gns(i+1) ESH^dag(i+1,i) - ESH(i,i+1) gsmr(i+1) Sigma(i+1,i) -
     !                    Sigma(i,i+1) gsmr^dag(i+1) ESH^dag(i+1,i)] * gsmr^dag(i)
 
     if (nbl.eq.1) return
@@ -1605,7 +1595,7 @@ CONTAINS
         call prealloc_mult(work, gsmrDag, gns(i))
 
         call destroy(factors, work, gsmrDag)
-    end do 
+    end do
 
   end subroutine calculate_gns
   !****************************************************************************
@@ -2336,7 +2326,7 @@ CONTAINS
 
     allocate(Sigma_r(nbl,nbl))
     allocate(G_r(nbl,nbl))
-    
+
     associate(indblk => negf%str%mat_PL_start)
     do i = 1, nbl
       m = indblk(i+1)-indblk(i)
@@ -3168,7 +3158,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine calculate_Gn_outer(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Glout)
+  subroutine calculate_Gn_outer(Tlc,gsurfR,SelfEneR,struct,frm,ref,lower,Gn_out)
 
     !****************************************************************************
     !Input:
@@ -3197,12 +3187,12 @@ CONTAINS
     type(Tstruct_info), intent(in) :: struct
     integer :: ref
     logical :: lower
-    type(z_CSR) :: Glout
+    type(z_CSR) :: Gn_out
 
     !Work
-    type(z_DNS) :: Gam, gsurfA, Ga, work1, work2, work3, Glsub
-    type(z_CSR) :: GlCSR, TCSR
-    integer :: j,k,cb,cbj,i1,j1,nrow_tot
+    type(z_DNS) :: Gam, gsurfA, Ga, work1, work2, work3, Gn_lc
+    type(z_CSR) :: GnCSR, TCSR
+    integer :: j,k,cbk,cbj,i1,j1,nrow_tot
     integer :: ncont, nbl
     complex(dp) :: frmdiff
 
@@ -3211,105 +3201,93 @@ CONTAINS
     nbl = struct%num_PLs
     nrow_tot = struct%total_dim
 
-    !Allocazione della Glout
-    !Righe totali del conduttore effettivo nrow_tot
-    !nrow_tot=indblk(nbl+1)-1
-    !do i=1,ncont
-    !   nrow_tot=nrow_tot+ncdim(i) !gsurfR(i)%nrow
-    !end do
-    if (.not.allocated(Glout%nzval)) THEN
-      call create(Glout,nrow_tot,nrow_tot,0)
-      Glout%rowpnt(:)=1
+    if (.not.allocated(Gn_out%nzval)) THEN
+      call create(Gn_out,nrow_tot,nrow_tot,0)
+      Gn_out%rowpnt(:)=1
     endif
+
     !***
-    !Iterazione su tutti i contatti "k"
+    ! Iteration over all contacts "k"
     !***
     do k=1,ncont
 
-      !Esegue le operazioni relative al contatto solo se e` valida la condizione
-      !sulle distribuzioni di Fermi e se non si tratta del contatto iniettante (ref)
+      !Checks that Fermi levels are sufficiently different and contact is not reference
       if ((ABS(frm(k)-frm(ref)).GT.EPS).AND.(k.NE.ref)) THEN
 
-        !Calcolo della Gamma corrispondente
-        cb=struct%cblk(k)
-        !nota:cb indica l'indice di blocco corrispondente al contatto j-esimo
-
+        ! Contribution (1) owing to the contact itself
+        ! Assuming Im(E)=0 (on real axis)
+        ! Sigma_n(cbk,ck) = Sigma_r(cbk,ck) = 0       => Tlc^r = Tlc^a = Tlc = T(cbk,ck)
+        ! Gn(cbk,ck) = -(fk-fr)*Gr(cbk,cbk)*[Gam*Ga(cbk,cbk)*Tlc*gsurfA + Tlc*j(gsurfR-gsurfA)]
+        ! Gn(ck,cbk) = Gn(cbk,ck)^dagger
+        cbk=struct%cblk(k)
         call zspectral(SelfEneR(k),SelfEneR(k),0,Gam)
 
-        !***
-        !Calcolo del contributo sulla proria regione
-        !***
         frmdiff = cmplx(frm(ref)-frm(k),0.0_dp,dp)
 
         call zspectral(gsurfR(k),gsurfR(k),0,work1)
 
-        !print*, 'work2=Tlc*work1=Tlc*j(gsurfR-gsurfA)'
         call prealloc_mult(Tlc(k),work1,work2)
         call destroy(work1)
 
-        !print *, 'work1=-Gr(cb,cb)*work2=-Gr(cb,cb)*Tlc*j(gsurfR-gsurfA)'
-        call prealloc_mult(Gr(cb,cb),work2,frmdiff,work1)
+        call prealloc_mult(Gr(cbk,cbk),work2,frmdiff,work1)
         call destroy(work2)
 
-        !print*,'work2=Tlc*gsurfA'
         call zdagger(gsurfR(k),gsurfA)
         call prealloc_mult(Tlc(k),gsurfA,work2)
         call destroy(gsurfA)
 
-        !print*,'work3=Ga*work2=Ga*Tlc*gsurfA'
-        call zdagger(Gr(cb,cb),Ga)
+        call zdagger(Gr(cbk,cbk),Ga)
         call prealloc_mult(Ga,work2,work3)
 
         call destroy(Ga)
         call destroy(work2)
 
-        !print*,'work2=Gam*work3=Gam*Ga*Tlc*gsurfA'
         call prealloc_mult(Gam,work3,work2)
         call destroy(work3)
 
-        !print *,'work3=-Gr*work2=-Gr*Gam*Ga*Tlc*gsurfA'
-        call prealloc_mult(Gr(cb,cb),work2,frmdiff,work3)
+        call prealloc_mult(Gr(cbk,cbk),work2,frmdiff,work3)
         call destroy(work2)
 
-        !Contributo totale sulla propria regione
-        call prealloc_sum(work3,work1,Glsub)
+        call prealloc_sum(work3,work1,Gn_lc)
         call destroy(work1)
         call destroy(work3)
 
-        call mask(Glsub,Tlc(k))
-        i1=nzdrop(Glsub,EPS)
+        call mask(Gn_lc,Tlc(k))
+        i1=nzdrop(Gn_lc,EPS)
 
         if (i1.gt.0) THEN
-          call create(GlCSR,Glsub%nrow,Glsub%ncol,i1)
-          call dns2csr(Glsub,GlCSR)
+          call create(GnCSR,Gn_lc%nrow,Gn_lc%ncol,i1)
+          call dns2csr(Gn_lc,GnCSR)
+          call destroy(Gn_lc)
 
-          !Concatenazione di Glsub nella matrice globale Glout
-          i1=struct%mat_PL_start(cb)
+          ! GnCSR is concatenated (added) to Gn_out
+          i1=struct%mat_PL_start(cbk)
           j1=struct%mat_B_start(k)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
-          call concat(Glout,GlCSR,i1,j1)
+          call concat(Gn_out,GnCSR,i1,j1)
 
-          ! compute lower outer part using (iG<)+ = iG<
+          ! lower Gn(c,cb) outer part is computed via Gn(c,cb) = Gn(cb,c)+
           if (lower) THEN
-            call zdagger(GlCSR,TCSR)
-            call concat(Glout,TCSR,j1,i1)
+            call zdagger(GnCSR,TCSR)
+            call concat(Gn_out,TCSR,j1,i1)
             call destroy(TCSR)
           endif
 
-          call destroy(GlCSR)
+          call destroy(GnCSR)
+        else
+          call destroy(Gn_lc)
         end if
 
-        call destroy(Glsub)
-        !***
-        !Ciclo per il calcolo dei contributi sulle regioni degli altri contatti
-        !***
-
+        !**********************************************************
+        ! Iteration over all other contacts "j"
+        !**********************************************************
+        ! Contributions to Gn owing to the other contacts
+        ! These depends on the off-diagonal blocks Gr(cbk, cbj)
+        ! Gn(cbj,cbk) = -Gr(cbj,cbk)*Gam(cbk,cbk)*(fk-fr)*Ga(cbk,cbj)*T(cbj,cj)*gsurfA(j)
         do j=1,ncont
 
           cbj=struct%cblk(j)
-          !Esegue le operazioni del ciclo solo se il j.ne.k o se
-          !il blocco colonna di Gr e` non nullo (altrimenti il contributo e` nullo)
 
-          if ((j.NE.k).AND.(Gr(cbj,cb)%nrow.NE.0 .AND. (Gr(cbj,cb)%ncol.NE.0))) THEN
+          if ((j.NE.k).AND.(Gr(cbj,cbk)%nrow.NE.0 .AND. (Gr(cbj,cbk)%ncol.NE.0))) THEN
 
             !print*,'work1=Tlc*gsurfA'
             call zdagger(gsurfR(j),gsurfA)
@@ -3317,7 +3295,7 @@ CONTAINS
             call destroy(gsurfA)
 
             !print*,'work2=Ga*work1=Ga*Tlc*gsurfA'
-            call zdagger(Gr(cbj,cb),Ga)
+            call zdagger(Gr(cbj,cbk),Ga)
             call prealloc_mult(Ga,work1,work2)
 
             call destroy(Ga)
@@ -3328,33 +3306,34 @@ CONTAINS
             call destroy(work2)
 
             !print*,'Glsub=-Gr*work1=-Gr*Gam*Ga*Tlc*gsurfA'
-            call prealloc_mult(Gr(cbj,cb),work1,frmdiff,Glsub)
+            call prealloc_mult(Gr(cbj,cbk),work1,frmdiff,Gn_lc)
             call destroy(work1)
 
-            call mask(Glsub,Tlc(j))
-            i1=nzdrop(Glsub,EPS)
+            call mask(Gn_lc,Tlc(j))
+            i1=nzdrop(Gn_lc,EPS)
 
             if (i1.gt.0) THEN
-              call create(GlCSR,Glsub%nrow,Glsub%ncol,i1)
-              call dns2csr(Glsub,GlCSR)
+              call create(GnCSR,Gn_lc%nrow,Gn_lc%ncol,i1)
+              call dns2csr(Gn_lc,GnCSR)
+              call destroy(Gn_lc)
 
               !Concatenazione di Glsub nella posizione corrispondente al contatto "j"
               i1=struct%mat_PL_start(cbj)
               j1=struct%mat_B_start(j)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
 
-              call concat(Glout,GlCSR,i1,j1)
+              call concat(Gn_out,GnCSR,i1,j1)
 
               ! compute lower outer part using (iG<)+ = iG<
               if (lower) THEN
-                call zdagger(GlCSR,TCSR)
-                call concat(Glout,TCSR,j1,i1)
+                call zdagger(GnCSR,TCSR)
+                call concat(Gn_out,TCSR,j1,i1)
                 call destroy(TCSR)
               endif
 
-              call destroy(GlCSR)
+              call destroy(GnCSR)
+            else
+              call destroy(Gn_lc)
             endif
-
-            call destroy(Glsub)
 
           endif
         end do
@@ -3373,6 +3352,93 @@ CONTAINS
 
   end subroutine calculate_Gn_outer
 
+
+  subroutine calculate_Gn_outer_new(Tlc,gsurfR,struct,frm,ref,lower,Gn,Gn_out)
+    type(z_DNS), dimension(:), intent(in) :: Tlc, gsurfR
+    real(dp), dimension(:), intent(in) :: frm
+    type(Tstruct_info), intent(in) :: struct
+    integer, intent(in) :: ref
+    logical, intent(in) :: lower
+    type(z_DNS), dimension(:,:), intent(in) :: Gn
+    type(z_CSR) :: Gn_out
+
+    !Work
+    type(z_DNS) :: gsurfA, work1, work2, work3, Gn_lc
+    type(z_CSR) :: GnCSR, TCSR
+    integer :: k,cbk,i1,j1,nrow_tot
+    integer :: ncont, nbl
+    complex(dp) :: frmdiff
+
+    ncont = struct%num_conts
+    nbl = struct%num_PLs
+
+    if (.not.allocated(Gn_out%nzval)) THEN
+      nrow_tot = struct%total_dim
+      call create(Gn_out,nrow_tot,nrow_tot,0)
+      Gn_out%rowpnt(:)=1
+    endif
+
+    do k=1,ncont
+      ! Sigma_n(cbk,ck) = Sigma_r(cbk,ck) = 0  => Tlc^r = Tlc^a = Tlc = T(cbk,ck)
+      ! Gn(cbk,ck) =  -Gn(cbk,cbk)*Tlc*gA(cb) -(fk-fr)*Gr(cbk,cbk)*Tlc*j(gsurfR-gsurfA)]
+
+      cbk=struct%cblk(k)
+      call zdagger(gsurfR(k),gsurfA)
+      call prealloc_mult(Tlc(k),gsurfA,work2)
+      call destroy(gsurfA)
+
+      call prealloc_mult(Gn(cbk,cbk),work2,(-1.0_dp,0.0_dp),work3)
+      call destroy(work2)
+
+      !Checks that Fermi levels are sufficiently different and contact is not reference
+      if ((ABS(frm(k)-frm(ref)).GT.EPS).AND.(k.NE.ref)) THEN
+
+        frmdiff = cmplx(frm(ref)-frm(k),0.0_dp,dp)
+        call zspectral(gsurfR(k),gsurfR(k),0,work1)
+
+        call prealloc_mult(Tlc(k),work1,work2)
+        call destroy(work1)
+
+        call prealloc_mult(Gr(cbk,cbk),work2,frmdiff,work1)
+        call destroy(work2)
+      else
+        call create(work1, Gr(cbk,cbk)%nrow, Tlc(k)%ncol)
+        work1%val=(0.0_dp, 0.0_dp)
+      end if
+
+      call prealloc_sum(work3,work1,Gn_lc)
+      call destroy(work1)
+      call destroy(work3)
+
+      call mask(Gn_lc,Tlc(k))
+      i1=nzdrop(Gn_lc,EPS)
+
+      if (i1.gt.0) THEN
+        call create(GnCSR,Gn_lc%nrow,Gn_lc%ncol,i1)
+        call dns2csr(Gn_lc,GnCSR)
+        call destroy(Gn_lc)
+
+        ! GnCSR is concatenated (added) to Gn_out
+        i1=struct%mat_PL_start(cbk)
+        j1=struct%mat_B_start(k)-struct%central_dim+struct%mat_PL_start(nbl+1)-1
+        call concat(Gn_out,GnCSR,i1,j1)
+
+        ! lower Gn(c,cb) outer part is computed via Gn(c,cb) = Gn(cb,c)+
+        if (lower) THEN
+          call zdagger(GnCSR,TCSR)
+          call concat(Gn_out,TCSR,j1,i1)
+          call destroy(TCSR)
+        endif
+
+        call destroy(GnCSR)
+      else
+        call destroy(Gn_lc)
+      end if
+
+    end do
+
+
+  end subroutine calculate_Gn_outer_new
 
   !---------------------------------------------------
 
@@ -3415,7 +3481,7 @@ CONTAINS
       ibl = str%cblk(i)
       ESH(ibl,ibl)%val = ESH(ibl,ibl)%val-SelfEneR(i)%val
     end do
-      
+
     nit=ni(1)
     nft=nf(1)
     ! find the contact with smaller block index
@@ -3680,34 +3746,34 @@ CONTAINS
 
   end subroutine calculate_single_transmission_N_contacts
 
-  ! Based on projection indices build a logical mask just on contact block 
+  ! Based on projection indices build a logical mask just on contact block
   subroutine get_tun_mask(ESH,nbl,tun_proj,tun_mask)
     Type(z_DNS), intent(in) :: ESH(:,:)
     integer, intent(in) :: nbl
     type(intarray), intent(in) :: tun_proj
-    logical, intent(out), allocatable :: tun_mask(:)    
-    
+    logical, intent(out), allocatable :: tun_mask(:)
+
     integer :: ii, istart, iend, ind
 
     call log_allocate(tun_mask, ESH(nbl,nbl)%nrow)
 
     if (allocated(tun_proj%indexes)) then
       tun_mask = .false.
-       
+
       ! set the start/end indices of nbl
       ! NB: istart has offset -1 to avoid +/-1 operations
       istart = 0
       do ii = 1, nbl-1
         istart = istart + ESH(ii,ii)%nrow
       end do
-      iend = istart + ESH(nbl,nbl)%nrow + 1  
- 
-      ! select the indices in tun_proj 
+      iend = istart + ESH(nbl,nbl)%nrow + 1
+
+      ! select the indices in tun_proj
       do ii = 1, size(tun_proj%indexes)
          ind = tun_proj%indexes(ii)
          if (ind > istart .and. ind < iend) then
-            tun_mask(ind - istart) = .true. 
-         end if     
+            tun_mask(ind - istart) = .true.
+         end if
       end do
     else
       tun_mask = .true.
@@ -3765,6 +3831,7 @@ CONTAINS
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
+    ! call create
     call calculate_Gr_tridiag_blocks(ESH,1)
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
