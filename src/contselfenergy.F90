@@ -86,13 +86,13 @@ contains
                                ! flag=1 Compute
                                ! flag=2 Compute and save
     real(kind=dp) :: dens
-    character(10) :: ofpnt
+    character(5) :: ofpnt
     logical :: lex
 
     pnt = pnegf%iE    ! Step of the energy integration
     i = pnegf%activecont
     nsp = pnegf%spin
-    nkp = pnegf%kpoint
+    nkp = pnegf%ikpoint
     flag = pnegf%ReadOldSGF
     verbose = pnegf%verbose
     contdim = pnegf%str%cont_dim(i)
@@ -108,6 +108,7 @@ contains
     ncyc=0
     nfc=0
 
+    if (pnt.gt.0.and.pnt.le.999) write(ofpnt,'(i3.3)') pnt
     if (pnt.gt.999.and.pnt.le.9999) write(ofpnt,'(i4.4)') pnt
     if (pnt.gt.9999.and.pnt.le.99999) write(ofpnt,'(i5.5)') pnt
 
@@ -118,9 +119,9 @@ contains
     endif
 
     if(flag.ge.1) then
-        if (id0.and.verbose.gt.VBT) call message_clock('Computing SGF '//ofpnt)
+        if (id0.and.verbose.gt.VBT) call message_clock(trim("Computing SGF "//ofpnt))
     else         !*** load from file ***
-        if (id0.and.verbose.gt.VBT) call message_clock('Loading SGF '//ofpnt)
+        if (id0.and.verbose.gt.VBT) call message_clock(trim("Loading SGF "//ofpnt))
     endif
 
     call create(GS,ngs,ngs)

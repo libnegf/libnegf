@@ -98,6 +98,7 @@ module libnegf
  public :: compute_dephasing_transmission ! high-level wrapping routines
                                           ! Extract HM and SM
                                           ! run total current calculation
+ public :: layer_current            ! computes the layer-to-layer current
 
  public ::  write_tunneling_and_dos ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed
@@ -137,7 +138,7 @@ module libnegf
    !> Spin component (for io)
    integer(c_int)  :: spin
    !> k-point index (for io)
-   integer(c_int) :: kpoint
+   integer(c_int) :: ikpoint
    !> Spin degeneracy
    real(c_double) :: g_spin
    !> Imaginary delta
@@ -151,7 +152,7 @@ module libnegf
    !> Energy conversion factor
    real(c_double) :: eneconv
    !> Weight for k-point integration, output integrals are scaled accordingly
-   real(c_double) :: wght
+   real(c_double) :: kwght
    !> Conduction band edge
    real(c_double) :: ec
    !> Valence band edge
@@ -188,7 +189,7 @@ module libnegf
    !> Number of points for p
    integer(c_int) :: np_p(2)
    !> Number of real axis points
-   integer(c_int) :: np_real(11)
+   integer(c_int) :: np_real
    !> ! Number of kT extending integrations
    integer(c_int) :: n_kt
    !> Number of poles
@@ -612,8 +613,8 @@ contains
     params%nf=0; params%nf(1:nn) = negf%nf(1:nn)
     params%eneconv = negf%eneconv
     params%spin = negf%spin
-    params%wght = negf%wght
-    params%kpoint = negf%kpoint
+    params%kwght = negf%kwght
+    params%ikpoint = negf%ikpoint
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%isSid = negf%isSid
@@ -678,18 +679,18 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
-    if (allocated(negf%ni)) deallocate(negf%ni)
+    if (allocated(negf%ni)) call log_deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
-    allocate(negf%ni(nn))
+    call log_allocate(negf%ni,nn)
     negf%ni(1:nn) = params%ni(1:nn)
-    if (allocated(negf%nf)) deallocate(negf%nf)
+    if (allocated(negf%nf)) call log_deallocate(negf%nf)
     nn = count(params%nf .ne. 0)
-    allocate(negf%nf(nn))
+    call log_allocate(negf%nf,nn)
     negf%nf(1:nn) = params%nf(1:nn)
     negf%eneconv = params%eneconv
     negf%spin = params%spin
-    negf%wght = params%wght
-    negf%kpoint = params%kpoint
+    negf%kwght = params%kwght
+    negf%ikpoint = params%ikpoint
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
     negf%isSid = params%isSid
@@ -995,9 +996,9 @@ contains
       if (trim(file_re_S).eq.'identity') then
          negf%isSid = .true.
          call set_S_id(negf, negf%H%nrow)
-      else
-        call read_HS(negf, file_re_S, file_im_S, 1)
       end if
+    else
+      call read_HS(negf, file_re_S, file_im_S, 1)
     end if
 
     !! A dummy descriptor must be present at the beginning of each line
@@ -1034,10 +1035,10 @@ contains
     else
       read(101,*) tmp, negf%kbT
     endif
-    read(101,*)  tmp, negf%wght
+    read(101,*)  tmp, negf%kwght
     read(101,*)  tmp, negf%Np_n(1:2)
     read(101,*)  tmp, negf%Np_p(1:2)
-    read(101,*)  tmp, negf%Np_real(1)
+    read(101,*)  tmp, negf%Np_real
     read(101,*)  tmp, negf%n_kt
     read(101,*)  tmp, negf%n_poles
     read(101,*)  tmp, negf%g_spin
@@ -1108,6 +1109,13 @@ contains
 
     call destroy_HS(negf)
     call kill_Tstruct(negf%str)
+
+    if (allocated(negf%ni)) then
+      call log_deallocate(negf%ni)
+    end if
+    if (allocated(negf%nf)) then
+      call log_deallocate(negf%nf)
+    end if
     if (allocated(negf%dos_proj)) then
        call destroy_ldos(negf%dos_proj)
     end if
@@ -1131,6 +1139,7 @@ contains
     end if
     call destroy_DM(negf)
     call destroy_matrices(negf)
+    call WriteMemInfo(6)
     call destroy_surface_green_cache(negf)
 
   end subroutine destroy_negf
@@ -1400,7 +1409,7 @@ contains
       call contour_int(negf)
     endif
 
-    if (negf%Np_real(1).gt.0) then
+    if (negf%Np_real.gt.0) then
       call real_axis_int_def(negf)
       call real_axis_int(negf)
     endif
@@ -1465,7 +1474,7 @@ contains
       endif
     endif
 
-    if (negf%Np_real(1).gt.0) then
+    if (negf%Np_real.gt.0) then
        if (particle == 1) then
           call real_axis_int_n_def(negf)
        else
@@ -1596,6 +1605,25 @@ contains
 
   end subroutine compute_meir_wingreen
 
+  !-------------------------------------------------------------------------------
+  !> Calculate current, tunneling and, if specified, density of states using
+  subroutine compute_layer_current(negf)
+
+    type(Tnegf) :: negf
+
+    call extract_cont(negf)
+    call tunneling_int_def(negf)
+    call layer_current(negf)
+
+    if (allocated(negf%curr_mat)) then
+      call electron_current_meir_wingreen(negf)
+    end if
+    call destroy_matrices(negf)
+
+  end subroutine compute_layer_current
+
+
+
   ! --------------------------------------------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate
   ! file for every ID, which is not possible on all architectures
@@ -1618,7 +1646,7 @@ contains
     do i1=1,size(negf%currents)
 
        write(101,'(1x,a,i3,i3,a,i3,a,ES14.5,a,ES14.5,a)') 'contacts:',negf%ni(i1),negf%nf(i1), &
-            '; k-point:',negf%kpoint,'; current:', negf%currents(i1),' A'
+            '; k-point:',negf%ikpoint,'; current:', negf%currents(i1),' A'
 
     end do
 
@@ -1661,7 +1689,7 @@ contains
       Nstep = size(negf%tunn_mat,1)
       size_ni = size(negf%tunn_mat,2)
 
-      write(ofKP,'(i6.6)') negf%kpoint
+      write(ofKP,'(i6.6)') negf%ikpoint
       write(idstr,'(i6.6)') id
 
       open(newunit=iu,file=trim(negf%out_path)//'tunneling_'//ofKP//'_'//idstr//'.dat')
@@ -1685,7 +1713,7 @@ contains
 
         Nstep = size(negf%ldos_mat,1)
 
-        write(ofKP,'(i6.6)') negf%kpoint
+        write(ofKP,'(i6.6)') negf%ikpoint
         write(idstr,'(i6.6)') id
 
         open(newunit=iu,file=trim(negf%out_path)//'localDOS_'//ofKP//'_'//idstr//'.dat')
@@ -1737,6 +1765,7 @@ contains
   !
   ! min_or_max = 0 : refcont is chosen at the minimum   mu
   ! min_or_max = 1 : refcont is chosen at the maximum   mu
+  ! min_or_max = * : refcont is set to 0 (no referece)
   !
   subroutine set_ref_cont(negf)
 

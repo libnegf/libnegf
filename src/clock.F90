@@ -34,7 +34,7 @@ contains
 
  subroutine message_clock(message)
 
-   character(*) :: message
+   character(len=*), intent(in) :: message
    integer :: l_mess
    character(2) :: str_mess, str_dots
 
@@ -68,7 +68,7 @@ contains
 
 
  subroutine write_clock(message)
-   character(*), optional :: message
+   character(len=*), intent(in), optional :: message
 
    integer :: l_mess
    character(2) :: str_mess, str_dots

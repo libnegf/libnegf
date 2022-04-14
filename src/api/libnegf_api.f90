@@ -988,7 +988,7 @@ subroutine negf_set_kpoint(handler, kpoint) bind(C)
 
   LIB = transfer(handler, LIB)
 
-  LIB%pNEGF%kpoint = kpoint
+  LIB%pNEGF%ikpoint = kpoint
 
 end subroutine negf_set_kpoint
 
