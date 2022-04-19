@@ -2067,7 +2067,7 @@ CONTAINS
   !*****************************************************************
   !
   !  Subroutine di moltiplicazione densa compatta (DNS)
-  !  con prodotto per scalare  C=s*A*B
+  !  con prodotto per scalare  C=C+s*A*B
   !
   !*****************************************************************
   subroutine zmultdnss(A_dns,B_dns,s,C_dns)

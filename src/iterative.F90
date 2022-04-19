@@ -316,7 +316,6 @@ CONTAINS
     real(dp), dimension(:) :: curr_mat
 
     !Work
-    complex(dp), parameter :: minusone = (-1.0_dp, 0.0_dp)
     complex(dp) :: Ec, tmp
     integer :: ii, ncont, lead, lead_blk
     type(z_DNS) :: work1, Gam, A
@@ -1146,7 +1145,7 @@ CONTAINS
       if (j.NE.ref .AND. ABS(frmdiff).GT.EPS) THEN
         cb=struct%cblk(j) ! block corresponding to contact j
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
-        Sigma_n(cb,cb)%val = frmdiff*Gam%val
+        Sigma_n(cb,cb)%val = Sigma_n(cb,cb)%val + frmdiff*Gam%val
         call destroy(Gam)
       endif
     end do

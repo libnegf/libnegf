@@ -1198,7 +1198,7 @@ contains
        negf%en_grid(i)%pt = i
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0, dp)
-       negf%en_grid(i)%wght = negf%kwght * negf%g_spin
+       negf%en_grid(i)%wght = negf%kwght
     enddo
 
     ! distribute energy grid
@@ -1328,6 +1328,8 @@ contains
   !  Calculate the contact current per unit energy according to the
   !  Meir-Wingreen formula on the energy points specified by tunneling_int_def.
   !
+  !    I_i(E) = Tr[Sigma^n_i(E)*G^p(E)-Sigma^p_i(E)*G^n(E)]
+  !             G^p = A - G^n 
   !    I_i(E) = Tr[Sigma^n_i(E)*A(E)-Gamma_i(E)*G^n(E)]
   !
   !  The solution is calculated on an arbitrary number of
@@ -1370,16 +1372,11 @@ contains
     ref_bk = negf%refcont
     negf%refcont = ncont + 1
     call log_allocate(frm, ncont+1)
+    frm = 0.0_dp   
     
     ! Fixed occupations (e.g. 1.0, 0.0) can be used to get a transmission
     if (present(fixed_occupations)) then
       frm(1:ncont) = fixed_occupations
-      frm(ncont+1) = 0.0_dp
-    else
-      frm = 0.0_dp   
-      do j1 = 1,ncont
-         frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
-      enddo
     end if
 
     call write_info(negf%verbose,'CALCULATION OF MEIR-WINGREEN FORMULA',Nstep)
@@ -1392,6 +1389,11 @@ contains
       if (negf%en_grid(ii)%cpu /= id) cycle
       Ec = negf%en_grid(ii)%Ec
       negf%iE = negf%en_grid(ii)%pt
+      if (.not.present(fixed_occupations)) then
+        do j1 = 1,ncont
+           frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
+        enddo
+      end if
 
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
       call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
@@ -1402,17 +1404,14 @@ contains
 
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
-            negf%tDestroyGr = .true.
-            negf%tDestroyGn = .true.
+            negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
             call destroy_all_blk(negf)
-            negf%tDestroyGr = .false.
-            negf%tDestroyGn = .false.
+            negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
 
             call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
             
             if (negf%inter%scba_iter.ne.0) then
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
-
                if (scba_error < negf%inter%scba_tol) then
                   call destroy(Gn)
                   exit
@@ -1425,10 +1424,10 @@ contains
 
          call destroy(Gn_previous)
 
-         if (id0) then
+         if (id0 .and. negf%verbose .gt. VBT) then
            if (scba_error < negf%inter%scba_tol) then
-              write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
-                    & " iterations with error",scba_error
+              !write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
+              !      & " iterations with error",scba_error
            else
               write(*,*) "WARNING: SCBA exit with error ",scba_error, &
                     & "  > ",negf%inter%scba_tol
@@ -1436,10 +1435,8 @@ contains
          end if
       endif
             
-      negf%tDestroyGr = .true.
-      negf%tDestroyGn = .true.
+      negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
-
       negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght
 
       if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1530,7 +1527,7 @@ contains
       call iterative_layer_current(negf,real(Ec),curr_mat)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght
+      negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght 
     
       do icont=1,ncont
         call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1698,7 +1695,7 @@ contains
        mu1=negf%cont(ni)%mu; mu2=negf%cont(nf)%mu
        negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
                           & negf%cont(ni)%kbT_t, negf%cont(nf)%kbT_t, &
-                          & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+                          & negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
     enddo
 
   end subroutine electron_current
@@ -1727,7 +1724,7 @@ contains
     negf%currents=0.d0
     do ii=1,size_ni
        negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), &
-                          & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+                          & negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
     enddo
 
   end subroutine electron_current_meir_wingreen
@@ -1872,7 +1869,7 @@ contains
   ! The function resolves fermi(E) on a fine grid interpolating linearly T(E)
   ! In this way a more precise integration is obtained when T ~ constant
   !************************************************************************
-  function integrate_el(TUN_TOT,mu1,mu2,kT1,kT2,emin,emax,estep,spin_g)
+  function integrate_el(TUN_TOT,mu1,mu2,kT1,kT2,emin,emax,estep)
 
     implicit none
 
@@ -1881,7 +1878,6 @@ contains
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: kT1, kT2
-    real(dp), intent(in) :: spin_g
 
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
@@ -1944,7 +1940,7 @@ contains
           c1=(fermi(E3,mu2,KbT2)-fermi(E3,mu1,KbT1))*TT3
           c2=(fermi(E4,mu2,KbT2)-fermi(E4,mu1,KbT1))*TT4
 
-          curr=curr+spin_g*(c1+c2)*(E4-E3)/2.d0
+          curr=curr+(c1+c2)*(E4-E3)/2.d0
 
        enddo
 
@@ -1959,14 +1955,13 @@ contains
   ! Function to integrate the current density I(E) !!! and get the current
   ! for meir_wingreen
   !************************************************************************
-  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep,spin_g)
+  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep)
 
     implicit none
 
     real(dp) :: integrate_el_meir_wingreen
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
-    real(dp), intent(in) :: spin_g
 
     REAL(dp) :: TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
@@ -1987,7 +1982,7 @@ contains
        E2=emin+estep*(i+1)
        TT2=TUN_TOT(i+2)
 
-       curr=curr+spin_g*(TT1+TT2)*(E2-E1)/2.d0
+       curr=curr+(TT1+TT2)*(E2-E1)/2.d0
 
     enddo
 
