@@ -1118,3 +1118,20 @@ subroutine negf_set_elph_dephasing(handler, coupling, coupling_size, orbsperatom
 end subroutine negf_set_elph_dephasing
 
 
+!!> Write memory statistics
+!! @param [in] handler: handler Number for the LIBNEGF instance
+subroutine negf_mem_stats(handler) bind(c)
+  use iso_c_binding, only : c_int, c_double ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf   ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  LIB = transfer(handler, LIB)
+
+  call writePeakInfo(6)
+  call writeMemInfo(6)
+
+end subroutine negf_mem_stats
+

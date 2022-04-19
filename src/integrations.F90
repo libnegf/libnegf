@@ -1382,6 +1382,8 @@ contains
       enddo
     end if
 
+    call write_info(negf%verbose,'CALCULATION OF MEIR-WINGREEN FORMULA',Nstep)
+
     !! Loop on energy points
     do ii = 1, Nstep
 
@@ -1400,9 +1402,14 @@ contains
 
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
-            negf%tDestroyGn = .false.
-            call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
+            negf%tDestroyGr = .true.
             negf%tDestroyGn = .true.
+            call destroy_all_blk(negf)
+            negf%tDestroyGr = .false.
+            negf%tDestroyGn = .false.
+
+            call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
+            
             if (negf%inter%scba_iter.ne.0) then
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
 
@@ -1421,14 +1428,16 @@ contains
          if (id0) then
            if (scba_error < negf%inter%scba_tol) then
               write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
-                    & " iterations with error",negf%inter%scba_tol
+                    & " iterations with error",scba_error
            else
               write(*,*) "WARNING: SCBA exit with error ",scba_error, &
                     & "  > ",negf%inter%scba_tol
            end if
          end if
       endif
-
+            
+      negf%tDestroyGr = .true.
+      negf%tDestroyGn = .true.
       call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
 
       negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght
