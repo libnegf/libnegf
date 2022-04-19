@@ -477,7 +477,7 @@ contains
      integer, intent(in) :: surfstart(:), surfend(:), contend(:)
      integer, intent(in) :: npl
      integer, intent(in) :: plend(:)
-     integer, intent(in) :: cblk(:)
+     integer, intent(inout), allocatable :: cblk(:)
 
      integer, allocatable :: plend_tmp(:), cblk_tmp(:)
      integer :: npl_tmp
@@ -509,11 +509,9 @@ contains
        ! supposedly performs an internal block partitioning but it is not reliable.
        call log_allocate(plend_tmp, MAXNUMPLs)
        call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
-       call log_allocate(cblk_tmp, MAXNUMPLs)
-       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk_tmp)
-       call create_Tstruct(ncont, npl_tmp, plend_tmp, surfstart, surfend, contend, cblk_tmp, negf%str)
+       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk)
+       call create_Tstruct(ncont, npl_tmp, plend_tmp, surfstart, surfend, contend, cblk, negf%str)
        call log_deallocate(plend_tmp)
-       call log_deallocate(cblk_tmp)
      else
        call create_Tstruct(ncont, npl, plend, surfstart, surfend, contend, cblk, negf%str)
      end if
@@ -679,13 +677,13 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
-    if (allocated(negf%ni)) call log_deallocate(negf%ni)
+    if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
-    call log_allocate(negf%ni,nn)
+    allocate(negf%ni(nn))
     negf%ni(1:nn) = params%ni(1:nn)
-    if (allocated(negf%nf)) call log_deallocate(negf%nf)
+    if (allocated(negf%nf)) deallocate(negf%nf)
     nn = count(params%nf .ne. 0)
-    call log_allocate(negf%nf,nn)
+    allocate(negf%nf(nn))
     negf%nf(1:nn) = params%nf(1:nn)
     negf%eneconv = params%eneconv
     negf%spin = params%spin
@@ -1109,13 +1107,6 @@ contains
 
     call destroy_HS(negf)
     call kill_Tstruct(negf%str)
-
-    if (allocated(negf%ni)) then
-      call log_deallocate(negf%ni)
-    end if
-    if (allocated(negf%nf)) then
-      call log_deallocate(negf%nf)
-    end if
     if (allocated(negf%dos_proj)) then
        call destroy_ldos(negf%dos_proj)
     end if
@@ -1132,15 +1123,17 @@ contains
        call log_deallocate(negf%curr_mat)
     end if
     if (allocated(negf%ldos_mat)) then
-         call log_deallocate(negf%ldos_mat)
+       call log_deallocate(negf%ldos_mat)
     end if
     if (allocated(negf%currents)) then
-      call log_deallocate(negf%currents)
+       call log_deallocate(negf%currents)
     end if
+    if (allocated(negf%ni)) deallocate(negf%ni)
+    if (allocated(negf%nf)) deallocate(negf%nf)
     call destroy_DM(negf)
     call destroy_matrices(negf)
-    call WriteMemInfo(6)
     call destroy_surface_green_cache(negf)
+    call WriteMemInfo(6)
 
   end subroutine destroy_negf
 
