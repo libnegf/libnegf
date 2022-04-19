@@ -1148,7 +1148,7 @@ contains
   subroutine destroy_surface_green_cache(negf)
     type(Tnegf) :: negf
 
-    call negf%surface_green_cache%destroy()
+    if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
 
   end subroutine destroy_surface_green_cache
 
@@ -1307,12 +1307,14 @@ contains
     type(Tnegf) :: negf
     integer :: i
 
-    do i = 1, size(negf%cont)
-       if (allocated(negf%cont(i)%HC%val)) call destroy(negf%cont(i)%HC)
-       if (allocated(negf%cont(i)%SC%val)) call destroy(negf%cont(i)%SC)
-       if (allocated(negf%cont(i)%HMC%val)) call destroy(negf%cont(i)%HMC)
-       if (allocated(negf%cont(i)%SMC%val)) call destroy(negf%cont(i)%SMC)
-    enddo
+    if (allocated(negf%cont)) then
+       do i = 1, size(negf%cont)
+          if (allocated(negf%cont(i)%HC%val)) call destroy(negf%cont(i)%HC)
+          if (allocated(negf%cont(i)%SC%val)) call destroy(negf%cont(i)%SC)
+          if (allocated(negf%cont(i)%HMC%val)) call destroy(negf%cont(i)%HMC)
+          if (allocated(negf%cont(i)%SMC%val)) call destroy(negf%cont(i)%SMC)
+       enddo
+    end if
 
   end subroutine destroy_matrices
 
