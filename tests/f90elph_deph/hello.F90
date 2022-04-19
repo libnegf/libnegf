@@ -104,6 +104,9 @@ program hello
     error stop "Current evaluated with effective transmission does not match Meir Wingreen"
   end if
 
+  call writePeakInfo(6)
+  call writeMemInfo(6)
+
   write(*,*) 'Destroy negf'
   deallocate(coupling)
   call destroy_negf(pnegf)
