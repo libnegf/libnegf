@@ -1122,9 +1122,9 @@ CONTAINS
     type(z_DNS), dimension(:,:), intent(inout) :: Gn
 
     !Work
+    complex(dp), parameter :: minusone = (-1.0_dp, 0.0_dp)
     type(z_DNS), dimension(:,:), allocatable :: Sigma_n
-    type(z_DNS) :: work1, work2, work3
-    type(z_DNS) :: Ga, ESHdag, gsmrDag, factors, Gam
+    type(z_DNS) :: work1, Ga, Gam
     complex(dp) :: frmdiff
     integer :: i, j
     integer :: nbl, ncont, cb
@@ -1156,59 +1156,47 @@ CONTAINS
     call prealloc_mult(Sigma_n(1,1), Ga, work1)
     call prealloc_mult(Gr(1,1), work1, Gn(1,1))    
     call destroy(Ga, work1)
+    
+    if (nbl .eq. 1) return
+
+    !Explicit formulae:
+    !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - Tr(i+1,i)Gn(i,i)]
+    !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)Ta(i,i+1)] * gsma(i+1)
+    !Use Hermitian property of Gn:
+    !Gn(i,i+1) = Gn(i+1,i)^dag
+    !Gn(i+1,i+1) = gsmr(i+1) * [Sigma(i+1,i)Ga(i,i+1) + Sigma(i+1,i+1)Ga(i+1,i+1) - Tr(i+1,i)Gn(i,i+1)]
+    !Implementation exploits cumulative sum of prealloc_mult, C = C + A*B
 
     do i = 1, nbl-1
-        !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - Tr(i+1,i)Gn(i,i)]
+
         call zdagger(Gr(i,i), Ga)
         call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
         call destroy(Ga)
 
         call zdagger(Gr(i,i+1), Ga)
-        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work1)
         call destroy(Ga)
 
-        call prealloc_mult(ESH(i+1,i), Gn(i,i), work3)
-        call create(factors, work1%nrow, work1%ncol)
-        factors%val = work1%val + work2%val - work3%val
+        call prealloc_mult(ESH(i+1,i), Gn(i,i), minusOne, work1)
 
-        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i))
-        call destroy(factors, work1, work2, work3)
-
-        !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)Ta(i,i+1)] * gsma(i+1)
-        !Gn(i,i+1) = Gn(i+1,i)^dag
-        call zdagger(Gn(i+1,i), work1)
-        Gn(i,i+1)%val = work1%val
+        call prealloc_mult(gsmr(i+1), work1, Gn(i+1,i))
         call destroy(work1)
 
-        !call prealloc_mult(Gr(i,i), Sigma_n(i,i+1), work1)
-        !call prealloc_mult(Gr(i,i+1), Sigma_n(i+1,i+1), work2)
+        call destroy(Gn(i,i+1))
+        call zdagger(Gn(i+1,i), Gn(i,i+1))
 
-        !call zdagger(ESH(i+1,i), ESHdag)
-        !call prealloc_mult(Gn(i,i), ESHdag, work3)
-        !call destroy(ESHdag)
-
-        !call create(factors, work1%nrow, work1%ncol)
-        !factors%val = work1%val + work2%val - work3%val
-
-        !call zdagger(gsmr(i+1), gsmrDag)
-        !call prealloc_mult(factors, gsmrDag, Gn(i,i+1))
-        !call destroy(factors, gsmrDag, work1, work2, work3)
-
-        !Gn(i+1,i+1) = gsmr(i+1) * [Sigma(i+1,i)Ga(i,i+1) + Sigma(i+1,i+1)Ga(i+1,i+1) - Tr(i+1,i)Gn(i,i+1)]
         call zdagger(Gr(i+1,i), Ga)
         call prealloc_mult(Sigma_n(i+1,i), Ga, work1)
         call destroy(Ga)
 
         call zdagger(Gr(i+1,i+1), Ga)
-        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work2)
+        call prealloc_mult(Sigma_n(i+1,i+1), Ga, work1)
         call destroy(Ga)
 
-        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), work3)
-        call create(factors, work1%nrow, work1%ncol)
-        factors%val = work1%val + work2%val - work3%val
+        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), minusone, work1)
 
-        call prealloc_mult(gsmr(i+1), factors, Gn(i+1,i+1))
-        call destroy(factors, work1, work2, work3)
+        call prealloc_mult(gsmr(i+1), work1, Gn(i+1,i+1))
+        call destroy(work1)
 
     end do
 
@@ -1224,7 +1212,7 @@ CONTAINS
     ! 
     subroutine calculate_sigma_n()      
       !Work
-      type(z_DNS) :: work, gns 
+      type(z_DNS) :: work, gns, gsmrDag, ESHdag 
 
       ! if nbl = 1 => Sigma_n(1,1) is ready
       if (nbl.eq.1) return
@@ -1239,23 +1227,19 @@ CONTAINS
         ! Tr(i,i+1) = ESH(i,i+1);  Ta(i+1,i) = ESH(i,i+1)^dag
         call zdagger(ESH(i,i+1), ESHdag)
         call prealloc_mult(ESH(i,i+1), gns, work)
-        call prealloc_mult(work, ESHdag, work1)
+        call prealloc_mult(work, ESHdag, Sigma_n(i,i))
         call destroy(work, gns)
 
         !work2 = Sigma(i,i+1) gsmr^dag(i+1) Ta(i+1,i)
         call zdagger(gsmr(i+1), gsmrDag)
         call prealloc_mult(Sigma_n(i,i+1), gsmrDag, work)
-        call prealloc_mult(work, ESHdag, work2)
+        call prealloc_mult(work, ESHdag, minusone, Sigma_n(i,i))
         call destroy(work, gsmrDag, ESHdag)
 
         !work3 = ESH(i,i+1) gsmr(i+1) Sigma(i+1,i)
         call prealloc_mult(ESH(i,i+1), gsmr(i+1), work)
-        call prealloc_mult(work, Sigma_n(i+1,i), work3)
+        call prealloc_mult(work, Sigma_n(i+1,i), minusone, Sigma_n(i,i))
         call destroy(work)
-
-        !sum of the four factors
-        Sigma_n(i,i)%val = Sigma_n(i,i)%val + work1%val - work2%val - work3%val
-        call destroy(work1, work2, work3)
 
         if (i > 1) then
           !gns(i) = gsmr(i) * Sigma_n(i,i) * gsmr^dag(i)
