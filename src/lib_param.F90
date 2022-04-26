@@ -54,17 +54,17 @@ module lib_param
   end type intArray
 
 
- !! Structure used to define energy points for the integration
- !! For every point we define
- !!     path (1,2 or 3): the energy point belongs to a real axis
- !!     integration (1), a complex plane integration (2) or a
- !!     pole summation (3)
- !!     pt_path: relative point number within a single path
- !!     pt: absolute point number along the whole integration path
- !!     cpu: cpu assigned to the calculation of the given energy point
- !!     Ec: energy value
- !!     wght: a weight used in final summation to evaluate integrals
- type TEnGrid
+  !! Structure used to define energy points for the integration
+  !! For every point we define
+  !!     path (1,2 or 3): the energy point belongs to a real axis
+  !!     integration (1), a complex plane integration (2) or a
+  !!     pole summation (3)
+  !!     pt_path: relative point number within a single path
+  !!     pt: absolute point number along the whole integration path
+  !!     cpu: cpu assigned to the calculation of the given energy point
+  !!     Ec: energy value
+  !!     wght: a weight used in final summation to evaluate integrals
+  type TEnGrid
      integer :: path
      integer :: pt_path
      integer :: pt
@@ -73,17 +73,14 @@ module lib_param
      complex(dp) :: wght
   end type TEnGrid
 
-  !DAR begin - in Tnegf
   !-----------------------------------------------------------------------------
-
+  ! Buttiker probe dephasing
   type :: Tdeph_bp
      real(dp), allocatable, dimension(:) :: coupling
   end type Tdeph_bp
 
-  type :: Tdephasing
-     type(Tdeph_bp) :: bp
-  end type Tdephasing
-
+  !-----------------------------------------------------------------------------
+  ! Structure to hold contact and reservoir data
   type Tcontact
     character(132) :: name
     logical :: tWriteSelfEnergy = .false.
@@ -105,153 +102,135 @@ module lib_param
     type(z_DNS) :: SMC      ! Device-Contact Overlap
   end type Tcontact
 
-  type Telectrons
-    integer :: IndexEnergy
-  end type Telectrons
-
-  type Toutput
-    logical :: tWriteDOS = .false.
-    logical :: tDOSwithS = .false.
-  end type Toutput
-
-  type Ttransport
-    type(Telectrons) :: el
-    type(Toutput) :: out
-  end type Ttransport
-
-  !-----------------------------------------------------------------------------
-  !DAR - end
-
- !> General libnegf container
- !! Contains input data, runtime quantities and output data
- type Tnegf
-   !! Input parameters: set by library user
-   !! General
-   integer :: verbose
+  !> General libnegf container
+  !! Contains input data, runtime quantities and output data
+  type Tnegf
+    !! Input parameters: set by library user
+    !! General
+    integer :: verbose
 #:if defined("MPI")
-   type(mpifx_comm) :: globalComm
-   type(mpifx_comm) :: cartComm
-   type(mpifx_comm) :: energyComm
-   type(mpifx_comm) :: kComm
+    type(mpifx_comm) :: globalComm
+    type(mpifx_comm) :: cartComm
+    type(mpifx_comm) :: energyComm
+    type(mpifx_comm) :: kComm
 #:endif
-   integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
-   integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
-   character(len=LST) :: scratch_path    ! Folder for scratch work
-   character(len=LST) :: out_path        ! Folder for output data
-   real(dp) :: g_spin            ! spin degeneracy
-   real(dp) :: delta             ! delta for G.F.
-   real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS
-   integer  :: deltaModel        ! Used for phonon G.F. ! delta**2, 2*delta*w, Mingo's
-   real(dp) :: wmax              ! Maximum frequency in Mingo's model
-                                 ! See 'Numerical Heat Transfer, Part B', 51:333, 2007
-   real(dp) :: eneconv           ! Energy conversion factor
-   integer  :: spin = 1          ! spin component
-   real(dp) :: wght              ! k-point weight
-   integer :: kpoint             ! k-point index
-   character(1) :: DorE          ! Density or En.Density
+    integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
+    integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
+    character(len=LST) :: scratch_path    ! Folder for scratch work
+    character(len=LST) :: out_path        ! Folder for output data
+    real(dp) :: g_spin            ! spin degeneracy
+    real(dp) :: delta             ! delta for G.F.
+    real(dp) :: dos_delta         ! additional delta to force more broadening in the DOS
+    integer  :: deltaModel        ! Used for phonon G.F. ! delta**2, 2*delta*w, Mingo's
+    real(dp) :: wmax              ! Maximum frequency in Mingo's model
+                                  ! See 'Numerical Heat Transfer, Part B', 51:333, 2007
+    real(dp) :: eneconv           ! Energy conversion factor
+    integer  :: spin = 1          ! spin component
+    character(1) :: DorE          ! Density or En.Density
 
-   !! Contacts info
-   type(Tcontact), dimension(:), allocatable :: cont
+    !! Contacts info
+    type(Tcontact), dimension(:), allocatable :: cont
 
-   !! Contour integral
-   integer :: Np_n(2)            ! Number of points for n
-   integer :: Np_p(2)            ! Number of points for p
-   integer :: Np_real(11)        ! Number of points for integration over real axis
-   integer :: n_kt               ! Number of kT extending integrations
-   integer :: n_poles            ! Number of poles
-   real(dp) :: Ec                ! conduction band edge
-   real(dp) :: Ev                ! valence band edge
+    !! Contour integral
+    integer :: Np_n(2)            ! Number of points for n
+    integer :: Np_p(2)            ! Number of points for p
+    integer :: Np_real            ! Number of points for integration over real axis
+    integer :: n_kt               ! Number of kT extending integrations
+    integer :: n_poles            ! Number of poles
+    real(dp) :: Ec                ! conduction band edge
+    real(dp) :: Ev                ! valence band edge
 
-   !! Real axis
-   real(dp) :: Emin              ! Tunneling or dos interval
-   real(dp) :: Emax              !
-   real(dp) :: Estep             ! Tunneling or dos E step
+    !! Real axis
+    real(dp) :: Emin              ! Tunneling or dos interval
+    real(dp) :: Emax              !
+    real(dp) :: Estep             ! Tunneling or dos E step
 
-   !! Emitter and collector for transmission or Meir-Wingreen
-   !! (only emitter in this case)
-   integer, allocatable :: ni(:) ! ni: emitter contact list
-   integer, allocatable :: nf(:) ! nf: collector contact list
+    !! Emitter and collector for transmission or Meir-Wingreen
+    !! (only emitter in this case)
+    integer, allocatable :: ni(:) ! ni: emitter contact list
+    integer, allocatable :: nf(:) ! nf: collector contact list
 
-   integer :: ndos_proj              ! number of LDOS interval ranges
-   type(intArray), dimension(:), allocatable :: DOS_proj ! PDOS descriptor
-                                                         ! contain matrix index
-                                                         ! for PDOS projection
-   type(intArray) :: TUN_proj    ! Array of TUN projection indices
+    integer :: ndos_proj              ! number of LDOS interval ranges
+    type(intArray), dimension(:), allocatable :: DOS_proj ! PDOS descriptor
+                                                          ! contain matrix index
+                                                          ! for PDOS projection
+    type(intArray) :: TUN_proj    ! Array of TUN projection indices
 
-   real(dp) :: DeltaEc           ! safe guard energy below Ec
-   real(dp) :: DeltaEv           ! safe guard energy above Ev
+    real(dp) :: DeltaEc           ! safe guard energy below Ec
+    real(dp) :: DeltaEv           ! safe guard energy above Ev
 
-   !! Runtime variables: used internally by the library
-   type(format) :: form          ! Form of file-Hamiltonian
-   logical  :: dumpHS            ! Used for debug
-   real(dp) :: muref             ! reference elec.chem potential
-   real(dp) :: E                 ! Holding variable
-   real(dp) :: dos               ! Holding variable
-   integer :: activecont         ! contact selfenergy
-   integer :: min_or_max         ! in input: 0 take minimum, 1 take maximum mu
-   integer :: refcont            ! reference contact (for non equilib)
-   integer :: outer              ! flag switching computation of
-                                 ! the Device/Contact DM
-                                 ! 0 none; 1 upper block; 2 all
+    !! Runtime variables: used internally by the library
+    type(format) :: form          ! Form of file-Hamiltonian
+    logical  :: dumpHS            ! Used for debug
+    real(dp) :: muref             ! reference elec.chem potential
+    real(dp) :: E                 ! Holding variable
+    real(dp) :: dos               ! Holding variable
+    integer :: activecont         ! contact selfenergy
+    integer :: min_or_max         ! in input: 0 take minimum, 1 take maximum mu
+    integer :: refcont            ! reference contact (for non equilib)
+    integer :: outer              ! flag switching computation of
+                                  ! the Device/Contact DM
+                                  ! 0 none; 1 upper block; 2 all
 
-   real(dp) :: mu                !    chem potential used without contacts
-   real(dp) :: mu_n              ! el chem potential used without contacts
-   real(dp) :: mu_p              ! hl chem potential used without contacts
-   real(dp) :: kbT               ! temperature used without contacts
+    real(dp) :: mu                !    chem potential used without contacts
+    real(dp) :: mu_n              ! el chem potential used without contacts
+    real(dp) :: mu_p              ! hl chem potential used without contacts
+    real(dp) :: kbT               ! temperature used without contacts
 
-   !! Note: H,S are partitioned immediately after input, therefore they are
-   !! built runtime from input variable
-   type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
-   type(z_CSR), pointer :: S => null()
-   type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-   type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
-   logical    :: isSid           ! True if overlap S == Id
-   logical    :: intHS           ! tells HS are internally allocated
-   logical    :: intDM           ! tells DM is internally allocated
+    !! Note: H,S are partitioned immediately after input, therefore they are
+    !! built runtime from input variable
+    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+    type(z_CSR), pointer :: S => null()
+    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
+    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
+    logical    :: isSid           ! True if overlap S == Id
+    logical    :: intHS           ! tells HS are internally allocated
+    logical    :: intDM           ! tells DM is internally allocated
 
-   type(TStruct_Info) :: str     ! system structure
-   integer :: iE                 ! Energy point (index or the point)
-   complex(dp) :: Epnt           ! Energy point (complex)
-   integer :: local_en_points    ! Local number of energy points
-   type(TEnGrid), dimension(:), allocatable :: en_grid
-   real(dp) :: int_acc           ! integration accuracy
-   type(Telph) :: elph           ! electron-phonon data
-   type(Tphph) :: phph           ! phonon-phonon data
+    type(TStruct_Info) :: str     ! system structure
 
-   type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+    integer :: iE                 ! Currently processed En point (index)
+    complex(dp) :: Epnt           ! Currently processed En point (value)
+    real(dp) :: kwght             ! currently processed k-point weight
+    integer :: iKpoint            ! currently processed k-point (index)
 
-   ! Many Body Interactions
-   class(Interaction), allocatable :: inter
+    ! Energy grid information
+    type(TEnGrid), dimension(:), allocatable :: en_grid
+    integer :: local_en_points    ! Local number of energy points
 
-   !! Output variables: these are filled by internal subroutines to stor
-   !! library output
-   real(dp), dimension(:,:), allocatable :: tunn_mat
-   real(dp), dimension(:,:), allocatable :: curr_mat
-   real(dp), dimension(:,:), allocatable :: ldos_mat
-   real(dp), dimension(:), allocatable :: currents
+    type(mesh) :: emesh           ! energy mesh for adaptive Simpson
+    real(dp) :: int_acc           ! adaptive integration accuracy
 
-   logical :: tOrthonormal = .false.
-   logical :: tOrthonormalDevice = .false.
-   logical :: tTrans = .false.
-   logical :: tCalcSelfEnergies = .true.
-   integer :: NumStates
-   character(len=LST) :: FileName
-   logical :: tManyBody = .false.
-   logical :: tElastic = .true.
-   logical :: tDephasingVE = .false.
-   logical :: tDephasingBP = .false.
-   logical :: tZeroCurrent = .false.
-   integer :: MaxIter = 1000
-   logical :: tWrite_ldos = .false.
-   logical :: tWrite_negf_params = .false.
-   type(Ttransport) :: trans
-   type(Tdephasing) :: deph
+    type(Telph) :: elph           ! electron-phonon data
+    type(Tphph) :: phph           ! phonon-phonon data
 
-   ! internal use only
-   integer :: readOldSGF
+    ! Many Body Interactions
+    class(Interaction), allocatable :: inter
 
-   ! Work variable: surface green cache.
-   class(TSurfaceGreenCache), allocatable :: surface_green_cache
+
+    !! Output variables: these arrays are filled by internal subroutines to store
+    !! library outputs
+    real(dp), dimension(:,:), allocatable :: tunn_mat
+    real(dp), dimension(:,:), allocatable :: curr_mat
+    real(dp), dimension(:,:), allocatable :: ldos_mat
+    real(dp), dimension(:), allocatable :: currents
+
+    logical :: tOrthonormal = .false.
+    logical :: tOrthonormalDevice = .false.
+    integer :: numStates = 0
+    logical :: tDestroyGr = .true.
+    logical :: tDestroyGn = .true.
+    logical :: tDestroyESH = .true.
+    ! Buttiker Probes dephasing
+    logical :: tDephasingBP = .false.
+    logical :: tDephasingVE = .false.
+    type(Tdeph_bp) :: bp_deph
+
+    ! internal use only
+    integer :: readOldSGF
+
+    ! Work variable: surface green cache.
+    class(TSurfaceGreenCache), allocatable :: surface_green_cache
 
  end type Tnegf
 
@@ -262,10 +241,10 @@ contains
     type(Tnegf) :: negf
     real(dp),  dimension(:), intent(in) :: coupling
 
-    if (.not.allocated(negf%deph%bp%coupling)) then
-       allocate(negf%deph%bp%coupling(size(coupling)))
+    if (.not.allocated(negf%bp_deph%coupling)) then
+       allocate(negf%bp_deph%coupling(size(coupling)))
     end if
-    negf%deph%bp%coupling = coupling
+    negf%bp_deph%coupling = coupling
 
   end subroutine set_bp_dephasing
 
@@ -338,8 +317,8 @@ contains
      negf%ReadOldDM_SGFs = 1   ! Compute Surface G.F. do not save
      negf%ReadOldT_SGFs = 1    ! Compute Surface G.F. do not save
 
-     negf%wght = 1.d0
-     negf%kpoint = 1
+     negf%kwght = 1.d0
+     negf%ikpoint = 1
 
      negf%Ec = 0.d0
      negf%Ev = 0.d0
@@ -458,8 +437,8 @@ contains
      write(io,*) 'Internal variables:'
      write(io,*) 'intHS= ',negf%intHS
      write(io,*) 'intDM= ',negf%intDM
-     write(io,*) 'kp= ', negf%kpoint
-     write(io,*) 'wght= ', negf%wght
+     write(io,*) 'kp= ', negf%ikpoint
+     write(io,*) 'wght= ', negf%kwght
      write(io,*) 'E= ',negf%E
      write(io,*) 'outer= ', negf%outer
      write(io,*) 'DOS= ',negf%dos

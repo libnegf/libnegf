@@ -43,7 +43,7 @@ int main()
   params.verbose = 100;
   negf_set_params(hand, &params);
 
-  // Set the dephasing model.
+  // Set the dephasing model as simple diagonal dephasing.
   for (i = 0; i < 60; ++i)
   {
     coupling[i] = 0.05;
@@ -54,14 +54,19 @@ int main()
   negf_solve_landauer(hand);
   negf_get_currents(hand, &leadpairs, &currents[0], 1);
 
-  if (currents[0] > 1.95 || currents[0] < 1.90) {
-    printf("Error in current value \n");
-    return 1;
-  }
-
+  printf("Current: %f\n",currents[0]);
   //Release library
   negf_destruct_libnegf(handler);
   negf_destruct_session(handler);
+  negf_mem_stats(handler);
   printf("Done \n");
-  return 0;
+
+  if (currents[0] > 1.95 || currents[0] < 1.90) {
+    printf("Error in current value not between 1.90 and 1.95 \n");
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }  
 }

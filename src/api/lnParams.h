@@ -40,7 +40,7 @@ struct lnparams {
   double kbt_t[MAXNCONT];
   int np_n[2];
   int np_p[2];
-  int np_real[11];
+  int np_real;
   int n_kt;
   int n_poles;
   int ni[MAXNCONT];

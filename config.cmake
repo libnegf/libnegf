@@ -37,6 +37,14 @@ set(INSTALL_MOD_DIR "${INSTALL_INCLUDE_DIR}/modfiles" CACHE PATH
   "Installation directory for Fortran module files (within standard include folder)")
 
 #######################################################################################
+# Fortran and C compilers, manual setting example
+#######################################################################################
+#set(MYINCLUDE "$ENV{HOME}/include/gnu-11.1.0" CACHE STRING "include folder compiled with gnu-11.1")
+#set(CMAKE_Fortran_COMPILER "mpif90" CACHE STRING "General Fortran compiler")
+#set(CMAKE_Fortran_FLAGS "-fc=gfortran-11.1 -fmax-errors=5 -I${MYINCLUDE}" CACHE STRING "General Fortran flags")
+#set(CMAKE_C_COMPILER "mpicc" CACHE STRING "General C compiler")
+#set(CMAKE_C_FLAGS "-cc=gcc-11.1 -fmax-errors=5 -I${MYINCLUDE}" CACHE STRING "General C flags")
+#######################################################################################
 # Lapack library, manual setting example
 #######################################################################################
 #set(MKL_LIBDIR "/usr/pack/intel_mkl-11.1-ma/mkl/lib/intel64" CACHE STRING

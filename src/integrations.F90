@@ -58,15 +58,16 @@ module integrations
  public :: tunneling_int_def  !
  public :: tunneling_and_dos  ! computes of T(E) & dos_proj(E)
  public :: meir_wingreen      ! computes effective T(E) with el-ph
+ public :: layer_current      ! computes the current layer-to-layer
  public :: electron_current   ! computes terminal currents
- public :: electron_current_meir_wingreen                                   !DAR
+ public :: electron_current_meir_wingreen
 
  public :: phonon_tunneling   ! computes T(E) for phonons
  public :: phonon_current     ! computes heat currents
  public :: thermal_conductance ! computes thermal conductance
 
  public :: integrate_el       ! integration of tunneling (el)
- public :: integrate_el_meir_wingreen                                       !DAR
+ public :: integrate_el_meir_wingreen
  public :: integrate_ph       ! integration of tunneling (ph)
 
 
@@ -84,29 +85,7 @@ module integrations
 
  integer, PARAMETER :: VBT=70
 
-!!$ Moved to lib_param: module variables are not thread safe.
-!!$ As the variable en_grid should not be declared here, also
-!!$ the type definition is moved to lib_param
-!!$ !! Structure used to define energy points for the integration
-!!$ !! For every point we define
-!!$ !!     path (1,2 or 3): the energy point belongs to a real axis
-!!$ !!     integration (1), a complex plane integration (2) or a
-!!$ !!     pole summation (3)
-!!$ !!     pt_path: relative point number within a single path
-!!$ !!     pt: absolute point number along the whole integration path
-!!$ !!     cpu: cpu assigned to the calculation of the given energy point
-!!$ !!     Ec: energy value
-!!$ !!     wght: a weight used in final summation to evaluate integrals
-!!$ type TEnGrid
-!!$     integer :: path
-!!$     integer :: pt_path
-!!$     integer :: pt
-!!$     integer :: cpu
-!!$     complex(dp) :: Ec
-!!$     complex(dp) :: wght
-!!$ end type TEnGrid
 
-!!$ type(TEnGrid), dimension(:), allocatable :: en_grid
 
 contains
 
@@ -140,6 +119,7 @@ contains
     endif
 
   end subroutine write_point
+  !-----------------------------------------------------------------------
 
   subroutine write_message_clock(verbose,message)
     integer, intent(in) :: verbose
@@ -150,6 +130,7 @@ contains
     end if
 
   end subroutine write_message_clock
+  !-----------------------------------------------------------------------
 
   subroutine write_end_clock(verbose)
     integer, intent(in) :: verbose
@@ -498,7 +479,7 @@ contains
     z_diff = z2 - z1
 
     ioffs = negf%Np_p(1)
-    
+
     do i = 1, negf%Np_p(2)
       Ec = z1 + pnts(i) * z_diff
       ff = fermi(-Ec,-muref,KbT)
@@ -796,7 +777,7 @@ contains
        mumax=negf%muref
     endif
 
-    Ntot = negf%Np_real(1)
+    Ntot = negf%Np_real
     !! destroy en_grid from previous calculation, if any
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
@@ -811,7 +792,7 @@ contains
        negf%en_grid(i)%pt = ioffset + i
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       negf%en_grid(i)%wght = negf%wght * negf%g_spin * wght(i)/(2.d0 *pi)
+       negf%en_grid(i)%wght = negf%kwght * negf%g_spin * wght(i)/(2.d0 *pi)
     enddo
 
     deallocate(wght)
@@ -960,7 +941,7 @@ contains
        mumax=negf%muref
     endif
 
-    Ntot = negf%Np_real(1)
+    Ntot = negf%Np_real
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
@@ -975,7 +956,7 @@ contains
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
        ff = fermi(pnts(i),muref,KbT)
-       negf%en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+       negf%en_grid(i)%wght = negf%g_spin * negf%kwght * ff * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)
@@ -1022,7 +1003,7 @@ contains
        mumax=negf%muref
     endif
 
-    Ntot = negf%Np_real(1)
+    Ntot = negf%Np_real
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Ntot))
 
@@ -1039,7 +1020,7 @@ contains
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
        ff = fermi(-pnts(i),-muref,KbT)
-       negf%en_grid(i)%wght = negf%g_spin * negf%wght * ff * wght(i) / (2.d0 * pi)
+       negf%en_grid(i)%wght = negf%g_spin * negf%kwght * ff * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)
@@ -1200,7 +1181,7 @@ contains
   !  --i [ /                           ]
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
-  ! Contour integration for density matrix
+  ! Real axis integration for Landauer or Meir-Wingreen
   !-----------------------------------------------------------------------
   subroutine tunneling_int_def(negf)
     type(Tnegf) :: negf
@@ -1217,7 +1198,7 @@ contains
        negf%en_grid(i)%pt = i
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(negf%Emin + negf%Estep*(i-1), 0.0, dp)
-       negf%en_grid(i)%wght = negf%wght * negf%g_spin
+       negf%en_grid(i)%wght = negf%kwght
     enddo
 
     ! distribute energy grid
@@ -1303,15 +1284,10 @@ contains
 
        Ec = negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
-       negf%trans%el%IndexEnergy = i !! DAR
 
-       if(negf%tCalcSelfEnergies) then
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
-          negf%tTrans=.true.
-          call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-          negf%tTrans=.false.
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
-       end if
+       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+       call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
        if (.not.do_LEDOS) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
@@ -1319,7 +1295,7 @@ contains
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str, negf%tun_proj, TUN_MAT)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
+          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
@@ -1327,8 +1303,8 @@ contains
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                              & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
-          negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
+          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
+          negf%ldos_mat(i,:) = LEDOS(:) * negf%kwght
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1352,10 +1328,12 @@ contains
   !  Calculate the contact current per unit energy according to the
   !  Meir-Wingreen formula on the energy points specified by tunneling_int_def.
   !
+  !    I_i(E) = Tr[Sigma^n_i(E)*G^p(E)-Sigma^p_i(E)*G^n(E)]
+  !             G^p = A - G^n 
   !    I_i(E) = Tr[Sigma^n_i(E)*A(E)-Gamma_i(E)*G^n(E)]
   !
   !  The solution is calculated on an arbitrary number of
-  !  leads and stored on negf%tunn_mat. The leads are specified in negf%ni
+  !  leads and stored on negf%curr_mat. The leads are specified in negf%ni
   !  We don't use the collector negf%nf because we need to specify only the
   !  lead for integration
   !
@@ -1366,38 +1344,43 @@ contains
   !---------------------------------------------------------------------------
   subroutine meir_wingreen(negf, fixed_occupations)
     type(Tnegf) :: negf
+    real(dp), dimension(:), optional :: fixed_occupations
 
     integer :: scba_iter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Real(dp), Dimension(:), allocatable :: curr_mat
-    real(dp), dimension(:), allocatable, optional :: fixed_occupations
     real(dp), dimension(:), allocatable :: frm
-    integer :: size_ni, ii, Nstep, outer, ncont, npl, j1, icont, jj
+    integer :: size_ni, ii, Nstep, outer, ncont, npl, j1, icont, jj, ref_bk
     complex(dp) :: Ec
     real(dp) :: scba_error
     Type(z_CSR) :: Gn, Gn_previous
 
-    size_ni = size(negf%ni)
-    ! Don't need outer blocks
-    outer = 0
-
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
-    call log_allocate(curr_mat,size_ni)
+    size_ni = size(negf%ni)
+    negf%readOldSGF = negf%readOldT_SGFs
+    outer = 0
+
     if (.not. allocated(negf%curr_mat)) then
-      call log_allocate(negf%curr_mat,Nstep,size_ni)
+      call log_allocate(negf%curr_mat,Nstep,ncont)
     end if
     negf%curr_mat = 0.0_dp
-    call log_allocate(frm, ncont)
+    call log_allocate(curr_mat, ncont)
+    
+    ! Create Fermi array. Set reference such that f(ref)=0.
+    ref_bk = negf%refcont
+    negf%refcont = ncont + 1
+    call log_allocate(frm, ncont+1)
+    frm = 0.0_dp   
+    
+    ! Fixed occupations (e.g. 1.0, 0.0) can be used to get a transmission
     if (present(fixed_occupations)) then
-      frm = fixed_occupations
+      frm(1:ncont) = fixed_occupations
     end if
 
-    !call create_SGF_SE(negf)
-    !call read_SGF_SE(negf)
+    call write_info(negf%verbose,'CALCULATION OF MEIR-WINGREEN FORMULA',Nstep)
 
-    negf%readOldSGF = negf%readOldT_SGFs
     !! Loop on energy points
     do ii = 1, Nstep
 
@@ -1406,33 +1389,29 @@ contains
       if (negf%en_grid(ii)%cpu /= id) cycle
       Ec = negf%en_grid(ii)%Ec
       negf%iE = negf%en_grid(ii)%pt
-      negf%trans%el%IndexEnergy=ii  !DAR
-
-      if (.not. present(fixed_occupations)) then
+      if (.not.present(fixed_occupations)) then
         do j1 = 1,ncont
-          frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
+           frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
         enddo
-      endif
-
-      if(negf%tCalcSelfEnergies) then
-         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
-         negf%tTrans=.true.
-         call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-         negf%tTrans=.false.
-         if (id0.and.negf%verbose.gt.VBT) call write_clock
       end if
+
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+      call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
 
       ! Calculate the SCBA before meir-wingreen current so el-ph self-energies are stored
       if (allocated(negf%inter)) then
 
          do scba_iter = 0, negf%inter%scba_niter
             negf%inter%scba_iter = scba_iter
+            negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
+            call destroy_all_blk(negf)
+            negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
 
             call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,Gn,outer)
-
+            
             if (negf%inter%scba_iter.ne.0) then
                scba_error = maxval(abs(Gn%nzval - Gn_previous%nzval))
-
                if (scba_error < negf%inter%scba_tol) then
                   call destroy(Gn)
                   exit
@@ -1445,20 +1424,20 @@ contains
 
          call destroy(Gn_previous)
 
-         if (id0) then
+         if (id0 .and. negf%verbose .gt. VBT) then
            if (scba_error < negf%inter%scba_tol) then
-              write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
-                    & " iterations with error",negf%inter%scba_tol
+              !write(*,*) "SCBA loop converged in",negf%inter%scba_iter,&
+              !      & " iterations with error",scba_error
            else
               write(*,*) "WARNING: SCBA exit with error ",scba_error, &
                     & "  > ",negf%inter%scba_tol
            end if
          end if
       endif
-
-      call iterative_meir_wingreen(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,curr_mat)
-
-      negf%curr_mat(ii,:) = curr_mat(:) * negf%wght
+            
+      negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
+      call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
+      negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght
 
       if (id0.and.negf%verbose.gt.VBT) call write_clock
       do icont=1,ncont
@@ -1467,9 +1446,105 @@ contains
 
     enddo
     call log_deallocate(curr_mat)
+    call log_deallocate(frm)
+    negf%refcont = ref_bk
 
   end subroutine meir_wingreen
 
+  !---------------------------------------------------------------------------
+  !>
+  !  Calculate the layer current per unit energy
+  !
+  !    I_LL'(E) = Tr[(ES-H)_LL' * Gn_L'L(E)-(ES-H)_L'L * Gn_LL'(E)]
+  !
+  !  The solution is calculated on adjecent layers and stored
+  !  negf%tunn_mat. The leads are specified in negf%ni
+  !  We don't use the collector negf%nf because we need to specify only the
+  !  lead for integration
+  !
+  !---------------------------------------------------------------------------
+  subroutine layer_current(negf)
+    type(Tnegf) :: negf
+
+    integer :: nbl, scba_iter, scba_niter, Nstep
+    integer :: ii, i1, j1, iK, icont, ncont, ref_bk
+    real(dp) :: ncyc, scba_error
+    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    real(dp), dimension(:), allocatable :: curr_mat, frm
+    complex(dp) :: Ec
+
+    ncont = negf%str%num_conts
+    Nstep = size(negf%en_grid)
+    nbl = negf%str%num_PLs
+    negf%readOldSGF = negf%readOldT_SGFs
+
+    ! Allocating curr_mat to nbl-1 so we compute L->L+1 currents
+    if (.not. allocated(negf%curr_mat)) then
+      call log_allocate(negf%curr_mat, Nstep, nbl-1)
+    end if
+    negf%curr_mat = 0.0_dp
+    call log_allocate(curr_mat, nbl-1)
+
+    ! Create Fermi array. Set reference such that f(ref)=0.
+    ref_bk = negf%refcont
+    negf%refcont = ncont + 1
+    call log_allocate(frm, ncont+1)
+    frm = 0.0_dp
+    do j1 = 1,ncont
+       frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
+    enddo
+
+    !! Loop over energy points
+    enloop: do ii = 1, Nstep
+
+      call write_point(negf%verbose, negf%en_grid(ii), size(negf%en_grid))
+      if (negf%en_grid(ii)%cpu /= id) cycle
+      Ec = negf%en_grid(ii)%Ec
+      negf%iE = negf%en_grid(ii)%pt  ! global energy index
+    
+      ! ---------------------------------------------------------------------
+      ! Compute contact GF
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+      call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      !call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
+
+      ! ---------------------------------------------------------------------
+      ! Compute block tri-diagonal Gr and Gn
+      ! ---------------------------------------------------------------------
+      ! Avoids cleanup of Gn and ESH components for later use
+      negf%tDestroyGn = .false.; negf%tDestroyESH = .false.
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Gn ')
+      call calculate_Gn_neq_components(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      ! ---------------------------------------------------------------------
+      ! Compute layer-to-layer currents and release memory
+      ! ---------------------------------------------------------------------
+      negf%tDestroyGn = .true.; negf%tDestroyESH = .true.
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
+      call iterative_layer_current(negf,real(Ec),curr_mat)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      negf%curr_mat(ii,:) = curr_mat(:) * negf%kwght 
+    
+      do icont=1,ncont
+        call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
+      end do
+
+    end do enloop
+
+      
+    print*,'call compute_electron_current  CPU#', id
+    call electron_current_meir_wingreen(negf)
+
+
+    call log_deallocate(curr_mat)
+    call log_deallocate(frm)
+    negf%refcont = ref_bk
+
+  end subroutine layer_current
 
   !---------------------------------------------------------------------------
   !>
@@ -1620,7 +1695,7 @@ contains
        mu1=negf%cont(ni)%mu; mu2=negf%cont(nf)%mu
        negf%currents(ii)= integrate_el(negf%tunn_mat(:,ii), mu1, mu2, &
                           & negf%cont(ni)%kbT_t, negf%cont(nf)%kbT_t, &
-                          & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+                          & negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
     enddo
 
   end subroutine electron_current
@@ -1649,7 +1724,7 @@ contains
     negf%currents=0.d0
     do ii=1,size_ni
        negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), &
-                          & negf%Emin, negf%Emax, negf%Estep, negf%g_spin)
+                          & negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
     enddo
 
   end subroutine electron_current_meir_wingreen
@@ -1739,7 +1814,7 @@ contains
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
                              & negf%str, negf%tun_proj, TUN_MAT)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
+          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           LEDOS(:) = 0.d0
@@ -1747,8 +1822,8 @@ contains
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
                              & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%wght
-          negf%ldos_mat(i,:) = LEDOS(:) * negf%wght
+          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
+          negf%ldos_mat(i,:) = LEDOS(:) * negf%kwght
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1794,7 +1869,7 @@ contains
   ! The function resolves fermi(E) on a fine grid interpolating linearly T(E)
   ! In this way a more precise integration is obtained when T ~ constant
   !************************************************************************
-  function integrate_el(TUN_TOT,mu1,mu2,kT1,kT2,emin,emax,estep,spin_g)
+  function integrate_el(TUN_TOT,mu1,mu2,kT1,kT2,emin,emax,estep)
 
     implicit none
 
@@ -1803,7 +1878,6 @@ contains
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: kT1, kT2
-    real(dp), intent(in) :: spin_g
 
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
@@ -1866,7 +1940,7 @@ contains
           c1=(fermi(E3,mu2,KbT2)-fermi(E3,mu1,KbT1))*TT3
           c2=(fermi(E4,mu2,KbT2)-fermi(E4,mu1,KbT1))*TT4
 
-          curr=curr+spin_g*(c1+c2)*(E4-E3)/2.d0
+          curr=curr+(c1+c2)*(E4-E3)/2.d0
 
        enddo
 
@@ -1881,14 +1955,13 @@ contains
   ! Function to integrate the current density I(E) !!! and get the current
   ! for meir_wingreen
   !************************************************************************
-  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep,spin_g)
+  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep)
 
     implicit none
 
     real(dp) :: integrate_el_meir_wingreen
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
-    real(dp), intent(in) :: spin_g
 
     REAL(dp) :: TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
@@ -1909,7 +1982,7 @@ contains
        E2=emin+estep*(i+1)
        TT2=TUN_TOT(i+2)
 
-       curr=curr+spin_g*(TT1+TT2)*(E2-E1)/2.d0
+       curr=curr+(TT1+TT2)*(E2-E1)/2.d0
 
     enddo
 
