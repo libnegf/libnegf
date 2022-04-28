@@ -46,6 +46,7 @@ module integrations
 
  public :: contour_int       ! generalized contour integrator
  public :: real_axis_int     ! real-axis integrator
+ public :: quasiEq_int     
  public :: ldos_int          ! ldos only integrator
 
  public :: contour_int_def   ! contour integration for DFT(B)
@@ -2163,5 +2164,95 @@ contains
     x2=tmp
 
   end subroutine swap
+
+  subroutine quasiEq_int(negf, mu_n, E_c, E_v, dm_start_idx, dm_end_idx)
+    !In/Out
+    type(Tnegf), intent(in) :: negf
+    real(dp), dimension(:), intent(in) :: E_c, E_v, mu_n
+    integer, dimension(:), intent(in) :: dm_start_idx, dm_end_idx
+
+    !Work
+    integer :: i, nr, np, ncont, Ntot, outer, Nz
+    complex(dp) :: Ez
+    type(z_DNS) :: tmpMat 
+    real(dp), dimension(:), allocatable :: rho
+    real(dp), dimension(:), allocatable :: wght, pnts, diag   
+    real(dp) :: Omega, ff, ww
+     
+
+    kbT = maxval(negf%cont(:)%kbT_dm)
+    ncont = negf%str%num_conts
+    outer = negf%outer
+    
+    ! Omega considers maximum kT so interval is always large enough
+    Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm)
+    Ntot = negf%Np_real
+    Nz = size(mu_n)
+
+    allocate(pnts(Ntot))
+    allocate(wght(Ntot))
+
+    minE = minval(Ev) - negf%deltaEv
+    maxE = maxval(Ec) + negf%deltaEc
+
+
+    call gauleg(minE, maxE, E, wght, Ntot)
+
+    do i = 1, Ntot
+       Ez = cmplx(E(i),negf%delta,dp)
+       call compute_Gr(negf, outer, ncont, Ez, Gr)
+       
+       do nr = 1,Nz
+          rs = dm_start_idx(nr)
+          re = dm_end_idx(nr)
+
+          if (E(i) > Ec(nr) - negf%deltaEc .and. E(i) < mu_n(nr) + Omega) then
+             ff = fermi(E(i), mu_n(nr), kbT)
+             ww = negf%kwght * wght(i) * ff/pi   !Is kwght right?
+             call log_allocate(diag, Gr%nrow)
+             call getdiag(Gr,diag)
+             rho(rs:re) = rho(rs:re) - aimag(diag(rs:re)) * ww
+             call log_deallocate(diag)
+          endif
+       enddo
+    enddo
+
+    deallocate(wght)
+    deallocate(pnts)
+
+    
+    call create(DNStmpMt,Nz,Nz) 
+    call create(CSRtmpMt,Nz,Nz,Nz)
+
+    DNStmpMt = (0.0_dp,0.0_dp) 
+    do i=1, Nz
+       DNStmpMt(i,i) = rho(i)
+    end do
+
+    call dns2csr(DNStmpMt, CSRtmpMt)
+
+    if(negf%DorE.eq.'D') then
+       if(allocated(negf%rho%nzval)) then
+          call concat(negf%rho,CSRtmpMt,1,1)
+       else
+          call clone(CSRtmpMt,negf%rho)
+       endif
+    endif
+    if(negf%DorE.eq.'E') then
+       if(allocated(negf%rho_eps%nzval)) then
+          call concat(negf%rho_eps,CSRtmpMt,1,1)
+       else
+          call clone(CSRtmpMt,negf%rho_eps)
+       endif
+    endif
+
+    call destroy(DNStmpMt)
+    call destroy(CSRtmpMt)
+    !Is the energy grid necessary for MPI?
+    !do i = 0, Ntot-1
+    !   negf%en_grid(i+1)%cpu = mod(i,numprocs)
+    !enddo
+
+  end subroutine quasiEq_int
 
 end module integrations
