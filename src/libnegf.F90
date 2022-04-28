@@ -1503,6 +1503,58 @@ contains
 
   end subroutine compute_density_efa
 
+  subroutine compute_density_quasiEq(negf, q, particle, dm_start_idx, dm_end_idx, &
+                                     Ec, Ev, mu_n, mu_p)
+    !In/Out
+    type(Tnegf) :: negf
+    real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
+    integer :: particle  ! +1 for electrons, -1 for holes
+    integer, dimension(:) :: dm_start_idx, dm_end_idx 
+
+
+    !Work
+    complex(dp), dimension(:), allocatable :: q_tmp
+    integer :: k
+
+    if (particle /= +1 .and. particle /= -1) then
+       write(*,*) "libNEGF error. In compute_density_efa, unknown particle"
+       stop
+    endif
+
+    call extract_cont(negf)
+
+    call create_DM(negf)
+    if (allocated(negf%rho%nzval)) then
+      call destroy(negf%rho)
+    end if
+
+    ! Reference contact for contour/real axis separation
+    call set_ref_cont(negf, Ec)
+
+    if (particle == 1) then
+      negf%muref = negf%mu_n
+      call quasiEq_int(negf,mu_n,E_c,E_v,dm_start_idx,dm_end_idx)
+    else ! particle == -1
+      !call quasiEq_int_p(negf,mu_p,E_c,E_v,dm_start_idx,dm_end_idx)
+    endif
+
+    if (negf%rho%nrow.gt.0) then
+       call log_allocate(q_tmp, negf%rho%nrow)
+
+       call getdiag(negf%rho, q_tmp)
+
+       do k = 1, size(q)
+          q(k) = real(q_tmp(k))
+       enddo
+
+       call log_deallocate(q_tmp)
+    else
+       q = 0.d0
+    endif
+
+    call destroy_matrices(negf)
+
+  end subroutine compute_density_quasiEq
   !-------------------------------------------------------------------------------
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
