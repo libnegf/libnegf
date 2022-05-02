@@ -84,7 +84,7 @@ program hello
   write(*,*) 'Test 2 - current with coupling = 0.05'
   write(*,*) '------------------------------------------------------------------ '
   coupling = 0.05
-  call destroy_elph_model(pnegf)
+  call destroy_interactions(pnegf)
   call set_elph_dephasing(pnegf, coupling, 5)
   call compute_current(pnegf)
   current = pnegf%currents(1)
