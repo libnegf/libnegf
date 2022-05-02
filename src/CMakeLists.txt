@@ -43,7 +43,9 @@ if(WITH_INELASTIC)
   list(APPEND sources-fpp transform.F90)
 endif()
 
-set(sources-c self_energy.c)
+if(WITH_MPI)
+  set(sources-c self_energy.c)
+endif()
 
 set(sources-f90
   api/libnegfAPICommon.f90
@@ -70,8 +72,11 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-#add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
-add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-c})
+if(WITH_MPI)
+  add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-c})
+else()
+  add_library(negf ${sources-fpp-f90} ${sources-f90})
+endif()
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC

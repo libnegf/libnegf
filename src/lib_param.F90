@@ -353,8 +353,12 @@ contains
     call elphondephd_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonInel)
+#:if defined("MPI")
       call elphoninel_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter)
+#:else
+      stop "Inelastic scattering requires MPI"
+#:endif    
     class default
       stop 'ERROR: error of type downcast to ElPhonInel'
     end select

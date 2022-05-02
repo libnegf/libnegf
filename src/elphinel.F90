@@ -454,6 +454,7 @@ contains
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
 
+#:if defined("MPI")
     integer :: ii, ibl, nbl, Np, NK, NE, NKloc, NEloc, iEshift, err
     integer :: iK, iE, Ndz, PL_start
     complex(c_double_complex) :: fac_min, fac_plus
@@ -571,6 +572,9 @@ contains
 
     deallocate(pGG)
     deallocate(pSigma)
+#:else    
+    stop "inelastic scattering requires MPI compilation"
+#:endif
 
   end subroutine compute_Sigma_r
 
@@ -582,6 +586,7 @@ contains
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
 
+#:if defined("MPI")
     integer :: ii, ibl, nbl, Np, NK, NE, NKloc, NEloc, iEshift, err
     integer :: iK, iE, Ndz, PL_start
     complex(c_double_complex) :: fac_min, fac_plus
@@ -671,6 +676,9 @@ contains
 
     deallocate(pGG)
     deallocate(pSigma)
+#:else    
+    stop "inelastic scattering requires MPI compilation"
+#:endif
 
   end subroutine compute_Sigma_n
 

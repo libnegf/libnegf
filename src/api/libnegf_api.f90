@@ -604,7 +604,7 @@ subroutine negf_destruct_libnegf(handler) bind(C)
 
   LIB = transfer(handler, LIB)
   call destroy_negf(LIB%pNEGF)
-  call destroy_elph_model(LIB%pNEGF)
+  call destroy_interactions(LIB%pNEGF)
 
 end subroutine negf_destruct_libnegf
 

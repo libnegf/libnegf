@@ -52,7 +52,7 @@ module libnegf
  public :: Tnegf
  public :: set_bp_dephasing
  public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
- public :: set_elph_inelastic
+ public :: set_elph_inelastic, destroy_interactions
  public :: interaction_models
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
