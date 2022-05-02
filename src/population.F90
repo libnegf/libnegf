@@ -39,7 +39,7 @@ contains
     real(dp) :: qtot
     complex(dp) :: dd
 
-    qmulli=0.d0
+    qmulli=0.0_dp
     nrow = size(qmulli)
 
     do ii=1, DensMat%nrow
@@ -57,7 +57,7 @@ contains
     enddo
     
     open(11,file='qmulli.dat')
-    qtot = 0.d0
+    qtot = 0.0_dp
     do ii = 1, nrow
        write(11,*) ii,qmulli(ii)
        qtot = qtot+qmulli(ii)

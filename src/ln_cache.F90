@@ -19,122 +19,182 @@
 !!--------------------------------------------------------------------------!
 
 module ln_cache
-
-  use mat_def, only: z_DNS
+  use iso_c_binding
+  use mat_def, only: z_DNS, destroy
   use ln_precision
   use globals
   use outmatrix, only: outmat_c, inmat_c
 
   implicit none
-
-  public :: TSurfaceGreenCache, TSurfaceGreenCacheMem, TSurfaceGreenCacheDisk
-  public :: TSurfaceGreenCacheDummy
-
   private
 
-  type, abstract :: TSurfaceGreenCache
-  contains
-    procedure(abst_add_surface_green_to_cache), deferred :: add
-    procedure(abst_retrieve_surface_green_from_cache), deferred :: retrieve
-    procedure(abst_destroy_surface_green_cache), deferred :: destroy
-    procedure(abst_is_cached), deferred :: is_cached
-  end type TSurfaceGreenCache
+  public :: TMatrixCache
+  public :: TMatrixCacheMem, TMatrixCacheDisk
+  public :: TMatrixCacheDummy
+  public :: TMatLabel
+  public :: print_label
+  public :: get_string_label
 
-  abstract interface
-    subroutine abst_add_surface_green_to_cache(this, surface_green, contact, nkp, pnt, nsp)
-      import :: TSurfaceGreenCache
-      import :: z_DNS
-      class(TSurfaceGreenCache) :: this
-      type(z_DNS):: surface_green
-      integer :: nkp
-      integer :: pnt
-      integer :: nsp
-      integer :: contact
-    end subroutine
-
-    subroutine abst_retrieve_surface_green_from_cache(this, surface_green, contact, nkp, pnt, nsp)
-      import :: TSurfaceGreenCache
-      import :: z_DNS
-      class(TSurfaceGreenCache) :: this
-      type(z_DNS) :: surface_green
-      integer :: nkp
-      integer :: pnt
-      integer :: nsp
-      integer :: contact
-
-    end subroutine
-
-    function abst_is_cached(this, contact, nkp, pnt, nsp) result(val)
-      import :: TSurfaceGreenCache
-      !> The bound class
-      class(TSurfaceGreenCache) :: this
-      !> The k point index
-      integer :: nkp
-      !> The energy point index
-      integer :: pnt
-      !> The spin index
-      integer :: nsp
-      !> The contact index
-      integer :: contact
-      !> Whether the corresponding surface green function is cached
-      logical :: val
-    end function
-
-    subroutine abst_destroy_surface_green_cache(this)
-      import :: TSurfaceGreenCache
-      class(TSurfaceGreenCache) :: this
-    end subroutine
-  end interface
-
-  !> Linked list to store surface green in memory
-  type :: TSurfaceGreenCacheEntry
-    type(TSurfaceGreenCacheEntry), pointer :: next => null()
-    type(z_DNS), allocatable :: surface_green
+  type TMatLabel
     integer :: kpoint = -1
     integer :: energy_point = -1
     integer :: spin = -1
-    integer :: contact = -1
+    integer :: row_block = -1
+    integer :: col_block = -1
+  end type TMatLabel
+
+  interface operator (==)
+    module procedure labeleq
+  end interface
+
+  type, abstract :: TMatrixCache
+  contains
+    procedure(abst_add_matrix), deferred :: add
+    procedure(abst_retrieve_matrix), deferred :: retrieve
+    procedure(abst_retrieve_matrix_pointer), deferred :: retrieve_pointer
+    procedure(abst_retrieve_matrix_loc), deferred :: retrieve_loc
+    procedure(abst_destroy_matrix), deferred :: destroy
+    procedure(abst_is_cached), deferred :: is_cached
+    procedure(abst_list_cache), deferred :: list_cache
+  end type TMatrixCache
+
+  abstract interface
+    subroutine abst_add_matrix(this, matrix, label)
+      import :: TMatrixCache
+      import :: z_DNS
+      import :: TMatLabel
+      class(TMatrixCache) :: this
+      type(z_DNS):: matrix
+      type(TMatLabel) :: label
+    end subroutine
+
+    subroutine abst_retrieve_matrix(this, matrix, label)
+      import :: TMatrixCache
+      import :: z_DNS
+      import :: TMatLabel
+      class(TMatrixCache) :: this
+      type(z_DNS) :: matrix
+      type(TMatLabel) :: label
+    end subroutine
+
+    function abst_retrieve_matrix_pointer(this, label) result(pmatrix)
+      import :: z_DNS
+      import :: TMatrixCache
+      import :: TMatLabel
+      class(TMatrixCache) :: this
+      type(TMatLabel) :: label
+      type(z_DNS), pointer :: pmatrix
+    end function 
+
+    function abst_retrieve_matrix_loc(this, label) result(pmatrix)
+      use iso_c_binding
+      import :: TMatrixCache
+      import :: TMatLabel
+      class(TMatrixCache) :: this
+      type(TMatLabel) :: label
+      type(C_PTR) :: pmatrix
+    end function 
+
+    function abst_is_cached(this, label) result(val)
+      import :: TMatrixCache
+      import :: TMatLabel
+      !> The bound class
+      class(TMatrixCache) :: this
+      !> matrix label identifier
+      type(TMatLabel) :: label
+      logical :: val
+    end function
+
+    subroutine abst_list_cache(this)
+      import :: TMatrixCache
+      import :: TMatLabel
+      !> The bound class
+      class(TMatrixCache) :: this
+    end subroutine
+
+    subroutine abst_destroy_matrix(this)
+      import :: TMatrixCache
+      class(TMatrixCache) :: this
+    end subroutine
+  end interface
+
+  !> Linked list to store matrix in memory
+  type :: TMatrixCacheEntry
+    type(TMatrixCacheEntry), pointer :: next => null()
+    type(z_DNS), allocatable :: matrix
+    type(TMatLabel) :: mat_label
   end type
 
-  type, extends(TSurfaceGreenCache) :: TSurfaceGreenCacheMem
-    type(TSurfaceGreenCacheEntry), pointer :: first => null()
+  !> Mem derived class
+  type, extends(TMatrixCache) :: TMatrixCacheMem
+    type(TMatrixCacheEntry), pointer :: first => null()
+    character(len=LST) :: tagname 
   contains
     procedure :: add => mem_add
     procedure :: retrieve => mem_retrieve
+    procedure :: retrieve_pointer => mem_retrieve_pointer
+    procedure :: retrieve_loc => mem_retrieve_loc
     procedure :: destroy => mem_destroy
     procedure :: is_cached => mem_is_cached
+    procedure :: list_cache => mem_list_cache
   end type
 
-  type, extends(TSurfaceGreenCache) :: TSurfaceGreenCacheDisk
+  !> Disk derived class
+  type, extends(TMatrixCache) :: TMatrixCacheDisk
     character(len=LST) :: scratch_path
   contains
     procedure :: add => disk_add
     procedure :: retrieve => disk_retrieve
+    procedure :: retrieve_pointer => disk_retrieve_pointer
+    procedure :: retrieve_loc => disk_retrieve_loc
     procedure :: destroy => disk_destroy
     procedure :: is_cached => disk_is_cached
+    procedure :: list_cache => disk_list_cache
   end type
 
-  type, extends(TSurfaceGreenCache) :: TSurfaceGreenCacheDummy
+  !> Dummy cache when no caching is performed
+  type, extends(TMatrixCache) :: TMatrixCacheDummy
   contains
     procedure :: add => dummy_add
     procedure :: retrieve => dummy_retrieve
+    procedure :: retrieve_pointer => dummy_retrieve_pointer
+    procedure :: retrieve_loc => dummy_retrieve_loc
     procedure :: destroy => dummy_destroy
     procedure :: is_cached => dummy_is_cached
+    procedure :: list_cache => dummy_list_cache
   end type
 
 contains
 
-  !! Definitions for TSurfaceGreenCacheMem
+  function labeleq(label1, label2) result(var)
+     type(TMatLabel), intent(in) :: label1, label2
+     logical :: var
+     var = .false.
+     if (label1%kpoint        == label2%kpoint        .and. &
+       & label1%spin          == label2%spin          .and. &
+       & label1%row_block     == label2%row_block     .and. &
+       & label1%col_block     == label2%col_block     .and. &
+       & label1%energy_point  == label2%energy_point ) then
+          var = .true.
+     end if
+  end function labeleq
 
-  subroutine mem_add(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheMem) :: this
-    type(z_DNS):: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+  subroutine print_label(label)
+    type(TMatLabel) :: label
 
-    type(TSurfaceGreenCacheEntry), pointer :: p
+    print*,'k=',label%kpoint,'E=',label%energy_point,'s=',label%spin, &
+          & 'i=',label%row_block,'j=',label%col_block
+      
+  end subroutine print_label
+
+  !! Definitions for TMatrixCacheMem
+
+  subroutine mem_add(this, matrix, label)
+    class(TMatrixCacheMem) :: this
+    type(z_DNS):: matrix
+    type(TMatLabel) :: label
+
+    type(TMatrixCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
       allocate (this%first)
@@ -145,53 +205,101 @@ contains
       p%next => this%first
       this%first => p
     end if
-    p%surface_green = surface_green
-    p%kpoint = nkp
-    p%energy_point = pnt
-    p%spin = nsp
-    p%contact = contact
-
+    allocate(p%matrix)
+    p%matrix = matrix
+    p%mat_label = label
   end subroutine
 
-  subroutine mem_retrieve(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheMem) :: this
-    type(z_DNS) :: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+  subroutine mem_retrieve(this, matrix, label)
+    class(TMatrixCacheMem) :: this
+    type(z_DNS) :: matrix
+    type(TMatLabel) :: label
 
-    type(TSurfaceGreenCacheEntry), pointer :: p
+    type(TMatrixCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
-      error stop "No entry in surface green cache"
+      print*, trim(this%tagname)    
+      call print_label(label)    
+      error stop "Internal error: no entry in matrix cache"
     else
       p => this%first
     end if
 
     do while (associated(p))
-      if (p%kpoint .eq. nkp .and. &
-      & p%energy_point .eq. pnt .and. &
-      & p%spin .eq. nsp .and. p%contact .eq. contact) then
-        surface_green = p%surface_green
+      if (p%mat_label .eq. label) then
+        matrix = p%matrix
         return
       end if
       p => p%next
     end do
 
-    error stop "Cannot retrieve surface green function"
+    print*, trim(this%tagname)    
+    call print_label(label)    
+    error stop "Cannot retrieve matrix"
 
   end subroutine
+  
+  function mem_retrieve_pointer(this, label) result(pmatrix)
+    class(TMatrixCacheMem) :: this
+    type(TMatLabel) :: label
+    type(z_DNS), pointer :: pmatrix  
+  
+    type(TMatrixCacheEntry), pointer :: p
 
-  function mem_is_cached(this, contact, nkp, pnt, nsp) result(val)
-    class(TSurfaceGreenCacheMem) :: this
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+    if (.not. associated(this%first)) then
+      print*, trim(this%tagname)    
+      error stop "No entry in matrix cache"
+    else
+      p => this%first
+    end if
+    do while (associated(p))
+      if (p%mat_label .eq. label) then
+        pmatrix => p%matrix
+        return 
+      end if
+      p => p%next
+    end do
+
+    print*, trim(this%tagname)    
+    call print_label(label)    
+    error stop "Cannot retrieve matrix in cache"
+
+  end function 
+  
+  function mem_retrieve_loc(this, label) result(pmatrix)
+    class(TMatrixCacheMem) :: this
+    type(TMatLabel) :: label
+    type(C_PTR) :: pmatrix
+    
+    type(TMatrixCacheEntry), pointer :: p
+
+    if (.not. associated(this%first)) then
+      print*, trim(this%tagname)    
+      error stop "No entry in matrix cache"
+    else
+      p => this%first
+    end if
+
+    do while (associated(p))
+      if (p%mat_label .eq. label) then
+        pmatrix = c_loc(p%matrix%val)
+        return 
+      end if
+      p => p%next
+    end do
+
+    print*, trim(this%tagname)    
+    call print_label(label)
+    error stop "Cannot retrieve matrix in cache"
+
+  end function 
+  
+  function mem_is_cached(this, label) result(val)
+    class(TMatrixCacheMem) :: this
+    type(TMatLabel) :: label
     logical :: val
 
-    type(TSurfaceGreenCacheEntry), pointer :: p
+    type(TMatrixCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
       val = .false.
@@ -201,9 +309,7 @@ contains
     end if
 
     do while (associated(p))
-      if (p%kpoint .eq. nkp .and. &
-      & p%energy_point .eq. pnt .and. &
-      & p%spin .eq. nsp .and. p%contact .eq. contact) then
+      if (p%mat_label .eq. label) then
         val = .true.
         return
       end if
@@ -213,34 +319,60 @@ contains
     val = .false.
 
   end function
+    
+  subroutine mem_list_cache(this)
+    class(TMatrixCacheMem) :: this
+    
+    type(TMatLabel) :: label
+    type(TMatrixCacheEntry), pointer :: p
+    type(z_DNS), pointer :: pmatrix  
+    
+    if (.not. associated(this%first)) then
+      return
+    end if
+    print*,'-------------------------------------'
+    print*,'List cache:'
+    p => this%first
+    do while (associated(p))
+      call print_label(p%mat_label) 
+      pmatrix => p%matrix
+      print*,'matrix size:',size(pmatrix%val)
+      p => p%next
+    end do
+    print*,'-------------------------------------'
 
+  end subroutine
+
+  ! this%first => p%matrix     p%matrix      p%matrix
+  !               p%label      p%label       p%label 
+  !               p%next   =>  p%next    =>  p%next
   subroutine mem_destroy(this)
-    class(TSurfaceGreenCacheMem) :: this
+    class(TMatrixCacheMem) :: this
 
-    type(TSurfaceGreenCacheEntry), pointer :: p, previous
-
+    type(TMatrixCacheEntry), pointer :: p, previous
     if (.not. associated(this%first)) then
       return
     end if
 
     p => this%first
     do while (associated(p))
+      call destroy(p%matrix)
+      deallocate(p%matrix)
       previous => p
       p => p%next
-      deallocate (previous)
+      deallocate(previous)
     end do
+    this%first => null()
 
   end subroutine
 
-  !! Definitions for TSurfaceGreenCacheDisk
 
-  subroutine disk_add(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheDisk) :: this
-    type(z_DNS):: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+  !! Definitions for TMatrixCacheDisk
+
+  subroutine disk_add(this, matrix, label)
+    class(TMatrixCacheDisk) :: this
+    type(z_DNS):: matrix
+    type(TMatLabel) :: label
 
     real(kind=dp) :: dens
     character(2) :: ofcont
@@ -250,59 +382,72 @@ contains
     character(LST) :: filename
     integer :: file_unit
 
-    call disk_indices_to_filename(filename, contact, nkp, pnt, nsp)
-    open (newunit=file_unit, file=trim(this%scratch_path)//trim(filename), form='UNFORMATTED')
-    call outmat_c(file_unit, .false., surface_green%val, surface_green%nrow, surface_green%ncol)
+    call disk_indices_to_filename(filename, label)
+    open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
+    call outmat_c(file_unit, .false., matrix%val, matrix%nrow, matrix%ncol)
     close (file_unit)
 
   end subroutine
 
-  subroutine disk_retrieve(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheDisk) :: this
-    !> Input surface green to be retrieved: It needs to be already allocated with
+  subroutine disk_retrieve(this, matrix, label)
+    class(TMatrixCacheDisk) :: this
+    !> Input matrix to be retrieved: It needs to be already allocated with
     !> the correct number of rows and columns.
-    type(z_DNS) :: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+    type(z_DNS) :: matrix
+    type(TMatLabel) :: label
 
     real(kind=dp) :: dens
-    character(2) :: ofcont
-    character(1) :: ofspin
-    character(10) :: ofkpnt
-    character(10) :: ofpnt
     character(LST) :: filename
     logical :: file_exists
     integer :: file_unit
 
-    call disk_indices_to_filename(filename, contact, nkp, pnt, nsp)
-    inquire (file=trim(this%scratch_path)//trim(filename), EXIST=file_exists)
+    call disk_indices_to_filename(filename, label)
+    inquire (file=trim(this%scratch_path)//filename, EXIST=file_exists)
 
     if (.not. file_exists) then
-      error stop "Cannot retrieve surface green function from disk: file not found"
+      error stop "Cannot retrieve matrix from disk: file not found"
     end if
 
-    open (newunit=file_unit, file=trim(this%scratch_path)//trim(filename), form='UNFORMATTED')
-    call inmat_c(file_unit, .false., surface_green%val, surface_green%nrow, surface_green%ncol)
+    open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
+    call inmat_c(file_unit, .false., matrix%val, matrix%nrow, matrix%ncol)
     close (file_unit)
 
   end subroutine
+  
+  ! This routine gives error because a pointer cannot be associated
+  function disk_retrieve_pointer(this, label) result(pmatrix)
+    class(TMatrixCacheDisk) :: this
+    type(TMatLabel) :: label
+    type(z_DNS), pointer :: pmatrix
 
-  function disk_is_cached(this, contact, nkp, pnt, nsp) result(val)
-    class(TSurfaceGreenCacheDisk) :: this
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+    pmatrix => null() 
+    error stop "cannot retrieve pointer from disk cache"
+
+  end function disk_retrieve_pointer
+  
+  ! This routine gives error because a pointer cannot be associated
+  function disk_retrieve_loc(this, label) result(pmatrix)
+    class(TMatrixCacheDisk) :: this
+    type(TMatLabel) :: label
+    type(C_PTR) :: pmatrix
+
+    pmatrix = C_NULL_PTR
+    error stop "cannot retrieve pointer from disk cache"
+
+  end function disk_retrieve_loc
+
+
+  function disk_is_cached(this, label) result(val)
+    class(TMatrixCacheDisk) :: this
+    type(TMatLabel) :: label
     logical :: val
 
     character(LST) :: filename
     logical :: file_exists
     integer :: file_unit
 
-    call disk_indices_to_filename(filename, contact, nkp, pnt, nsp)
-    inquire (file=trim(this%scratch_path)//trim(filename), EXIST=file_exists)
+    call disk_indices_to_filename(filename, label)
+    inquire (file=trim(this%scratch_path)//filename, EXIST=file_exists)
 
     if (file_exists) then
       val = .true.
@@ -311,80 +456,114 @@ contains
     end if
 
   end function
+  
+  subroutine disk_list_cache(this)
+    class(TMatrixCacheDisk) :: this
+    
+    type(TMatLabel) :: label
+    
+    ! no good. Probably the object should keep track of
+    ! the cached matrices with a mapping label-> filename
+  end subroutine
+
 
   subroutine disk_destroy(this)
-    class(TSurfaceGreenCacheDisk) :: this
+    class(TMatrixCacheDisk) :: this
     ! Empty. Defined only for interface.
   end subroutine
 
-  subroutine disk_indices_to_filename(filename, contact, nkp, pnt, nsp)
+  subroutine disk_indices_to_filename(filename, label)
     character(LST), intent(out) :: filename
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+    type(TMatLabel) :: label
 
-    character(2) :: ofcont
+    character(2) :: ofrow
+    character(2) :: ofcol
     character(1) :: ofspin
     character(10) :: ofkpnt
-    character(10) :: ofpnt
+    character(10) :: ofEpnt
 
-    write (ofcont, '(i2.2)') contact
-    if (nkp .le. 99) write (ofkpnt, '(i2.2)') nkp
-    if (nkp .gt. 99) write (ofkpnt, '(i3.3)') nkp
-    if (nkp .gt. 999) write (ofkpnt, '(i4.4)') nkp
-    if (nkp .gt. 9999) stop 'ERROR: too many k-points (> 9999)'
-    if (pnt .le. 999) write (ofpnt, '(i3.3)') pnt
-    if (pnt .gt. 999) write (ofpnt, '(i4.4)') pnt
-    if (pnt .gt. 9999) write (ofpnt, '(i5.5)') pnt
-    if (pnt .gt. 99999) stop 'ERROR: too many contour points (> 99999)'
-    if (nsp .eq. 1) ofspin = 'u'
-    if (nsp .eq. 2) ofspin = 'd'
-    filename = 'GS'//ofspin//ofcont//'_'//trim(ofkpnt)//'_'//trim(ofpnt)//'.dat'
+    write (ofrow, '(i2.2)') label%row_block
+    write (ofcol, '(i2.2)') label%col_block
+
+    call get_string_label(label%kpoint, ofkpnt)
+    call get_string_label(label%energy_point, ofEpnt)
+    if (label%spin .eq. 1) ofspin = 'u'
+    if (label%spin .eq. 2) ofspin = 'd'
+    filename = 'Mat'//ofspin//ofrow//'_'//ofcol//'_'//trim(ofkpnt)//'_'//trim(ofEpnt)//'.dat'
 
   end subroutine
 
-  !! Definitions for TSurfaceGreenCacheDummy
+  !! Definitions for TMatrixCacheDummy
 
-  subroutine dummy_add(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheDummy) :: this
-    type(z_DNS):: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+  subroutine dummy_add(this, matrix, label)
+    class(TMatrixCacheDummy) :: this
+    type(z_DNS):: matrix
+    type(TMatLabel) :: label
 
     ! Dummy operation
 
   end subroutine
 
-  subroutine dummy_retrieve(this, surface_green, contact, nkp, pnt, nsp)
-    class(TSurfaceGreenCacheDummy) :: this
-    !> Input surface green to be retrieved: It needs to be already allocated with
+  subroutine dummy_retrieve(this, matrix, label)
+    class(TMatrixCacheDummy) :: this
+    !> Input matrix to be retrieved: It needs to be already allocated with
     !> the correct number of rows and columns.
-    type(z_DNS) :: surface_green
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+    type(z_DNS) :: matrix
+    type(TMatLabel) :: label
 
     ! Dummy operation
 
   end subroutine
+  
+  ! This routine gives error because a pointer cannot be associated
+  function dummy_retrieve_pointer(this, label) result(pmatrix)
+    class(TMatrixCacheDummy) :: this
+    type(TMatLabel) :: label
+    type(z_DNS), pointer :: pmatrix
+    ! Dummy operation
+    pmatrix => null() 
 
-  function dummy_is_cached(this, contact, nkp, pnt, nsp) result(val)
-    class(TSurfaceGreenCacheDummy) :: this
-    integer :: nkp
-    integer :: pnt
-    integer :: nsp
-    integer :: contact
+  end function dummy_retrieve_pointer
+  
+  ! This routine gives error because a pointer cannot be associated
+  function dummy_retrieve_loc(this, label) result(pmatrix)
+    class(TMatrixCacheDummy) :: this
+    type(TMatLabel) :: label
+    type(C_PTR) :: pmatrix
+    ! Dummy operation
+    pmatrix = C_NULL_PTR
+
+  end function dummy_retrieve_loc
+
+
+  function dummy_is_cached(this, label) result(val)
+    class(TMatrixCacheDummy) :: this
+    type(TMatLabel) :: label
     logical :: val
 
     val = .false.
 
   end function
+  
+  subroutine dummy_list_cache(this)
+    class(TMatrixCacheDummy) :: this
+  end subroutine
 
   subroutine dummy_destroy(this)
-    class(TSurfaceGreenCacheDummy) :: this
+    class(TMatrixCacheDummy) :: this
   end subroutine
+
+  ! utility to obtain a 0-padded integer label
+  subroutine get_string_label(int_label, str_label)
+    integer, intent(in) :: int_label
+    character(*), intent(inout) :: str_label
+    if (int_label .le. 99) write (str_label, '(i2.2)') int_label
+    if (int_label .gt. 99) write (str_label, '(i3.3)') int_label
+    if (int_label .gt. 999) write (str_label, '(i4.4)') int_label
+    if (int_label .gt. 9999) write (str_label, '(i5.5)') int_label
+    if (int_label .gt. 99999) write (str_label, '(i6.6)') int_label
+    if (int_label .gt. 999999) write (str_label, '(i7.7)') int_label
+    if (int_label .gt. 9999999) stop 'ERROR: label too large (> 9999999)'
+  end subroutine get_string_label
+
 end module

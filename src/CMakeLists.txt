@@ -27,9 +27,13 @@ set(sources-fpp
   population.F90
   energy_mesh.F90
   interactions.F90
+  ln_elastic.F90
+  ln_inelastic.F90
   elphdd.F90
   elphdb.F90
   elphds.F90
+  elphinel.F90
+  scba.F90
   sparskit/skit_blassm.F90
   sparskit/skit_formats.F90
   sparskit/skit_module.F90
@@ -38,6 +42,8 @@ set(sources-fpp
 if(WITH_INELASTIC)
   list(APPEND sources-fpp transform.F90)
 endif()
+
+set(sources-c self_energy.c)
 
 set(sources-f90
   api/libnegfAPICommon.f90
@@ -65,7 +71,7 @@ foreach(fppsrc IN LISTS sources-fpp)
 endforeach()
 
 #add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
-add_library(negf ${sources-fpp-f90} ${sources-f90})
+add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-c})
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC

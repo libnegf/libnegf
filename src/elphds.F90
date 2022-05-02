@@ -1,9 +1,9 @@
 !!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Function calculation                             !
 !!                                                                          !
 !! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
 !! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
@@ -15,7 +15,7 @@
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 !> Overlap mask elastic dephasing model
@@ -23,22 +23,24 @@
 module elphds
 
   use ln_precision, only : dp
-  use interactions, only : interaction
+  use interactions, only : TInteraction
+  use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
   use mat_def, only : z_csr, z_dns, create, destroy
   use sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
-  
+
   implicit none
   private
 
   public :: ElPhonDephS, ElPhonDephS_create
+  public :: ElPhonDephS_init
 
-  type, extends(interaction) :: ElPhonDephS
+  type, extends(TElastic) :: ElPhonDephS
 
     private
-    !> Coupling for each atomic mode in CSR form, dimension energy^2
+    !> Electron-phonon Coupling for each atomic mode in CSR form, dimension energy
     type(z_CSR), allocatable, dimension(:) :: couplings
     !> CSR retarded self energy for each mode
     type(z_CSR), allocatable, dimension(:) :: sigma_r
@@ -58,30 +60,37 @@ module elphds
   contains
 
     procedure :: add_sigma_r
-    procedure :: get_sigma_n
+    procedure :: add_sigma_n
+    procedure :: get_sigma_n_blk
+    procedure :: get_sigma_n_mat
     procedure :: set_Gr
     procedure :: set_Gn
+    procedure :: compute_Sigma_r
+    procedure :: compute_Sigma_n
 
   end type ElPhonDephS
 
 contains
 
+  subroutine ElPhonDephS_create(this)
+    class(TInteraction), allocatable :: this
+    allocate(ElPhonDephS::this)
+  end subroutine ElPhonDephS_create
+
   !>
   ! Factory for el-ph dephasing diagonal model
   ! @param struct : contact/device partitioning infos
-  ! @param coupling: coupling (energy units) 
+  ! @param coupling: coupling (energy units)
   ! @param orbsperatom: number of orbitals per each atom
   ! @param over: overlap matrix in csr
   ! @param niter: fixed number of scba iterations
   ! @param tol: scba tolerance
-  subroutine ElPhonDephS_create(this, struct, coupling, orbsperatm, over, niter, tol)
-    
-    type(ElPhonDephS), intent(inout) :: this
+  subroutine ElPhonDephS_init(this, struct, coupling, orbsperatm, over, niter)
+    type(ElPhonDephS) :: this
     type(TStruct_info), intent(in) :: struct
     real(dp), dimension(:), intent(in) :: coupling
     integer, dimension(:), intent(in) :: orbsperatm
     integer, intent(in) :: niter
-    real(dp), intent(in) :: tol
     type(z_CSR), pointer, intent(in) :: over
 
     integer :: ii, jj, natm, ierr, norbs, offset, iimode
@@ -94,9 +103,8 @@ contains
     if (size(coupling).ne.sum(orbsperatm)) then
       stop 'Error: coupling and orbsperatom not compatible'
     end if
-    
+
     this%scba_niter = niter
-    this%scba_tol = tol
     this%struct = struct
     this%orbsperatm = orbsperatm
     natm = size(this%orbsperatm)
@@ -111,7 +119,9 @@ contains
         this%nummodes = this%nummodes - 1
       end if
     end do
-    
+
+    this%wq = 0.0_dp   ! Zero energy mode
+
     allocate(this%sigma_r(this%nummodes), stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_sigma_r'
     allocate(this%sigma_n(this%nummodes), stat=ierr)
@@ -119,7 +129,6 @@ contains
     allocate(this%couplings(this%nummodes), stat=ierr)
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate csr_couplings'
 
-    
     iimode = 0
     do ii = 1, natm
      offset = sum(orbsperatm(1:ii-1))
@@ -147,14 +156,17 @@ contains
     end do
     call destroy(over_device)
 
-  end subroutine ElPhonDephS_create
+  end subroutine ElPhonDephS_init
 
 
   !> This interface should append
   !  the retarded self energy to ESH
-  subroutine add_sigma_r(this, esh)
+  subroutine add_sigma_r(this, esh, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(z_dns), dimension(:,:), intent(inout) :: esh
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
     integer :: n, npl, ii, ierr, jj
@@ -186,14 +198,56 @@ contains
     deallocate(tmp_blk)
 
   end subroutine add_sigma_r
-  
+
+  !--------------------------------------------------------------------------
+  !> This interface should append
+  !  sigma_n to a passed self energy, sigma
+  subroutine add_sigma_n(this, sigma, en_index, k_index, spin)
+    class(ElPhonDephS) :: this
+    type(z_dns), dimension(:,:), intent(inout) :: sigma
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
+
+    type(z_dns), dimension(:,:), allocatable :: tmp_blk
+    integer :: n, npl, ii, ierr, jj
+
+    if (this%scba_iter .eq. 0) return
+    npl = this%struct%num_PLs
+    if (npl .ne. 1) then
+      write(*,*) 'ElphPhonDephB works only with single PL'
+      stop 0
+    end if
+
+    ! This could be done more performant, but this model won't see much use
+    ! so I am leaving this way
+    allocate(tmp_blk(npl,npl),stat=ierr)
+    do ii = 1,this%nummodes
+      if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+      call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
+      do jj = 1,npl
+        sigma(jj, jj)%val = sigma(jj, jj)%val + tmp_blk(jj, jj)%val
+        call destroy(tmp_blk(jj,jj))
+        if (jj .lt. npl) then
+          sigma(jj, jj + 1)%val = sigma(jj, jj + 1)%val + tmp_blk(jj, jj + 1)%val
+          call destroy(tmp_blk(jj,jj+1))
+          sigma(jj + 1, jj)%val = sigma(jj + 1, jj)%val + tmp_blk(jj + 1, jj)%val
+          call destroy(tmp_blk(jj+1,jj))
+        end if
+      end do
+    end do
+    deallocate(tmp_blk)
+
+  end subroutine add_sigma_n
 
   !> Returns the lesser (n) Self Energy in block format
-  !  
-  subroutine get_sigma_n(this, blk_sigma_n, en_index)
+  !
+  subroutine get_sigma_n_blk(this, blk_sigma_n, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(z_dns), dimension(:,:), intent(inout) :: blk_sigma_n
-    integer, intent(in) :: en_index
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
     integer :: n, npl, ii, nrow, ierr, jj
@@ -204,15 +258,15 @@ contains
       write(*,*) 'ElphPhonDephB works only with single PL now'
       stop 0
     end if
-    
+
     do n = 1, npl
       nrow = this%struct%mat_PL_end(n) - this%struct%mat_PL_start(n) + 1
-      if (allocated(blk_sigma_n(n,n)%val)) then
+      if (.not.allocated(blk_sigma_n(n,n)%val)) then
         call create(blk_sigma_n(n,n), nrow, nrow)
-      end if  
+      end if
       blk_sigma_n(n,n)%val = (0.0_dp, 0.0_dp)
     end do
-      
+
     allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1, this%nummodes
       if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
@@ -232,13 +286,25 @@ contains
     end do
     deallocate(tmp_blk)
 
-  end subroutine get_sigma_n
+  end subroutine get_sigma_n_blk
+
+  subroutine get_sigma_n_mat(this, sigma_n, ii, jj, en_index, k_index, spin)
+    class(ElPhonDephS) :: this
+    type(z_dns), intent(inout) :: sigma_n
+    integer, intent(in) :: ii
+    integer, intent(in) :: jj
+    integer, intent(in), optional  :: en_index
+    integer, intent(in), optional  :: k_index
+    integer, intent(in), optional  :: spin
+  end subroutine get_sigma_n_mat
 
   !> Give the Gr at given energy point to the interaction
-  subroutine set_Gr(this, Gr, en_index)
+  subroutine set_Gr(this, Gr, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(z_dns), dimension(:,:), intent(in) :: Gr
-    integer :: en_index
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
 
     type(z_dns) :: work1, work2, work3
     integer :: n, npl, ii, natm, nnz
@@ -250,7 +316,7 @@ contains
     if (npl .ne. 1) then
       write(*,*) 'ElphPhonDephB works only with single PL'
       stop 0
-    end if  
+    end if
     do ii=1,this%nummodes
       if (allocated(this%sigma_r(ii)%rowpnt)) then
         call destroy(this%sigma_r(ii))
@@ -271,10 +337,12 @@ contains
   end subroutine set_Gr
 
   !> Give the Gn at given energy point to the interaction
-  subroutine set_Gn(this, Gn, en_index)
+  subroutine set_Gn(this, Gn, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(z_dns), dimension(:,:), intent(in) :: Gn
-    integer :: en_index
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
 
     type(z_dns) :: work1, work2, work3
     integer :: n, npl, ii, nnz
@@ -285,24 +353,39 @@ contains
     if (npl .ne. 1) then
       write(*,*) 'ElphPhonDephB works only with single PL'
       stop 0
-    end if   
-    do ii=1,this%nummodes    
+    end if
+    do ii=1,this%nummodes
       if (allocated(this%sigma_n(ii)%rowpnt)) then
         call destroy(this%sigma_n(ii))
-      end if 
-      call create(work1, this%couplings(ii)%nrow, this%couplings(ii)%ncol)  
+      end if
+      call create(work1, this%couplings(ii)%nrow, this%couplings(ii)%ncol)
       call csr2dns(this%couplings(ii), work1)
       call prealloc_mult(work1, Gn(1,1), work2)
       work1%val = conjg(transpose(work1%val))
       call prealloc_mult(work2, work1, work3)
       call destroy(work1)
       call destroy(work2)
-      nnz = nzdrop(work3, 1.0d-12)   
-      call create(this%sigma_n(ii), Gn(1,1)%nrow, Gn(1,1)%ncol, nnz)  
+      nnz = nzdrop(work3, 1.0d-12)
+      call create(this%sigma_n(ii), Gn(1,1)%nrow, Gn(1,1)%ncol, nnz)
       call dns2csr(work3, this%sigma_n(ii))
-      call destroy(work3)   
-    end do  
+      call destroy(work3)
+    end do
   end subroutine set_Gn
 
+  !>  Compute Sigma_r : necessary for inelastic
+  subroutine compute_Sigma_r(this, en_index, k_index, spin)
+    class(ElPhonDephS) :: this
+    integer, intent(in), optional  :: en_index
+    integer, intent(in), optional  :: k_index
+    integer, intent(in), optional  :: spin
+  end subroutine compute_Sigma_r
+
+  !>  Compute Sigma_n : necessary for inelastic
+  subroutine compute_Sigma_n(this, en_index, k_index, spin)
+    class(ElPhonDephS) :: this
+    integer, intent(in), optional  :: en_index
+    integer, intent(in), optional  :: k_index
+    integer, intent(in), optional  :: spin
+  end subroutine compute_Sigma_n
 
 end module elphds

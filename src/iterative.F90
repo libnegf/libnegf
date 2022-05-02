@@ -22,17 +22,20 @@
 module iterative
 
   use ln_precision
-  use ln_constants, only : pi, i_unit => j 
+  use ln_constants, only : pi, i_unit => j
   use ln_allocation
   use mat_def
   use sparsekit_drv
   use inversions
   use elph
   use ln_structure, only : TStruct_Info
-  use lib_param, only : MAXNCONT, Tnegf, intarray
+  use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList
   use mpi_globals, only : id, numprocs, id0
   use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
   use clock
+  use ln_cache
+  use ln_elastic
+  use ln_inelastic
   !use transform
 
   implicit none
@@ -43,7 +46,7 @@ module iterative
 
   public :: calculate_Gr
   public :: calculate_Gn_neq_components
-
+  public :: calculate_elastic_scba
   public :: calculate_gsmr_blocks
   public :: calculate_gsml_blocks
   public :: calculate_Gr_tridiag_blocks
@@ -128,7 +131,7 @@ CONTAINS
     end associate
 
     !! Add interaction self energy contribution, if any
-    if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
+    call add_sigma_r(negf, ESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
@@ -144,10 +147,8 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-
     !! Deliver Gr to interaction models if any
-    if (allocated(negf%inter)) call negf%inter%set_Gr(Gr, negf%iE)
-    !-----------------------------------------------------------
+    call set_Gr(negf, Gr)
 
     call blk2csr(Gr,negf%str,negf%S,Grout)
 
@@ -159,12 +160,10 @@ CONTAINS
       call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.TRUE.,Grout)
     end SELECT
 
-    !Distruzione dell'array Gr
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
 
   end subroutine calculate_Gr
-
 
   !****************************************************************************
   !
@@ -210,7 +209,7 @@ CONTAINS
     integer, intent(in), optional  :: outblocks
 
     !Work
-    integer :: ref, iter
+    integer :: ref
     complex(dp) :: Ec
     integer :: i,ierr,ncont,nbl, lbl, rbl
     integer, dimension(:), allocatable :: Gr_columns
@@ -238,10 +237,8 @@ CONTAINS
       ESH(cblk(i),cblk(i))%val = ESH(cblk(i),cblk(i))%val - SelfEneR(i)%val
     end do
 
-    !! Add interaction self energy if any and initialize scba counter
-    if (allocated(negf%inter)) then
-      call negf%inter%add_sigma_r(ESH)
-    end if
+    ! Add interaction self energies (if any)
+    call add_sigma_r(negf, ESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
@@ -254,22 +251,19 @@ CONTAINS
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
     !Passing Gr to interaction that builds Sigma_r
-    if (allocated(negf%inter)) then
-      call negf%inter%set_Gr(Gr, negf%iE)
-    end if
+    call set_Gr(negf, Gr)
+
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
-    
+
     call calculate_Gn_tridiag_blocks(negf,ESH,SelfEneR,frm,ref,negf%str,Gn)
 
-    call destroy_gsm(gsmr) 
+    call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
     !Passing G^n to interaction that builds Sigma^n
-    if (allocated(negf%inter)) then
-      call negf%inter%set_Gn(Gn, negf%iE)
-    end if
+    call set_Gn(negf, Gn)
 
     if (present(Glout)) then
       call blk2csr(Gn,negf%str,negf%S,Glout)
@@ -290,6 +284,61 @@ CONTAINS
     call destroy_all_blk(negf)
 
   end subroutine calculate_Gn_neq_components
+
+
+  !---------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  subroutine calculate_elastic_scba(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,scba_niter, &
+            &  scba_tol, scba_error)
+    type(Tnegf), intent(inout) :: negf
+    type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
+    real(dp), intent(in)  :: E
+    real(dp), dimension(:), intent(in)  :: frm
+    integer, intent(in) :: scba_niter
+    real(dp), intent(in) :: scba_tol
+    real(dp), intent(inout) :: scba_error
+
+    logical :: tDestroyGn, tDestroyESH, tDestroyGr
+    Type(z_CSR) :: Gn
+    integer :: scba_iter, outer = 0
+
+    tDestroyGn = negf%tDestroyGn
+    tDestroyGr = negf%tDestroyGr
+    tDestroyESH = negf%tDestroyESH
+
+    call negf%scbaDriverElastic%init(tol = scba_tol, dowrite = .false.)
+    scba_iter = 0
+
+    do while (.not.negf%scbaDriverElastic%is_converged() .and. scba_iter <= scba_niter)
+      call negf%scbaDriverElastic%set_scba_iter(scba_iter, negf%interactList)
+
+      negf%tDestroyGn = .true.
+      negf%tDestroyGr = .true.
+      negf%tDestroyESH = .true.
+     
+      call destroy_all_blk(negf)
+      
+      if (.not.tDestroyGn) negf%tDestroyGn = .false.
+      if (.not.tDestroyGr) negf%tDestroyGr = .false.
+      if (.not.tDestroyESH) negf%tDestroyESH = .false.
+     
+      call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Gn,outer)
+
+      call negf%scbaDriverElastic%check_Mat_convergence(Gn)
+      call destroy(Gn)
+      call negf%G_r%destroy()
+      call negf%G_n%destroy()
+
+      scba_iter = scba_iter + 1
+
+    enddo
+
+    scba_error = negf%scbaDriverElastic%scba_error()
+
+    call negf%scbaDriverElastic%destroy()
+
+  end subroutine calculate_elastic_scba
 
   !---------------------------------------------------------------------
   !>
@@ -322,12 +371,12 @@ CONTAINS
 
     ncont = negf%str%num_conts
 
-    do ii = 1, ncont 
-      lead = ii 
+    do ii = 1, ncont
+      lead = ii
       lead_blk = negf%str%cblk(lead)
       call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gam)
       call prealloc_mult(Gam, Gn(lead_blk, lead_blk), work1)
-        
+
       call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
       tmp = cmplx(-frm(lead),0.0_dp, dp)
       call prealloc_mult(Gam, A, tmp, work1)
@@ -351,7 +400,7 @@ CONTAINS
   ! set negf%tDestroyGn = .false. when computing Gn
   !
   ! Note : ESH(ii,ii+1) are not changed by diagonal Sigma^r
-  !        With non-diagonal sigma^r ESH must be recomputed  
+  !        With non-diagonal sigma^r ESH must be recomputed
   !
   subroutine iterative_layer_current(negf,E,curr_mat)
     type(Tnegf), intent(inout) :: negf
@@ -369,7 +418,7 @@ CONTAINS
     if (size(curr_mat) .ne. nbl-1) then
        stop 'ERROR: curr_mat with wrong size in iterative_layer_current'
     end if
-    
+
     Ec=cmplx(E,0.0_dp,dp)
     call prealloc_sum(negf%H, negf%S, minusone, Ec, ESH_tot)
     call allocate_blk_dns(ESH,nbl)
@@ -379,7 +428,7 @@ CONTAINS
     do ii = 1, nbl-1
       call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
       call prealloc_mult(ESH(ii+1,ii),Gn(ii,ii+1), minusone, work1)
-      curr_mat(ii) = real(i_unit*trace(work1)) 
+      curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
     end do
 
@@ -387,6 +436,196 @@ CONTAINS
 
   end subroutine iterative_layer_current
 
+
+  !--------------------------------------------------------------------------
+  ! Add all Self-enrgies to the Hamiltonian
+  subroutine add_sigma_r(negf, ESH)
+    class(TNegf) :: negf
+    type(z_DNS) :: ESH(:,:)
+
+    type(TInteractionNode), pointer :: it
+    it => negf%interactList%first
+    print*,'add_sigma_r',associated(it)
+    do while (associated(it))
+      call it%inter%add_sigma_r(ESH, negf%iE, negf%iKpoint, negf%spin)
+      it => it%next
+    end do
+
+  end subroutine add_sigma_r
+
+  !--------------------------------------------------------------------------
+  ! Add all Self-enrgies to Sigma_n
+  subroutine add_sigma_n(negf, sigma_n)
+    class(TNegf) :: negf
+    type(z_DNS) :: sigma_n(:,:)
+
+    type(TInteractionNode), pointer :: it
+    it => negf%interactList%first
+
+    do while (associated(it))
+      call it%inter%add_sigma_n(sigma_n, negf%iE, negf%iKpoint, negf%spin)
+      it => it%next
+    end do
+  end subroutine add_sigma_n
+
+
+  !--------------------------------------------------------------------------
+  !> Store Gr
+  !>
+  subroutine cache_Gr(negf, Gr, en_index, k_index, spin)
+    class(TNegf) :: negf
+    type(z_dns), dimension(:,:), intent(in) :: Gr
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
+
+    type(TMatLabel) :: label
+    integer :: ii, jj, nbl
+
+    if (.not.associated(negf%G_r)) then
+       allocate(TMatrixCacheMem::negf%G_r)
+       select type(p => negf%G_r)
+       type is(TMatrixCacheMem)
+          p%tagname='G_r'
+       end select
+    end if
+
+    label%kpoint = 0
+    label%energy_point = 0
+    label%spin = 0
+
+    if (present(k_index)) then
+      label%kpoint = k_index
+    end if
+    if (present(k_index)) then
+      label%energy_point = en_index
+    end if
+    if (present(spin)) then
+      label%spin = spin
+    end if
+
+    ! Just store the diagonal blocks for now
+    do ii = 1, size(Gr,1)
+      label%row_block = ii
+      label%col_block = ii
+      if (.not.negf%G_r%is_cached(label)) then
+        !print*,'cache G_r'
+        !call print_label(label)
+        call negf%G_r%add(Gr(ii,ii), label)
+      end if
+    end do
+
+  end subroutine cache_Gr
+
+  !--------------------------------------------------------------------------
+  !> store Gn
+  !>
+  subroutine cache_Gn(negf, Gn, en_index, k_index, spin)
+    class(TNegf) :: negf
+    type(z_dns), dimension(:,:), intent(in) :: Gn
+    integer, intent(in), optional :: en_index
+    integer, intent(in), optional :: k_index
+    integer, intent(in), optional :: spin
+
+    type(TMatLabel) :: label
+    integer :: ii, jj, nbl
+
+    if (.not.associated(negf%G_n)) then
+       allocate(TMatrixCacheMem::negf%G_n)
+       select type(p => negf%G_n)
+       type is(TMatrixCacheMem)
+          p%tagname='G_n'
+       end select
+    end if
+
+    label%kpoint = 0
+    label%energy_point = 0
+    label%spin = 0
+
+    if (present(k_index)) then
+      label%kpoint = k_index
+    end if
+    if (present(k_index)) then
+      label%energy_point = en_index
+    end if
+    if (present(spin)) then
+      label%spin = spin
+    end if
+
+    ! Just store the diagonal blocks for now
+    do ii = 1, size(Gn,1)
+      label%row_block = ii
+      label%col_block = ii
+      if (.not.negf%G_n%is_cached(label)) then
+         ! print*,'cache G_n'
+         !call print_label(label)
+         call negf%G_n%add(Gn(ii,ii), label)
+      end if
+    end do
+
+  end subroutine cache_Gn
+
+  ! Provides Gr to the interaction models.
+  ! In some case the self/energies are computed
+  subroutine set_Gr(negf, Gr)
+    type(TNegf) :: negf
+    type(z_DNS), intent(in) :: Gr(:,:)
+
+    integer :: iE, iK, iSpin
+    type(TInteractionNode), pointer :: it
+    it => negf%interactList%first
+    iE=negf%iE
+    iK=negf%iKpoint
+    iSpin=negf%spin
+
+    do while (associated(it))
+      if (it%inter%wq == 0.0_dp) then
+        ! elastic case
+        call it%inter%set_Gr(Gr, iE, iK, iSpin)
+      else
+        ! inelastic case
+        ! cache Gr in negf container and pass the pointer
+        call cache_Gr(negf, Gr, iE, iK, iSpin)
+        select type(pInter => it%inter)
+        class is (TInelastic)
+           call pInter%set_Gr_pointer(negf%G_r)
+        end select
+      end if
+      it => it%next
+    end do
+
+  end subroutine set_Gr
+
+  ! Provides Gn to the interaction models.
+  ! In some case the self/energies are computed
+  subroutine set_Gn(negf, Gn)
+    type(TNegf) :: negf
+    type(z_DNS), intent(in) :: Gn(:,:)
+
+    integer :: iE, iK, iSpin
+    type(TInteractionNode), pointer :: it
+    it => negf%interactList%first
+    iE=negf%iE
+    iK=negf%iKpoint
+    iSpin=negf%spin
+
+    do while (associated(it))
+      if (it%inter%wq == 0.0_dp) then
+        ! elastic case
+        call it%inter%set_Gn(Gn, iE, iK, iSpin)
+      else
+        ! inelastic case
+        ! cache Gn in negf container and pass the pointer
+        call cache_Gn(negf, Gn, iE, iK, iSpin)
+        select type(pInter => it%inter)
+        class is (TInelastic)
+           call pInter%set_Gn_pointer(negf%G_n)
+        end select
+      end if
+      it => it%next
+    end do
+
+  end subroutine set_Gn
 
   !------------------------------------------------------------------------------!
   ! Transmission_BP_corrected
@@ -552,15 +791,15 @@ CONTAINS
     if (negf%tDestroyESH) then
       call destroy_tridiag_blk(ESH)
       if (allocated(ESH)) deallocate(ESH)
-    end if  
+    end if
     if (negf%tDestroyGr) then
       call destroy_blk(Gr)
       if (allocated(Gr)) deallocate(Gr)
-    end if   
+    end if
     if (negf%tDestroyGn) then
        call destroy_blk(Gn)
        if (allocated(Gn)) deallocate(Gn)
-    end if   
+    end if
   end subroutine destroy_all_blk
 
   !**********************************************************************
@@ -597,7 +836,7 @@ CONTAINS
 
   !**********************************************************************
   subroutine destroy_tridiag_blk(M)
-    type(z_DNS), dimension(:,:), allocatable :: M 
+    type(z_DNS), dimension(:,:), allocatable :: M
 
     integer :: i, nbl
 
@@ -608,7 +847,7 @@ CONTAINS
     do i=1,nbl
       if (allocated(M(i,i)%val)) then
         call destroy(M(i,i))
-      end if  
+      end if
     end do
     do i=2,nbl
       if (allocated(M(i-1,i)%val)) then
@@ -616,7 +855,7 @@ CONTAINS
       end if
       if (allocated(M(i,i-1)%val)) then
         call destroy(M(i,i-1))
-      end if  
+      end if
     end do
 
   end subroutine destroy_tridiag_blk
@@ -1113,7 +1352,7 @@ CONTAINS
   ! The subroutine uses the gsmr(:) computed before and makes an iteration
   ! upward to build gsmn and then downward to build the 3-diagonal blocks
   subroutine calculate_Gn_tridiag_blocks(negf,ESH,SelfEneR,frm,ref,struct,Gn)
-    type(TNegf), intent(in) :: negf    
+    type(TNegf), intent(in) :: negf
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     type(z_DNS), dimension(:), intent(in) :: SelfEneR
     real(dp), dimension(:), intent(in) :: frm
@@ -1136,10 +1375,9 @@ CONTAINS
     call allocate_blk_dns(Sigma_n, nbl)
     call init_tridiag_blk(Sigma_n, ESH)
 
-    if (allocated(negf%inter)) then
-      call negf%inter%get_sigma_n(Sigma_n, negf%ie)
-    end if
+    call add_sigma_n(negf, Sigma_n)
 
+    ! Add contact self-energies
     do j=1,ncont
       frmdiff = frm(j) - frm(ref)
       if (j.NE.ref .AND. ABS(frmdiff).GT.EPS) THEN
@@ -1154,11 +1392,14 @@ CONTAINS
 
     call zdagger(Gr(1,1), Ga)
     call prealloc_mult(Sigma_n(1,1), Ga, work1)
-    call prealloc_mult(Gr(1,1), work1, Gn(1,1))    
+    call prealloc_mult(Gr(1,1), work1, Gn(1,1))
     call destroy(Ga, work1)
-    
-    if (nbl .eq. 1) return
 
+    if (nbl .eq. 1) then
+       call destroy_tridiag_blk(Sigma_n)
+       call deallocate_blk_dns(Sigma_n)
+       return
+    end if
     !Explicit formulae:
     !Gn(i+1,i) = gsmr(i+1)*[Sigma(i+1,i)Ga(i,i) + Sigma(i+1,i+1)Ga(i+1,i) - Tr(i+1,i)Gn(i,i)]
     !Gn(i,i+1) = [Gr(i,i)Sigma(i,i+1) + Gr(i,i+1)Sigma(i+1,i+1) - Gn(i,i)Ta(i,i+1)] * gsma(i+1)
@@ -1202,25 +1443,25 @@ CONTAINS
 
     call destroy_tridiag_blk(Sigma_n)
     call deallocate_blk_dns(Sigma_n)
- 
+
     contains
-    ! Recursive calculation of Sigma_n:      
+    ! Recursive calculation of Sigma_n:
     ! gns(i+1) = gsmr(i+1) Sigma(i+1,i+1) gsmr(i+1)^dag
-    ! Sigma(i,i) = Sigma(i,i) + Tr(i,i+1) gns(i+1) Ta(i+1,i) 
-    !                         - Tr(i,i+1) gsmr(i+1) Sigma(i+1,i) 
+    ! Sigma(i,i) = Sigma(i,i) + Tr(i,i+1) gns(i+1) Ta(i+1,i)
+    !                         - Tr(i,i+1) gsmr(i+1) Sigma(i+1,i)
     !                         - Sigma(i,i+1) gsmr^dag(i+1) Ta(i+1,i)]
-    ! 
-    subroutine calculate_sigma_n()      
+    !
+    subroutine calculate_sigma_n()
       !Work
-      type(z_DNS) :: work, gns, gsmrDag, ESHdag 
+      type(z_DNS) :: work, gns, gsmrDag, ESHdag
 
       ! if nbl = 1 => Sigma_n(1,1) is ready
       if (nbl.eq.1) return
       !g^n(nbl) = gsmr(nbl) Sigma(nbl,nbl) gsma(nbl)
       call zdagger(gsmr(nbl),gsmrDag)
-      call prealloc_mult(gsmr(nbl), Sigma_n(nbl,nbl), work1)
-      call prealloc_mult(work1, gsmrDag, gns)
-      call destroy(gsmrDag, work1)
+      call prealloc_mult(gsmr(nbl), Sigma_n(nbl,nbl), work)
+      call prealloc_mult(work, gsmrDag, gns)
+      call destroy(gsmrDag, work)
 
       do i = nbl-1, 1, -1
         !work1 = Tr(i,i+1) gns(i+1) Ta(i+1,i)
@@ -1404,10 +1645,10 @@ CONTAINS
     implicit none
 
     !In/Out
-    type(z_DNS), dimension(:) :: Tlc,Tcl,gsurfR
-    logical :: lower
+    type(z_DNS), dimension(:), intent(in) :: Tlc,Tcl,gsurfR
+    logical, intent(in) :: lower
     type(Tstruct_info), intent(in) :: struct
-    type(z_CSR) :: Aout
+    type(z_CSR), intent(inout) :: Aout
 
 
     !Work

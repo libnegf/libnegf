@@ -39,6 +39,9 @@ module ln_constants
   use ln_precision
   
   complex(dp), parameter ::  j = (0.0_dp,1.0_dp)     ! CMPX unity
+  complex(dp), parameter :: one = (1.0_dp,0.0_dp)        ! some 
+  complex(dp), parameter :: minusone = (-1.0_dp,0.0_dp)  ! shortcuts
+  complex(dp), parameter :: zero = (0.0_dp,0.0_dp)       !
   
   real(dp), parameter    :: pi = 3.1415926535897932384_dp ! Greek p real
   real(dp), parameter    :: hh = 4.135667525931100d-15  ! eV s

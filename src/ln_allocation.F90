@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 
-!!#:set MEMLOG = 1
+#:set MEMLOG = 1
 
 module ln_allocation
   use ln_precision

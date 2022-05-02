@@ -37,6 +37,7 @@ module libnegf
  use integrations
  use iso_c_binding
  use system_calls
+ use elph, only : interaction_models
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
@@ -49,8 +50,10 @@ module libnegf
  public :: HAR, eovh, pi, kb, units, set_drop, DELTA_SQ, DELTA_W, DELTA_MINGO ! from ln_constants
  public :: convertCurrent, convertHeatCurrent, convertHeatConductance ! from ln_constants
  public :: Tnegf
- public :: set_bp_dephasing, set_elph_dephasing, set_elph_block_dephasing
- public :: set_elph_s_dephasing, destroy_elph_model
+ public :: set_bp_dephasing
+ public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
+ public :: set_elph_inelastic
+ public :: interaction_models
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
  public :: dns2csr, csr2dns, nzdrop
@@ -60,12 +63,13 @@ module libnegf
  public :: set_energy_comm, set_kpoint_comm, set_cart_comm
  public :: negf_mpi_init, negf_cart_init !from mpi_globals
 #:endif
+ public :: set_kpoints
  public :: set_mpi_bare_comm
 
  !Input and work flow procedures
  public :: lnParams
  public :: init_negf, destroy_negf
- public :: init_contacts, init_structure
+ public :: init_contacts, init_structure, init_basis
  public :: get_params, set_params, set_scratch, set_outpath, create_scratch
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
@@ -100,7 +104,7 @@ module libnegf
                                           ! run total current calculation
  public :: layer_current            ! computes the layer-to-layer current
 
- public ::  write_tunneling_and_dos ! Print tunneling and dot to file
+ public :: write_tunneling_and_dos  ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed
                                     ! by calling program
  public :: compute_ldos             ! wrapping to compute ldos
@@ -222,6 +226,9 @@ contains
   subroutine init_negf(negf)
     type(Tnegf) :: negf
 
+    real(dp) :: kpoints(3,1), kweights(1)
+    integer :: local_kindex(1)
+
     call set_defaults(negf)
     negf%form%formatted = .true.
     negf%isSid = .false.
@@ -231,6 +238,12 @@ contains
     ! Allocate zero contacts by default. The actual number of contacts
     ! can be set calling init_contacts again.
     call init_contacts(negf, 0)
+
+    ! Initialize a default gamma point
+    kpoints(:,1) = (/0.0_dp, 0.0_dp, 0.0_dp /)
+    kweights(1) = 1.0_dp
+    local_kindex(1) = 1
+    call set_kpoints(negf, kpoints, kweights, local_kindex)
 
   end subroutine init_negf
 
@@ -518,6 +531,20 @@ contains
 
   end subroutine init_structure
 
+
+
+  !> Initialize basis
+  subroutine init_basis(negf, coords, nCentral, matrixIndices)
+    type(Tnegf) :: negf
+    real(dp), intent(in) :: coords(:,:)
+    integer, intent(in) :: nCentral
+    integer, intent(in) :: matrixIndices(:)
+
+    call create_TBasis(negf%basis, coords, nCentral, basisToMatrix=matrixIndices)
+
+  end subroutine init_basis
+
+  !> Initialize contanct data
   subroutine init_contacts(negf, ncont)
     type(Tnegf) :: negf
     integer, intent(in) :: ncont
@@ -539,20 +566,51 @@ contains
       ! Whether the contacts are ficticious and DOS to be used if the contact is
       ! ficticious.
       negf%cont(ii)%FictCont = .false.
-      negf%cont(ii)%contact_DOS = 0.d0
+      negf%cont(ii)%contact_DOS = 0.0_dp
       ! Electrochemical potentials.
-      negf%cont(ii)%mu = 0.d0
-      negf%cont(ii)%mu_n = 0.d0
-      negf%cont(ii)%mu_p = 0.d0
+      negf%cont(ii)%mu = 0.0_dp
+      negf%cont(ii)%mu_n = 0.0_dp
+      negf%cont(ii)%mu_p = 0.0_dp
       ! Electronic temperature for the density matrix calculation.
-      negf%cont(ii)%kbT_dm = 0.d0
+      negf%cont(ii)%kbT_dm = 0.0_dp
        ! Electronic temperature for the transmission calculation.
-      negf%cont(ii)%kbT_t = 0.d0
+      negf%cont(ii)%kbT_t = 0.0_dp
       ! Initialize the names to a default ContactXX, where XX is an index.
       write (negf%cont(ii)%name , "(A7, I2.2)") "Contact", ii
     end do
 
   end subroutine init_contacts
+
+  !> subroutine used to setup kpoints
+  !  kpoints(:)  kweights(:)  are global
+  !  local_kindex(:) is a local array storing the local indices
+  subroutine set_kpoints(negf, kpoints, kweights, local_kindex)
+    type(Tnegf) :: negf
+    real(dp), intent(in) :: kpoints(:,:)
+    real(dp), intent(in) :: kweights(:)
+    integer, intent(in) :: local_kindex(:)
+
+    if (size(kpoints,2) /= size(kweights)) then
+       STOP 'Error: size of kpoints do not match'
+    end if
+    if (allocated(negf%kpoints)) then
+       call log_deallocate(negf%kpoints)
+    end if
+    call log_allocate(negf%kpoints,3,size(kweights))
+    negf%kpoints = kpoints
+    if (allocated(negf%kweights)) then
+       call log_deallocate(negf%kweights)
+    end if
+    call log_allocate(negf%kweights,size(kweights))
+    negf%kweights = kweights
+    if (allocated(negf%local_k_index)) then
+       call log_deallocate(negf%local_k_index)
+    end if
+    call log_allocate(negf%local_k_index,size(local_kindex))
+    negf%local_k_index = local_kindex
+
+  end subroutine set_kpoints
+
 
   !!-------------------------------------------------------------------
   !! Get/Set parameters container
@@ -625,11 +683,11 @@ contains
     integer :: idx
 
     select type (sgf => negf%surface_green_cache)
-    type is (TSurfaceGreenCacheDisk)
+    type is (TMatrixCacheDisk)
       idx = 0
-    type is (TSurfaceGreenCacheMem)
+    type is (TMatrixCacheMem)
       idx = 1
-    type is (TSurfaceGreenCacheDummy)
+    type is (TMatrixCacheDummy)
       idx = 2
     class default
       idx = 2
@@ -702,22 +760,32 @@ contains
     ! is changed and the cache type is not, it must be forcibly destroyed
     ! using destroy_surface_green_cache
     tmp = get_surface_green_cache_type(negf)
-    if (params%SGFcache .eq. 0) then
-      if (tmp .ne. 0 .or. .not. allocated(negf%surface_green_cache)) then
-        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
-        negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
+    select case(params%SGFcache)
+    case(0)
+      if (tmp .ne. 0) then
+        if (allocated(negf%surface_green_cache)) then
+           call negf%surface_green_cache%destroy()
+           deallocate(negf%surface_green_cache)
+        end if
+        negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
       end if
-    else if (params%SGFcache .eq. 1) then
-      if (tmp .ne. 1 .or. .not. allocated(negf%surface_green_cache)) then
-        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
-        negf%surface_green_cache = TSurfaceGreenCacheMem()
+    case(1)
+      if (tmp .ne. 1) then
+        if (allocated(negf%surface_green_cache)) then
+           call negf%surface_green_cache%destroy()
+           deallocate(negf%surface_green_cache)
+        end if
+        negf%surface_green_cache = TMatrixCacheMem(tagname='SurfaceGF')
       end if
-    else
-      if (tmp .ne. 2 .or. .not. allocated(negf%surface_green_cache)) then
-        if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
-        negf%surface_green_cache = TSurfaceGreenCacheDummy()
+    case(2)
+      if (tmp .ne. 2) then
+        if (allocated(negf%surface_green_cache)) then
+           call negf%surface_green_cache%destroy()
+           deallocate(negf%surface_green_cache)
+        end if
+        negf%surface_green_cache = TMatrixCacheDummy()
       end if
-    end if
+    end select
 
   end subroutine set_params
 
@@ -733,10 +801,10 @@ contains
     end if
     !negf%scratch_path = trim(scratchpath)//'/GS/'
     negf%scratch_path = trim(scratchpath)//'/'
- 
+
     ! Update the cache object if needed.
     select type (sgf => negf%surface_green_cache)
-      type is (TSurfaceGreenCacheDisk)
+      type is (TMatrixCacheDisk)
         sgf%scratch_path = negf%scratch_path
     end select
 
@@ -1107,6 +1175,7 @@ contains
 
     call destroy_HS(negf)
     call kill_Tstruct(negf%str)
+    call destroy_TBasis(negf%basis)
     if (allocated(negf%dos_proj)) then
        call destroy_ldos(negf%dos_proj)
     end if
@@ -1123,17 +1192,27 @@ contains
        call log_deallocate(negf%curr_mat)
     end if
     if (allocated(negf%ldos_mat)) then
-       call log_deallocate(negf%ldos_mat)
+         call log_deallocate(negf%ldos_mat)
     end if
     if (allocated(negf%currents)) then
-       call log_deallocate(negf%currents)
+      call log_deallocate(negf%currents)
     end if
-    if (allocated(negf%ni)) deallocate(negf%ni)
-    if (allocated(negf%nf)) deallocate(negf%nf)
+    if (allocated(negf%kpoints)) then
+      call log_deallocate(negf%kpoints)
+    end if
+    if (allocated(negf%kweights)) then
+      call log_deallocate(negf%kweights)
+    end if
+    if (allocated(negf%local_k_index)) then
+      call log_deallocate(negf%local_k_index)
+    end if
+
+    call destroy_interactions(negf)
+
     call destroy_DM(negf)
     call destroy_matrices(negf)
     call destroy_surface_green_cache(negf)
-    call WriteMemInfo(6)
+    call destroy_cache_space(negf)
 
   end subroutine destroy_negf
 
@@ -1141,10 +1220,11 @@ contains
   subroutine destroy_surface_green_cache(negf)
     type(Tnegf) :: negf
 
-    if (allocated(negf%surface_green_cache)) call negf%surface_green_cache%destroy()
+    if (allocated(negf%surface_green_cache)) then
+          call negf%surface_green_cache%destroy()
+    end if
 
   end subroutine destroy_surface_green_cache
-
 
   !--------------------------------------------------------------------
   !> Copy the energy axis on all processors (for output, plot, debug)
@@ -1398,7 +1478,6 @@ contains
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
 
-
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
       call contour_int_def(negf)
       call contour_int(negf)
@@ -1496,7 +1575,7 @@ contains
 
        call log_deallocate(q_tmp)
     else
-       q = 0.d0
+       q = 0.0_dp
     endif
 
     call destroy_matrices(negf)
@@ -1519,7 +1598,7 @@ contains
     type(Tnegf) :: negf
 
 
-    if ( allocated(negf%inter) .or. negf%tDephasingBP) then
+    if ( negf%interactList%counter>0 .or. negf%tDephasingBP) then
        call compute_meir_wingreen(negf);
     else
        call compute_landauer(negf);
@@ -1534,6 +1613,7 @@ contains
   subroutine compute_landauer(negf)
 
     type(Tnegf) :: negf
+
     call extract_cont(negf)
     call tunneling_int_def(negf)
     ! TODO: need a check on elph here, but how to handle exception and messages
@@ -1569,8 +1649,8 @@ contains
     ! Dirty trick. Set the contact population to 1 on the final contact and
     ! 1 on the initial one.
     allocate(occupations(2))
-    occupations(negf%ni(1)) = 0.d0
-    occupations(negf%nf(1)) = 1.d0
+    occupations(negf%ni(1)) = 0.0_dp
+    occupations(negf%nf(1)) = 1.0_dp
 
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
@@ -1689,7 +1769,7 @@ contains
 
       open(newunit=iu,file=trim(negf%out_path)//'tunneling_'//ofKP//'_'//idstr//'.dat')
 
-      !negf%eneconv=1.d0
+      !negf%eneconv=1.0_dp
 
       do i = 1,Nstep
 
@@ -1793,7 +1873,7 @@ contains
   subroutine print_tnegf(negf)
     type(TNegf) :: negf
 
-    call print_all_vars(negf, 6)
+    call print_all_vars(negf,6)
   end subroutine print_tnegf
 
   !////////////////////////////////////////////////////////////////////////
