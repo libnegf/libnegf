@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(libNEGF VERSION 1.0.3 LANGUAGES Fortran C)
+project(libNEGF VERSION 1.1.0 LANGUAGES Fortran C)
 
 
 # Some setting output 
