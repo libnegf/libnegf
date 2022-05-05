@@ -22,7 +22,7 @@
 module iterative
 
   use ln_precision
-  use ln_constants, only : pi, i_unit => j
+  use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
   use mat_def
   use sparsekit_drv
@@ -116,7 +116,7 @@ CONTAINS
     ncont = negf%str%num_conts
 
     ! Take CSR H,S and build ES-H in dense blocks
-    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),E,ESH_tot)
+    call prealloc_sum(negf%H,negf%S,minusOne,E,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -225,7 +225,7 @@ CONTAINS
     Ec = cmplx(E,0.0_dp,dp)
 
     ! Take CSR H,S and build ES-H in dense blocks
-    call prealloc_sum(negf%H,negf%S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
+    call prealloc_sum(negf%H,negf%S,minusOne,Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -316,13 +316,13 @@ CONTAINS
       negf%tDestroyGn = .true.
       negf%tDestroyGr = .true.
       negf%tDestroyESH = .true.
-     
+
       call destroy_all_blk(negf)
-      
+
       if (.not.tDestroyGn) negf%tDestroyGn = .false.
       if (.not.tDestroyGr) negf%tDestroyGr = .false.
       if (.not.tDestroyESH) negf%tDestroyESH = .false.
-     
+
       call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Gn,outer)
 
       call negf%scbaDriverElastic%check_Mat_convergence(Gn)
@@ -410,7 +410,6 @@ CONTAINS
     integer :: nbl, ii
     type(z_DNS) :: work1
     type(z_CSR) :: ESH_tot
-    complex(dp), parameter :: minusone = (-1.0_dp, 0.0_dp)
     complex(dp) :: Ec
 
     nbl = negf%str%num_PLs
@@ -420,14 +419,14 @@ CONTAINS
     end if
 
     Ec=cmplx(E,0.0_dp,dp)
-    call prealloc_sum(negf%H, negf%S, minusone, Ec, ESH_tot)
+    call prealloc_sum(negf%H, negf%S, minusOne, Ec, ESH_tot)
     call allocate_blk_dns(ESH,nbl)
     call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
     call destroy(ESH_tot)
 
     do ii = 1, nbl-1
       call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
-      call prealloc_mult(ESH(ii+1,ii),Gn(ii,ii+1), minusone, work1)
+      call prealloc_mult(ESH(ii+1,ii),Gn(ii,ii+1), minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
     end do
@@ -579,18 +578,14 @@ CONTAINS
     iSpin=negf%spin
 
     do while (associated(it))
-      if (it%inter%wq == 0.0_dp) then
-        ! elastic case
+      select type(pInter => it%inter)
+      class is (Telastic)
         call it%inter%set_Gr(Gr, iE, iK, iSpin)
-      else
-        ! inelastic case
+      class is (TInelastic)
         ! cache Gr in negf container and pass the pointer
         call cache_Gr(negf, Gr, iE, iK, iSpin)
-        select type(pInter => it%inter)
-        class is (TInelastic)
-           call pInter%set_Gr_pointer(negf%G_r)
-        end select
-      end if
+        call pInter%set_Gr_pointer(negf%G_r)
+      end select
       it => it%next
     end do
 
@@ -610,18 +605,14 @@ CONTAINS
     iSpin=negf%spin
 
     do while (associated(it))
-      if (it%inter%wq == 0.0_dp) then
-        ! elastic case
+      select type(pInter => it%inter)
+      class is (Telastic)
         call it%inter%set_Gn(Gn, iE, iK, iSpin)
-      else
-        ! inelastic case
+      class is (TInelastic)
         ! cache Gn in negf container and pass the pointer
         call cache_Gn(negf, Gn, iE, iK, iSpin)
-        select type(pInter => it%inter)
-        class is (TInelastic)
-           call pInter%set_Gn_pointer(negf%G_n)
-        end select
-      end if
+        call pInter%set_Gn_pointer(negf%G_n)
+      end select
       it => it%next
     end do
 
@@ -914,7 +905,7 @@ CONTAINS
 
     do i=sbl-1,ebl,-1
 
-      call prealloc_mult(ESH(i,i+1),gsmr(i+1),(-1.0_dp, 0.0_dp),work1)
+      call prealloc_mult(ESH(i,i+1),gsmr(i+1),minusOne,work1)
 
       if (.not.keep) then
         call destroy(gsmr(i+1))
@@ -992,7 +983,7 @@ CONTAINS
 
       nrow=ESH(i,i)%nrow
 
-      call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+      call prealloc_mult(ESH(i,i-1),gsml(i-1),minusOne,work1)
 
       call prealloc_mult(work1,ESH(i-1,i),work2)
 
@@ -1077,7 +1068,7 @@ CONTAINS
           call prealloc_mult(ESH(sbl,sbl+1),gsmr(sbl+1),work2)
           call prealloc_mult(work2,ESH(sbl+1,sbl),work3)
           call destroy(work2)
-          call prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
+          call prealloc_sum(work1,work3,minusOne,work2)
           call destroy(work3)
           work1%val = work2%val
           call destroy(work2)
@@ -1086,7 +1077,7 @@ CONTAINS
           call prealloc_mult(ESH(sbl,sbl-1),gsml(sbl-1),work2)
           call prealloc_mult(work2,ESH(sbl-1,sbl),work3)
           call destroy(work2)
-          call prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
+          call prealloc_sum(work1,work3,minusOne,work2)
           call destroy(work3)
           work1%val = work2%val
           call destroy(work2)
@@ -1106,13 +1097,13 @@ CONTAINS
     if ((ebl.ge.sbl).and.(ebl.gt.1).and.(sbl.gt.1)) THEN
       do i=sbl,ebl,1
         call prealloc_mult(gsmr(i),ESH(i,i-1),work1)
-        call prealloc_mult(work1,Gr(i-1,i-1),(-1.0_dp,0.0_dp),Gr(i,i-1))
+        call prealloc_mult(work1,Gr(i-1,i-1),minusOne,Gr(i,i-1))
         call destroy(work1)
 
         call prealloc_mult(ESH(i-1,i),gsmr(i),work2)
-        call prealloc_mult(Gr(i-1,i-1),work2,(-1.0_dp, 0.0_dp),Gr(i-1,i))
+        call prealloc_mult(Gr(i-1,i-1),work2,minusOne,Gr(i-1,i))
 
-        call prealloc_mult(Gr(i,i-1),work2,(-1.0_dp,0.0_dp),work1)
+        call prealloc_mult(Gr(i,i-1),work2,minusOne,work1)
         call destroy(work2)
 
         call prealloc_sum(gsmr(i),work1,Gr(i,i))
@@ -1121,13 +1112,13 @@ CONTAINS
     ELSE
       do i=sbl,ebl,-1
         call prealloc_mult(gsml(i),ESH(i,i+1),work1)
-        call prealloc_mult(work1,Gr(i+1,i+1),(-1.0_dp,0.0_dp),Gr(i,i+1))
+        call prealloc_mult(work1,Gr(i+1,i+1),minusOne,Gr(i,i+1))
         call destroy(work1)
 
         call prealloc_mult(ESH(i+1,i),gsml(i),work2)
-        call prealloc_mult(Gr(i+1,i+1),work2,(-1.0_dp, 0.0_dp),Gr(i+1,i))
+        call prealloc_mult(Gr(i+1,i+1),work2,minusOne,Gr(i+1,i))
 
-        call prealloc_mult(Gr(i,i+1),work2,(-1.0_dp,0.0_dp),work1)
+        call prealloc_mult(Gr(i,i+1),work2,minusOne,work1)
         call destroy(work2)
 
         call prealloc_sum(gsml(i),work1,Gr(i,i))
@@ -1189,7 +1180,7 @@ CONTAINS
 
         max=MAXVAL(ABS(Gr(i-1,n)%val))
         if (max.GT.EPS) THEN
-          call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
+          call prealloc_mult(gsmr(i),ESH(i,i-1),minusOne,work1)
           call prealloc_mult(work1,Gr(i-1,n),Gr(i,n))
           call destroy(work1)
         else
@@ -1214,7 +1205,7 @@ CONTAINS
         max=MAXVAL(ABS(Gr(i+1,n)%val))
 
         if (max.GT.EPS) THEN
-          call prealloc_mult(gsml(i),ESH(i,i+1),(-1.0_dp, 0.0_dp),work1)
+          call prealloc_mult(gsml(i),ESH(i,i+1),minusOne,work1)
           call prealloc_mult(work1,Gr(i+1,n),Gr(i,n))
           call destroy(work1)
         else
@@ -1361,7 +1352,6 @@ CONTAINS
     type(z_DNS), dimension(:,:), intent(inout) :: Gn
 
     !Work
-    complex(dp), parameter :: minusone = (-1.0_dp, 0.0_dp)
     type(z_DNS), dimension(:,:), allocatable :: Sigma_n
     type(z_DNS) :: work1, Ga, Gam
     complex(dp) :: frmdiff
@@ -1434,7 +1424,7 @@ CONTAINS
         call prealloc_mult(Sigma_n(i+1,i+1), Ga, work1)
         call destroy(Ga)
 
-        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), minusone, work1)
+        call prealloc_mult(ESH(i+1,i), Gn(i,i+1), minusOne, work1)
 
         call prealloc_mult(gsmr(i+1), work1, Gn(i+1,i+1))
         call destroy(work1)
@@ -1474,12 +1464,12 @@ CONTAINS
         !work2 = Sigma(i,i+1) gsmr^dag(i+1) Ta(i+1,i)
         call zdagger(gsmr(i+1), gsmrDag)
         call prealloc_mult(Sigma_n(i,i+1), gsmrDag, work)
-        call prealloc_mult(work, ESHdag, minusone, Sigma_n(i,i))
+        call prealloc_mult(work, ESHdag, minusOne, Sigma_n(i,i))
         call destroy(work, gsmrDag, ESHdag)
 
         !work3 = ESH(i,i+1) gsmr(i+1) Sigma(i+1,i)
         call prealloc_mult(ESH(i,i+1), gsmr(i+1), work)
-        call prealloc_mult(work, Sigma_n(i+1,i), minusone, Sigma_n(i,i))
+        call prealloc_mult(work, Sigma_n(i+1,i), minusOne, Sigma_n(i,i))
         call destroy(work)
 
         if (i > 1) then
@@ -1670,7 +1660,7 @@ CONTAINS
 
       !Numero di blocco del contatto
       cb=struct%cblk(i)
-      call prealloc_mult(Gr(cb,cb),Tlc(i),(-1.0_dp, 0.0_dp),work1)
+      call prealloc_mult(Gr(cb,cb),Tlc(i),minusOne,work1)
       call prealloc_mult(work1,gsurfR(i),Grlc)
 
       call destroy(work1)
@@ -1695,7 +1685,7 @@ CONTAINS
 
       if (lower) THEN
 
-        call prealloc_mult(gsurfR(i),Tcl(i),(-1.0_dp, 0.0_dp), work1)
+        call prealloc_mult(gsurfR(i),Tcl(i),minusOne, work1)
         call prealloc_mult(work1, Gr(cb,cb), Grcl)
 
         call destroy(work1)
@@ -1763,7 +1753,7 @@ CONTAINS
       call prealloc_mult(Tlc(k),gsurfA,work2)
       call destroy(gsurfA)
 
-      call prealloc_mult(Gn(cbk,cbk),work2,(-1.0_dp,0.0_dp),work3)
+      call prealloc_mult(Gn(cbk,cbk),work2,minusOne,work3)
       call destroy(work2)
 
       !Checks that Fermi levels are sufficiently different and contact is not reference
@@ -1844,7 +1834,7 @@ CONTAINS
     end if
 
     !Calculation of ES-H and brak into blocks
-    call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
+    call prealloc_sum(H,S,minusOne,Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
 
@@ -2064,7 +2054,7 @@ CONTAINS
         !Checks whether block has been created, if not do it
         if (.not.allocated(Gr(i,bl1)%val)) then
 
-          call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
+          call prealloc_mult(gsmr(i),ESH(i,i-1),minusOne,work1)
 
           call prealloc_mult(work1,Gr(i-1,bl1),Gr(i,bl1))
 
@@ -2184,7 +2174,7 @@ CONTAINS
     Im = 'I'
 
     !Calculation of ES-H and brak into blocks
-    call prealloc_sum(H,S,(-1.0_dp, 0.0_dp),Ec,ESH_tot)
+    call prealloc_sum(H,S,minusOne,Ec,ESH_tot)
 
     call allocate_blk_dns(ESH,nbl)
     call zcsr2blk_sod(ESH_tot,ESH,str%mat_PL_start)
@@ -2242,7 +2232,7 @@ CONTAINS
       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
       call dns2csr(Gr(i,i),GrCSR)
       !Concatena direttamente la parte immaginaria per il calcolo della doS
-      zc=(-1.0_dp,0.0_dp)/pi
+      zc=minusOne/pi
 
       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
       call destroy(Gr(i,i))

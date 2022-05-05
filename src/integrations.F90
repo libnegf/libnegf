@@ -32,7 +32,6 @@ module integrations
  use sparsekit_drv
  use inversions
  use iterative
- !use iterative_ph
  use mat_def
  use ln_extract
  use contselfenergy
@@ -169,7 +168,7 @@ contains
 
   end subroutine write_Epoint
   !-----------------------------------------------------------------------
-  
+
   subroutine write_kpoint(verbose,local_point,global_point)
     integer, intent(in) :: verbose
     integer, intent(in) :: local_point
@@ -1489,6 +1488,10 @@ contains
         negf%kwght = negf%kweights(negf%iKpoint)
         call write_kpoint(negf%verbose, iK, negf%iKpoint)
 
+        negf%H => negf%HS(iK)%H
+        negf%S => negf%HS(iK)%S
+        call extract_cont(negf)
+
         !! Loop over energy points
         enloop: do iE = 1, Nstep
 
@@ -1632,6 +1635,10 @@ contains
         negf%iKpoint = negf%local_k_index(iK) ! global k index
         negf%kwght = negf%kweights(negf%iKpoint)
         call write_kpoint(negf%verbose, iK, negf%iKpoint)
+
+        negf%H => negf%HS(iK)%H
+        negf%S => negf%HS(iK)%S
+        call extract_cont(negf)
 
         !! Loop over energy points
         enloop: do iE = 1, Nstep

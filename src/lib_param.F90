@@ -58,6 +58,20 @@ module lib_param
     integer, dimension(:), allocatable :: indexes
   end type intArray
 
+  ! Array used to store the k-dependent matrices
+  type TMatrixArrayHS
+    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+    type(z_CSR), pointer :: S => null()
+    logical    :: isSid = .false.          ! True if overlap S == Id
+    logical    :: internalHS = .true.      ! tells HS are internally allocated
+  end type TMatrixArrayHS
+
+  ! Array used to store the k-dependent matrices
+  type TMatrixArrayDM
+    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
+    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
+    logical    :: internalDM = .true.          ! tells DM is internally allocated
+  end type TMatrixArrayDM
 
   !! Structure used to define energy points for the integration
   !! For every point we define
@@ -184,13 +198,15 @@ module lib_param
 
     !! Note: H,S are partitioned immediately after input, therefore they are
     !! built runtime from input variable
-    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+    type(TMatrixArrayHS), allocatable :: HS(:)
+    type(TMatrixArrayDM), allocatable :: DM(:)
+    ! Ponters of current working Hamiltonian
+    type(z_CSR), pointer :: H => null()
     type(z_CSR), pointer :: S => null()
-    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
-    logical    :: isSid           ! True if overlap S == Id
-    logical    :: intHS           ! tells HS are internally allocated
-    logical    :: intDM           ! tells DM is internally allocated
+    ! Ponters of current working density matrix 
+    type(z_CSR), pointer :: rho => null()
+    type(z_CSR), pointer :: rho_eps => null()
+    logical :: internalDM
 
     type(TStruct_Info) :: str     ! system structure
     type(TBasisCenters) :: basis  ! local basis centers
@@ -430,10 +446,8 @@ contains
      negf%E = 0.0_dp            ! Holding variable
      negf%dos = 0.0_dp          ! Holding variable
      negf%eneconv = 1.0_dp      ! Energy conversion factor
-
-     negf%isSid = .false.
-     negf%intHS = .true.
-     negf%intDM = .true.
+    
+     negf%internalDM = .true.   ! Internal allocation of D.M.
 
      negf%delta = 1.d-4      ! delta for G.F.
      negf%dos_delta = 1.d-4  ! delta for DOS
@@ -496,7 +510,6 @@ contains
      write(io,*) 'scratch= "'//trim(negf%scratch_path)//'"'
      write(io,*) 'output= "'//trim(negf%out_path)//'"'
 
-     write(io,*) 'isSid= ',negf%isSid
      write(io,*) 'mu= ', negf%mu
      write(io,*) 'mu_n= ', negf%mu_n
      write(io,*) 'mu_p= ', negf%mu_p
@@ -539,8 +552,6 @@ contains
      write(io,*) 'DorE= ',negf%DorE
 
      write(io,*) 'Internal variables:'
-     write(io,*) 'intHS= ',negf%intHS
-     write(io,*) 'intDM= ',negf%intDM
      write(io,*) 'kp= ', negf%ikpoint
      write(io,*) 'wght= ', negf%kwght
      write(io,*) 'E= ',negf%E
@@ -548,6 +559,7 @@ contains
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'activecont= ', negf%activecont
+     write(io,*) 'internalDM= ', negf%internalDM
   end subroutine print_all_vars
 
 end module lib_param

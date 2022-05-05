@@ -73,7 +73,7 @@ module libnegf
  public :: get_params, set_params, set_scratch, set_outpath, create_scratch
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
- public :: set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
+ public :: create_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
  public :: set_readOldDMsgf, set_readOldTsgf, set_computation
  public :: set_convfactor, set_fictcont
  public :: read_negf_in
@@ -99,6 +99,8 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
+ public :: compute_layer_current    ! high-level wrapping routines
+                                    ! layer currents calculation
  public :: compute_dephasing_transmission ! high-level wrapping routines
                                           ! Extract HM and SM
                                           ! run total current calculation
@@ -208,8 +210,6 @@ module libnegf
    character(kind=c_char, len=1) :: dore  ! Density or En.Density
    !> Reference contact is set to maximum or minimum Fermi level
    integer(c_int) :: min_or_max
-   !> Wether S is an identity matrix
-   logical(c_bool) :: isSid
  end type lnparams
   !-----------------------------------------------------------------------------
 
@@ -231,7 +231,6 @@ contains
 
     call set_defaults(negf)
     negf%form%formatted = .true.
-    negf%isSid = .false.
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
 
@@ -304,12 +303,15 @@ contains
      open(401, file=real_path, form=trim(fmtstring))
      open(402, file=imag_path, form=trim(fmtstring))
 
+     call create_HS(negf, 1)
      if (target_matrix.eq.0) then
-       allocate(negf%H)
-       call read_H(401,402,negf%H,fmt)
+       if (.not.associated(negf%HS(1)%H)) allocate(negf%HS(1)%H)
+       call read_H(401,402,negf%HS(1)%H,fmt)
+       negf%H => negf%HS(1)%H
      else if (target_matrix.eq.1) then
-       allocate(negf%S)
-       call read_H(401,402,negf%S,fmt)
+       if (.not.associated(negf%HS(1)%S)) allocate(negf%HS(1)%S)
+       call read_H(401,402,negf%HS(1)%S,fmt)
+       negf%S => negf%HS(1)%S
      else
        write(*,*) "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)"
        stop
@@ -317,9 +319,31 @@ contains
      close(401)
      close(402)
 
-     negf%intHS=.true.
-
    end subroutine read_HS
+
+  !-------------------------------------------------------------------
+  !> Create the HS container for k-dependent H(k) and S(k)
+  !
+  subroutine create_HS(negf, nHS)
+    type(Tnegf) :: negf
+    integer, intent(in) :: nHS
+
+    if (.not.allocated(negf%HS)) then
+       allocate(negf%HS(nHS))
+    end if
+
+  end subroutine create_HS
+
+  !-------------------------------------------------------------------
+  !> Create the DM container for k-dependent rho(k) and rhoE(k)
+  !
+  !subroutine create_DM(negf, nDM)
+  !  type(Tnegf) :: negf
+  !  integer, intent(in) :: nDM
+  !
+  !  allocate(negf%DM(nDM))
+  !end subroutine create_DM
+
 
   !-------------------------------------------------------------------
   !> Pass H from memory in CSR format
@@ -328,31 +352,45 @@ contains
   !! @param[in] nzval: number of non zero values
   !! @param[in] colind: column indexes
   !! @param[in] rowpnt: row pointers
-  subroutine set_H(negf, nrow, nzval, colind, rowpnt)
+  !! @param[in] iKS: k-index of H
+  subroutine set_H(negf, nrow, nzval, colind, rowpnt, iKS)
     type(Tnegf) :: negf
     integer :: nrow
     complex(dp) :: nzval(*)
     integer :: colind(*)
     integer :: rowpnt(*)
+    integer, optional :: iKS
 
-    integer :: nnz, i, base
+    integer :: nnz, i, base, ii
+
+    if (present(iKS)) then
+      ii = iKS
+    else
+      ii = 1
+    end if
+
+    if (ii > size(negf%HS)) then
+       stop "Error: set_H with index > allocated array. Call create_HS with correct size"
+    else
+      if (.not.associated(negf%HS(ii)%H)) allocate(negf%HS(ii)%H)
+    end if
 
     base = 0
     if (rowpnt(1) == 0) base = 1
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%H)
-    call create(negf%H,nrow,nrow,nnz)
+    call create(negf%HS(ii)%H,nrow,nrow,nnz)
 
     do i = 1, nnz
-      negf%H%nzval(i) = nzval(i)
-      negf%H%colind(i) = colind(i) + base
+      negf%HS(ii)%H%nzval(i) = nzval(i)
+      negf%HS(ii)%H%colind(i) = colind(i) + base
     enddo
     do i = 1,nrow+1
-      negf%H%rowpnt(i) = rowpnt(i) + base
+      negf%HS(ii)%H%rowpnt(i) = rowpnt(i) + base
     enddo
-    negf%intHS=.true.
+    negf%HS(ii)%internalHS=.true.
+    negf%H => negf%HS(ii)%H
 
   end subroutine set_H
 
@@ -363,31 +401,45 @@ contains
   !! @param[in] nzval: number of non zero values
   !! @param[in] colind: column indexes
   !! @param[in] rowpnt: row pointers
-  subroutine set_S(negf, nrow, nzval, colind, rowpnt)
+  !! @param[in] iKS: k-index of S
+  subroutine set_S(negf, nrow, nzval, colind, rowpnt, iKS)
     type(Tnegf) :: negf
     integer :: nrow
     complex(dp) :: nzval(*)
     integer :: colind(*)
     integer :: rowpnt(*)
+    integer, optional :: iKS
 
-    integer :: nnz, i, base
+    integer :: nnz, i, base, ii
+
+    if (present(iKS)) then
+      ii = iKS
+    else
+      ii = 1
+    end if
+
+    if (ii > size(negf%HS)) then
+       stop "Error: set_S with index > allocated array. Call create_HS with correct size"
+    else
+      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+    end if
 
     base = 0
     if (rowpnt(1) == 0) base = 1
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%S)
-    call create(negf%S,nrow,nrow,nnz)
+    call create(negf%HS(ii)%S,nrow,nrow,nnz)
 
     do i = 1, nnz
-      negf%S%nzval(i) = nzval(i)
-      negf%S%colind(i) = colind(i) + base
+      negf%HS(ii)%S%nzval(i) = nzval(i)
+      negf%HS(ii)%S%colind(i) = colind(i) + base
     enddo
     do i = 1,nrow+1
-      negf%S%rowpnt(i) = rowpnt(i) + base
+      negf%HS(ii)%S%rowpnt(i) = rowpnt(i) + base
     enddo
-    negf%intHS=.true.
+    negf%HS(ii)%internalHS=.true.
+    negf%S => negf%HS(ii)%S
 
   end subroutine set_S
 
@@ -395,13 +447,28 @@ contains
   !> Set S as identity
   !! @param[in] negf: libnegf container instance
   !! @param[in] nrow: number of rows
-  subroutine set_S_id(negf, nrow)
+  !! @param[in] iKS: k-index of S
+  subroutine set_S_id(negf, nrow, iKS)
     type(Tnegf) :: negf
     integer, intent(in) :: nrow
+    integer, intent(in), optional :: iKS
 
-    allocate(negf%S)
-    call create_id(negf%S, nrow)
-    negf%isSid = .true.
+    integer :: ii
+    if (present(iKS)) then
+      ii = iKS
+    else
+      ii = 1
+    end if
+
+    if (ii > size(negf%HS)) then
+       stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
+    else
+      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+    end if
+
+    call create_id(negf%HS(ii)%S, nrow)
+    negf%HS(ii)%isSid = .true.
+    negf%S => negf%HS(ii)%S
 
   end subroutine set_S_id
 
@@ -410,50 +477,82 @@ contains
   !! @param [in]  negf: libnegf container instance
   !! @param [in] H: target z_CSR hamiltonian
   !! @param [in] S: target z_CSR overlap (optional, default to identity)
-  subroutine pass_HS(negf,H,S)
+  !! @param[in] iKS: k-index of H and S
+  subroutine pass_HS(negf,H,S,iKS)
     type(Tnegf) :: negf
     type(z_CSR), pointer, intent(in) :: H
     type(z_CSR), pointer, intent(in), optional :: S
+    integer, intent(in), optional :: iKS
 
-    negf%H => H
-    if (present(S)) then
-       negf%S => S
+    integer :: ii
+    if (present(iKS)) then
+      ii = iKS
     else
-       negf%isSid=.true.
-       allocate(negf%S)
-       call create_id(negf%S,negf%H%nrow)
+      ii = 1
+    end if
+
+    if (ii > size(negf%HS)) then
+       stop "Error: pass_HS with index > allocated array. Call create_HS with correct size"
     endif
-    negf%intHS = .false.
+
+    negf%HS(ii)%H => H
+    if (present(S)) then
+       negf%HS(ii)%S => S
+    else
+       negf%HS(ii)%isSid=.true.
+       allocate(negf%HS(ii)%S)
+       call create_id(negf%HS(ii)%S,negf%HS(ii)%H%nrow)
+    endif
+    negf%HS(ii)%internalHS = .false.
+    negf%H => negf%HS(ii)%H
+    negf%S => negf%HS(ii)%S
 
   end subroutine pass_HS
 
   ! -----------------------------------------------------
   !  Allocate and copy H,S
   ! -----------------------------------------------------
-  subroutine copy_HS(negf,H,S)
+  subroutine copy_HS(negf,H,S,iKS)
     type(Tnegf) :: negf
     type(z_CSR), intent(in) :: H
     type(z_CSR), intent(in), optional :: S
+    integer, intent(in), optional :: iKS
 
-    call create(negf%H,H%nrow,H%ncol,H%nnz)
-    negf%H%nzval = H%nzval
-    negf%H%colind = H%colind
-    negf%H%rowpnt = H%rowpnt
-    negf%H%sorted = H%sorted
+    integer :: ii
+    if (present(iKS)) then
+      ii = iKS
+    else
+      ii = 1
+    end if
+
+    if (ii > size(negf%HS)) then
+       stop "Error: copy_HS with index > allocated array. Call create_HS with correct size"
+    else
+      if (.not.associated(negf%HS(ii)%H)) allocate(negf%HS(ii)%H)
+      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+    end if
+
+    call create(negf%HS(ii)%H,H%nrow,H%ncol,H%nnz)
+    negf%HS(ii)%H%nzval = H%nzval
+    negf%HS(ii)%H%colind = H%colind
+    negf%HS(ii)%H%rowpnt = H%rowpnt
+    negf%HS(ii)%H%sorted = H%sorted
 
     if (present(S)) then
-       negf%isSid=.false.
-       call create(negf%S,S%nrow,S%ncol,S%nnz)
-       negf%S%nzval = S%nzval
-       negf%S%colind = S%colind
-       negf%S%rowpnt = S%rowpnt
-       negf%S%sorted = S%sorted
+       negf%HS(ii)%isSid=.false.
+       call create(negf%HS(ii)%S,S%nrow,S%ncol,S%nnz)
+       negf%HS(ii)%S%nzval = S%nzval
+       negf%HS(ii)%S%colind = S%colind
+       negf%HS(ii)%S%rowpnt = S%rowpnt
+       negf%HS(ii)%S%sorted = S%sorted
     else
-       negf%isSid=.true.
-       call create_id(negf%S,negf%H%nrow)
+       negf%HS(ii)%isSid=.true.
+       call create_id(negf%HS(ii)%S,negf%HS(ii)%H%nrow)
     endif
 
-    negf%intHS = .true.
+    negf%HS(ii)%internalHS = .true.
+    negf%H => negf%HS(ii)%H
+    negf%S => negf%HS(ii)%S
 
   end subroutine copy_HS
 
@@ -495,6 +594,7 @@ contains
      integer, allocatable :: plend_tmp(:), cblk_tmp(:)
      integer :: npl_tmp
 
+
      ! Make sure we called init_contacts in a consistent way.
      if (size(negf%cont) .ne. ncont) then
        write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont
@@ -519,10 +619,16 @@ contains
      end if
 
      if (npl .eq. 0) then
+       if (.not.allocated(negf%HS)) then
+         stop "Error in init_structure: invoking block_partition but H not created"
+         if (.not.associated(negf%HS(1)%H)) then
+           stop "Error in init_structure: invoking block_partition but H not created"
+         end if
+       end if
        ! supposedly performs an internal block partitioning but it is not reliable.
        call log_allocate(plend_tmp, MAXNUMPLs)
-       call block_partition(negf%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
-       call find_cblocks(negf%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk)
+       call block_partition(negf%HS(1)%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
+       call find_cblocks(negf%HS(1)%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk)
        call create_Tstruct(ncont, npl_tmp, plend_tmp, surfstart, surfend, contend, cblk, negf%str)
        call log_deallocate(plend_tmp)
      else
@@ -673,7 +779,6 @@ contains
     params%ikpoint = negf%ikpoint
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
-    params%isSid = negf%isSid
     params%SGFcache = get_surface_green_cache_type(negf)
 
   end subroutine get_params
@@ -749,7 +854,6 @@ contains
     negf%ikpoint = params%ikpoint
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
-    negf%isSid = params%isSid
 
     !! Some internal variables in libnegf are set internally
     !! after parameters are available
@@ -1060,8 +1164,7 @@ contains
     end if
     if (trim(file_re_S).ne.'memory') then
       if (trim(file_re_S).eq.'identity') then
-         negf%isSid = .true.
-         call set_S_id(negf, negf%H%nrow)
+         call set_S_id(negf, negf%H%nrow, 1)
       end if
     else
       call read_HS(negf, file_re_S, file_im_S, 1)
@@ -1084,7 +1187,7 @@ contains
     read(101,*) tmp, surf_end(1:ncont)
     read(101,*) tmp, cont_end(1:ncont)
 
-    call find_cblocks(negf%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
+    call find_cblocks(negf%HS(1)%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
     call init_structure(negf, ncont, surf_start, surf_end, cont_end, nbl, PL_end, cblk)
 
     call log_deallocate(PL_end)
@@ -1341,10 +1444,10 @@ contains
   subroutine create_DM(negf)
     type(Tnegf) :: negf
 
-    if (negf%intDM) then
-       if (.not.associated(negf%rho)) allocate(negf%rho)
-       if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
-    endif
+    if (negf%internalDM) then
+      if (.not.associated(negf%rho)) allocate(negf%rho)
+      if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
+    end if
 
   end subroutine create_DM
 
@@ -1370,7 +1473,7 @@ contains
        endif
     end if
 
-    negf%intDM = .false.
+    negf%internalDM = .false.
 
   end subroutine pass_DM
 
@@ -1395,26 +1498,32 @@ contains
   subroutine destroy_HS(negf)
     type(Tnegf) :: negf
 
-    if (negf%intHS) then
-      if (associated(negf%H)) then
-        if (allocated(negf%H%nzval)) then
-           !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
-           call destroy(negf%H)
-        end if
-        deallocate(negf%H)
-        nullify(negf%H)
-      endif
+    integer :: ii
 
-      if (associated(negf%S)) then
-        if (allocated(negf%S%nzval)) then
-           !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
-           call destroy(negf%S)
-        end if
-        deallocate(negf%S)
-        nullify(negf%S)
-      endif
+    if (.not.allocated(negf%HS)) return
 
-    endif
+    do ii = 1, size(negf%HS)
+      if (negf%HS(ii)%internalHS) then
+        if (associated(negf%HS(ii)%H)) then
+          if (allocated(negf%HS(ii)%H%nzval)) then
+             !print*,'(destroy) deallocate negf%H',%LOC(negf%H%nzval)
+             call destroy(negf%HS(ii)%H)
+          end if
+          deallocate(negf%HS(ii)%H)
+          nullify(negf%HS(ii)%H)
+        endif
+
+        if (associated(negf%HS(ii)%S)) then
+          if (allocated(negf%HS(ii)%S%nzval)) then
+             !print*,'(destroy) deallocate negf%S',%LOC(negf%S%nzval)
+             call destroy(negf%HS(ii)%S)
+          end if
+          deallocate(negf%HS(ii)%S)
+          nullify(negf%HS(ii)%S)
+        endif
+      endif
+    end do
+    deallocate(negf%HS)
 
   end subroutine destroy_HS
 
@@ -1422,27 +1531,50 @@ contains
   subroutine destroy_DM(negf)
     type(Tnegf) :: negf
 
-    if (negf%intDM) then
+    integer :: ii
 
-      if (associated(negf%rho)) then
-        if (allocated(negf%rho%nzval)) then
-           !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
-           call destroy(negf%rho)
-        end if
-        deallocate(negf%rho)
-        nullify(negf%rho)
-      endif
+    if (.not.negf%internalDM) return
 
-      if (associated(negf%rho_eps)) then
-        if (allocated(negf%rho_eps%nzval)) then
-           !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
-           call destroy(negf%rho_eps)
-        end if
-        deallocate(negf%rho_eps)
-        nullify(negf%rho_eps)
-      endif
+    if (associated(negf%rho)) then
+      if (allocated(negf%rho%nzval)) then
+         call destroy(negf%rho)
+      end if
+      deallocate(negf%rho)
+      nullify(negf%rho)
+    end if
 
+    if (associated(negf%rho_eps)) then
+      if (allocated(negf%rho_eps%nzval)) then
+         call destroy(negf%rho_eps)
+      end if
+      deallocate(negf%rho_eps)
+      nullify(negf%rho_eps)
     endif
+
+   ! if (.not.allocated(negf%DM)) return
+
+   ! do ii = 1, size(negf%DM)
+   !   if (negf%DM(ii)%internalDM) then
+   !     if (associated(negf%DM(ii)%rho)) then
+   !       if (allocated(negf%DM(ii)%rho%nzval)) then
+   !          !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
+   !          call destroy(negf%DM(ii)%rho)
+   !       end if
+   !       deallocate(negf%DM(ii)%rho)
+   !       nullify(negf%DM(ii)%rho)
+   !     endif
+
+   !     if (associated(negf%DM(ii)%rho_eps)) then
+   !       if (allocated(negf%DM(ii)%rho_eps%nzval)) then
+   !          !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
+   !          call destroy(negf%DM(ii)%rho_eps)
+   !       end if
+   !       deallocate(negf%DM(ii)%rho_eps)
+   !       nullify(negf%DM(ii)%rho_eps)
+   !     endif
+   !   endif
+   ! end do
+   ! deallocate(negf%DM)
 
   end subroutine destroy_DM
 
@@ -1469,6 +1601,10 @@ contains
   !-------------------------------------------------------------------------------
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
+
+    !Temporary hack
+    negf%H => negf%HS(1)%H
+    negf%S => negf%HS(1)%S
 
     call extract_cont(negf)
 
@@ -1597,7 +1733,6 @@ contains
   subroutine compute_current(negf)
     type(Tnegf) :: negf
 
-
     if ( negf%interactList%counter>0 .or. negf%tDephasingBP) then
        call compute_meir_wingreen(negf);
     else
@@ -1669,7 +1804,7 @@ contains
 
     type(Tnegf) :: negf
 
-    call extract_cont(negf)
+    !call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
 
@@ -1686,7 +1821,7 @@ contains
 
     type(Tnegf) :: negf
 
-    call extract_cont(negf)
+    !call extract_cont(negf)
     call tunneling_int_def(negf)
     call layer_current(negf)
 
