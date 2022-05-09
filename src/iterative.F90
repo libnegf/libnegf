@@ -45,9 +45,9 @@ module iterative
   public :: calculate_Gn_neq_components
 
   public :: calculate_gsmr_blocks
-  public :: calculate_gsml_blocks
+  !public :: calculate_gsml_blocks
   public :: calculate_Gr_tridiag_blocks
-  public :: calculate_Gr_column_blocks
+  !public :: calculate_Gr_column_blocks
   public :: calculate_Gn_tridiag_blocks
   public :: calculate_Gr_outer
   public :: calculate_Gn_outer
@@ -61,7 +61,7 @@ module iterative
   logical, parameter :: debug=.false.
   ! These are here temporarily ...
   type(z_DNS), dimension(:), allocatable :: gsmr
-  type(z_DNS), dimension(:), allocatable :: gsml
+  !type(z_DNS), dimension(:), allocatable :: gsml
   type(z_DNS), dimension(:,:), allocatable :: Gr
   type(z_DNS), dimension(:,:), allocatable :: ESH
   type(z_DNS), dimension(:,:), allocatable :: Gn
@@ -709,75 +709,75 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine calculate_gsml_blocks(ESH,sbl,ebl)
+ ! subroutine calculate_gsml_blocks(ESH,sbl,ebl)
 
-    !***********************************************************************
-    !Input:
-    !ESH: sparse matrices array ESH(nbl,nbl)
-    !
-    !nbl (number of layers), indblk(nbl+1) global variables needed
-    !
-    !Output:
-    !sparse matrices array global variable gsml(nbl) is available in memory
-    !single blocks are allocated internally, array Gr(nbl,nbl)
-    !must be allocated externally
-    !***********************************************************************
-
-
-    implicit none
-
-    !In/Out
-    type(z_DNS), dimension(:,:), intent(in) :: ESH
-    integer, intent(in) :: sbl,ebl                       ! start block, end block
-
-    !Work
-    type(z_DNS) :: work1, work2
-    integer :: nrow
-    integer :: i, nbl
-    !type(z_DNS) :: INV(sbl,sbl)
-
-    if (sbl.gt.ebl) return
-
-    nbl = size(ESH,1)
-
-    if (nbl.eq.1) return
-
-    nrow=ESH(sbl,sbl)%nrow
-
-    call create(gsml(sbl),nrow,nrow)
-
-    call compGreen(gsml(sbl),ESH(sbl,sbl),nrow)
+ !   !***********************************************************************
+ !   !Input:
+ !   !ESH: sparse matrices array ESH(nbl,nbl)
+ !   !
+ !   !nbl (number of layers), indblk(nbl+1) global variables needed
+ !   !
+ !   !Output:
+ !   !sparse matrices array global variable gsml(nbl) is available in memory
+ !   !single blocks are allocated internally, array Gr(nbl,nbl)
+ !   !must be allocated externally
+ !   !***********************************************************************
 
 
-    do i=sbl+1,ebl
+ !   implicit none
 
-      nrow=ESH(i,i)%nrow
+ !   !In/Out
+ !   type(z_DNS), dimension(:,:), intent(in) :: ESH
+ !   integer, intent(in) :: sbl,ebl                       ! start block, end block
 
-      call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+ !   !Work
+ !   type(z_DNS) :: work1, work2
+ !   integer :: nrow
+ !   integer :: i, nbl
+ !   !type(z_DNS) :: INV(sbl,sbl)
 
-      call prealloc_mult(work1,ESH(i-1,i),work2)
+ !   if (sbl.gt.ebl) return
 
-      call destroy(work1)
+ !   nbl = size(ESH,1)
 
-      call prealloc_sum(ESH(i,i),work2,work1)
+ !   if (nbl.eq.1) return
 
-      call destroy(work2)
+ !   nrow=ESH(sbl,sbl)%nrow
 
-      call create(gsml(i),work1%nrow,work1%nrow)
+ !   call create(gsml(sbl),nrow,nrow)
 
-      call compGreen(gsml(i),work1,work1%nrow)
+ !   call compGreen(gsml(sbl),ESH(sbl,sbl),nrow)
 
-      call destroy(work1)
 
-    end do
+ !   do i=sbl+1,ebl
 
-    if (debug) then
-      WRITE(*,*) '********************'
-      WRITE(*,*) 'calculate_gsml done'
-      WRITE(*,*) '********************'
-    endif
+ !     nrow=ESH(i,i)%nrow
 
-  end subroutine calculate_gsml_blocks
+ !     call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+
+ !     call prealloc_mult(work1,ESH(i-1,i),work2)
+
+ !     call destroy(work1)
+
+ !     call prealloc_sum(ESH(i,i),work2,work1)
+
+ !     call destroy(work2)
+
+ !     call create(gsml(i),work1%nrow,work1%nrow)
+
+ !     call compGreen(gsml(i),work1,work1%nrow)
+
+ !     call destroy(work1)
+
+ !   end do
+
+ !   if (debug) then
+ !     WRITE(*,*) '********************'
+ !     WRITE(*,*) 'calculate_gsml done'
+ !     WRITE(*,*) '********************'
+ !   endif
+
+ ! end subroutine calculate_gsml_blocks
 
 
 
@@ -844,13 +844,14 @@ CONTAINS
           call destroy(work2)
         endif
         if (sbl-1.ge.1) then
-          call prealloc_mult(ESH(sbl,sbl-1),gsml(sbl-1),work2)
-          call prealloc_mult(work2,ESH(sbl-1,sbl),work3)
-          call destroy(work2)
-          call prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
-          call destroy(work3)
-          work1%val = work2%val
-          call destroy(work2)
+          stop "Error: Gr_tridiag requires gsml"        
+          !call prealloc_mult(ESH(sbl,sbl-1),gsml(sbl-1),work2)
+          !call prealloc_mult(work2,ESH(sbl-1,sbl),work3)
+          !call destroy(work2)
+          !call prealloc_sum(work1,work3,(-1.0_dp, 0.0_dp),work2)
+          !call destroy(work3)
+          !work1%val = work2%val
+          !call destroy(work2)
         endif
 
         call create(Gr(sbl,sbl),nrow,nrow)
@@ -881,18 +882,19 @@ CONTAINS
       end do
     ELSE
       do i=sbl,ebl,-1
-        call prealloc_mult(gsml(i),ESH(i,i+1),work1)
-        call prealloc_mult(work1,Gr(i+1,i+1),(-1.0_dp,0.0_dp),Gr(i,i+1))
-        call destroy(work1)
+        stop "Error: Gr_tridiag requires gsml"        
+        !call prealloc_mult(gsml(i),ESH(i,i+1),work1)
+        !call prealloc_mult(work1,Gr(i+1,i+1),(-1.0_dp,0.0_dp),Gr(i,i+1))
+        !call destroy(work1)
 
-        call prealloc_mult(ESH(i+1,i),gsml(i),work2)
-        call prealloc_mult(Gr(i+1,i+1),work2,(-1.0_dp, 0.0_dp),Gr(i+1,i))
+        !call prealloc_mult(ESH(i+1,i),gsml(i),work2)
+        !call prealloc_mult(Gr(i+1,i+1),work2,(-1.0_dp, 0.0_dp),Gr(i+1,i))
 
-        call prealloc_mult(Gr(i,i+1),work2,(-1.0_dp,0.0_dp),work1)
-        call destroy(work2)
+        !call prealloc_mult(Gr(i,i+1),work2,(-1.0_dp,0.0_dp),work1)
+        !call destroy(work2)
 
-        call prealloc_sum(gsml(i),work1,Gr(i,i))
-        call destroy(work1)
+        !call prealloc_sum(gsml(i),work1,Gr(i,i))
+        !call destroy(work1)
       end do
     endif
 
@@ -903,97 +905,97 @@ CONTAINS
   !  Calculate Green Retarded column "n" - writing on memory
   !
   !**************************************************************************
-  subroutine calculate_Gr_column_blocks(ESH,n,indblk)
+ ! subroutine calculate_Gr_column_blocks(ESH,n,indblk)
 
-    !***********************************************************************
-    !Input:
-    !ESH: sparse matrices array ESH(nbl,nbl)
-    !n: n umber of column to be calculated
-    !
-    !global variables needed: nbl (number of layers), indblk(nbl+1),
-    !Gr diagonal, subadiagonal and superdiagonal, gsmr(:) for
-    !downgoing and gsml(:) for upgoing
-    !
-    !Output:
-    !sparse matrices array global variable Gr(:,n) is available in
-    !memory - single blocks are allocated internally, array Gr(nbl,nbl)
-    !must be allocated externally
-    !***********************************************************************
+ !   !***********************************************************************
+ !   !Input:
+ !   !ESH: sparse matrices array ESH(nbl,nbl)
+ !   !n: n umber of column to be calculated
+ !   !
+ !   !global variables needed: nbl (number of layers), indblk(nbl+1),
+ !   !Gr diagonal, subadiagonal and superdiagonal, gsmr(:) for
+ !   !downgoing and gsml(:) for upgoing
+ !   !
+ !   !Output:
+ !   !sparse matrices array global variable Gr(:,n) is available in
+ !   !memory - single blocks are allocated internally, array Gr(nbl,nbl)
+ !   !must be allocated externally
+ !   !***********************************************************************
 
-    implicit none
+ !   implicit none
 
-    !In/Out
-    type(z_DNS), dimension(:,:), intent(in) :: ESH
-    integer, intent(in) :: n
-    integer, dimension(:), intent(in) :: indblk
+ !   !In/Out
+ !   type(z_DNS), dimension(:,:), intent(in) :: ESH
+ !   integer, intent(in) :: n
+ !   integer, dimension(:), intent(in) :: indblk
 
-    !Work
-    integer :: i,nrow,ncol,nbl
-    type(z_DNS) :: work1
-    real(dp) :: max
+ !   !Work
+ !   integer :: i,nrow,ncol,nbl
+ !   type(z_DNS) :: work1
+ !   real(dp) :: max
 
-    nbl = size(ESH,1)
+ !   nbl = size(ESH,1)
 
-    if (n.GT.nbl) THEN
-      STOP 'Error in calculate_Grcol : n is greater than nbl'
-    endif
+ !   if (n.GT.nbl) THEN
+ !     STOP 'Error in calculate_Grcol : n is greater than nbl'
+ !   endif
 
-    !***************************************
-    !  Downgoing (j>=n+2 && n<nbl-1)
-    !
-    !   G_j,n = -gR_jj T_j,j-1 G_j-1,n
-    !
-    !***************************************
-    if (n.LT.(nbl-1)) THEN
+ !   !***************************************
+ !   !  Downgoing (j>=n+2 && n<nbl-1)
+ !   !
+ !   !   G_j,n = -gR_jj T_j,j-1 G_j-1,n
+ !   !
+ !   !***************************************
+ !   if (n.LT.(nbl-1)) THEN
 
-      do i=n+2,nbl
+ !     do i=n+2,nbl
 
-        max=MAXVAL(ABS(Gr(i-1,n)%val))
-        if (max.GT.EPS) THEN
-          call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
-          call prealloc_mult(work1,Gr(i-1,n),Gr(i,n))
-          call destroy(work1)
-        else
-          ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
-          exit
-        end if
+ !       max=MAXVAL(ABS(Gr(i-1,n)%val))
+ !       if (max.GT.EPS) THEN
+ !         call prealloc_mult(gsmr(i),ESH(i,i-1),(-1.0_dp, 0.0_dp),work1)
+ !         call prealloc_mult(work1,Gr(i-1,n),Gr(i,n))
+ !         call destroy(work1)
+ !       else
+ !         ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
+ !         exit
+ !       end if
 
-      end do
+ !     end do
 
-    endif
-    !*************************************
-    !   Up-going (j<=n-2 && n>2)
-    !
-    !   G_j,n = -gL_jj T_j,j+1 G_j+1,n
-    !
-    !*************************************
+ !   endif
+ !   !*************************************
+ !   !   Up-going (j<=n-2 && n>2)
+ !   !
+ !   !   G_j,n = -gL_jj T_j,j+1 G_j+1,n
+ !   !
+ !   !*************************************
 
-    if (n.GT.2) THEN
+ !   if (n.GT.2) THEN
 
-      do i=n-2,1,(-1)
+ !     do i=n-2,1,(-1)
 
-        max=MAXVAL(ABS(Gr(i+1,n)%val))
+ !       max=MAXVAL(ABS(Gr(i+1,n)%val))
 
-        if (max.GT.EPS) THEN
-          call prealloc_mult(gsml(i),ESH(i,i+1),(-1.0_dp, 0.0_dp),work1)
-          call prealloc_mult(work1,Gr(i+1,n),Gr(i,n))
-          call destroy(work1)
-        else
-          ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
-          exit
-        endif
+ !       if (max.GT.EPS) THEN
+ !         call prealloc_mult(gsml(i),ESH(i,i+1),(-1.0_dp, 0.0_dp),work1)
+ !         call prealloc_mult(work1,Gr(i+1,n),Gr(i,n))
+ !         call destroy(work1)
+ !       else
+ !         ! WHEN BLOCK IS SMALLER THAN EPS IT IS NOT CREATED
+ !         exit
+ !       endif
 
-      end do
+ !     end do
 
-    endif
+ !   endif
 
-    if (debug) then
-      WRITE(*,*) '******************************'
-      WRITE(*,*) 'calculate_Grcol done column',n
-      WRITE(*,*) '******************************'
-    endif
+ !   if (debug) then
+ !     WRITE(*,*) '******************************'
+ !     WRITE(*,*) 'calculate_Grcol done column',n
+ !     WRITE(*,*) '******************************'
+ !   endif
 
-  end subroutine calculate_Gr_column_blocks
+ ! end subroutine calculate_Gr_column_blocks
 
   !****************************************************************************
   !
@@ -2041,7 +2043,9 @@ CONTAINS
     type(z_DNS), dimension(:), allocatable :: gsm
     integer :: nbl, ierr
 
-    allocate(gsm(nbl),stat=ierr)
+    if (.not.allocated(gsm)) then
+      allocate(gsm(nbl),stat=ierr)
+    end if   
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
 
   end subroutine allocate_gsm
