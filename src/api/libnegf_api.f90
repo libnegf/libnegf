@@ -232,7 +232,7 @@ end subroutine negf_contact_blocks
 !! @param [in] copy (int): 0 if you want only to fill npoints, any value
 !!               if you want to perform the actual copy
 subroutine negf_get_pls(handler, npl, ncont, plend, cblk, copy) bind(c)
-  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use iso_c_binding, only : c_int  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none
@@ -356,14 +356,14 @@ end subroutine negf_get_params
 !!* Passing Hamiltonian from memory
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_h(handler, nrow, A, JA, IA) bind(C)
-  use iso_c_binding, only : c_int, c_double  ! if:mod:use
+  use iso_c_binding, only : c_int, c_double_complex  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nrow     ! if:var:in
-  complex(dp), intent(in) :: A(*) ! if:var:in
+  complex(c_double_complex), intent(in) :: A(*) ! if:var:in
   integer(c_int), intent(in) :: JA(*)    ! if:var:in
   integer(c_int), intent(in) :: IA(*)    ! if:var:in
 
@@ -393,14 +393,14 @@ end subroutine negf_set_mpi_fcomm
 !!* Passing Overlap from memory
 !!* @param  handler  Contains the handler for the new instance on return
 subroutine negf_set_s(handler, nrow, A, JA, IA) bind(C)
-  use iso_c_binding, only : c_int, c_double  ! if:mod:use
+  use iso_c_binding, only : c_int, c_double_complex  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
   integer(c_int), intent(in), value :: nrow     ! if:var:in
-  complex(dp), intent(in) :: A(*) ! if:var:in
+  complex(c_double_complex), intent(in) :: A(*) ! if:var:in
   integer(c_int), intent(in) :: JA(*)    ! if:var:in
   integer(c_int), intent(in) :: IA(*)    ! if:var:in
 
@@ -712,7 +712,7 @@ end subroutine negf_solve_density_dft
 !! @param [in] copy (int): 0 if you want only to fill npoints, any value
 !!               if you want to perform the actual copy
 subroutine negf_get_energies(handler, npoints, re_en, im_en, copy) bind(c)
-  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use iso_c_binding, only : c_int, c_double  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none
@@ -746,7 +746,7 @@ end subroutine negf_get_energies
 !! @param [in] copy (int): 0 if you want only to fill npoints, any value
 !!               if you want to perform the actual copy
 subroutine negf_get_dm(handler, nnz, nrow, rowpnt, colind, re_nzval, im_nzval, copy) bind(c)
-  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use iso_c_binding, only : c_int, c_double ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none
@@ -780,7 +780,7 @@ end subroutine negf_get_dm
 !! @param [in] copy (int): 0 if you want only to fill npoints, any value
 !!               if you want to perform the actual copy
 subroutine negf_get_currents(handler, npairs, currents, copy) bind(c)
-  use iso_c_binding, only : c_int, c_double, c_double_complex  ! if:mod:use
+  use iso_c_binding, only : c_int, c_double ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none
@@ -1121,7 +1121,7 @@ end subroutine negf_set_elph_dephasing
 !!> Write memory statistics
 !! @param [in] handler: handler Number for the LIBNEGF instance
 subroutine negf_mem_stats(handler) bind(c)
-  use iso_c_binding, only : c_int, c_double ! if:mod:use
+  use iso_c_binding, only : c_int ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
   implicit none

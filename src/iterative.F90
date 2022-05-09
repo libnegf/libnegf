@@ -130,7 +130,6 @@ CONTAINS
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
-    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
@@ -243,7 +242,6 @@ CONTAINS
       call negf%inter%add_sigma_r(ESH)
     end if
 
-    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
@@ -667,6 +665,8 @@ CONTAINS
     end if
 
     nrow=ESH(sbl,sbl)%nrow
+    
+    call allocate_gsm(gsmr,nbl)
 
     call create(gsmr(sbl),nrow,nrow)
 
@@ -743,6 +743,8 @@ CONTAINS
     if (nbl.eq.1) return
 
     nrow=ESH(sbl,sbl)%nrow
+    
+    call allocate_gsm(gsml,nbl)
 
     call create(gsml(sbl),nrow,nrow)
 
@@ -1627,7 +1629,6 @@ CONTAINS
 
     ! Fall here when there are 2 contacts for fast transmission
     if (ncont == 2 .and. size(ni) == 1 .and. nt == 1) then
-      call allocate_gsm(gsmr,nbl)
       call calculate_gsmr_blocks(ESH,nbl,2,.false.)
       call allocate_blk_dns(Gr,nbl)
       call calculate_Gr_tridiag_blocks(ESH,1)
@@ -1636,7 +1637,6 @@ CONTAINS
 
     else
       ! MULTITERMINAL case
-      call allocate_gsm(gsmr,nbl)
       call calculate_gsmr_blocks(ESH,nbl,2)
 
       do icpl = 1, size(ni)
@@ -1954,7 +1954,6 @@ CONTAINS
       ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR(i)%val
     end do
 
-    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
@@ -2041,7 +2040,9 @@ CONTAINS
     type(z_DNS), dimension(:), allocatable :: gsm
     integer :: nbl, ierr
 
-    allocate(gsm(nbl),stat=ierr)
+    if (.not.allocated(gsm)) then
+      allocate(gsm(nbl),stat=ierr)
+    end if   
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
 
   end subroutine allocate_gsm
