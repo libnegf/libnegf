@@ -45,7 +45,7 @@ module iterative
   public :: calculate_Gn_neq_components
 
   public :: calculate_gsmr_blocks
-  public :: calculate_gsml_blocks
+  !public :: calculate_gsml_blocks
   public :: calculate_Gr_tridiag_blocks
   public :: calculate_Gr_column_blocks
   public :: calculate_Gn_tridiag_blocks
@@ -130,6 +130,7 @@ CONTAINS
     !! Add interaction self energy contribution, if any
     if (allocated(negf%inter)) call negf%inter%add_sigma_r(ESH)
 
+    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
@@ -242,6 +243,7 @@ CONTAINS
       call negf%inter%add_sigma_r(ESH)
     end if
 
+    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
@@ -665,8 +667,6 @@ CONTAINS
     end if
 
     nrow=ESH(sbl,sbl)%nrow
-    
-    call allocate_gsm(gsmr,nbl)
 
     call create(gsmr(sbl),nrow,nrow)
 
@@ -709,77 +709,75 @@ CONTAINS
   !
   !***********************************************************************
 
-  subroutine calculate_gsml_blocks(ESH,sbl,ebl)
+ ! subroutine calculate_gsml_blocks(ESH,sbl,ebl)
 
-    !***********************************************************************
-    !Input:
-    !ESH: sparse matrices array ESH(nbl,nbl)
-    !
-    !nbl (number of layers), indblk(nbl+1) global variables needed
-    !
-    !Output:
-    !sparse matrices array global variable gsml(nbl) is available in memory
-    !single blocks are allocated internally, array Gr(nbl,nbl)
-    !must be allocated externally
-    !***********************************************************************
-
-
-    implicit none
-
-    !In/Out
-    type(z_DNS), dimension(:,:), intent(in) :: ESH
-    integer, intent(in) :: sbl,ebl                       ! start block, end block
-
-    !Work
-    type(z_DNS) :: work1, work2
-    integer :: nrow
-    integer :: i, nbl
-    !type(z_DNS) :: INV(sbl,sbl)
-
-    if (sbl.gt.ebl) return
-
-    nbl = size(ESH,1)
-
-    if (nbl.eq.1) return
-
-    nrow=ESH(sbl,sbl)%nrow
-    
-    call allocate_gsm(gsml,nbl)
-
-    call create(gsml(sbl),nrow,nrow)
-
-    call compGreen(gsml(sbl),ESH(sbl,sbl),nrow)
+ !   !***********************************************************************
+ !   !Input:
+ !   !ESH: sparse matrices array ESH(nbl,nbl)
+ !   !
+ !   !nbl (number of layers), indblk(nbl+1) global variables needed
+ !   !
+ !   !Output:
+ !   !sparse matrices array global variable gsml(nbl) is available in memory
+ !   !single blocks are allocated internally, array Gr(nbl,nbl)
+ !   !must be allocated externally
+ !   !***********************************************************************
 
 
-    do i=sbl+1,ebl
+ !   implicit none
 
-      nrow=ESH(i,i)%nrow
+ !   !In/Out
+ !   type(z_DNS), dimension(:,:), intent(in) :: ESH
+ !   integer, intent(in) :: sbl,ebl                       ! start block, end block
 
-      call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+ !   !Work
+ !   type(z_DNS) :: work1, work2
+ !   integer :: nrow
+ !   integer :: i, nbl
+ !   !type(z_DNS) :: INV(sbl,sbl)
 
-      call prealloc_mult(work1,ESH(i-1,i),work2)
+ !   if (sbl.gt.ebl) return
 
-      call destroy(work1)
+ !   nbl = size(ESH,1)
 
-      call prealloc_sum(ESH(i,i),work2,work1)
+ !   if (nbl.eq.1) return
 
-      call destroy(work2)
+ !   nrow=ESH(sbl,sbl)%nrow
 
-      call create(gsml(i),work1%nrow,work1%nrow)
+ !   call create(gsml(sbl),nrow,nrow)
 
-      call compGreen(gsml(i),work1,work1%nrow)
+ !   call compGreen(gsml(sbl),ESH(sbl,sbl),nrow)
 
-      call destroy(work1)
 
-    end do
+ !   do i=sbl+1,ebl
 
-    if (debug) then
-      WRITE(*,*) '********************'
-      WRITE(*,*) 'calculate_gsml done'
-      WRITE(*,*) '********************'
-    endif
+ !     nrow=ESH(i,i)%nrow
 
-  end subroutine calculate_gsml_blocks
+ !     call prealloc_mult(ESH(i,i-1),gsml(i-1),(-1.0_dp, 0.0_dp),work1)
+
+ !     call prealloc_mult(work1,ESH(i-1,i),work2)
+
+ !     call destroy(work1)
+
+ !     call prealloc_sum(ESH(i,i),work2,work1)
+
+ !     call destroy(work2)
+
+ !     call create(gsml(i),work1%nrow,work1%nrow)
+
+ !     call compGreen(gsml(i),work1,work1%nrow)
+
+ !     call destroy(work1)
+
+ !   end do
+
+ !   if (debug) then
+ !     WRITE(*,*) '********************'
+ !     WRITE(*,*) 'calculate_gsml done'
+ !     WRITE(*,*) '********************'
+ !   endif
+
+ ! end subroutine calculate_gsml_blocks
 
 
 
@@ -1629,6 +1627,7 @@ CONTAINS
 
     ! Fall here when there are 2 contacts for fast transmission
     if (ncont == 2 .and. size(ni) == 1 .and. nt == 1) then
+      call allocate_gsm(gsmr,nbl)
       call calculate_gsmr_blocks(ESH,nbl,2,.false.)
       call allocate_blk_dns(Gr,nbl)
       call calculate_Gr_tridiag_blocks(ESH,1)
@@ -1637,6 +1636,7 @@ CONTAINS
 
     else
       ! MULTITERMINAL case
+      call allocate_gsm(gsmr,nbl)
       call calculate_gsmr_blocks(ESH,nbl,2)
 
       do icpl = 1, size(ni)
@@ -1954,6 +1954,7 @@ CONTAINS
       ESH(str%cblk(i),str%cblk(i))%val = ESH(str%cblk(i),str%cblk(i))%val-SelfEneR(i)%val
     end do
 
+    call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
 
     call allocate_blk_dns(Gr,nbl)
