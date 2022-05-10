@@ -2190,14 +2190,15 @@ contains
     
     ! Omega considers maximum kT so interval is always large enough
     Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm)
-    Ntot = negf%Np_real
     Nz = size(mu_n)
-
-    allocate(E(Ntot))
-    allocate(wght(Ntot))
 
     maxE = maxval(mu_n) + Omega
     minE = minval(Ec) - negf%deltaEc
+
+    Ntot = nint(abs(maxE-minE) / negf%Estep)
+
+    allocate(E(Ntot))
+    allocate(wght(Ntot))
 
     call gauleg(minE, maxE, E, wght, Ntot)
 
