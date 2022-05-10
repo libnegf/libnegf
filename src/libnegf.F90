@@ -92,6 +92,8 @@ module libnegf
  public :: compute_density_efa      ! high-level wrapping
                                     ! Extract HM and SM
                                     ! run DM calculation
+ public :: compute_density_quasiEq  ! Run DM calculation with
+                                    ! quasi-equilibr. approximation
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
@@ -1503,53 +1505,34 @@ contains
 
   end subroutine compute_density_efa
 
-  subroutine compute_density_quasiEq(negf, q, particle, dm_start_idx, dm_end_idx, &
+  !subroutine compute_density_quasiEq(negf, q, particle, dm_start_idx, dm_end_idx, &
+  subroutine compute_density_quasiEq(negf, q, particle, &
                                      Ec, Ev, mu_n, mu_p)
     !In/Out
     type(Tnegf) :: negf
     real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
     integer :: particle  ! +1 for electrons, -1 for holes
-    integer, dimension(:) :: dm_start_idx, dm_end_idx 
-
-
-    !Work
-    complex(dp), dimension(:), allocatable :: q_tmp
-    integer :: k
+    !integer, dimension(:) :: dm_start_idx, dm_end_idx 
 
     if (particle /= +1 .and. particle /= -1) then
-       write(*,*) "libNEGF error. In compute_density_efa, unknown particle"
+       write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
        stop
     endif
 
     call extract_cont(negf)
 
-    call create_DM(negf)
-    if (allocated(negf%rho%nzval)) then
-      call destroy(negf%rho)
-    end if
+    q = 0.0_dp
 
     ! Reference contact for contour/real axis separation
-    call set_ref_cont(negf, Ec)
+    call set_ref_cont(negf)
 
     if (particle == 1) then
       negf%muref = negf%mu_n
-      call quasiEq_int(negf,mu_n,E_c,E_v,dm_start_idx,dm_end_idx)
+      !call quasiEq_int(negf,mu_n,Ec,Ev,dm_start_idx,dm_end_idx)
+      call quasiEq_int(negf, mu_n, Ec ,Ev, q)
     else ! particle == -1
-      !call quasiEq_int_p(negf,mu_p,E_c,E_v,dm_start_idx,dm_end_idx)
-    endif
-
-    if (negf%rho%nrow.gt.0) then
-       call log_allocate(q_tmp, negf%rho%nrow)
-
-       call getdiag(negf%rho, q_tmp)
-
-       do k = 1, size(q)
-          q(k) = real(q_tmp(k))
-       enddo
-
-       call log_deallocate(q_tmp)
-    else
-       q = 0.d0
+      negf%muref = negf%mu_p
+      !call quasiEq_int_p(negf,mu_p,Ec,Ev,dm_start_idx,dm_end_idx)
     endif
 
     call destroy_matrices(negf)

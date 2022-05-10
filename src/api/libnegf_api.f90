@@ -685,6 +685,31 @@ subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
 
 end subroutine negf_density_efa
 
+!>
+!! Compute charge Density for EFA, using quasi-equilibrium approximation
+subroutine negf_density_quasi_equilibrium(handler,ndofs,density,particle, Ec, Ev, mu_n, mu_p) bind(C)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use ln_precision      !if:mod:use
+  use libnegf           ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)    ! if:var:in
+  integer :: ndofs                       ! if:var:in 
+  real(dp) :: density(ndofs)             ! if:var:in
+  real(dp) :: Ec(ndofs)                  ! if:var:in
+  real(dp) :: Ev(ndofs)                  ! if:var:in
+  real(dp) :: mu_n(ndofs)                ! if:var:in
+  real(dp) :: mu_p(ndofs)                ! if:var:in
+  integer :: particle                    ! if:var:in 
+
+  ! particle = 1 for electrons
+  ! particle =-1 for holes
+  
+  type(NEGFpointers) :: LIB
+  
+  LIB = transfer(handler, LIB) 
+  call compute_density_quasiEq(LIB%pNEGF, density, particle, Ec, Ev, mu_n, mu_p)
+
+end subroutine negf_density_quasi_equilibrium
 
 !>
 !! Calculate the density matrix for the dft problem
