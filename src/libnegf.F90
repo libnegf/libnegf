@@ -1514,6 +1514,10 @@ contains
     integer :: particle  ! +1 for electrons, -1 for holes
     !integer, dimension(:) :: dm_start_idx, dm_end_idx 
 
+    !Work
+    integer :: i
+    real(dp), dimension(:), allocatable :: E_half
+
     if (particle /= +1 .and. particle /= -1) then
        write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
        stop
@@ -1524,14 +1528,13 @@ contains
     q = 0.0_dp
 
     ! Reference contact for contour/real axis separation
-    call set_ref_cont(negf)
 
     if (particle == 1) then
-      negf%muref = negf%mu_n
+      !negf%muref = negf%mu_n
       !call quasiEq_int(negf,mu_n,Ec,Ev,dm_start_idx,dm_end_idx)
       call quasiEq_int(negf, mu_n, Ec ,Ev, q)
     else ! particle == -1
-      negf%muref = negf%mu_p
+      !negf%muref = negf%mu_p
       !call quasiEq_int_p(negf,mu_p,Ec,Ev,dm_start_idx,dm_end_idx)
     endif
 
