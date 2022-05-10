@@ -444,7 +444,6 @@ CONTAINS
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
-    print*,'add_sigma_r',associated(it)
     do while (associated(it))
       call it%inter%add_sigma_r(ESH, negf%iE, negf%iKpoint, negf%spin)
       it => it%next

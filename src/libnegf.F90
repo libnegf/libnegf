@@ -78,7 +78,7 @@ module libnegf
  public :: set_convfactor, set_fictcont
  public :: read_negf_in
  public :: negf_version
- public :: destroy_matrices ! cleanup matrices in Tnegf container (H,S)
+ public :: destroy_contact_matrices ! cleanup matrices in Tnegf container (H,S)
  public :: destroy_surface_green_cache ! Clean surface green cache (useful for memory cache)
  public :: destroy_DM ! cleanup matrices in Tnegf container (rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
@@ -1313,7 +1313,7 @@ contains
     call destroy_interactions(negf)
 
     call destroy_DM(negf)
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
     call destroy_surface_green_cache(negf)
     call destroy_cache_space(negf)
 
@@ -1478,23 +1478,6 @@ contains
   end subroutine pass_DM
 
   !--------------------------------------------------------------------
-  !> Destroy matrices created runtime in libnegf
-  subroutine destroy_matrices(negf)
-    type(Tnegf) :: negf
-    integer :: i
-
-    if (allocated(negf%cont)) then
-       do i = 1, size(negf%cont)
-          if (allocated(negf%cont(i)%HC%val)) call destroy(negf%cont(i)%HC)
-          if (allocated(negf%cont(i)%SC%val)) call destroy(negf%cont(i)%SC)
-          if (allocated(negf%cont(i)%HMC%val)) call destroy(negf%cont(i)%HMC)
-          if (allocated(negf%cont(i)%SMC%val)) call destroy(negf%cont(i)%SMC)
-       enddo
-    end if
-
-  end subroutine destroy_matrices
-
-  !--------------------------------------------------------------------
   subroutine destroy_HS(negf)
     type(Tnegf) :: negf
 
@@ -1624,7 +1607,7 @@ contains
       call real_axis_int(negf)
     endif
 
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_density_dft
 
@@ -1714,7 +1697,7 @@ contains
        q = 0.0_dp
     endif
 
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_density_efa
 
@@ -1725,7 +1708,7 @@ contains
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call ldos_int(negf)
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_ldos
 
@@ -1757,7 +1740,7 @@ contains
     if (allocated(negf%tunn_mat)) then
       call electron_current(negf)
     end if
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_landauer
 
@@ -1779,7 +1762,6 @@ contains
       error stop "Effective transmission is only supported for dephasing models"
     end if
 
-    call extract_cont(negf)
     call tunneling_int_def(negf)
     ! Dirty trick. Set the contact population to 1 on the final contact and
     ! 1 on the initial one.
@@ -1792,7 +1774,6 @@ contains
     negf%tunn_mat = negf%curr_mat
 
     call electron_current(negf)
-    call destroy_matrices(negf)
 
   end subroutine compute_dephasing_transmission
 
@@ -1811,7 +1792,7 @@ contains
     if (allocated(negf%curr_mat)) then
       call electron_current_meir_wingreen(negf)
     end if
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_meir_wingreen
 
@@ -1828,7 +1809,7 @@ contains
     if (allocated(negf%curr_mat)) then
       call electron_current_meir_wingreen(negf)
     end if
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_layer_current
 
@@ -1964,7 +1945,7 @@ contains
     ! An implementation node by node is still active, for debugging purposes
     !call write_tunneling_and_dos(negf)
 
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_phonon_current
 

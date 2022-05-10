@@ -1248,10 +1248,7 @@ contains
 
     if (negf%interactList%counter /= 0) then
       wqmax = get_max_wq(negf%interactList)
-      print*,'max wq=',wqmax
       Nsteps=nint((negf%Emax-negf%Emin+wqmax)/negf%Estep) + 1
-      print*,'Emin/Emax=',negf%Emin,negf%Emax,negf%Estep
-      print*,'Nsteps=',Nsteps
       if (mod(Nsteps,numprocs) .ne. 0) then
          print*, 'ERROR: MPI energy procs non compatible with number of points'
       end if
@@ -1358,7 +1355,7 @@ contains
     endif
 
     !-------------------------------------------------------
-    call write_info_parallel(negf%verbose,30,'CALCULATION OF COHERENT TRANSMISSION',Nstep)
+    call write_info_parallel(negf%verbose,30,'CALCULATION OF COHERENT TRANSMISSION; Nsteps:',Nstep)
 
     !Loop on energy points: tunneling
     do i = 1, Nstep
@@ -1461,7 +1458,7 @@ contains
       frm(1:ncont) = fixed_occupations
     end if
 
-    call write_info(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA',Nstep)
+    call write_info(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA; Nsteps:',Nstep)
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
@@ -1471,6 +1468,7 @@ contains
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
+    call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
     scba_iter = 0
 
     scba: do while (.not.negf%scbaDriver%is_converged() .and. scba_iter <= scba_niter_inela)
@@ -1530,7 +1528,8 @@ contains
           call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-          negf%curr_mat(iE,:) = curr_mat(:) * negf%kwght
+          ! Recursive sum adds up k-dependent partial results
+          negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
 
           do icont=1,ncont
             call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1538,9 +1537,9 @@ contains
 
         end do enloop
 
-      end do kloop
+        call destroy_contact_matrices(negf)
 
-      call electron_current_meir_wingreen(negf)
+      end do kloop
 
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
@@ -1549,9 +1548,21 @@ contains
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      !Check SCBA convergence on layer currents
-      ! Should we allreduce negf%currents ?
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_reduceip(negf%energyComm, negf%currents, MPI_SUM)
+      call mpifx_reduceip(negf%kComm, negf%currents, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+
+      !Check SCBA convergence on layer currents.
+      !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+#:if defined("MPI")
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
 
       ! Clean up caches of G_r and G_n
       call negf%G_r%destroy()
@@ -1666,7 +1677,7 @@ contains
           ! ---------------------------------------------------------------------
           ! Avoids cleanup of Gn and ESH components for later use
           negf%tDestroyESH = .false.; negf%tDestroyGn = .false.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Gn ')
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
                 scba_tolerance, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1680,7 +1691,8 @@ contains
           call iterative_layer_current(negf,real(Ec),curr_mat)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-          negf%curr_mat(iE,:) = curr_mat(:) * negf%kwght
+          ! Recursive sum adds up k-dependent partial results
+          negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
 
           do icont=1,ncont
             call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1688,9 +1700,9 @@ contains
 
         end do enloop
 
-      end do kloop
+        call destroy_contact_matrices(negf)
 
-      call electron_current_meir_wingreen(negf)
+      end do kloop
 
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
@@ -1699,9 +1711,21 @@ contains
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      !Check SCBA convergence on layer currents
-      ! Should we allreduce negf%currents ?
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_reduceip(negf%energyComm, negf%currents, MPI_SUM)
+      call mpifx_reduceip(negf%kComm, negf%currents, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+
+      !Check SCBA convergence on layer currents.
+      !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+#:if defined("MPI")
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
 
       ! Clean up caches of G_r and G_n
       call negf%G_r%destroy()
