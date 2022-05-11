@@ -29,7 +29,7 @@ option(FORCE_MPIFX_DOWNLOAD
   "Force mpifx download from repository (do not search for installed package) " FALSE)
 
 # include directory on installation folder
-set(INSTALL_INCLUDE_DIR "libnegf" CACHE PATH
+set(INSTALL_INCLUDE_DIR "" CACHE PATH
   "Installation directory for C and C++ header files (within standard include folder)")
 
 # fortran modules directory on installation folder

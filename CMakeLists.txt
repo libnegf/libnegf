@@ -1,13 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(libNEGF VERSION 1.1.1 LANGUAGES Fortran C)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+include(LibNegfUtils)
+libnegf_load_build_settings()
 
+project(libNEGF VERSION 1.1.2 LANGUAGES Fortran C)
 
 # Some setting output 
 message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
 message(STATUS "libNEGF WITH_INELASTIC: " ${WITH_INELASTIC})
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(externalMpifx)
 include(CMakePackageConfigHelpers)
 
