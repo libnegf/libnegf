@@ -52,6 +52,8 @@ module integrations
  public :: contour_int_def   ! contour integration for DFT(B)
  public :: contour_int_n_def ! contour integration for CB
  public :: contour_int_p_def ! contour integration for VB
+ public :: quasiEq_int_n_def     
+ public :: quasiEq_int_p_def     
  public :: real_axis_int_def ! real axis integration
  public :: real_axis_int_n_def ! integration of CB on real axis
  public :: real_axis_int_p_def ! integration of VB on real axis
@@ -2165,55 +2167,287 @@ contains
 
   end subroutine swap
 
-  !subroutine quasiEq_int(negf, mu_n, Ec, Ev, dm_start_idx, dm_end_idx)
-  subroutine quasiEq_int(negf, mu_n, Ec, Ev, rho)
+
+  subroutine quasiEq_int_n_def(negf, mu_n, E_half, N_coarse)
     !In/Out
     type(Tnegf), intent(inout) :: negf
+    real(dp), dimension(:), intent(in) :: E_half, mu_n
+    integer, intent(out) :: N_coarse
+
+    !Work
+    integer :: i, ioffs
+    integer ::  Ntot, N_refined
+    integer :: Nz
+    complex(dp) :: Ez
+    real(dp), dimension(:), allocatable :: wght, E
+    real(dp), dimension(:), allocatable :: minE, maxE
+    real(dp) :: Omega, kbT, ff 
+
+    kbT = maxval(negf%cont(:)%kbT_dm)
+    
+    ! Omega considers maximum kT so interval is always large enough
+    Omega = negf%n_kt * kbT
+    Nz = size(mu_n)
+
+    allocate(minE(Nz))
+    allocate(maxE(Nz))
+
+
+    !First range: from E_half to mu_n (if E_half < mu_n); coarse integration
+    if (all(E_half < mu_n)) then
+       minE(:) = E_half(:)
+       maxE(:) = mu_n(:)
+    else
+       minE(:) = mu_n(:)
+       maxE(:) = E_half(:)
+    endif
+    N_coarse = nint(abs(maxval(maxE)-minval(minE)) / negf%Estep_coarse) 
+    
+    !Second range, from maxE of previous integration to mu_n + nKT; refined integration
+    N_refined = nint(abs(maxval(mu_n + Omega) - minval(maxE)) / negf%Estep)  
+
+    Ntot = N_coarse + N_refined
+
+    call destroy_en_grid(negf%en_grid)
+    allocate(negf%en_grid(Ntot))
+
+    !Coarse Integration
+    allocate(E(N_coarse))
+    allocate(wght(N_coarse))
+
+    call gauleg(minval(minE), maxval(maxE), E, wght, N_coarse)
+
+    do i = 1, N_coarse
+
+       Ez = cmplx(E(i),negf%delta,dp)
+
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = Ez
+       negf%en_grid(i)%wght = wght(i) * negf%g_spin * negf%kwght
+
+    enddo
+
+    deallocate(wght)
+    deallocate(E)
+
+    !Refined Integration; Redefinition of maxE, minE
+    minE(:) = maxE(:)
+    maxE(:) = mu_n(:) + Omega
+
+    allocate(E(N_refined))
+    allocate(wght(N_refined))
+
+    call gauleg(minval(minE), maxval(maxE), E, wght, N_refined)
+
+    ioffs = N_coarse
+
+    do i = 1, N_refined
+
+       Ez = cmplx(E(i),negf%delta,dp)
+
+       negf%en_grid(ioffs+i)%path = 1
+       negf%en_grid(ioffs+i)%pt = ioffs + i
+       negf%en_grid(ioffs+i)%pt_path = ioffs + i
+       negf%en_grid(ioffs+i)%Ec = Ez
+       negf%en_grid(ioffs+i)%wght = wght(i) * negf%g_spin * negf%kwght
+
+    enddo
+
+    deallocate(wght)
+    deallocate(E)
+
+    deallocate(minE)
+    deallocate(maxE)
+
+    ! *******************************************************************************
+    ! Distribution of Energy grid
+    ! pts 1 2 3 4 5 6 7 8 9 ...
+    ! cpu 0 1 2 3 0 1 2 3 0 ...
+    ! *******************************************************************************
+    do i = 0, Ntot-1
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
+
+  end subroutine quasiEq_int_n_def
+
+  subroutine quasiEq_int_p_def(negf, mu_p, E_half, N_coarse)
+    !In/Out
+    type(Tnegf), intent(inout) :: negf
+    real(dp), dimension(:), intent(in) :: E_half, mu_p
+    integer, intent(out) :: N_coarse
+
+    !Work
+    integer :: i, ioffs
+    integer ::  Ntot, N_refined
+    integer :: Nz
+    complex(dp) :: Ez
+    real(dp), dimension(:), allocatable :: wght, E
+    real(dp), dimension(:), allocatable :: minE, maxE
+    real(dp) :: Omega, kbT, ff 
+
+    kbT = maxval(negf%cont(:)%kbT_dm)
+    
+    ! Omega considers maximum kT so interval is always large enough
+    Omega = negf%n_kt * kbT
+    Nz = size(mu_p)
+
+    allocate(minE(Nz))
+    allocate(maxE(Nz))
+
+
+    !First range: from mu_p to E_half (if E_half > mu_p); coarse integration
+    if (all(E_half > mu_p)) then
+       minE(:) = mu_p(:)
+       maxE(:) = E_half(:)
+    else
+       minE(:) = E_half(:)
+       maxE(:) = mu_p(:)
+    endif
+    N_coarse = nint(abs(maxval(maxE)-minval(minE)) / negf%Estep_coarse) 
+    
+    !Second range, from mu_p - nKT to minE of previous integration; refined integration
+    N_refined = nint(abs(maxval(minE) - minval(mu_p - Omega)) / negf%Estep)  
+
+    Ntot = N_coarse + N_refined
+    print*, 'N_coarse =', N_coarse
+    print*, 'N_refined =', N_refined
+
+    call destroy_en_grid(negf%en_grid)
+    allocate(negf%en_grid(Ntot))
+
+    !Coarse Integration
+    allocate(E(N_coarse))
+    allocate(wght(N_coarse))
+
+    call gauleg(minval(minE), maxval(maxE), E, wght, N_coarse)
+
+    do i = 1, N_coarse
+
+       Ez = cmplx(E(i),negf%delta,dp)
+
+       negf%en_grid(i)%path = 1
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%Ec = Ez
+       negf%en_grid(i)%wght = wght(i) * negf%g_spin * negf%kwght
+
+    enddo
+
+    deallocate(wght)
+    deallocate(E)
+
+    !Refined Integration; Redefinition of maxE, minE
+    maxE(:) = minE(:) 
+    minE(:) = mu_p(:) - Omega
+
+    allocate(E(N_refined))
+    allocate(wght(N_refined))
+
+    call gauleg(minval(minE), maxval(maxE), E, wght, N_refined)
+
+    ioffs = N_coarse
+
+    do i = 1, N_refined
+
+       Ez = cmplx(E(i),negf%delta,dp)
+
+       negf%en_grid(ioffs+i)%path = 1
+       negf%en_grid(ioffs+i)%pt = ioffs + i
+       negf%en_grid(ioffs+i)%pt_path = ioffs + i
+       negf%en_grid(ioffs+i)%Ec = Ez
+       negf%en_grid(ioffs+i)%wght = wght(i) * negf%g_spin * negf%kwght
+
+    enddo
+
+    deallocate(wght)
+    deallocate(E)
+
+    deallocate(minE)
+    deallocate(maxE)
+
+    ! *******************************************************************************
+    ! Distribution of Energy grid
+    ! pts 1 2 3 4 5 6 7 8 9 ...
+    ! cpu 0 1 2 3 0 1 2 3 0 ...
+    ! *******************************************************************************
+    do i = 0, Ntot-1
+       negf%en_grid(i+1)%cpu = mod(i,numprocs)
+    enddo
+
+  end subroutine quasiEq_int_p_def
+
+  subroutine quasiEq_int(negf, mu_n, mu_p, E_half, N_coarse, particle, rho)
+    !In/Out
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: N_coarse, particle
+    real(dp), dimension(:), intent(in) :: E_half, mu_n, mu_p
     real(dp), dimension(:), intent(inout) :: rho
-    real(dp), dimension(:), intent(in) :: Ec, Ev, mu_n
-    !integer, dimension(:), intent(in) :: dm_start_idx, dm_end_idx
 
     !Work
     integer :: i, nr
-    !integer :: rs, re
     integer ::  ncont, Ntot, outer, Nz
     complex(dp) :: Ez
-    type(z_DNS) :: DNStmpMt
-    type(z_CSR) :: CSRtmpMt, Gr 
-    real(dp), dimension(:), allocatable :: wght, E
+    type(z_CSR) :: Gr 
+    real(dp), dimension(:), allocatable :: minE, maxE
     complex(dp), dimension(:), allocatable :: diag   
-    real(dp) :: Omega, ff, ww, minE, maxE, kbT 
+    real(dp) :: Omega, E, ff, ww, kbT 
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
     outer = negf%outer
     
     ! Omega considers maximum kT so interval is always large enough
-    Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm)
+    Omega = negf%n_kt * kbT
     Nz = size(mu_n)
+    Ntot = size(negf%en_grid)
 
-    maxE = maxval(mu_n) + Omega
-    minE = minval(Ec) - negf%deltaEc
+    allocate(minE(Nz))
+    allocate(maxE(Nz))
 
-    Ntot = nint(abs(maxE-minE) / negf%Estep)
+    if (particle == 1) then
+    !First range for electrons: from E_half to mu_n (if E_half < mu_n); coarse integration
+      if (all(E_half < mu_n)) then
+         minE(:) = E_half(:)
+         maxE(:) = mu_n(:)
+      else
+         minE(:) = mu_n(:)
+         maxE(:) = E_half(:)
+      endif
+   else
+    !First range for holes: from mu_p to E_half (if E_half > mu_p); coarse integration
+      if (all(E_half > mu_p)) then
+         maxE(:) = E_half(:)
+         minE(:) = mu_p(:)
+      else
+         maxE(:) = mu_p(:)
+         minE(:) = E_half(:)
+      endif
+   endif
 
-    allocate(E(Ntot))
-    allocate(wght(Ntot))
+    call write_info(negf%verbose,'QUASI-EQUILIBRIUM INTEGRAL',Ntot)
 
-    call gauleg(minE, maxE, E, wght, Ntot)
+    do i = 1, N_coarse
+        
+       call write_point(negf%verbose,negf%en_grid(i), Ntot)
+       if (negf%en_grid(i)%cpu .ne. id) cycle
 
-    do i = 1, Ntot
-
-       Ez = cmplx(E(i),negf%delta,dp)
+       Ez = negf%en_grid(i)%Ec
+       E = real(Ez)
        call compute_Gr(negf, outer, ncont, Ez, Gr)
        call log_allocate(diag, Gr%nrow)
        call getdiag(Gr,diag)
 
        do nr = 1,Nz
-          if (E(i) > Ec(nr) - negf%deltaEc .and. E(i) < mu_n(nr) + Omega) then
-             ff = fermi(E(i), mu_n(nr), kbT)
-             ww = negf%g_spin * negf%kwght * wght(i) * ff/pi   !Is kwght right?
-             !rho(rs:re) = rho(rs:re) - aimag(diag(rs:re)) * ww
+          if (E > minE(nr) .and. E < maxE(nr)) then
+             if (particle == 1) then
+               ff = fermi(E, mu_n(nr), kbT)
+             else
+               ff = fermi(-E, -mu_p(nr), kbT) 
+             endif
+
+             ww =  negf%en_grid(i)%wght *ff/pi   
              rho(nr) = rho(nr) - aimag(diag(nr)) * ww
           endif
        enddo
@@ -2223,8 +2457,47 @@ contains
 
     enddo
 
-    deallocate(wght)
-    deallocate(E)
+    if (particle == 1) then
+    !Second range for electrons, from maxE of previous integration to mu_n + nKT; refined integration
+       minE(:) = maxE(:)
+       maxE(:) = mu_n(:) + Omega
+    else
+    !Second range for holes, from mu_p - nKT to minE of previous integration; refined integration
+       maxE(:) = minE(:)
+       minE(:) = mu_p(:) - Omega
+    endif
+
+    do i = N_coarse, Ntot
+
+       call write_point(negf%verbose,negf%en_grid(i), Ntot)
+       if (negf%en_grid(i)%cpu .ne. id) cycle
+
+       Ez = negf%en_grid(i)%Ec
+       E = real(Ez)
+       call compute_Gr(negf, outer, ncont, Ez, Gr)
+       call log_allocate(diag, Gr%nrow)
+       call getdiag(Gr,diag)
+
+       do nr = 1,Nz
+          if (E > minE(nr) .and. E < maxE(nr)) then
+             if (particle == 1) then
+               ff = fermi(E, mu_n(nr), kbT)
+             else
+               ff = fermi(-E, -mu_p(nr), kbT) 
+             endif
+
+             ww = negf%en_grid(i)%wght * ff/pi   
+             rho(nr) = rho(nr) - aimag(diag(nr)) * ww
+          endif
+       enddo
+
+       call log_deallocate(diag)
+       call destroy(Gr)
+
+    enddo
+
+    deallocate(minE)
+    deallocate(maxE)
 
   end subroutine quasiEq_int
 

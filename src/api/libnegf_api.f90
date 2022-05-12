@@ -705,7 +705,7 @@ subroutine negf_density_quasi_equilibrium(handler,ndofs,density,particle, Ec, Ev
   ! particle =-1 for holes
   
   type(NEGFpointers) :: LIB
-  
+
   LIB = transfer(handler, LIB) 
   call compute_density_quasiEq(LIB%pNEGF, density, particle, Ec, Ev, mu_n, mu_p)
 
