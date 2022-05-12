@@ -170,6 +170,8 @@ module libnegf
    real(c_double) :: emax
    !> Energy step for real axis
    real(c_double) :: estep
+   !> Energy step for coarse integrations
+   real(c_double) :: estep_coarse
    !! Contacts info
    !> Electron electrochemical potential
    real(c_double) :: mu_n(MAXNCONT)
@@ -679,6 +681,7 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
+    negf%Estep_coarse = params%Estep_coarse
     if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
     allocate(negf%ni(nn))
@@ -1505,17 +1508,15 @@ contains
 
   end subroutine compute_density_efa
 
-  !subroutine compute_density_quasiEq(negf, q, particle, dm_start_idx, dm_end_idx, &
   subroutine compute_density_quasiEq(negf, q, particle, &
                                      Ec, Ev, mu_n, mu_p)
     !In/Out
     type(Tnegf) :: negf
     real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
     integer :: particle  ! +1 for electrons, -1 for holes
-    !integer, dimension(:) :: dm_start_idx, dm_end_idx 
 
     !Work
-    integer :: i
+    integer :: i, ndofs, N_coarse
     real(dp), dimension(:), allocatable :: E_half
 
     if (particle /= +1 .and. particle /= -1) then
@@ -1523,20 +1524,29 @@ contains
        stop
     endif
 
+
     call extract_cont(negf)
+
+    ndofs = size(Ec)
+    allocate(E_half(ndofs))
+    E_half(:) = (Ec(:) + Ev(:)) / 2.0_dp
 
     q = 0.0_dp
 
-    ! Reference contact for contour/real axis separation
-
     if (particle == 1) then
-      !negf%muref = negf%mu_n
-      !call quasiEq_int(negf,mu_n,Ec,Ev,dm_start_idx,dm_end_idx)
-      call quasiEq_int(negf, mu_n, Ec ,Ev, q)
+      call quasiEq_int_n_def(negf, mu_n, E_half, N_coarse)
+      !Temporary for debug
+    call quasiEq_int(negf, mu_n, mu_p, E_half, N_coarse, particle, q)
+      !
     else ! particle == -1
-      !negf%muref = negf%mu_p
-      !call quasiEq_int_p(negf,mu_p,Ec,Ev,dm_start_idx,dm_end_idx)
+      !call quasiEq_int_p_def(negf, mu_p, E_half, N_coarse)
+      call quasiEq_int_p(negf, mu_p, E_half, N_coarse)
     endif
+
+            !print*, 'before int'
+            !print*, 'after int'
+
+    deallocate(E_half)
 
     call destroy_matrices(negf)
 

@@ -144,6 +144,7 @@ module lib_param
     real(dp) :: Emin              ! Tunneling or dos interval
     real(dp) :: Emax              !
     real(dp) :: Estep             ! Tunneling or dos E step
+    real(dp) :: Estep_coarse      ! dos E step for coarse integration (quasiEq integral)
 
     !! Emitter and collector for transmission or Meir-Wingreen
     !! (only emitter in this case)
@@ -340,6 +341,7 @@ contains
      negf%Emin = 0.d0        ! Tunneling or dos interval
      negf%Emax = 0.d0        !
      negf%Estep = 0.d0       ! Tunneling or dos E step
+     negf%Estep_coarse = 0.d0       ! Tunneling or dos E step
      negf%g_spin = 2.d0      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n

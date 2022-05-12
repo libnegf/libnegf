@@ -31,6 +31,7 @@ struct lnparams {
   double emin;
   double emax;
   double estep;
+  double estep_coarse;
   double mu_n[MAXNCONT];
   double mu_p[MAXNCONT];
   double mu[MAXNCONT];
