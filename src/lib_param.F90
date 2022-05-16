@@ -26,7 +26,7 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use input_output
-  use elph, only : Telph
+  !use elph, only : Telph
   use phph
   use energy_mesh, only : mesh
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
@@ -229,14 +229,15 @@ module lib_param
     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
     real(dp) :: int_acc           ! adaptive integration accuracy
 
-    type(Telph) :: elph           ! electron-phonon data
     type(Tphph) :: phph           ! phonon-phonon data
-
+     
     ! Many Body Interactions as array of pointers
     type(TInteractionList)  :: interactList
-    type(TScbaDriver) :: scbaDriver
     type(TScbaDriverElastic) :: scbaDriverElastic
     type(TScbaDriverInelastic) :: scbaDriverInelastic
+
+    real(dp) :: scba_elastic_tol = 1.0e-7_dp
+    real(dp) :: scba_inelastic_tol = 1.0e-7_dp
 
     !! Output variables: these arrays are filled by internal subroutines to store
     !! library outputs
@@ -352,7 +353,8 @@ contains
 
   end subroutine set_elph_s_dephasing
 
-  subroutine set_elph_inelastic(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter)
+  subroutine set_elph_inelastic(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
+              & tridiag)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     real(dp), intent(in) :: wq
@@ -363,15 +365,16 @@ contains
     real(dp), intent(in) :: q0
     real(dp), intent(in) :: area
     integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
 
     type(TInteractionNode), pointer :: node
     call negf%interactList%add(node)
-    call elphondephd_create(node%inter)
+    call elphoninel_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonInel)
 #:if defined("MPI")
       call elphoninel_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
-          &  wq, Temp, dz, eps0, eps_inf, q0, area, niter)
+          &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"
 #:endif    
@@ -473,6 +476,8 @@ contains
      negf%dumpHS = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
+     negf%scba_elastic_tol = 1.d-7
+     negf%scba_inelastic_tol = 1.d-7
      negf%ndos_proj = 0
 
      negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)

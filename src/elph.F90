@@ -20,12 +20,6 @@
 
 module elph
 
-  use ln_precision, only : dp
-  use globals
-  use ln_allocation
-  use mat_def, only : create, destroy, z_DNS, z_CSR, z_COO
-  use sparsekit_drv, only : prealloc_mult, prealloc_sum, coo2csr, extract, csr2dns
-
   implicit none
   private
 
@@ -64,27 +58,13 @@ module elph
 
   type(TModelsEnum), parameter :: interaction_models = TModelsEnum()
 
-  !> This type contains information describing different electron phonon
-  !! models: input parameters, temporary data and output quantities
-  !!
-  !! Note: I don't use explicitely interfaces and different data types
-  !! for different models because then we'll need all the different
-  !! containers in negf container (cannot use virtualization)
-  !! It may be managed in a more elegant way
+  !> This type is not currently used 
   type Telph
-    !! Common parameters
-    integer :: model = interaction_models%dummy
-
-    !> An array specifying how many orbital per atom (assumed contiguous)
-    !  used in model semilocal
-    integer, allocatable, dimension(:) :: orbsperatm
-
     logical :: Selfene_Gr
     logical :: Selfene_Gless
     logical :: Selfene_Hilb
     logical :: memory
     logical :: check
-
   end type Telph
 
 end module elph

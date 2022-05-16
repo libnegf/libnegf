@@ -21,9 +21,11 @@
 #define KK(im, iK, iQ) ( KK[ im + Ndz * iK + Ndz * NK * iQ ] )
 
 
-// =========================================================
-// self-energy for polar optical electron-phonon interaction
-// =========================================================
+// ======================================================================================
+// Self-energy for polar optical electron-phonon interaction
+//
+// Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [f(-)*Gmn(q,E-wq) + f(+)*Gmn(q,E+wq)] 
+// ======================================================================================
 
 int self_energy(
   // Fortran communicator of the 2d cartesian grid
@@ -41,7 +43,7 @@ int self_energy(
   // local number of E-points
   int NEloc,
   // hbar wq in energy grid units
-  int iEhbaromegaLO,
+  int iEhbaromega,
   // array of pointers to G (double complex *)
   void **GG,
   // array of pointers to Sigma (double complex *)
@@ -53,12 +55,14 @@ int self_energy(
   double complex *rbuff2,
   double complex *rbuffH,
   double complex *sbuffH,
-  // fac1 * G(E-wq)
-  double complex fac1,
-  // fac2 * G(E+wq)
-  double complex fac2,
-  // Array of z coordinates on the grid indexed as the matrix
-  int *iz,
+  // fac_minus * G(E-wq)
+  double complex fac_minus,
+  // fac_plus * G(E+wq)
+  double complex fac_plus,
+  // Array of z coordinates on the grid indexed as the matrix rows
+  int *izr,
+  // Array of z coordinates on the grid indexed as the matrix cols
+  int *izc,
   // Pretubulated array KK(|zi-zj|, iQ, iK)
   double *KK,
   // Leading dimension of array KK
@@ -67,7 +71,7 @@ int self_energy(
 {
   int myid, size;
   int iK,iE, iQ;
-  int iKglo,iEglo,iQglo, iKglo2;
+  int iKglo,iEglo,iQglo, iQglo2;
   int mu, nu, im, in;
   int coords[2], coordsH[2], dims[2];
   int iEminus, iEplus;
@@ -105,70 +109,76 @@ int self_energy(
   //printf("check Np %d  Mp %d\n", Np, Mp);
   //printf("check NK %d  NKloc %d\n", NK, NKloc);
   //printf("check NE %d  NEloc %d\n", NE, NEloc);
-  //printf("check iShift %d \n", iEhbaromegaLO);
-  //printf("check fac1 %f %f \n", creal(fac1), cimag(fac1));
-  //printf("check fac2 %f %f \n", creal(fac2), cimag(fac2));
-  //printf("check iz: %d %d %d\n", iz[0],iz[4],iz[8]);
-  //printf("check Ndz %d\n", Ndz);
-  //printf("check Kmat: %f %f %f\n", KK(0,0,0),KK(1,0,0),KK(2,0,0));
-  // CAREFUL! The meaning of K and Q is reversed compared to the notes!
+  //printf("check iShift %d \n", iEhbaromega);
+  //printf("check fac_minus %f %f \n", creal(fac1), cimag(fac1));
+  //printf("check fac_plus %f %f \n", creal(fac2), cimag(fac2));
+  //printf("check Kmat: \n");
+  //for ( mu = 0; mu<Np; mu++){
+  //  im = abs(izr[mu]-izc[0]);
+  //  printf("KK(%d,0,0)=%f \n",im,KK(im,0,0));
+  //}
+  //                                                                    
   //
-  // Sigma_ij(iQ, iE) = Sum_iK   KK(|z_i-z_j|, iK, iQ) *
-  //                        * (fac1 * GG_ij(iK, E-wq) + fac2 * GG_ij(iK, E+wq))
+  // Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) *
+  //                        * (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
   //
   MPI_Barrier(comm2d);
 
-  for( iK=0; iK<NKloc; iK++ )
+  for( iQ=0; iQ<NKloc; iQ++ )
   {
-    iKglo=iK+coords[0]*NKloc;
-    //printf("iKloc: %d iKglo: %d\n",iK,iKglo);
+    iQglo=iQ+coords[0]*NKloc;
     for( iE=0; iE<NEloc; iE++ )
     {
       iEglo=iE+coords[1]*NEloc;
-      //printf("iEloc: %d iEglo: %d\n",iE,iEglo);
+      //printf("iQloc: %d iQglo: %d iEloc: %d iEglo: %d\n",iQ, iQglo, iE,iEglo);
 
       ////////////////////////////////////////////////////////////////////////////////////
       // Communications of G(k, E-hwq)
+      //  012345 012345 012345 012345    iE < NEloc = 6
+      //  -------------------------------------------------------------------------------
+      //  000000 000011 111111 112222
+      //  012345 678901 234567 890123    iEglo = 1 + 6 = 7
+      // |oooooo|oooooo|oooooo|oooooo|   
+      //  ^-----|-E----|--^              ihbarOmega = 7; ndiff = 1 iMinus = 0 
+      //     ^--|----E-|-----^                           ndiff = 1 iMinus = 3
       ////////////////////////////////////////////////////////////////////////////////////
-      //printf("local E-wq \n");
-      // checks if iE-iEhbaromegaLO is on the same processor => no communication
-      if( (((int)iE - iEhbaromegaLO) >=0 && (iE - iEhbaromegaLO) < NEloc) || iEglo < NEloc)
+      
+      // checks if iE-iEhbaromega is on the same processor => no communication
+      // pbuff1 points to G(k,E-wq)
+      if( (((int)iE - iEhbaromega) >=0 && (iE - iEhbaromega) < NEloc) || iEglo < NEloc)
       {
-        iEminus=iE-iEhbaromegaLO;
+        iEminus=iE-iEhbaromega;
         if(iEminus<=0) {iEminus = 0;}
-        // pbuff1 points to G(k,E-wq)
-        //pbuff1 = &Gless[(iK*NEloc+iEminus)*Np*Np]  -> GG[iK,iE]
-        pbuff1 = (double complex *) GG[iK*NEloc+iEminus];
+        pbuff1 = (double complex *) GG[iQ*NEloc+iEminus];
         mdest=MPI_PROC_NULL;
         msource=MPI_PROC_NULL;
       }
 
+      // MPI Communication for G(E-wq) 
+      // get global iEminus and originating process that has to process
+      // current working on iE 
       if(dims[1] > 1)
       {
-        // get global iEminus
-        iEminus = iEglo-iEhbaromegaLO;
-        //printf("global iEminus %d\n",iEminus);
-        if( iEhbaromegaLO >= NEloc )
-          ndiff = (iEglo-iEminus)/ NEloc;
+        iEminus = iEglo-iEhbaromega;
+        if( iEhbaromega >= NEloc )
+          ndiff = iEhbaromega / NEloc;
         else
-          ndiff = (NEloc+iEglo-iEminus)/ NEloc;
+          ndiff = (NEloc+iEhbaromega)/ NEloc;
 
-        // get destination process
         MPI_Cart_shift( comm2d, 1, ndiff, &msource, &mdest );
 
-        if(mdest != MPI_PROC_NULL && iE<iEhbaromegaLO)
+        // iE < iEhbaromega ensuhre MPI communication.
+        if(mdest != MPI_PROC_NULL && iE < iEhbaromega)
         {
-          // get local iEmins in destination process and send there
-          iEminus = (NEloc+iE-iEhbaromegaLO) % NEloc;
-          pGG = (double complex *) GG[iK*NEloc+iEminus];
+          // iEminus sends to current iE so pbuff1 => G(E-wq) 
+          iEminus = (NEloc+iE-iEhbaromega) % NEloc;
+          pGG = (double complex *) GG[iQ*NEloc+iEminus];
           MPI_Isend(pGG, Mp*Np, MPI_DOUBLE_COMPLEX, mdest, 41, comm2d, &rqE[0]);
         }
 
-        // corresponding recv
-        if(msource != MPI_PROC_NULL && iE<iEhbaromegaLO)
+        if(msource != MPI_PROC_NULL && iE < iEhbaromega)
         {
           MPI_Irecv(rbuff1, Mp*Np, MPI_DOUBLE_COMPLEX, msource, 41, comm2d, &rqE[1]);
-          // pbuff1 points to received buffer with G(k,E-wq)
           pbuff1 = rbuff1;
         }
       }
@@ -177,91 +187,93 @@ int self_energy(
       // Communications of G(k, E+hwq)
       ////////////////////////////////////////////////////////////////////////////////////
 
-      // checks if iE+iEhbaromegaLO is on the same processor => no communication
-      //printf("local E+wq \n");
-      if( (((int)iE + iEhbaromegaLO) >=0 && (iE + iEhbaromegaLO) < NEloc) || iEglo >= NE-NEloc)
+      // checks if iE+iEhbaromega is on the same processor => no communication
+      // pbuff2 points to G(k,E+wq)
+      if( (((int)iE + iEhbaromega) >=0 && (iE + iEhbaromega) < NEloc) || iEglo >= NE-NEloc)
       {
-        iEplus = iE+iEhbaromegaLO;
-        if(iEglo+iEhbaromegaLO>=NE) {iEplus = NEloc-1;}
-        //pbuff2 = &Gless[(iK*NEloc+iEplus)*Np*Np];
-        pbuff2 = (double complex *) GG[iK*NEloc+iEplus];
+        iEplus = iE+iEhbaromega;
+        if(iEglo+iEhbaromega>=NE) {iEplus = NEloc-1;}
+        pbuff2 = (double complex *) GG[iQ*NEloc+iEplus];
         pdest=MPI_PROC_NULL;
         psource=MPI_PROC_NULL;
       }
 
+      // MPI Communication for G(E+wq) 
+      // get global iEminus and originating process that has to process
+      // current working on iE 
       if(dims[1] > 1)
       {
-        iEplus = iEglo + iEhbaromegaLO;
-        //printf("global iEplus %d\n",iEplus);
-        if( iEhbaromegaLO >= NEloc )
-          ndiff = (iEplus-iEglo) / NEloc;
+        iEplus = iEglo + iEhbaromega;
+        if( iEhbaromega >= NEloc )
+          ndiff = iEhbaromega / NEloc;
         else
-          ndiff = (iEplus+NEloc-iEglo)/ NEloc;
+          ndiff = (NEloc+iEhbaromega)/ NEloc;
 
         MPI_Cart_shift( comm2d, 1, -ndiff, &psource, &pdest );
-        // get local iEmins in destination process and send there
-        if(pdest != MPI_PROC_NULL && iE >= NEloc-iEhbaromegaLO)
+        // iEplus sends to current processing iE so pbuff2 => G(E+wq) 
+        if(pdest != MPI_PROC_NULL && iE >= NEloc-iEhbaromega)
         {
-          iEplus = iE - (NEloc - iEhbaromegaLO);
-          pGG = (double complex *) GG[iK*NEloc+iEplus];
+          iEplus = iE - (NEloc - iEhbaromega);
+          pGG = (double complex *) GG[iQ*NEloc+iEplus];
           MPI_Isend(pGG, Mp*Np, MPI_DOUBLE_COMPLEX, pdest, 42, comm2d, &rqE[2]);
         }
-        // recv from source
-        if(psource != MPI_PROC_NULL && iE >= NEloc-iEhbaromegaLO)
+        if(psource != MPI_PROC_NULL && iE >= NEloc-iEhbaromega)
         {
           MPI_Irecv(rbuff2, Mp*Np,MPI_DOUBLE_COMPLEX,psource,42,comm2d,&rqE[3]);
-          // pbuff2 points G(k,E+hwq)
           pbuff2 = rbuff2;
         }
-
       }
-
+      
+      // Wait nodes for completed communications
       if(dims[1] > 1)
       {
-        if(mdest != MPI_PROC_NULL  && iE<iEhbaromegaLO) MPI_Wait(&rqE[0],&statusE[0]);
-        if(msource != MPI_PROC_NULL  && iE<iEhbaromegaLO) MPI_Wait(&rqE[1],&statusE[1]);
+        if(mdest != MPI_PROC_NULL  && iE<iEhbaromega) MPI_Wait(&rqE[0],&statusE[0]);
+        if(msource != MPI_PROC_NULL  && iE<iEhbaromega) MPI_Wait(&rqE[1],&statusE[1]);
 
-        if(pdest != MPI_PROC_NULL && iE >= NEloc-iEhbaromegaLO) MPI_Wait(&rqE[2],&statusE[2]);
-        if(psource != MPI_PROC_NULL && iE >= NEloc-iEhbaromegaLO) MPI_Wait(&rqE[3],&statusE[3]);
+        if(pdest != MPI_PROC_NULL && iE >= NEloc-iEhbaromega) MPI_Wait(&rqE[2],&statusE[2]);
+        if(psource != MPI_PROC_NULL && iE >= NEloc-iEhbaromega) MPI_Wait(&rqE[3],&statusE[3]);
       }
 
       ////////////////////////////////////////////////////////////////////////////////////
       // Communications of k-points
       ////////////////////////////////////////////////////////////////////////////////////
 
-      //printf("local k communications \n");
-      // Update local
-      #pragma omp parallel for private(iQ,iQglo,mu,nu,im) collapse(2)
-      for( iQ=0; iQ<NKloc; iQ++ )
+      // Update local iQ
+      // KK(im, iK, iQ) ( KK[ im + Ndz * iK + Ndz * NK * iQ ] )
+      // Sigma_ij(iQ, iE) = Sum_iK   KK(|z_i-z_j|, iK, iQ) *
+      //                        * (fac_minus * GG_ij(iK, E-wq) + fac_plus * GG_ij(iK, E+wq))
+     #pragma omp parallel for private(iK,iKglo,mu,nu,im) collapse(2)
+      for( iK=0; iK<NKloc; iK++ )
       {
-        iQglo=iQ+coords[0]*NKloc;
-        pSigma = (double complex *) Sigma[iQ*NEloc + iE];
+        iKglo=iK+coords[0]*NKloc;
+        pSigma = (double complex *) Sigma[iK*NEloc + iE];
         for( nu=0; nu<Mp; nu++ )
         {
           for( mu=0; mu<Np; mu++ )
           {
-            im = abs(iz[mu]-iz[nu]);
-            pSigma[nu*Np + mu] += KK(im, iQglo, iKglo) *
-                                 (fac1 * pbuff1[nu*Np+mu] + fac2 * pbuff2[nu*Np+mu]);
+            im = abs(izr[mu]-izc[nu]);
+            pSigma[nu*Np + mu] += KK(im, iKglo, iQglo) *
+                                 (fac_minus * pbuff1[nu*Np+mu] + fac_plus * pbuff2[nu*Np+mu]);
 
+            //printf("Sigma(mu,nu): %f \n",pSigma[nu*Np+mu]);
             //im = abs(iz-jz);
-            // F(iQ, iK, |iz-jz|) = F[Np*NK*iQglo + Np*iKglo + im)
+            // F(iQ, iK, |iz-jz|) = F[Np*NK*iQglo + Np*iKglo + im]
             //sigless[(iQ*NEloc+iE)*Np*Np+jz*Np+iz] += dK * qe * hbaromegaLO/(4.0*pow(M_PI,2.0)) *
             //  (1.0/(epsinfr*eps0) - 1.0/(eps0r*eps0)) * K[iKglo] * F[ im+ Np*iKglo + Np*NK*iQglo ] *
-            //  Mtilde * (fac1 * pbuff1[jz*Np+iz] + fac2 * pbuff2[jz*Np+iz]);
+            //  Mtilde * (fac_minus * pbuff1[jz*Np+iz] + fac_plus * pbuff2[jz*Np+iz]);
           }
         }
       }
 
-
-      //printf("global k communications \n");
+      // MPI Communication over the k-grid
+      //printf("global k communications if %d > 1 \n",dims[0]);
       if(dims[0] > 1)
       {
         //printf("Communication for Q integration\n");
         #pragma omp parallel for private(mu,nu)
         for( nu=0; nu<Mp; nu++ )
           for( mu=0; mu<Np; mu++ )
-            sbuffH[nu*Np+mu] = fac1 * pbuff1[nu*Np+mu] + fac2 * pbuff2[nu*Np+mu];
+            sbuffH[nu*Np+mu] = fac_minus * pbuff1[nu*Np+mu] + fac_plus * pbuff2[nu*Np+mu];
 
 
         for( in=1; in<dims[0]; in++ )
@@ -270,7 +282,7 @@ int self_energy(
 
           MPI_Cart_coords(comm2d, hsource, ndims, coordsH);
 
-          iKglo2=iK+coordsH[0]*NKloc;
+          iQglo2 = iQ + coordsH[0]*NKloc;
 
           // send to in+1%dims[0] = hdest
           MPI_Isend(sbuffH, Mp*Np, MPI_DOUBLE_COMPLEX, hdest, 43, comm2d, &rqH[0]);
@@ -279,20 +291,20 @@ int self_energy(
 
           MPI_Wait(&rqH[1], &statusH[1]);
 
-          #pragma omp parallel for private(iQ,iQglo,mu,nu,im) collapse(2)
-          for( iQ=0; iQ<NKloc; iQ++ )
+          #pragma omp parallel for private(iK,iKglo,mu,nu,im) collapse(2)
+          for( iK=0; iK<NKloc; iK++ )
           {
-            iQglo=iQ+coords[0]*NKloc;
-            pSigma = (double complex *) Sigma[iQ*NEloc + iE];
+            iKglo = iK + coords[0]*NKloc;
+            pSigma = (double complex *) Sigma[iK*NEloc + iE];
             for( nu=0; nu<Mp; nu++ )
             {
               for( mu=0; mu<Np; mu++ )
               {
-                im = abs(iz[mu]-iz[nu]);
-                pSigma[nu*Np + mu] += KK(im, iQglo, iKglo2) * rbuffH[nu*Np+mu];
+                im = abs(izr[mu]-izc[nu]);
+                pSigma[nu*Np + mu] += KK(im, iKglo, iQglo2) * rbuffH[nu*Np+mu];
                 //im = abs(iz-jz);
                 //sigless[(iQ*NEloc+iE)*Np*Np+jz*Np+iz] += dK * qe * hbaromegaLO/(4.0*pow(M_PI,2.0)) *
-                //  (1.0/(epsinfr*eps0) - 1.0/(eps0r*eps0)) * K[iKglo2] * F[ im+ Np*iKglo2 + Np*NK*iQglo ] *
+                //  (1.0/(epsinfr*eps0) - 1.0/(eps0r*eps0)) * K[iKglo2] * F[ im+ Np*iKglo + Np*NK*iQglo2 ] *
                 //  Mtilde * rbuffH[jz*Np+iz];
               }
             }
@@ -302,8 +314,8 @@ int self_energy(
         }
       }
 
-    }
-  }
+    } //end of E-loop
+  } //end of k-loop
 
   MPI_Barrier(comm2d);
 

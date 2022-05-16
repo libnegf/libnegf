@@ -14,6 +14,9 @@ module ln_inelastic
     class(TMatrixCache), pointer :: G_r => null()
     class(TMatrixCache), pointer :: G_n => null()
 
+    !> Compute tri-diagonal block matrices
+    logical :: tTridiagonal = .false.
+
     contains
 
     procedure, non_overridable :: set_Gr_pointer

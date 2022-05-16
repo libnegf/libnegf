@@ -20,7 +20,7 @@
 
 module ln_cache
   use iso_c_binding
-  use mat_def, only: z_DNS, destroy
+  use mat_def, only: z_DNS, destroy, assignment(=)
   use ln_precision
   use globals
   use outmatrix, only: outmat_c, inmat_c
@@ -200,6 +200,16 @@ contains
       allocate (this%first)
       p => this%first
     else
+      ! check if a label is already present.
+      do while (associated(p))
+        if (p%mat_label .eq. label) then
+          call destroy(p%matrix)
+          p%matrix = matrix
+          return
+        end if
+        p => p%next
+      end do
+      ! If the matrix is not found, add the new matrix
       ! Always add at the beginning, because it is faster.
       allocate(p)
       p%next => this%first
@@ -218,22 +228,22 @@ contains
     type(TMatrixCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
-      print*, trim(this%tagname)    
+      print*, 'Retrieve matrix for '//trim(this%tagname)    
       call print_label(label)    
       error stop "Internal error: no entry in matrix cache"
     else
       p => this%first
     end if
-
     do while (associated(p))
       if (p%mat_label .eq. label) then
+        call destroy(matrix)
         matrix = p%matrix
         return
       end if
       p => p%next
     end do
 
-    print*, trim(this%tagname)    
+    print*, 'Retrieve matrix for '//trim(this%tagname)    
     call print_label(label)    
     error stop "Cannot retrieve matrix"
 
@@ -260,7 +270,7 @@ contains
       p => p%next
     end do
 
-    print*, trim(this%tagname)    
+    print*, 'Retrieve pointer for '//trim(this%tagname)    
     call print_label(label)    
     error stop "Cannot retrieve matrix in cache"
 
@@ -274,7 +284,6 @@ contains
     type(TMatrixCacheEntry), pointer :: p
 
     if (.not. associated(this%first)) then
-      print*, trim(this%tagname)    
       error stop "No entry in matrix cache"
     else
       p => this%first
@@ -288,7 +297,7 @@ contains
       p => p%next
     end do
 
-    print*, trim(this%tagname)    
+    print*, 'Retrieve loc for '//trim(this%tagname)    
     call print_label(label)
     error stop "Cannot retrieve matrix in cache"
 

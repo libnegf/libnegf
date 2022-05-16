@@ -34,8 +34,7 @@ module mpi_globals
 #:if defined("MPI")
   public :: negf_mpi_init
   public :: negf_cart_init
-  ! Global communicator used for debugging
-  type(mpifx_comm), public :: debug_comm 
+  public :: check_cart_comm
 
   contains
 
@@ -51,8 +50,6 @@ module mpi_globals
       else
         id0 = (id == 0)
       end if
-      ! init debug communicator
-      debug_comm = energyComm
 
     end subroutine negf_mpi_init
 
@@ -70,12 +67,13 @@ module mpi_globals
       type(mpifx_comm), intent(in) :: inComm
       !> Number of processors for k
       integer, intent(in) :: nk
-      !> Output communicator for the energy grid
+      !> Output 2D cartesian communicator
+      type(mpifx_comm) :: cartComm
+      !> Output communicator for the energy sub-grid
       type(mpifx_comm), intent(out) :: energyComm
-      !> Output communicator for the k grid
+      !> Output communicator for the k sub-grid
       type(mpifx_comm), intent(out) :: kComm
 
-      type(mpifx_comm) :: cartComm
       integer :: outComm
       integer :: ndims = 2
       integer :: dims(2)
@@ -106,6 +104,19 @@ module mpi_globals
 
     end subroutine negf_cart_init
 
+    subroutine check_cart_comm(cartComm, mpierror)
+      !> Input 2d cartesian communicator
+      type(mpifx_comm), intent(in) :: cartComm
+      !> output error   
+      integer, intent(out) :: mpierror
+
+      integer :: coords(2)
+      
+      mpierror = 0  
+
+      call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror) 
+
+    end subroutine check_cart_comm         
 
 #:endif
 

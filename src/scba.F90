@@ -80,6 +80,7 @@ module scba
     type(TInteractionList) :: interactList
 
     type(TInteractionNode), pointer :: it
+    this%scba_iter = iter
     it => interactList%first
     do while (associated(it))
       call it%inter%set_scba_iter(iter)
@@ -116,6 +117,7 @@ module scba
                   & " iterations with error", this%scba_err
       end if
     else
+      this%converged = .false.
       if (this%do_write) then
          write(*,*) "SCBA iteration",this%scba_iter," error", this%scba_err
       end if
@@ -142,6 +144,7 @@ module scba
                   & " iterations with error", this%scba_err
       end if
     else
+      this%converged = .false.
       if (this%do_write) then
          write(*,*) "SCBA iteration",this%scba_iter," error", this%scba_err
       end if
@@ -164,6 +167,7 @@ module scba
     type(TInteractionList) :: interactList
 
     type(TInteractionNode), pointer :: it
+    this%scba_iter = iter
     it => interactList%first
     do while (associated(it))
       select type(pInter => it%inter)
@@ -181,6 +185,7 @@ module scba
     type(TInteractionList) :: interactList
 
     type(TInteractionNode), pointer :: it
+    this%scba_iter = iter
     it => interactList%first
     do while (associated(it))
       select type(pInter => it%inter)

@@ -250,7 +250,7 @@ CONTAINS
     ! compute Gr(n,n), Gr(n-1,n), Gr(n, n-1);  n = 2 .. nbl
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
-    !Passing Gr to interaction that builds Sigma_r
+    !Passing Gr to interactions
     call set_Gr(negf, Gr)
 
     !Computing device G_n
@@ -262,7 +262,7 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-    !Passing G^n to interaction that builds Sigma^n
+    !Passing G^n to interactions
     call set_Gn(negf, Gn)
 
     if (present(Glout)) then
@@ -300,7 +300,7 @@ CONTAINS
     real(dp), intent(inout) :: scba_error
 
     logical :: tDestroyGn, tDestroyESH, tDestroyGr
-    Type(z_CSR) :: Gn
+    Type(z_CSR) :: csrGn
     integer :: scba_iter, outer = 0
 
     tDestroyGn = negf%tDestroyGn
@@ -323,12 +323,10 @@ CONTAINS
       if (.not.tDestroyGr) negf%tDestroyGr = .false.
       if (.not.tDestroyESH) negf%tDestroyESH = .false.
 
-      call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Gn,outer)
+      call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,csrGn,outer)
 
-      call negf%scbaDriverElastic%check_Mat_convergence(Gn)
-      call destroy(Gn)
-      call negf%G_r%destroy()
-      call negf%G_n%destroy()
+      call negf%scbaDriverElastic%check_Mat_convergence(csrGn)
+      call destroy(csrGn)
 
       scba_iter = scba_iter + 1
 
@@ -426,7 +424,7 @@ CONTAINS
 
     do ii = 1, nbl-1
       call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
-      call prealloc_mult(ESH(ii+1,ii),Gn(ii,ii+1), minusOne, work1)
+      call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
     end do
@@ -470,15 +468,17 @@ CONTAINS
   !--------------------------------------------------------------------------
   !> Store Gr
   !>
-  subroutine cache_Gr(negf, Gr, en_index, k_index, spin)
+  subroutine cache_Gr(negf, Gr, en_index, k_index, spin, tridiagonal)
     class(TNegf) :: negf
     type(z_dns), dimension(:,:), intent(in) :: Gr
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
+    logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
     integer :: ii, jj, nbl
+    logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
        allocate(TMatrixCacheMem::negf%G_r)
@@ -491,6 +491,7 @@ CONTAINS
     label%kpoint = 0
     label%energy_point = 0
     label%spin = 0
+    tTridiag = .true.
 
     if (present(k_index)) then
       label%kpoint = k_index
@@ -501,15 +502,21 @@ CONTAINS
     if (present(spin)) then
       label%spin = spin
     end if
+    if (present(tridiagonal)) then
+      tTridiag = tridiagonal
+    end if
 
-    ! Just store the diagonal blocks for now
+    ! store tri- diagonal blocks
     do ii = 1, size(Gr,1)
       label%row_block = ii
       label%col_block = ii
-      if (.not.negf%G_r%is_cached(label)) then
-        !print*,'cache G_r'
-        !call print_label(label)
-        call negf%G_r%add(Gr(ii,ii), label)
+      call negf%G_r%add(Gr(ii,ii), label)
+      if (tTridiag .and. ii < size(Gr,1)) then
+         label%col_block = ii + 1
+         call negf%G_r%add(Gr(ii,ii+1), label)
+         label%row_block = ii + 1
+         label%col_block = ii
+         call negf%G_r%add(Gr(ii+1,ii), label)
       end if
     end do
 
@@ -518,15 +525,17 @@ CONTAINS
   !--------------------------------------------------------------------------
   !> store Gn
   !>
-  subroutine cache_Gn(negf, Gn, en_index, k_index, spin)
+  subroutine cache_Gn(negf, Gn, en_index, k_index, spin, tridiagonal)
     class(TNegf) :: negf
     type(z_dns), dimension(:,:), intent(in) :: Gn
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
+    logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
     integer :: ii, jj, nbl
+    logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
        allocate(TMatrixCacheMem::negf%G_n)
@@ -539,6 +548,7 @@ CONTAINS
     label%kpoint = 0
     label%energy_point = 0
     label%spin = 0
+    tTridiag = .true.
 
     if (present(k_index)) then
       label%kpoint = k_index
@@ -549,15 +559,21 @@ CONTAINS
     if (present(spin)) then
       label%spin = spin
     end if
+    if (present(tridiagonal)) then
+      tTridiag = tridiagonal
+    end if
 
-    ! Just store the diagonal blocks for now
+    ! Store diagonal and upper diagonal
     do ii = 1, size(Gn,1)
       label%row_block = ii
       label%col_block = ii
-      if (.not.negf%G_n%is_cached(label)) then
-         ! print*,'cache G_n'
-         !call print_label(label)
-         call negf%G_n%add(Gn(ii,ii), label)
+      call negf%G_n%add(Gn(ii,ii), label)
+      if (tTridiag .and. ii < size(Gn,1)) then
+         label%col_block = ii + 1
+         call negf%G_n%add(Gn(ii,ii+1), label)
+         label%row_block = ii + 1
+         label%col_block = ii
+         call negf%G_n%add(Gn(ii+1,ii), label)
       end if
     end do
 
@@ -582,7 +598,7 @@ CONTAINS
         call it%inter%set_Gr(Gr, iE, iK, iSpin)
       class is (TInelastic)
         ! cache Gr in negf container and pass the pointer
-        call cache_Gr(negf, Gr, iE, iK, iSpin)
+        call cache_Gr(negf, Gr, iE, iK, iSpin, pInter%tTridiagonal)
         call pInter%set_Gr_pointer(negf%G_r)
       end select
       it => it%next
@@ -609,7 +625,7 @@ CONTAINS
         call it%inter%set_Gn(Gn, iE, iK, iSpin)
       class is (TInelastic)
         ! cache Gn in negf container and pass the pointer
-        call cache_Gn(negf, Gn, iE, iK, iSpin)
+        call cache_Gn(negf, Gn, iE, iK, iSpin, pInter%tTridiagonal)
         call pInter%set_Gn_pointer(negf%G_n)
       end select
       it => it%next

@@ -1,4 +1,3 @@
-!!--------------------------------------------------------------------------!
 !! libNEGF: a general library for Non-Equilibrium Green's functions.        !
 !! Copyright (C) 2012                                                       !
 !!                                                                          !
@@ -27,7 +26,8 @@ module libnegf
  use lib_param
  use ln_cache
  use globals, only : LST
- use mpi_globals
+ use mpi_globals, only : id, id0, negf_cart_init, check_cart_comm, &
+           & globals_mpi_init => negf_mpi_init
  use input_output
  use ln_structure
  use rcm_module
@@ -38,6 +38,7 @@ module libnegf
  use iso_c_binding
  use system_calls
  use elph, only : interaction_models
+ use interactions, only : get_max_wq
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
@@ -60,8 +61,8 @@ module libnegf
 
  public :: id, id0
 #:if defined("MPI")
- public :: set_energy_comm, set_kpoint_comm, set_cart_comm
- public :: negf_mpi_init, negf_cart_init !from mpi_globals
+ public :: negf_mpi_init
+ public :: negf_cart_init !from mpi_globals
 #:endif
  public :: set_kpoints
  public :: set_mpi_bare_comm
@@ -70,7 +71,7 @@ module libnegf
  public :: lnParams
  public :: init_negf, destroy_negf
  public :: init_contacts, init_structure, init_basis
- public :: get_params, set_params, set_scratch, set_outpath, create_scratch
+ public :: get_params, set_params, set_scratch, set_outpath, create_scratch, set_scba_tolerances
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
  public :: create_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
@@ -99,13 +100,12 @@ module libnegf
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
+ public :: compute_meir_wingreen    ! Meir-Wingreen contact currents
  public :: compute_layer_current    ! high-level wrapping routines
                                     ! layer currents calculation
  public :: compute_dephasing_transmission ! high-level wrapping routines
                                           ! Extract HM and SM
                                           ! run total current calculation
- public :: layer_current            ! computes the layer-to-layer current
-
  public :: write_tunneling_and_dos  ! Print tunneling and dot to file
                                     ! Note: for debug purpose. I/O should be managed
                                     ! by calling program
@@ -189,6 +189,10 @@ module libnegf
    real(c_double) :: kbT_dm(MAXNCONT)
    !> Electronic temperature for each contact (Transmission)
    real(c_double) :: kbT_t(MAXNCONT)
+   !> SCBA tolerance for inelastic loop
+   real(c_double) :: scba_inelastic_tol
+   !> SCBA tolerance for elastic loop
+   real(c_double) :: scba_elastic_tol
    !! Contour integral
    !> Number of points for n
    integer(c_int) :: np_n(2)
@@ -753,6 +757,8 @@ contains
     params%FictCont(nn+1:MAXNCONT) = .false.
     params%kbT_dm(nn+1:MAXNCONT) = 0.0_dp
     params%kbT_t(nn+1:MAXNCONT) = 0.0_dp
+    params%scba_inelastic_tol = negf%scba_inelastic_tol
+    params%scba_elastic_tol = negf%scba_elastic_tol
     if (nn == 0) then
       params%mu_n(1) = negf%mu_n
       params%mu_p(1) = negf%mu_p
@@ -822,6 +828,8 @@ contains
     negf%cont(1:nn)%FictCont    = params%FictCont(1:nn)
     negf%cont(1:nn)%kbT_dm      = params%kbT_dm(1:nn)
     negf%cont(1:nn)%kbT_t       = params%kbT_t(1:nn)
+    negf%scba_inelastic_tol = params%scba_inelastic_tol
+    negf%scba_elastic_tol   = params%scba_elastic_tol
     if (nn == 0) then
       negf%mu   = params%mu(1)
       negf%mu_n = params%mu_n(1)
@@ -893,7 +901,14 @@ contains
 
   end subroutine set_params
 
-
+  !----------------------------------------------------------
+  subroutine set_scba_tolerances(negf, elastic_tol, inelastic_tol)
+    type(Tnegf) :: negf
+    real(dp), intent(in) :: elastic_tol    
+    real(dp), intent(in) :: inelastic_tol
+    negf%scba_elastic_tol = elastic_tol    
+    negf%scba_inelastic_tol = inelastic_tol    
+  end subroutine set_scba_tolerances
   !----------------------------------------------------------
   subroutine set_scratch(negf, scratchpath)
     type(Tnegf) :: negf
@@ -1039,38 +1054,49 @@ contains
   ! -------------------------------------------------------------------
 
 #:if defined("MPI")
-  !> Set the energy communicator.
-  !!
-  !! @param [in] negf: libnegf container instance
-  !! @param [in] eneComm: an mpifx communicator
-  subroutine set_energy_comm(negf, eneComm)
+
+  ! Purpose: setup negf communicators
+  ! globalComm
+  ! cartComm
+  ! energyComm
+  ! kComm
+  !
+  subroutine negf_mpi_init(negf, cartComm, energyComm, kComm)
     type(Tnegf) :: negf
-    type(mpifx_comm) :: eneComm
+    type(mpifx_comm), intent(in), optional :: cartComm
+    type(mpifx_comm), intent(in), optional :: energyComm
+    type(mpifx_comm), intent(in), optional :: kComm
 
-    negf%energyComm = eneComm
-  end subroutine set_energy_comm
+    integer :: err
 
-  !> Set the k-point communicator.
-  !!
-  !! @param [in] negf: libnegf container instance
-  !! @param [in] kComm: an mpifx communicator
-  subroutine set_kpoint_comm(negf, kComm)
-    type(Tnegf) :: negf
-    type(mpifx_comm) :: kComm
+    if (present(cartComm)) then
+       if (.not.present(energyComm) .and. .not.present(kComm)) then
+          stop "ERROR: cartesian communicator also requires energy and k comm"
+       end if
+       call check_cart_comm(cartComm, err)
+       if (err /= 0) then
+         stop "ERROR: pass non cartesian communicator to negf_mpi_init"
+       end if
+       negf%globalComm = cartComm
+       negf%cartComm = cartComm
+       negf%energyComm = energyComm
+       negf%kComm = kComm
+    else
+       if (.not.present(energyComm)) then
+          stop "ERROR: negf_mpi_init needs at lest the energy communicator"
+       end if
+       negf%globalComm = energyComm
+       negf%energyComm = energyComm
+       if (present(kComm)) then
+          negf%kComm = kComm
+       else
+          negf%kComm%id = 0
+       end if
+       negf%cartComm%id = 0
+    end if
+    call globals_mpi_init(negf%energyComm)
 
-    negf%kComm = kComm
-  end subroutine set_kpoint_comm
-
-  !> Set the 2D cartesian communicator.
-  !!
-  !! @param [in] negf: libnegf container instance
-  !! @param [in] cartComm: an mpifx communicator
-  subroutine set_cart_comm(negf, cartComm)
-    type(Tnegf) :: negf
-    type(mpifx_comm) :: cartComm
-
-    negf%cartComm = cartComm
-  end subroutine set_cart_comm
+  end subroutine negf_mpi_init
 
   !> Set a global mpifx communicator from a bare communicator.
   !!
@@ -1081,7 +1107,8 @@ contains
     integer, intent(in) :: mpicomm
 
     call negf%globalComm%init(mpicomm)
-    call negf_mpi_init(negf%globalComm)
+    call negf%energyComm%init(mpicomm)
+    call globals_mpi_init(negf%energyComm)
 
   end subroutine
 #:else
@@ -1716,8 +1743,10 @@ contains
   subroutine compute_current(negf)
     type(Tnegf) :: negf
 
-    if ( negf%interactList%counter>0 .or. negf%tDephasingBP) then
-       call compute_meir_wingreen(negf);
+    if ( negf%interactList%counter > 0 ) then
+       if (get_max_wq(negf%interactList) == 0.0_dp) then  
+          call compute_dephasing_transmission(negf)
+       end if      
     else
        call compute_landauer(negf);
     endif
@@ -1737,9 +1766,8 @@ contains
     ! TODO: need a check on elph here, but how to handle exception and messages
     call tunneling_and_dos(negf)
 
-    if (allocated(negf%tunn_mat)) then
-      call electron_current(negf)
-    end if
+    call electron_current(negf)
+
     call destroy_contact_matrices(negf)
 
   end subroutine compute_landauer
@@ -1758,16 +1786,12 @@ contains
       error stop "Effective transmission is only supported for 2 electrodes"
     end if
 
-    if (negf%elph%model .gt. 3) then
-      error stop "Effective transmission is only supported for dephasing models"
-    end if
-
     call tunneling_int_def(negf)
     ! Dirty trick. Set the contact population to 1 on the final contact and
     ! 1 on the initial one.
     allocate(occupations(2))
-    occupations(negf%ni(1)) = 0.0_dp
-    occupations(negf%nf(1)) = 1.0_dp
+    occupations(negf%ni(1)) = 1.0_dp
+    occupations(negf%nf(1)) = 0.0_dp
 
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
@@ -1785,13 +1809,8 @@ contains
 
     type(Tnegf) :: negf
 
-    !call extract_cont(negf)
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
-
-    if (allocated(negf%curr_mat)) then
-      call electron_current_meir_wingreen(negf)
-    end if
     call destroy_contact_matrices(negf)
 
   end subroutine compute_meir_wingreen
@@ -1802,18 +1821,11 @@ contains
 
     type(Tnegf) :: negf
 
-    !call extract_cont(negf)
     call tunneling_int_def(negf)
     call layer_current(negf)
-
-    if (allocated(negf%curr_mat)) then
-      call electron_current_meir_wingreen(negf)
-    end if
     call destroy_contact_matrices(negf)
 
   end subroutine compute_layer_current
-
-
 
   ! --------------------------------------------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate

@@ -36,7 +36,6 @@ module integrations
  use ln_extract
  use contselfenergy
  use clock
- use elph
  use energy_mesh
  use interactions
  use ln_elastic
@@ -1248,9 +1247,17 @@ contains
 
     if (negf%interactList%counter /= 0) then
       wqmax = get_max_wq(negf%interactList)
-      Nsteps=nint((negf%Emax-negf%Emin+wqmax)/negf%Estep) + 1
+      Nsteps=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
       if (mod(Nsteps,numprocs) .ne. 0) then
-         print*, 'ERROR: MPI energy procs non compatible with number of points'
+        if (id0) then
+          print*, 'Nsteps:',Nsteps,'Nprocesses:',numprocs
+          print*, 'Redefining Nsteps and Emax'
+        end if
+        do while (mod(Nsteps,numprocs) .ne. 0) 
+          Nsteps = Nsteps + 1
+        end do
+        negf%Emax = negf%Emin + (Nsteps-1) * negf%Estep
+        print*,'Emax:',negf%Emax
       end if
     else
       wqmax = 0.0_dp
@@ -1299,8 +1306,8 @@ contains
 
     ! Local Variables
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    Real(dp), Dimension(:), allocatable :: TUN_MAT
-    Real(dp), Dimension(:), allocatable :: LEDOS
+    Real(dp), Dimension(:), allocatable :: tun_mat
+    Real(dp), Dimension(:), allocatable :: ledos
     Real(dp) :: mu1, mu2   ! contact potentials
     Real(dp) :: ncyc       ! stores average number of iters in decimation
 
@@ -1311,7 +1318,7 @@ contains
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
 
-    Logical :: do_LEDOS            ! performs or not dos_proj
+    Logical :: do_ledos            ! performs or not dos_proj
 
 
     ! Get out immediately if Emax<Emin
@@ -1325,8 +1332,8 @@ contains
 
     !-------------------------------------------------------
 
-    do_LEDOS = .false.
-    if(negf%ndos_proj.gt.0) do_LEDOS=.true.
+    do_ledos = .false.
+    if(negf%ndos_proj.gt.0) do_ledos=.true.
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
@@ -1335,7 +1342,7 @@ contains
 
     !-------------------------------------------------------
 
-    call log_allocate(TUN_MAT,size_ni)
+    call log_allocate(tun_mat,size_ni)
     !If previous calculation is there, destroy output
     if (allocated(negf%tunn_mat)) then
        call log_deallocate(negf%tunn_mat)
@@ -1344,13 +1351,13 @@ contains
 
     negf%tunn_mat = 0.0_dp
 
-    if (do_LEDOS) then
+    if (do_ledos) then
        !If previous calculation is there, destroy output
        if (allocated(negf%ldos_mat)) then
          call log_deallocate(negf%ldos_mat)
        end if
        call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
-       call log_allocate(LEDOS,negf%ndos_proj)
+       call log_allocate(ledos,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.0_dp
     endif
 
@@ -1371,22 +1378,22 @@ contains
        if (id0.and.negf%verbose.gt.VBT) call write_clock
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
-       if (.not.do_LEDOS) then
+       if (.not.do_ledos) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, TUN_MAT)
+                             & negf%str, negf%tun_proj, tun_mat)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
+          negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
-          LEDOS(:) = 0.0_dp
+          ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
+                             & negf%str, negf%tun_proj, tun_mat, negf%dos_proj, ledos)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
-          negf%ldos_mat(i,:) = LEDOS(:) * negf%kwght
+          negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
+          negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1398,9 +1405,9 @@ contains
     enddo !Loop on energy
 
     !call destroy_en_grid()
-    call log_deallocate(TUN_MAT)
-    if (do_LEDOS) then
-       call log_deallocate(LEDOS)
+    call log_deallocate(tun_mat)
+    if (do_ledos) then
+       call log_deallocate(ledos)
     end if
 
   end subroutine tunneling_and_dos
@@ -1430,7 +1437,7 @@ contains
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
     integer :: iE, iK, jj, i1, j1, Nstep, outer, ncont, icont
-    real(dp) :: ncyc, scba_elastic_error, scba_tolerance
+    real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
     complex(dp) :: Ec
@@ -1444,7 +1451,6 @@ contains
     if (.not. allocated(negf%curr_mat)) then
       call log_allocate(negf%curr_mat,Nstep,ncont)
     end if
-    negf%curr_mat = 0.0_dp
     call log_allocate(curr_mat, ncont)
 
     ! Create Fermi array. Set reference such that f(ref)=0.
@@ -1463,15 +1469,15 @@ contains
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
     call interaction_prepare(negf)
-    scba_tolerance = 1.0e-7_dp
-    call negf%scbaDriverInelastic%init(tol = scba_tolerance, dowrite = .true.)
+    call negf%scbaDriverInelastic%init(tol = negf%scba_inelastic_tol, dowrite = .true.)
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
+    scba_elastic_tol = negf%scba_elastic_tol
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
     scba_iter = 0
 
-    scba: do while (.not.negf%scbaDriver%is_converged() .and. scba_iter <= scba_niter_inela)
+    scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
       call write_info(negf%verbose, 30, '------------------------------------------')
       call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
@@ -1479,6 +1485,7 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
+      negf%curr_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -1518,7 +1525,7 @@ contains
           negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
-                scba_tolerance, scba_elastic_error)
+                scba_elastic_tol, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
@@ -1597,7 +1604,7 @@ contains
 
     integer :: nbl, scba_iter, scba_niter_inela, scba_niter_ela, Nstep
     integer :: iE, i1, j1, iK, icont, ncont, ref_bk
-    real(dp) :: ncyc, scba_elastic_error, scba_tolerance
+    real(dp) :: ncyc, scba_elastic_error, scba_elastic_tol
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
     complex(dp) :: Ec
@@ -1611,7 +1618,6 @@ contains
     if (.not. allocated(negf%curr_mat)) then
       call log_allocate(negf%curr_mat, Nstep, nbl-1)
     end if
-    negf%curr_mat = 0.0_dp
     call log_allocate(curr_mat, nbl-1)
 
     ! Create Fermi array. Set reference such that f(ref)=0.
@@ -1620,15 +1626,15 @@ contains
     call log_allocate(frm, ncont+1)
     frm = 0.0_dp
 
-    call write_info(negf%verbose,30,'CALCULATION OF LAYER CURRENTS',Nstep)
+    call write_info(negf%verbose,30,'CALCULATION OF LAYER CURRENTS; Nstep=',Nstep)
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
     call interaction_prepare(negf)
-    scba_tolerance = 1.0e-7_dp
-    call negf%scbaDriverInelastic%init(scba_tolerance, .true.)
+    call negf%scbaDriverInelastic%init(negf%scba_inelastic_tol, dowrite=.true.)
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
+    scba_elastic_tol = negf%scba_elastic_tol
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
     scba_iter = 0
 
@@ -1639,7 +1645,8 @@ contains
       call write_info(negf%verbose, 30, '------------------------------------')
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
-
+      
+      negf%curr_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -1676,17 +1683,17 @@ contains
           ! Compute block tri-diagonal Gr and Gn
           ! ---------------------------------------------------------------------
           ! Avoids cleanup of Gn and ESH components for later use
-          negf%tDestroyESH = .false.; negf%tDestroyGn = .false.
+          negf%tDestroyGn = .false.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
-                scba_tolerance, scba_elastic_error)
+                scba_elastic_tol, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
-          negf%tDestroyESH = .true.; negf%tDestroyGn = .true.
+          negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
           call iterative_layer_current(negf,real(Ec),curr_mat)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -1708,6 +1715,7 @@ contains
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      print*
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -1720,13 +1728,16 @@ contains
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 #:endif
 
+      if (id0) then
+        print*,'LayerCurrents:',negf%currents*eovh
+      end if      
       !Check SCBA convergence on layer currents.
       !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+
 #:if defined("MPI")
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
-
       ! Clean up caches of G_r and G_n
       call negf%G_r%destroy()
       call negf%G_n%destroy()
@@ -1736,7 +1747,7 @@ contains
     end do scba
 
     call interaction_cleanup(negf)
-    call negf%scbaDriver%destroy()
+    call negf%scbaDriverInelastic%destroy()
     call log_deallocate(curr_mat)
     call log_deallocate(frm)
     negf%refcont = ref_bk
@@ -1790,8 +1801,8 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (TInelastic)
-        call it%inter%compute_Sigma_r(spin=negf%spin)
         call it%inter%compute_Sigma_n(spin=negf%spin)
+        call it%inter%compute_Sigma_r(spin=negf%spin)
       end select
       it => it%next
     end do
@@ -1880,7 +1891,6 @@ contains
     call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
 !    scba_error = 0.0_dp
-!print*,'interactions:',negf%interactList%counter
 !    if (negf%interactList%counter == 0) then
 !      max_scba_iter = 0
 !    else
@@ -1937,17 +1947,17 @@ contains
       max_scba_iter = 0
     else
       max_scba_iter = get_max_niter(negf%interactList)
-      call negf%scbaDriver%init(1.0e-7_dp, .false.)
+      call negf%scbaDriverElastic%init(1.0e-7_dp, .false.)
 
       do scba_iter = 1, max_scba_iter
-        call negf%scbaDriver%set_scba_iter(scba_iter, negf%interactList)
-        call negf%scbaDriver%check_Mat_convergence(Gn)
-        if (negf%scbaDriver%is_converged()) exit
+        call negf%scbaDriverElastic%set_scba_iter(scba_iter, negf%interactList)
+        call negf%scbaDriverElastic%check_Mat_convergence(Gn)
+        if (negf%scbaDriverElastic%is_converged()) exit
         call destroy(Gn)
         call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
       enddo
-      scba_error = negf%scbaDriver%scba_err
-      call negf%scbaDriver%destroy()
+      scba_error = negf%scbaDriverElastic%scba_err
+      call negf%scbaDriverElastic%destroy()
     end if
 
     do i1=1,ncont
@@ -2033,8 +2043,8 @@ contains
 
     ! Local Variables
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    Real(dp), Dimension(:), allocatable :: TUN_MAT
-    Real(dp), Dimension(:), allocatable :: LEDOS
+    Real(dp), Dimension(:), allocatable :: tun_mat
+    Real(dp), Dimension(:), allocatable :: ledos
     Real(dp) :: mu1, mu2   ! contact potentials
     Real(dp) :: ncyc       ! stores average number of iters in decimation
 
@@ -2045,7 +2055,7 @@ contains
     Integer :: Nstep               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
     Complex(dp) :: delta
-    Logical :: do_LEDOS            ! performs or not dos_proj
+    Logical :: do_ledos            ! performs or not dos_proj
 
     ! Get out immediately if Emax<Emin
     if (negf%Emax.le.negf%Emin) then
@@ -2056,8 +2066,8 @@ contains
     endif
     !-------------------------------------------------------
 
-    do_LEDOS = .false.
-    if(negf%ndos_proj.gt.0) do_LEDOS=.true.
+    do_ledos = .false.
+    if(negf%ndos_proj.gt.0) do_ledos=.true.
     ncont = negf%str%num_conts
     Nstep = size(negf%en_grid)
     ncyc=0
@@ -2066,13 +2076,13 @@ contains
 
     !-------------------------------------------------------
 
-    call log_allocate(TUN_MAT,size_ni)
+    call log_allocate(tun_mat,size_ni)
     call log_allocate(negf%tunn_mat,Nstep,size_ni)
     negf%tunn_mat = 0.0_dp
 
-    if (do_LEDOS) then
+    if (do_ledos) then
        call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
-       call log_allocate(LEDOS,negf%ndos_proj)
+       call log_allocate(ledos,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.0_dp
     endif
     !-------------------------------------------------------
@@ -2102,22 +2112,22 @@ contains
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
 
-       if (.not.do_LEDOS) then
+       if (.not.do_ledos) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
           call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, TUN_MAT)
+                             & negf%str, negf%tun_proj, tun_mat)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
+          negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
-          LEDOS(:) = 0.0_dp
+          ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, TUN_MAT, negf%dos_proj, LEDOS)
+                             & negf%str, negf%tun_proj, tun_mat, negf%dos_proj, ledos)
 
-          negf%tunn_mat(i,:) = TUN_MAT(:) * negf%kwght
-          negf%ldos_mat(i,:) = LEDOS(:) * negf%kwght
+          negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
+          negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
@@ -2129,8 +2139,8 @@ contains
     enddo !Loop on energy
 
     !call destroy_en_grid()
-    call log_deallocate(TUN_MAT)
-    if(do_LEDOS) call log_deallocate(LEDOS)
+    call log_deallocate(tun_mat)
+    if(do_ledos) call log_deallocate(ledos)
 
   end subroutine phonon_tunneling
 
@@ -2257,29 +2267,33 @@ contains
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
 
-    REAL(dp) :: TT1,TT2,E3,E4,TT3,TT4
-    REAL(dp) :: E1,E2,c1,c2,curr
-    INTEGER :: i,i1,N,Nstep,imin,imax
+    real(dp), dimension(:), allocatable :: w
+    REAL(dp) :: curr
+    !REAL(dp) :: TT1,TT2
+    !REAL(dp) :: E1,E2,curr
+    INTEGER :: i,Nstep
+
+    Nstep = size(TUN_TOT)
+
+    allocate(w(Nstep))
+    do i = 1, Nstep
+      w(i) = estep/3.0_dp*(mod(i-1,2)+1)**2
+    end do 
+    do i = 3, Nstep-1, 2
+      w(i) = w(i) + estep/3.0_dp
+    end do 
 
     curr=0.0_dp
-    N=0
-    Nstep=NINT((emax-emin)/estep);
 
-    imin=0
-    imax=Nstep
-
-    ! performs the integration with simple trapezium rule.
-    do i=imin,imax-1
-
-       E1=emin+estep*i
-       TT1=TUN_TOT(i+1)
-       E2=emin+estep*(i+1)
-       TT2=TUN_TOT(i+2)
-
-       curr=curr+(TT1+TT2)*(E2-E1)/2.0_dp
-
+    ! performs the integration with Simpson's rule
+    ! w = (1,4,2,4,2,4,...,4,1)/3*h
+    ! h = (Emax - Emin)/(N-1) 
+    !
+    do i = 1, Nstep
+       curr=curr+TUN_TOT(i)*w(i)
     enddo
 
+    deallocate(w)
     integrate_el_meir_wingreen = curr
 
   end function integrate_el_meir_wingreen
