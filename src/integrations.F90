@@ -1249,15 +1249,10 @@ contains
       wqmax = get_max_wq(negf%interactList)
       Nsteps=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
       if (mod(Nsteps,numprocs) .ne. 0) then
-        if (id0) then
-          print*, 'Nsteps:',Nsteps,'Nprocesses:',numprocs
-          print*, 'Redefining Nsteps and Emax'
-        end if
-        do while (mod(Nsteps,numprocs) .ne. 0) 
+        do while (mod(Nsteps,numprocs) .ne. 0)
           Nsteps = Nsteps + 1
         end do
         negf%Emax = negf%Emin + (Nsteps-1) * negf%Estep
-        print*,'Emax:',negf%Emax
       end if
     else
       wqmax = 0.0_dp
@@ -1437,7 +1432,7 @@ contains
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
     integer :: iE, iK, jj, i1, j1, Nstep, outer, ncont, icont
-    real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error
+    real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error, scba_inelastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
     complex(dp) :: Ec
@@ -1464,7 +1459,7 @@ contains
       frm(1:ncont) = fixed_occupations
     end if
 
-    call write_info(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA; Nsteps:',Nstep)
+    call write_info_parallel(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA; Nsteps:',Nstep)
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
@@ -1479,9 +1474,9 @@ contains
 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
-      call write_info(negf%verbose, 30, '------------------------------------------')
-      call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
-      call write_info(negf%verbose, 30, '------------------------------------------')
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
+      end if
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
@@ -1528,7 +1523,7 @@ contains
                 scba_elastic_tol, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-          call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
+          !call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
 
           negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Meir-Wingreen ')
@@ -1567,6 +1562,10 @@ contains
       !Check SCBA convergence on layer currents.
       !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+      if (negf%cartComm%rank == 0) then
+        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
+        call write_real_info(negf%verbose, VBT, 'scba inelastic error',scba_inelastic_error)
+      end if
 #:if defined("MPI")
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
@@ -1604,9 +1603,9 @@ contains
 
     integer :: nbl, scba_iter, scba_niter_inela, scba_niter_ela, Nstep
     integer :: iE, i1, j1, iK, icont, ncont, ref_bk
-    real(dp) :: ncyc, scba_elastic_error, scba_elastic_tol
+    real(dp) :: ncyc, scba_elastic_error, scba_inelastic_error, scba_elastic_tol
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    real(dp), dimension(:), allocatable :: curr_mat, frm
+    real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
@@ -1620,33 +1619,45 @@ contains
     end if
     call log_allocate(curr_mat, nbl-1)
 
+    ! Allocating ldos_mat to nbl
+    if (.not. allocated(negf%ldos_mat)) then
+      call log_allocate(negf%ldos_mat, Nstep, nbl)
+    end if
+    call log_allocate(ldos_mat, nbl)
+
+
     ! Create Fermi array. Set reference such that f(ref)=0.
     ref_bk = negf%refcont
     negf%refcont = ncont + 1
     call log_allocate(frm, ncont+1)
     frm = 0.0_dp
 
-    call write_info(negf%verbose,30,'CALCULATION OF LAYER CURRENTS; Nstep=',Nstep)
+    if (negf%cartComm%rank == 0) then
+      call write_info_parallel(negf%verbose,30,'CALCULATION OF LAYER CURRENTS; Nstep=',Nstep)
+    end if
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
     call interaction_prepare(negf)
-    call negf%scbaDriverInelastic%init(negf%scba_inelastic_tol, dowrite=.true.)
+    call negf%scbaDriverInelastic%init(negf%scba_inelastic_tol, dowrite=.false.)
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
     scba_elastic_tol = negf%scba_elastic_tol
-    call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
+    if (negf%cartComm%rank == 0) then
+      call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
+    end if
     scba_iter = 0
 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
-      call write_info(negf%verbose, 30, '------------------------------------')
-      call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
-      call write_info(negf%verbose, 30, '------------------------------------')
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
+      end if
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
-      
+
       negf%curr_mat = 0.0_dp
+      negf%ldos_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -1689,17 +1700,20 @@ contains
                 scba_elastic_tol, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-          call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
+          if (negf%cartComm%rank == 0) then
+            call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
+          end if
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
-          call iterative_layer_current(negf,real(Ec),curr_mat)
+          call iterative_layer_current(negf,real(Ec),curr_mat,ldos_mat)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
+          negf%ldos_mat(iE,:) = negf%ldos_mat(iE,:) + ldos_mat(:) * negf%kwght
 
           do icont=1,ncont
             call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1715,7 +1729,6 @@ contains
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      print*
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -1725,16 +1738,19 @@ contains
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
       call mpifx_reduceip(negf%energyComm, negf%currents, MPI_SUM)
       call mpifx_reduceip(negf%kComm, negf%currents, MPI_SUM)
+      call mpifx_reduceip(negf%energyComm, negf%ldos_mat, MPI_SUM)
+      call mpifx_reduceip(negf%kComm, negf%ldos_mat, MPI_SUM)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 #:endif
 
-      if (id0) then
-        print*,'LayerCurrents:',negf%currents*eovh
-      end if      
       !Check SCBA convergence on layer currents.
       !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
 
+      if (negf%cartComm%rank == 0) then
+        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
+        call write_real_info(negf%verbose, 30, 'SCBA inelastic error',scba_inelastic_error)
+      end if
 #:if defined("MPI")
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
@@ -1749,6 +1765,7 @@ contains
     call interaction_cleanup(negf)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(curr_mat)
+    call log_deallocate(ldos_mat)
     call log_deallocate(frm)
     negf%refcont = ref_bk
 
@@ -2278,16 +2295,16 @@ contains
     allocate(w(Nstep))
     do i = 1, Nstep
       w(i) = estep/3.0_dp*(mod(i-1,2)+1)**2
-    end do 
+    end do
     do i = 3, Nstep-1, 2
       w(i) = w(i) + estep/3.0_dp
-    end do 
+    end do
 
     curr=0.0_dp
 
     ! performs the integration with Simpson's rule
     ! w = (1,4,2,4,2,4,...,4,1)/3*h
-    ! h = (Emax - Emin)/(N-1) 
+    ! h = (Emax - Emin)/(N-1)
     !
     do i = 1, Nstep
        curr=curr+TUN_TOT(i)*w(i)

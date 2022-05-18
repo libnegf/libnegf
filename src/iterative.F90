@@ -400,10 +400,11 @@ CONTAINS
   ! Note : ESH(ii,ii+1) are not changed by diagonal Sigma^r
   !        With non-diagonal sigma^r ESH must be recomputed
   !
-  subroutine iterative_layer_current(negf,E,curr_mat)
+  subroutine iterative_layer_current(negf,E,curr_mat,ldos_mat)
     type(Tnegf), intent(inout) :: negf
-    real(dp) :: E
-    real(dp), dimension(:) :: curr_mat
+    real(dp), intent(in) :: E
+    real(dp), dimension(:), intent(inout) :: curr_mat
+    real(dp), dimension(:), intent(inout) :: ldos_mat
 
     integer :: nbl, ii
     type(z_DNS) :: work1
@@ -427,7 +428,9 @@ CONTAINS
       call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
+      ldos_mat(ii) = trace(Gn(ii,ii))
     end do
+    ldos_mat(nbl) = trace(Gn(nbl,nbl))
 
     call destroy_all_blk(negf)
 
@@ -1089,7 +1092,7 @@ CONTAINS
           call destroy(work2)
         endif
         if (sbl-1.ge.1) then
-          stop "Error: Gr_tridiag requires gsml"        
+          stop "Error: Gr_tridiag requires gsml"
           !call prealloc_mult(ESH(sbl,sbl-1),gsml(sbl-1),work2)
           !call prealloc_mult(work2,ESH(sbl-1,sbl),work3)
           !call destroy(work2)
@@ -1127,7 +1130,7 @@ CONTAINS
       end do
     ELSE
       do i=sbl,ebl,-1
-        stop "Error: Gr_tridiag requires gsml"        
+        stop "Error: Gr_tridiag requires gsml"
         !call prealloc_mult(gsml(i),ESH(i,i+1),work1)
         !call prealloc_mult(work1,Gr(i+1,i+1),(-1.0_dp,0.0_dp),Gr(i,i+1))
         !call destroy(work1)
@@ -2264,7 +2267,7 @@ CONTAINS
       call getdiag(Grm,diag)
       if (size(dos_proj) == size(diag) .and. dos_proj(1)%indexes(1) == 0) then
           LEDOS(:) = LEDOS(:) + diag(:)
-       else
+      else
         do iLDOS=1,size(dos_proj)
           do i = 1, size(dos_proj(iLDOS)%indexes)
             i2 = dos_proj(iLDOS)%indexes(i)
@@ -2291,7 +2294,7 @@ CONTAINS
 
     if (.not.allocated(gsm)) then
       allocate(gsm(nbl),stat=ierr)
-    end if   
+    end if
     if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
 
   end subroutine allocate_gsm

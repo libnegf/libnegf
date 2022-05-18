@@ -74,7 +74,7 @@ module libnegf
  public :: get_params, set_params, set_scratch, set_outpath, create_scratch, set_scba_tolerances
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
- public :: create_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
+ public :: create_HS, destroy_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
  public :: set_readOldDMsgf, set_readOldTsgf, set_computation
  public :: set_convfactor, set_fictcont
  public :: read_negf_in
@@ -333,7 +333,14 @@ contains
     integer, intent(in) :: nHS
 
     if (.not.allocated(negf%HS)) then
+       !print*,'create HS container with',nHS,'  elements'
        allocate(negf%HS(nHS))
+    else
+       if (size(negf%HS) .ne. nHS) then
+         print*, "creating HS container with size",nHS
+         print*, "HS container already present with size",size(negf%HS)
+         error stop 'ERROR: HS container already created with different size'
+       end if
     end if
 
   end subroutine create_HS
@@ -496,7 +503,8 @@ contains
     end if
 
     if (ii > size(negf%HS)) then
-       stop "Error: pass_HS with index > allocated array. Call create_HS with correct size"
+      print*,'Passing HS index',ii,' HS container with size',size(negf%HS)
+      stop "Error: pass_HS with index > allocated array. Call create_HS with correct size"
     endif
 
     negf%HS(ii)%H => H
@@ -904,10 +912,10 @@ contains
   !----------------------------------------------------------
   subroutine set_scba_tolerances(negf, elastic_tol, inelastic_tol)
     type(Tnegf) :: negf
-    real(dp), intent(in) :: elastic_tol    
+    real(dp), intent(in) :: elastic_tol
     real(dp), intent(in) :: inelastic_tol
-    negf%scba_elastic_tol = elastic_tol    
-    negf%scba_inelastic_tol = inelastic_tol    
+    negf%scba_elastic_tol = elastic_tol
+    negf%scba_inelastic_tol = inelastic_tol
   end subroutine set_scba_tolerances
   !----------------------------------------------------------
   subroutine set_scratch(negf, scratchpath)
@@ -1744,9 +1752,9 @@ contains
     type(Tnegf) :: negf
 
     if ( negf%interactList%counter > 0 ) then
-       if (get_max_wq(negf%interactList) == 0.0_dp) then  
+       if (get_max_wq(negf%interactList) == 0.0_dp) then
           call compute_dephasing_transmission(negf)
-       end if      
+       end if
     else
        call compute_landauer(negf);
     endif

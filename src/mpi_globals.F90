@@ -89,6 +89,7 @@ module mpi_globals
 
       nE = inComm%size/nk
       dims(1)=nk; dims(2)=nE
+      periods(1) = .true.
 
       call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
@@ -107,16 +108,16 @@ module mpi_globals
     subroutine check_cart_comm(cartComm, mpierror)
       !> Input 2d cartesian communicator
       type(mpifx_comm), intent(in) :: cartComm
-      !> output error   
+      !> output error
       integer, intent(out) :: mpierror
 
       integer :: coords(2)
-      
-      mpierror = 0  
 
-      call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror) 
+      mpierror = 0
 
-    end subroutine check_cart_comm         
+      call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror)
+
+    end subroutine check_cart_comm
 
 #:endif
 
