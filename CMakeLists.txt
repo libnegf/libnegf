@@ -55,7 +55,8 @@ endif()
 #
 # Installation
 #
-set(CMAKE_INSTALL_PREFIX "/usr/local/libnegf${libNEGF_VERSION_MAJOR}.${libNEGF_VERSION_MINOR}")
+set(CMAKE_INSTALL_PREFIX "/usr/local/libnegf${libNEGF_VERSION_MAJOR}.${libNEGF_VERSION_MINOR}" CACHE PATH
+	"default installation path")
 
 message(STATUS "Default installation path: " ${CMAKE_INSTALL_PREFIX})
 
