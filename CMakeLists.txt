@@ -55,6 +55,10 @@ endif()
 #
 # Installation
 #
+set(CMAKE_INSTALL_PREFIX "/usr/local/libnegf${libNEGF_VERSION_MAJOR}.${libNEGF_VERSION_MINOR}")
+
+message(STATUS "Default installation path: " ${CMAKE_INSTALL_PREFIX})
+
 add_library(Negf INTERFACE)
 target_link_libraries(Negf INTERFACE negf)
 install(TARGETS Negf EXPORT negf-targets)
