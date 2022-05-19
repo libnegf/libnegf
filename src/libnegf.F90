@@ -1534,17 +1534,10 @@ contains
     q = 0.0_dp
 
     if (particle == 1) then
-      call quasiEq_int_n_def(negf, mu_n, E_half, N_coarse)
-      !Temporary for debug
-    call quasiEq_int(negf, mu_n, mu_p, E_half, N_coarse, particle, q)
-      !
+      call quasiEq_int_n(negf, mu_n, E_half, q)
     else ! particle == -1
-      !call quasiEq_int_p_def(negf, mu_p, E_half, N_coarse)
-      call quasiEq_int_p(negf, mu_p, E_half, N_coarse)
+      call quasiEq_int_p(negf, mu_p, E_half, q)
     endif
-
-            !print*, 'before int'
-            !print*, 'after int'
 
     deallocate(E_half)
 
