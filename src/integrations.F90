@@ -411,10 +411,6 @@ contains
 
     Emax = negf%Ev + negf%DeltaEv
 
-    print*, 'DeltaEv =', negf%DeltaEv
-    print*, 'Ev + DeltaEv = Emax =', negf%Ev + negf%DeltaEv
-    print*, 'muRef - Omega = Emin =', muref - Omega 
-
     if ((Emax < (muref + 1.d-3)) .and. &
         (Emax > (muref - 1.d-3))) then
        Emax = muref + kbT
@@ -2251,7 +2247,7 @@ contains
 
     call gauleg(minval(minE), maxval(maxE), E, wght, N_refined)
 
-    do i = N_coarse, Ntot 
+    do i = 1, N_refined 
 
        if (mod(i-1,numprocs) .ne. id) cycle
 
@@ -2361,7 +2357,7 @@ contains
 
     call gauleg(minval(minE), maxval(maxE), E, wght, N_refined)
 
-    do i = N_coarse, Ntot 
+    do i = 1, N_refined 
 
        if (mod(i-1,numprocs) .ne. id) cycle
 
