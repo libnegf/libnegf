@@ -1534,9 +1534,9 @@ contains
     q = 0.0_dp
 
     if (particle == 1) then
-      call quasiEq_int_n(negf, mu_n, E_half, q)
+      call quasiEq_int_n(negf, mu_n, E_half, Ec, q)
     else ! particle == -1
-      call quasiEq_int_p(negf, mu_p, E_half, q)
+      call quasiEq_int_p(negf, mu_p, E_half, Ev, q)
     endif
 
     deallocate(E_half)
