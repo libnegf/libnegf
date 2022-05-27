@@ -703,7 +703,7 @@ subroutine negf_density_quasi_equilibrium(handler,ndofs,density,particle, Ec, Ev
 
   ! particle = 1 for electrons
   ! particle =-1 for holes
-  
+
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB) 

@@ -2166,16 +2166,16 @@ contains
 
   end subroutine swap
 
-  subroutine quasiEq_int_n(negf, mu_n, E_half, rho)
+  subroutine quasiEq_int_n(negf, mu_n, E_half, Ec, rho)
     !In/Out
     type(Tnegf), intent(inout) :: negf
     real(dp), dimension(:), intent(inout) :: rho
-    real(dp), dimension(:), intent(in) :: E_half, mu_n
+    real(dp), dimension(:), intent(in) :: Ec, E_half, mu_n
 
     !Work
-    integer :: i, nr
+    integer :: i, nr 
     integer ::  ncont, outer
-    integer ::  Ntot, N_coarse, N_refined, Nz
+    integer ::  N_coarse, N_refined, Nz
     complex(dp) :: Ez
     type(z_CSR) :: Gr 
     real(dp), dimension(:), allocatable :: wght, E
@@ -2194,14 +2194,10 @@ contains
     allocate(minE(Nz))
     allocate(maxE(Nz))
 
-    !First range for electrons: from E_half to mu_n (if E_half < mu_n); coarse integration
-    if (all(E_half < mu_n)) then
-       minE(:) = E_half(:)
-       maxE(:) = mu_n(:)
-    else
-       minE(:) = mu_n(:)
-       maxE(:) = E_half(:)
-    endif
+    !First range for electrons: from E_half to Ec - deltaEc; coarse integration
+    minE(:) = E_half(:)
+    maxE(:) = Ec(:) - negf%deltaEc 
+
     N_coarse = nint(abs(maxval(maxE)-minval(minE)) / negf%Estep_coarse) 
 
     allocate(E(N_coarse))
@@ -2234,13 +2230,16 @@ contains
     deallocate(wght)
     deallocate(E)
 
-    !Second range, from maxE of previous integration to mu_n + nKT; refined integration
-    !Redefinition of minE,maxE
-    minE(:) = maxE(:)
-    maxE(:) = mu_n(:) + Omega
+    !Second range, from maxE of previous integration to Ec + nKT; refined integration
+    minE(:) = Ec(:) - negf%deltaEc
+    maxE(:) = Ec(:) + Omega
 
     N_refined = nint(abs(maxval(maxE) - minval(minE)) / negf%Estep)  
-    Ntot = N_coarse + N_refined  
+    
+    if (id0 .and. negf%verbose.gt.50) then
+      print*, ' Quasi equilibrium: N_coarse=', N_coarse
+      print*, ' Quasi equilibrium: N_refined=', N_refined
+    endif
 
     allocate(E(N_refined))
     allocate(wght(N_refined))
@@ -2268,7 +2267,7 @@ contains
        call destroy(Gr)
 
     enddo
-
+    
     deallocate(E)
     deallocate(wght)
 
@@ -2276,16 +2275,16 @@ contains
     deallocate(maxE)
   end subroutine quasiEq_int_n
 
-  subroutine quasiEq_int_p(negf, mu_p, E_half, rho)
+  subroutine quasiEq_int_p(negf, mu_p, E_half, Ev, rho)
     !In/Out
     type(Tnegf), intent(inout) :: negf
     real(dp), dimension(:), intent(inout) :: rho
-    real(dp), dimension(:), intent(in) :: E_half, mu_p
+    real(dp), dimension(:), intent(in) :: Ev, E_half, mu_p
 
     !Work
     integer :: i, nr
     integer ::  ncont, outer
-    integer ::  Ntot, N_coarse, N_refined, Nz
+    integer ::  N_coarse, N_refined, Nz
     complex(dp) :: Ez
     type(z_CSR) :: Gr 
     real(dp), dimension(:), allocatable :: wght, E
@@ -2304,14 +2303,10 @@ contains
     allocate(minE(Nz))
     allocate(maxE(Nz))
 
-    !First range for holes: from mu_p to E_half (if E_half > mu_p); coarse integration
-    if (all(E_half > mu_p)) then
-       maxE(:) = E_half(:)
-       minE(:) = mu_p(:)
-    else
-       maxE(:) = mu_p(:)
-       minE(:) = E_half(:)
-    endif
+    !First range for holes: from Ev + deltaEv to E_half; coarse integration
+    minE(:) = Ev(:) + negf%deltaEv
+    maxE(:) = E_half(:)
+
     N_coarse = nint(abs(maxval(maxE)-minval(minE)) / negf%Estep_coarse) 
 
     allocate(E(N_coarse))
@@ -2344,13 +2339,12 @@ contains
     deallocate(wght)
     deallocate(E)
 
-    !Second range, from maxE of previous integration to mu_n + nKT; refined integration
+    !Second range, mu_p + nKT to minE of previous integration; refined integration
     !Redefinition of minE,maxE
-    maxE(:) = minE(:)
     minE(:) = mu_p(:) - Omega
+    maxE(:) = Ev(:) + negf%deltaEv
 
     N_refined = nint(abs(maxval(maxE) - minval(minE)) / negf%Estep)  
-    Ntot = N_coarse + N_refined  
 
     allocate(E(N_refined))
     allocate(wght(N_refined))
