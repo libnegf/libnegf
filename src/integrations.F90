@@ -2339,9 +2339,9 @@ contains
     deallocate(wght)
     deallocate(E)
 
-    !Second range, mu_p + nKT to minE of previous integration; refined integration
+    !Second range, Ev - nKT to minE of previous integration; refined integration
     !Redefinition of minE,maxE
-    minE(:) = mu_p(:) - Omega
+    minE(:) = Ev(:) - Omega
     maxE(:) = Ev(:) + negf%deltaEv
 
     N_refined = nint(abs(maxval(maxE) - minval(minE)) / negf%Estep)  
