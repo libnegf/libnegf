@@ -67,6 +67,8 @@ module elphds
     procedure :: set_Gn
     procedure :: compute_Sigma_r
     procedure :: compute_Sigma_n
+    procedure :: destroy_Sigma_r
+    procedure :: destroy_Sigma_n
 
   end type ElPhonDephS
 
@@ -387,5 +389,27 @@ contains
     integer, intent(in), optional  :: k_index
     integer, intent(in), optional  :: spin
   end subroutine compute_Sigma_n
+
+  !> Destroy Sigma_r
+  subroutine destroy_Sigma_r(this)
+    class(ElPhonDephS) :: this
+    integer :: ii
+    do ii=1,this%nummodes
+      if (allocated(this%sigma_r(ii)%rowpnt)) then
+        call destroy(this%sigma_r(ii))
+      end if
+    end do  
+  end subroutine destroy_Sigma_r
+
+  !> Destroy Sigma_n
+  subroutine destroy_Sigma_n(this)
+    class(ElPhonDephS) :: this
+    integer :: ii
+    do ii=1,this%nummodes
+      if (allocated(this%sigma_n(ii)%rowpnt)) then
+        call destroy(this%sigma_n(ii))
+      end if
+    end do  
+  end subroutine destroy_Sigma_n
 
 end module elphds

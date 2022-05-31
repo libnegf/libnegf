@@ -33,7 +33,8 @@ module lib_param
   use elphdd, only : ElPhonDephD, ElPhonDephD_create, ElPhonDephD_init
   use elphdb, only : ElPhonDephB, ElPhonDephB_create, ElPhonDephB_init
   use elphds, only : ElPhonDephS, ElPhonDephS_create, ElPhonDephS_init
-  use elphinel, only : ElPhonInel, ElPhonInel_create, ElPhonInel_init
+  use elphinel, only : ElPhonPolarOptical, ElPhonPO_create, ElPhonPO_init
+  use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
   use scba
   use ln_cache
 #:if defined("MPI")
@@ -50,7 +51,8 @@ module lib_param
   public :: set_elph_dephasing
   public :: set_elph_block_dephasing
   public :: set_elph_s_dephasing
-  public :: set_elph_inelastic
+  public :: set_elph_polaroptical
+  public :: set_elph_nonpolaroptical
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
@@ -353,7 +355,7 @@ contains
 
   end subroutine set_elph_s_dephasing
 
-  subroutine set_elph_inelastic(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
+  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
               & tridiag)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
@@ -369,11 +371,11 @@ contains
 
     type(TInteractionNode), pointer :: node
     call negf%interactList%add(node)
-    call elphoninel_create(node%inter)
+    call elphonpo_create(node%inter)
     select type(pInter => node%inter)
-    type is(ElPhonInel)
+    type is(ElPhonPolarOptical)
 #:if defined("MPI")
-      call elphoninel_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+      call ElPhonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"
@@ -382,7 +384,37 @@ contains
       stop 'ERROR: error of type downcast to ElPhonInel'
     end select
 
-  end subroutine set_elph_inelastic
+  end subroutine set_elph_polaroptical
+
+  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, area, niter, &
+              & tridiag)
+    type(Tnegf), intent(inout) :: negf
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp), intent(in) :: wq
+    real(dp), intent(in) :: Temp
+    real(dp), intent(in) :: dz
+    real(dp), intent(in) :: D0
+    real(dp), intent(in) :: area
+    integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
+
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphonnonpo_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonNonPolarOptical)
+#:if defined("MPI")
+    call ElPhonNonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+            &  wq, Temp, dz, D0, area, niter, tridiag)
+#:else
+      stop "Inelastic scattering requires MPI"
+#:endif    
+    class default
+      stop 'ERROR: error of type downcast to ElPhonInel'
+    end select
+
+  end subroutine set_elph_nonpolaroptical
+
 
   !> clean interactions objects
   subroutine destroy_interactions(negf)

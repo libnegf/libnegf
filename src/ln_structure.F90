@@ -55,6 +55,7 @@ type TBasisCenters
   real(dp), dimension(:,:), allocatable :: x
   integer :: nCentralAtoms
   integer, dimension(:), allocatable :: matrixToBasis
+  real(dp) :: lattVecs(3,3) = 0.0_dp
 end type TBasisCenters
 
 !> type to store neighbour maps between basis centers
@@ -189,10 +190,12 @@ contains
 
   !--------------------------------------------------------------------
   ! Initialize TBasisCenters
-  subroutine create_TBasis(this, coord, nCentral, basisToMatrix, matrixToBasis)
+  subroutine create_TBasis(this, coord, nCentral, lattVecs, basisToMatrix, matrixToBasis)
     type(TBasisCenters) :: this
     real(dp), intent(in) :: coord(:,:)
     integer, intent(in) :: nCentral
+    ! lattice vectors stored column-wise, e.g., a1 = latVecs(:,1) 
+    real(dp), intent(in), optional :: lattVecs(3,3)
     ! basis index to matrix index
     integer, intent(in), optional :: basisToMatrix(:)
     ! matrix index to basis index
@@ -207,6 +210,10 @@ contains
     allocate(this%x(size(coord,1), size(coord,2)))
     this%x = coord
     this%nCentralAtoms = nCentral
+
+    if (present(lattVecs)) then
+       this%lattVecs = lattVecs
+    end if
 
     if (present(matrixToBasis)) then
       allocate(this%matrixToBasis(size(matrixToBasis)))

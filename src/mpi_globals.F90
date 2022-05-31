@@ -41,16 +41,16 @@ module mpi_globals
     subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
       logical, optional :: ioProc
-
+    
       id =energyComm%rank
       numprocs = energyComm%size
-
+    
       if (present(ioProc)) then
         id0 = ioProc
       else
         id0 = (id == 0)
       end if
-
+    
     end subroutine negf_mpi_init
 
     ! Initialize a 2D cartesian grid
@@ -93,11 +93,15 @@ module mpi_globals
 
       call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
+      ! Global master id=0 node as writing node
+      id0 = (cartComm%rank == 0)
 
       ! Extract sub-communicators
       remain_dims(:) = [.false., .true.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
       call energyComm%init(outComm, mpierr)
+      id = energyComm%rank
+      numprocs = energyComm%size
 
       remain_dims(:) = [.true., .false.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)

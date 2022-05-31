@@ -56,6 +56,8 @@ module elphdd
     procedure :: set_Gn
     procedure :: compute_Sigma_r
     procedure :: compute_Sigma_n
+    procedure :: destroy_Sigma_r
+    procedure :: destroy_Sigma_n
 
   end type ElPhonDephD
 
@@ -270,5 +272,17 @@ contains
     integer, intent(in), optional  :: k_index
     integer, intent(in), optional  :: spin
   end subroutine compute_Sigma_n
+
+  !> Destroy Sigma_r
+  subroutine destroy_Sigma_r(this)
+    class(ElPhonDephD) :: this
+    call log_deallocate(this%sigma_r)      
+  end subroutine destroy_Sigma_r
+
+  !> Destroy Sigma_n
+  subroutine destroy_Sigma_n(this)
+    class(ElPhonDephD) :: this
+    call log_deallocate(this%sigma_n)      
+  end subroutine destroy_Sigma_n
 
 end module elphdd

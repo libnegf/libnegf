@@ -62,6 +62,8 @@ module interactions
     procedure(abst_set_Gn), deferred :: set_Gn
     procedure(abst_comp_Sigma_r), deferred :: compute_Sigma_r
     procedure(abst_comp_Sigma_n), deferred :: compute_Sigma_n
+    procedure(abst_destroy_Sigma_r), deferred :: destroy_Sigma_r
+    procedure(abst_destroy_Sigma_n), deferred :: destroy_Sigma_n
 
   end type TInteraction
 
@@ -181,6 +183,18 @@ module interactions
       integer, intent(in), optional  :: k_index
       integer, intent(in), optional  :: spin
     end subroutine abst_comp_Sigma_r
+
+    !>  Destroy Sigma_r : cleanup memory
+    subroutine abst_destroy_Sigma_r(this)
+      import :: TInteraction
+      class(TInteraction) :: this
+    end subroutine abst_destroy_Sigma_r
+    
+    !>  Destroy Sigma_n : cleanup memory
+    subroutine abst_destroy_Sigma_n(this)
+      import :: TInteraction
+      class(TInteraction) :: this
+    end subroutine abst_destroy_Sigma_n
 
   end interface
 

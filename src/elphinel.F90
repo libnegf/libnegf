@@ -24,6 +24,7 @@
 module elphinel
 
   use ln_precision, only : dp
+  use ln_constants, only : pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
   use ln_allocation, only : log_allocate, log_deallocate, writeMemInfo
@@ -34,6 +35,7 @@ module elphinel
   use ln_cache
   use iso_c_binding
   use mpi_globals
+  use inversions, only : inverse
 #:if defined("MPI")
   use libmpifx_module
 #:endif
@@ -41,11 +43,11 @@ module elphinel
   implicit none
   private
 
-  public :: ElPhonInel, ElPhonInel_create
-  public :: ElPhonInel_init, ElPhonInel_setkpoints, ElPhonInel_setEnGrid
-  public :: ElPhonInel_destroy
+  public :: ElPhonInel, ElPhonPolarOptical, ElPhonNonPolarOptical
+  public :: ElPhonPO_create, ElPhonNonPO_create
+  public :: ElPhonPO_init, ElPhonNonPO_init 
 
-  type, extends(TInelastic) :: ElPhonInel
+  type, abstract, extends(TInelastic) :: ElPhonInel
     private
     !> communicator of the cartesian grid
     integer(c_int) :: cart_comm
@@ -53,35 +55,29 @@ module elphinel
     !> holds atomic structure: Only the scattering region
     type(TBasisCenters) :: basis
 
-    !> binning resolution for z-coordinates
-    real(dp) :: dz
-
     !> Bose-Einstein phonon occupation
     real(dp) :: Nq
+
+    !> A general scalar coupling 
+    real(dp) :: coupling
 
     !> Kpoints
     real(dp), allocatable :: kpoint(:,:)
     real(dp), allocatable :: kweight(:)
     integer, allocatable :: local_kindex(:)
-    real(dp) :: cell_area
-    real(dp) :: Ce
-
     !> Energy grid. global num of energy points
     integer :: nE_global
     !> Energy grid. Local num of energy points
     integer :: nE_local
-
-    !> Paramters for the Kappa function
-    real(dp) :: eps0
-    real(dp) :: eps_inf
-    real(dp) :: q0
-
     !> Energy grid spacing
     real(dp) :: dE
-
     !> Matrix KK
     real(dp), allocatable :: Kmat(:,:,:)
-
+    !> binning resolution for z-coordinates
+    real(dp) :: dz
+    !> Supercell area for integrations 
+    real(dp) :: cell_area
+  
   contains
 
     procedure :: add_sigma_r
@@ -92,8 +88,48 @@ module elphinel
     procedure :: set_Gn
     procedure :: compute_sigma_r
     procedure :: compute_sigma_n
-
+    procedure :: destroy_sigma_r
+    procedure :: destroy_sigma_n
+    procedure :: set_kpoints
+    procedure :: set_EnGrid
+    procedure(abstract_prepare), deferred :: prepare
+    procedure :: destroy => destroy_elph
+     
   end type ElPhonInel
+
+  abstract interface 
+    subroutine abstract_prepare(this)
+      import ElPhonInel    
+      class(ElPhonInel) :: this
+    end subroutine abstract_prepare
+  end interface
+
+
+  type, extends(ElPhonInel) :: ElPhonPolarOptical
+    private
+    !> Parameters for Polar-optical K-function 
+    real(dp) :: Ce
+    real(dp) :: eps0
+    real(dp) :: eps_inf
+    real(dp) :: q0
+    contains
+    procedure :: prepare => prepare_POKmat
+  end type ElPhonPolarOptical
+
+  type, extends(ElPhonInel) :: ElPhonNonPolarOptical
+    private
+    !> Parameters for Non-polar-optical K-function 
+    real(dp) :: D0 
+    contains
+    procedure :: prepare => prepare_NonPOKmat
+  end type ElPhonNonPolarOptical
+
+  !type, extends(TInelastic) :: ElPhoton
+  !  private
+  !  !> Parameters for Polar-optical K-function 
+  !  real(dp) :: I0
+  !  real(dp) :: eps_inf
+  !end type ElPhoton
 
   !> Interface of C function that perform all the MPI communications in order to compute
   !  sigma_r and sigma_n
@@ -146,10 +182,15 @@ module elphinel
 
 contains
 
-  subroutine ElPhonInel_create(this)
+  subroutine ElPhonPO_create(this)
     class(TInteraction), allocatable :: this
-    allocate(ElPhonInel::this)
-  end subroutine ElPhonInel_create
+    allocate(ElPhonPolarOptical::this)
+  end subroutine ElPhonPO_create
+
+  subroutine ElPhonNonPO_create(this)
+    class(TInteraction), allocatable :: this
+    allocate(ElPhonNonPolarOptical::this)
+  end subroutine ElPhonNonPO_create
 
   !>
   ! Factory for el-ph inelastic model based on polar-optical modes
@@ -157,9 +198,9 @@ contains
   ! @param coupling: coupling (energy units)
   ! @param wq: phonon frequence
   ! @param niter: fixed number of scba iterations
-  subroutine ElPhonInel_init(this, comm, struct, basis, coupling, wq, Temp, &
+  subroutine ElPhonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
              & dz, eps0, eps_inf, q0, cell_area, niter, tridiag)
-    type(ElPhonInel) :: this
+    type(ElPhonPolarOptical) :: this
     integer, intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
     type(TBasisCenters), intent(in) :: basis
@@ -175,7 +216,7 @@ contains
     logical, intent(in) :: tridiag
 
     this%descriptor = &
-        & "Electron-Phonon inelastic model for optical phonons"
+        & "Electron-Phonon inelastic model for polar-optical phonons"
 
     this%cart_comm = comm
     this%scba_niter = niter
@@ -189,8 +230,7 @@ contains
     this%eps_inf = eps_inf
     this%q0 = q0
     this%cell_area = cell_area
-    this%Ce = coupling(1)*this%wq/2.0_dp/this%cell_area* &
-          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
+    this%coupling = coupling(1)
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
@@ -199,23 +239,91 @@ contains
     if (allocated(this%sigma_n)) call this%sigma_n%destroy()
     this%sigma_n = TMatrixCacheMem(tagname='Sigma_n')
 
-  end subroutine ElPhonInel_init
+  end subroutine ElPhonPO_init
 
+  !>
+  ! Factory for el-ph inelastic model based on polar-optical modes
+  ! @param struct : contact/device partitioning infos
+  ! @param coupling: coupling (energy units)
+  ! @param wq: phonon frequence
+  ! @param niter: fixed number of scba iterations
+  subroutine ElPhonNonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
+             & dz, D0, cell_area, niter, tridiag)
+    type(ElPhonNonPolarOptical) :: this
+    integer, intent(in) :: comm
+    type(TStruct_Info), intent(in) :: struct
+    type(TBasisCenters), intent(in) :: basis
+    real(dp), dimension(:), intent(in) :: coupling
+    real(dp), intent(in) :: wq
+    real(dp), intent(in) :: Temp
+    real(dp), intent(in) :: dz
+    real(dp), intent(in) :: D0
+    real(dp), intent(in) :: cell_area
+    integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
+
+    this%descriptor = &
+        & "Electron-Phonon inelastic model for polar-optical phonons"
+
+    this%cart_comm = comm
+    this%scba_niter = niter
+    this%struct = struct
+    this%basis = basis
+    this%wq = wq
+    this%Nq = bose(wq, Temp)
+    ! Parameters for function Kappa
+    this%coupling = coupling(1)
+    this%dz = dz
+    this%D0 = D0
+    this%cell_area = cell_area
+    this%tTridiagonal = tridiag
+
+    ! Initialize the cache space
+    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
+    this%sigma_r = TMatrixCacheMem(tagname='Sigma_r')
+    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
+    this%sigma_n = TMatrixCacheMem(tagname='Sigma_n')
+
+  end subroutine ElPhonNonPO_init
   !--------------------------------------------------------------------------
   ! This function should be called before the SCBA loop
-  subroutine ElPhonInel_setkpoints(this, kpoints, kweights, kindex)
-    type(ElPhonInel), intent(inout) :: this
+  subroutine set_kpoints(this, kpoints, kweights, kindex)
+    class(ElPhonInel) :: this
     real(dp), intent(in) :: kpoints(:,:)
     real(dp), intent(in) :: kweights(:)
     integer, intent(in) :: kindex(:)
 
-    integer :: nDeltaZ, nCentralAtoms, iZ, iQ, iK, fu
-    real(dp) :: kq(3), kk(3), QQ(3), Q2, bb, z_mn
-    real(dp) :: zmin, zmax, Kf
+    integer :: nCentralAtoms
 
     this%kpoint = kpoints
     this%kweight = kweights
     this%local_kindex = kindex
+
+  end subroutine set_kpoints
+
+  !--------------------------------------------------------------------------
+  subroutine set_EnGrid(this, deltaE, nE_global, nE_local)
+    class(ElPhonInel) :: this
+    real(dp), intent(in) :: deltaE
+    integer, intent(in) :: nE_global
+    integer, intent(in) :: nE_local
+
+    this%dE = deltaE
+    this%nE_global = nE_global
+    this%nE_local = nE_local
+
+  end subroutine set_EnGrid
+
+  !--------------------------------------------------------------------------
+  ! PO phonons: see derivation slides:
+  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)] 
+  subroutine prepare_POKmat(this)
+    class(ElPhonPolarOptical) :: this
+
+    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
+    real(dp) :: kq(3), kk(3), QQ(3), Q2, bb, z_mn, Kf
+    real(dp) :: zmin, zmax, recVecs2p(3,3)
+    real(dp), allocatable :: kpoint(:,:) 
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
@@ -224,17 +332,27 @@ contains
     zmax = maxval(this%basis%x(3,1:nCentralAtoms))
 
     nDeltaZ = nint(zmax - zmin)/this%dz
+    call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
 
-    call log_allocate(this%Kmat, nDeltaZ+1, size(kweights), size(kweights))
+    this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
+          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
 
-    ! See derivation slides:
-    ! PO phonons
-    ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)] 
+    !compute the absolute k-points
+    allocate(kpoint(3,size(this%kweight)))
+    if (all(this%basis%lattVecs == 0.0_dp)) then
+       kpoint = 0.0_dp
+    else   
+       recVecs2p = 0.0_dp
+       recVecs2p(1,1) = 2.0_dp*pi/this%basis%lattVecs(1,1)
+       recVecs2p(2,2) = 2.0_dp*pi/this%basis%lattVecs(2,2)
+       recVecs2p(3,3) = 2.0_dp*pi/this%basis%lattVecs(3,3)
+       kpoint = matmul(recVecs2p, this%kpoint)
+    end if
 
-    do iQ = 1, size(kweights)
-      kq = this%kpoint(:, iQ)
-      do iK = 1, size(kweights)
-        kk = this%kpoint(:, iK)
+    do iQ = 1, size(this%kweight)
+      kq = kpoint(:, iQ)
+      do iK = 1, size(this%kweight)
+        kk = kpoint(:, iK)
         QQ = kk - kq
         Q2 = dot_product(QQ, QQ)
         bb = sqrt(this%q0*this%q0 + Q2)
@@ -247,30 +365,91 @@ contains
         end do
       end do
     end do
+    
     !print*,'debug print Kmat'
     !open(newunit=fu, file='Kmat.dat')
     !do iZ = 0, nDeltaZ
     !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
     !end do
     !close(fu)
-  end subroutine ElPhonInel_setkpoints
+
+  end subroutine prepare_POKmat
 
   !--------------------------------------------------------------------------
-  subroutine ElPhonInel_setEnGrid(this, deltaE, nE_global, nE_local)
-    type(ElPhonInel), intent(inout) :: this
-    real(dp), intent(in) :: deltaE
-    integer, intent(in) :: nE_global
-    integer, intent(in) :: nE_local
+  ! Non PO phonons: see derivation slides:
+  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)] 
+  subroutine prepare_NonPOKmat(this)
+    class(ElPhonNonPolarOptical) :: this
 
-    this%dE = deltaE
-    this%nE_global = nE_global
-    this%nE_local = nE_local
+    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
+    real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf
+    real(dp) :: zmin, zmax, recVecs2p(3,3)
+    real(dp), allocatable :: kpoint(:,:) 
+ 
+    ! Compute the matrix Kmat as lookup table
+    nCentralAtoms = this%basis%nCentralAtoms
 
-  end subroutine ElPhonInel_SetEnGrid
+    zmin = minval(this%basis%x(3,1:nCentralAtoms))
+    zmax = maxval(this%basis%x(3,1:nCentralAtoms))
+
+    nDeltaZ = nint(zmax - zmin)/this%dz
+    call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
+
+    !compute the absolute k-points
+    allocate(kpoint(3,size(this%kweight)))
+    if (all(this%basis%lattVecs == 0.0_dp)) then
+       kpoint = 0.0_dp
+    else
+       recVecs2p = 0.0_dp
+       recVecs2p(1,1) = 2.0_dp*pi/this%basis%lattVecs(1,1)
+       recVecs2p(2,2) = 2.0_dp*pi/this%basis%lattVecs(2,2)
+       recVecs2p(3,3) = 2.0_dp*pi/this%basis%lattVecs(3,3)
+       kpoint = matmul(recVecs2p, this%kpoint)
+    end if
+    
+    do iQ = 1, size(this%kweight)
+      kq = kpoint(:, iQ)
+      kq2 = dot_product(kq,kq)
+      if (kq2==0.0_dp) then
+         this%Kmat(:,:,iQ) = 0.0_dp
+         cycle
+      end if   
+      do iK = 1, size(this%kweight)
+        kk = kpoint(:, iK)
+        kk2 = dot_product(kk,kk)
+        if (kk2==0.0_dp) then
+           this%Kmat(:,iK,iQ) = 0.0_dp
+           cycle
+        end if   
+        QQ = dot_product(kk, kq)
+        Q2 = QQ*QQ
+        do iZ = 0, nDeltaZ
+          z_mn = iZ * this%dz
+          Kf = this%D0*Q2*exp(-sqrt(kq2)*z_mn)/(2.0_dp*kq2*kk2)
+          !if (isNan(Kf)) then
+          !   print*,kq2,kk2,QQ
+          !   stop
+          !end if   
+          this%Kmat(iZ+1,iK,iQ) = this%coupling * this%kweight(iQ) * Kf
+        end do
+      end do
+    end do
+    !if (any(isNan(this%Kmat))) then
+    !  print*,'Kmat= NaN'
+    !  stop
+    !end if  
+    !open(newunit=fu, file='Kmat.dat')
+    !do iZ = 0, nDeltaZ
+    !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
+    !end do
+    !close(fu)
+
+  end subroutine prepare_NonPOKmat
+
 
   !--------------------------------------------------------------------------
-  subroutine ElPhonInel_destroy(this)
-    type(ElPhonInel), intent(inout) :: this
+  subroutine destroy_elph(this)
+    class(ElPhonInel) :: this
 
     if (allocated(this%kpoint)) deallocate(this%kpoint)
     if (allocated(this%kweight)) deallocate(this%kweight)
@@ -279,7 +458,7 @@ contains
     if (allocated(this%sigma_r)) call this%sigma_r%destroy()
     if (allocated(this%sigma_n)) call this%sigma_n%destroy()
 
-  end subroutine ElPhonInel_destroy
+  end subroutine destroy_elph
 
   !--------------------------------------------------------------------------
   !> Retrieve matrix pointer from cache and add it to ESH
@@ -486,7 +665,6 @@ contains
     logical :: buff
 
     real(dp) :: maxvalue
-    !print*,'....Compute Sigma_r diagonal blocks'
 
     nbl = this%struct%num_PLs
     NK = size(this%kpoint,2)
@@ -494,6 +672,9 @@ contains
     NE = this%nE_global
     NEloc = this%nE_local
     iEshift = nint(this%wq/this%dE)
+    if (iEshift > NEloc) then
+      stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
+    end if
     Ndz = size(this%Kmat,1)
     label%spin = 0
     if (present(spin)) then
@@ -521,11 +702,13 @@ contains
       label%row_block = ibl
       label%col_block = ibl
 
-      call setup_pointers_Gr(Np,Np)
+      call setup_pointers_Gr()
+      call setup_pointers_Sigma_r(Np,Np)
 
       ! Compute the retarded part
       fac_min = cmplx(this%Nq + 1, 0.0, dp)
       fac_plus = cmplx(this%Nq, 0.0, dp)
+      
       err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
             & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
 
@@ -557,7 +740,8 @@ contains
 
         call allocate_buff(Np,Mp)
 
-        call setup_pointers_Gr(Np,Mp)
+        call setup_pointers_Gr()
+        call setup_pointers_Sigma_r(Np,Mp)
 
         ! Compute the retarded part
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
@@ -582,11 +766,13 @@ contains
 
         call allocate_buff(Mp,Np)
 
-        call setup_pointers_Gr(Mp,Np)
+        call setup_pointers_Gr()
+        call setup_pointers_Sigma_r(Mp,Np)
 
         ! Compute the retarded part
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
         fac_plus = cmplx(this%Nq, 0.0, dp)
+
         err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
         
@@ -634,8 +820,7 @@ contains
     end subroutine deallocate_buff      
 
     ! setup the array of pointers to G_r and sigma_r
-    subroutine setup_pointers_Gr(Nr,Nc)
-      integer, intent(in) :: Nr, Nc
+    subroutine setup_pointers_Gr()
       
       do iK = 1, NKloc
         do iE = 1, NEloc
@@ -643,6 +828,29 @@ contains
           label%kpoint = this%local_kindex(iK)
           label%energy_point = iE + id*NEloc
           pGG(iE,iK) = this%G_r%retrieve_loc(label)
+        end do
+      end do
+    end subroutine setup_pointers_Gr
+
+    ! setup the array of pointers to G_n
+    subroutine setup_pointers_Gn()
+      do iK = 1, NKloc
+        do iE = 1, NEloc
+          label%kpoint = this%local_kindex(iK)
+          label%energy_point = iE + id*NEloc
+          pGG(iE,iK) = this%G_n%retrieve_loc(label)
+        end do
+      end do
+    end subroutine setup_pointers_Gn
+
+    
+    subroutine setup_pointers_Sigma_r(Nr,Nc)
+      integer, intent(in) :: Nr, Nc
+
+      do iK = 1, NKloc
+        do iE = 1, NEloc
+          label%kpoint = this%local_kindex(iK)
+          label%energy_point = iE + id*NEloc
           if (.not.this%Sigma_r%is_cached(label)) then
             !print*,'create Sigma_r', label%kpoint, label%energy_point 
             call create(Sigma_r,Nr,Nc)
@@ -653,19 +861,8 @@ contains
           pSigma(iE,iK) = this%Sigma_r%retrieve_loc(label)
         end do
       end do
-    end subroutine setup_pointers_Gr
-      
-    ! setup the array of pointers to G_n
-    subroutine setup_pointers_Gn()
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
-          !print*,'retrieve address of Gn', label%kpoint, label%energy_point, ibl, ibl
-          pGG(iE,iK) = this%G_n%retrieve_loc(label)
-        end do
-      end do
-    end subroutine setup_pointers_Gn
+
+    end subroutine setup_pointers_Sigma_r
     
     subroutine check_elements(Mat,arg)
        class(TMatrixCache) :: Mat
@@ -715,6 +912,9 @@ contains
     NE = this%nE_global
     NEloc = this%nE_local
     iEshift = nint(this%wq/this%dE)
+    if (iEshift > NEloc) then
+      stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
+    end if
     Ndz = size(this%Kmat, 1)
     label%spin = 1
     if (present(spin)) then
@@ -741,12 +941,13 @@ contains
       label%row_block = ibl
       label%col_block = ibl
 
-      call setup_pointers_Gn(Np,Np)
+      call setup_pointers_Gn()
+      call setup_pointers_Sigma_n(Np,Np)
 
       ! Compute the retarded part
       fac_min = cmplx(this%Nq, 0.0, dp)
       fac_plus = cmplx(this%Nq + 1, 0.0, dp)
-
+      
       err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
             & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
 
@@ -770,8 +971,9 @@ contains
         ! create buffers
         call allocate_buff(Np,Mp)
 
-        call setup_pointers_Gn(Np,Mp)
-        call check_elements(this%G_n,"G_n")  
+        call setup_pointers_Gn()
+        call setup_pointers_Sigma_n(Np,Np)
+        !call check_elements(this%G_n,"G_n")  
         
         ! Compute the retarded part
         fac_min = cmplx(this%Nq, 0.0, dp)
@@ -780,7 +982,7 @@ contains
         err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
         
-        call check_elements(this%Sigma_n,"Sigma_n")  
+       ! call check_elements(this%Sigma_n,"Sigma_n")  
       
         call deallocate_buff()
         call log_deallocate(izc)
@@ -819,16 +1021,26 @@ contains
     end subroutine deallocate_buff      
     
     ! setup the array of pointers to G_n and sigma_n
-    subroutine setup_pointers_Gn(Nr,Nc)
-      integer, intent(in) :: Nr, Nc
+    subroutine setup_pointers_Gn()
       
       do iK = 1, NKloc
         do iE = 1, NEloc
-
           label%kpoint = this%local_kindex(iK)
           label%energy_point = iE + id*NEloc
           pGG(iE,iK) = this%G_n%retrieve_loc(label)
+        end do
+      end do
+    end subroutine setup_pointers_Gn
+    
+    subroutine setup_pointers_Sigma_n(Nr,Nc)
+      integer, intent(in) :: Nr, Nc
+
+      do iK = 1, NKloc
+        do iE = 1, NEloc
+          label%kpoint = this%local_kindex(iK)
+          label%energy_point = iE + id*NEloc
           if (.not.this%Sigma_n%is_cached(label)) then
+            !print*,'create Sigma_r', label%kpoint, label%energy_point 
             call create(Sigma_n,Nr,Nc)
             Sigma_n%val = (0.0_dp, 0.0_dp)
             call this%Sigma_n%add(Sigma_n, label)
@@ -837,7 +1049,8 @@ contains
           pSigma(iE,iK) = this%Sigma_n%retrieve_loc(label)
         end do
       end do
-    end subroutine setup_pointers_Gn
+
+    end subroutine setup_pointers_Sigma_n
 
     subroutine check_elements(Mat,arg)
       class(TMatrixCache) :: Mat
@@ -856,6 +1069,17 @@ contains
 
   end subroutine compute_Sigma_n
 
+  !> Destroy Sigma_r
+  subroutine destroy_Sigma_r(this)
+    class(ElPhonInel) :: this
+    if (allocated(this%sigma_r)) call this%sigma_r%destroy()      
+  end subroutine destroy_Sigma_r
+
+  !> Destroy Sigma_n
+  subroutine destroy_Sigma_n(this)
+    class(ElPhonInel) :: this
+    if (allocated(this%sigma_n)) call this%sigma_n%destroy()      
+  end subroutine destroy_Sigma_n
 
   !> Integral over qz of the electron-phonon polar optical couping.
   !
@@ -882,45 +1106,45 @@ contains
   ! => 65563 * 1000 * 8 ~ 500 Mb
   ! We need a mapping: matrix index(mu) -> bin(iz)
 
-  real(c_double) function kappa(handler, iK, iQ, mu, nu) bind(c, name='kappa')
-    implicit none
-    !> handle as c_ptr
-    type(c_ptr), intent(in), value :: handler
-    !> Index of k (final k-vector)
-    integer(c_int), intent(in), value :: iK
-    !> Index of q (initial k-vector)
-    integer(c_int), intent(in), value :: iQ
-    !> Index of mu in the array
-    integer(c_int), intent(in), value :: mu
-    !> Index of nu in the array
-    integer(c_int), intent(in) :: nu
+ ! real(c_double) function kappa(handler, iK, iQ, mu, nu) bind(c, name='kappa')
+ !   implicit none
+ !   !> handle as c_ptr
+ !   type(c_ptr), intent(in), value :: handler
+ !   !> Index of k (final k-vector)
+ !   integer(c_int), intent(in), value :: iK
+ !   !> Index of q (initial k-vector)
+ !   integer(c_int), intent(in), value :: iQ
+ !   !> Index of mu in the array
+ !   integer(c_int), intent(in), value :: mu
+ !   !> Index of nu in the array
+ !   integer(c_int), intent(in) :: nu
 
-    real(dp) :: Ce, kk(3), kq(3), QQ(3), bb, z_mu, z_nu, z_mn, Kf, Q2
-    integer :: atm_index, loc_iK, loc_iQ
-    type(ElPhonInel), pointer :: this
+ !   real(dp) :: Ce, kk(3), kq(3), QQ(3), bb, z_mu, z_nu, z_mn, Kf, Q2
+ !   integer :: atm_index, loc_iK, loc_iQ
+ !   type(ElPhonInel), pointer :: this
 
-    !> cast the c_ptr to the instance Telph
-    call c_f_pointer(handler, this)
+ !   !> cast the c_ptr to the instance Telph
+ !   call c_f_pointer(handler, this)
 
-    ! Forget for the moment Umklapp. G = 0
+ !   ! Forget for the moment Umklapp. G = 0
 
-    atm_index = this%basis%matrixToBasis(mu)
-    z_mu = this%basis%x(3, atm_index)
-    atm_index = this%basis%matrixToBasis(nu)
-    z_nu = this%basis%x(3, atm_index)
-    z_mn = abs(z_mu - z_nu)
+ !   atm_index = this%basis%matrixToBasis(mu)
+ !   z_mu = this%basis%x(3, atm_index)
+ !   atm_index = this%basis%matrixToBasis(nu)
+ !   z_nu = this%basis%x(3, atm_index)
+ !   z_mn = abs(z_mu - z_nu)
 
-    kk = this%kpoint(:, iK)
-    kq = this%kpoint(:, iQ)
+ !   kk = this%kpoint(:, iK)
+ !   kq = this%kpoint(:, iQ)
 
-    QQ = kk - kq
-    Q2 = dot_product(QQ, QQ)
-    bb = sqrt(this%q0*this%q0 + Q2)
+ !   QQ = kk - kq
+ !   Q2 = dot_product(QQ, QQ)
+ !   bb = sqrt(this%q0*this%q0 + Q2)
 
-    Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+ !   Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
 
-    kappa = this%Ce * this%kweight(iQ) * Kf
+ !   kappa = this%Ce * this%kweight(iQ) * Kf
 
-  end function kappa
+ ! end function kappa
 
 end module elphinel

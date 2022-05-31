@@ -19,7 +19,13 @@
 #endif
 
 #define KK(im, iK, iQ) ( KK[ im + Ndz * iK + Ndz * NK * iQ ] )
-
+#define GG(iE, iQ)  ( GG[ iQ*NEloc + iE ] )
+#define Sigma(iE, iQ)  ( Sigma[ iQ*NEloc + iE ] )
+#define pSigma(mu, nu) ( pSigma[ nu*Np + mu ] )
+#define pbuff1(mu, nu)  ( pbuff1[ nu*Np + mu ] )
+#define pbuff2(mu, nu)  ( pbuff2[ nu*Np + mu ] )
+#define sbuffH(mu, nu)  ( sbuffH[ nu*Np + mu ] )
+#define rbuffH(mu, nu)  ( rbuffH[ nu*Np + mu ] )
 
 // ======================================================================================
 // Self-energy for polar optical electron-phonon interaction
@@ -74,6 +80,7 @@ int self_energy(
   int iKglo,iEglo,iQglo, iQglo2;
   int mu, nu, im, in;
   int coords[2], coordsH[2], dims[2];
+  int coordsS[2], coordsD[2];
   int iEminus, iEplus;
 
   int msource, mdest;
@@ -123,7 +130,7 @@ int self_energy(
   //                        * (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
   //
   MPI_Barrier(comm2d);
-
+  
   for( iQ=0; iQ<NKloc; iQ++ )
   {
     iQglo=iQ+coords[0]*NKloc;
@@ -143,13 +150,16 @@ int self_energy(
       //     ^--|----E-|-----^                           ndiff = 1 iMinus = 3
       ////////////////////////////////////////////////////////////////////////////////////
       
-      // checks if iE-iEhbaromega is on the same processor => no communication
       // pbuff1 points to G(k,E-wq)
-      if( (((int)iE - iEhbaromega) >=0 && (iE - iEhbaromega) < NEloc) || iEglo < NEloc)
+      // checks if iE-iEhbaromega is on the same processor => no communication
+      // if iEglo<NEloc => the processor is on the lower end of the energy grid
+      //                => communication is local or forced to be by truncation of G
+      //                   such that G(E<0) = G(E=0)
+      if ( ((iE - iEhbaromega) >=0 && (iE - iEhbaromega) < NEloc ) || iEglo < NEloc)
       {
         iEminus=iE-iEhbaromega;
-        if(iEminus<=0) {iEminus = 0;}
-        pbuff1 = (double complex *) GG[iQ*NEloc+iEminus];
+        if (iEminus<=0) {iEminus = 0;}
+        pbuff1 = (double complex *) GG(iEminus, iQ);
         mdest=MPI_PROC_NULL;
         msource=MPI_PROC_NULL;
       }
@@ -159,7 +169,6 @@ int self_energy(
       // current working on iE 
       if(dims[1] > 1)
       {
-        iEminus = iEglo-iEhbaromega;
         if( iEhbaromega >= NEloc )
           ndiff = iEhbaromega / NEloc;
         else
@@ -170,14 +179,18 @@ int self_energy(
         // iE < iEhbaromega ensuhre MPI communication.
         if(mdest != MPI_PROC_NULL && iE < iEhbaromega)
         {
-          // iEminus sends to current iE so pbuff1 => G(E-wq) 
-          iEminus = (NEloc+iE-iEhbaromega) % NEloc;
-          pGG = (double complex *) GG[iQ*NEloc+iEminus];
+          // gets the local point to be sent to current iE such that pbuff1 => G(E-wq)
+          // Original formula iEminus = (iE+NEloc-iEhbaromega) % NEloc;  Assumes iEhbaromega <= NEloc
+          iEminus = (iE + (ndiff+1)*NEloc - iEhbaromega) % NEloc;
+      //printf("CPU# %d iE = %d iEglo = %d iEminus= %d send to: %d \n",coords[1], iE, iEglo, iEminus, mdest); 
+          if (iEminus < 0 || iEminus >= NEloc){ printf("ERROR\n");} 
+          pGG = (double complex *) GG(iEminus, iQ);
           MPI_Isend(pGG, Mp*Np, MPI_DOUBLE_COMPLEX, mdest, 41, comm2d, &rqE[0]);
         }
 
         if(msource != MPI_PROC_NULL && iE < iEhbaromega)
         {
+      //printf("CPU# %d iE = %d iEglo = %d recv from: %d \n",coords[1], iE, iEglo, msource); 
           MPI_Irecv(rbuff1, Mp*Np, MPI_DOUBLE_COMPLEX, msource, 41, comm2d, &rqE[1]);
           pbuff1 = rbuff1;
         }
@@ -189,11 +202,11 @@ int self_energy(
 
       // checks if iE+iEhbaromega is on the same processor => no communication
       // pbuff2 points to G(k,E+wq)
-      if( (((int)iE + iEhbaromega) >=0 && (iE + iEhbaromega) < NEloc) || iEglo >= NE-NEloc)
+      if( ((iE + iEhbaromega) >=0 && (iE + iEhbaromega) < NEloc) || iEglo >= NE-NEloc)
       {
         iEplus = iE+iEhbaromega;
         if(iEglo+iEhbaromega>=NE) {iEplus = NEloc-1;}
-        pbuff2 = (double complex *) GG[iQ*NEloc+iEplus];
+        pbuff2 = (double complex *) GG(iEplus, iQ);
         pdest=MPI_PROC_NULL;
         psource=MPI_PROC_NULL;
       }
@@ -203,22 +216,26 @@ int self_energy(
       // current working on iE 
       if(dims[1] > 1)
       {
-        iEplus = iEglo + iEhbaromega;
         if( iEhbaromega >= NEloc )
           ndiff = iEhbaromega / NEloc;
         else
           ndiff = (NEloc+iEhbaromega)/ NEloc;
 
         MPI_Cart_shift( comm2d, 1, -ndiff, &psource, &pdest );
-        // iEplus sends to current processing iE so pbuff2 => G(E+wq) 
+        
         if(pdest != MPI_PROC_NULL && iE >= NEloc-iEhbaromega)
         {
-          iEplus = iE - (NEloc - iEhbaromega);
-          pGG = (double complex *) GG[iQ*NEloc+iEplus];
+          // gets the local point to be sent to current iE such that pbuff2 => G(E+wq)
+          // Original formula iEplus = (iE-NEloc+iEhbaromega)   Assumes iEhbaromega <= NEloc
+          iEplus = (iEglo + iEhbaromega) % NEloc;
+     // printf("CPU# %d iE = %d iEglo = %d iEplus= %d send to: %d \n",coords[1], iE, iEglo, iEplus, pdest); 
+          if (iEplus < 0 || iEplus >= NEloc){ printf("ERROR\n");} 
+          pGG = (double complex *) GG(iEplus, iQ);
           MPI_Isend(pGG, Mp*Np, MPI_DOUBLE_COMPLEX, pdest, 42, comm2d, &rqE[2]);
         }
         if(psource != MPI_PROC_NULL && iE >= NEloc-iEhbaromega)
         {
+    //  printf("CPU# %d iE = %d iEglo = %d recv from: %d \n",coords[1], iE, iEglo, psource); 
           MPI_Irecv(rbuff2, Mp*Np,MPI_DOUBLE_COMPLEX,psource,42,comm2d,&rqE[3]);
           pbuff2 = rbuff2;
         }
@@ -246,14 +263,14 @@ int self_energy(
       for( iK=0; iK<NKloc; iK++ )
       {
         iKglo=iK+coords[0]*NKloc;
-        pSigma = (double complex *) Sigma[iK*NEloc + iE];
+        pSigma = (double complex *) Sigma(iE, iK);
         for( nu=0; nu<Mp; nu++ )
         {
           for( mu=0; mu<Np; mu++ )
           {
             im = abs(izr[mu]-izc[nu]);
-            pSigma[nu*Np + mu] += KK(im, iKglo, iQglo) *
-                                 (fac_minus * pbuff1[nu*Np+mu] + fac_plus * pbuff2[nu*Np+mu]);
+            pSigma(mu,nu) += KK(im, iKglo, iQglo) *
+                                 (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu));
 
             //printf("Sigma(mu,nu): %f \n",pSigma[nu*Np+mu]);
             //im = abs(iz-jz);
@@ -273,7 +290,7 @@ int self_energy(
         #pragma omp parallel for private(mu,nu)
         for( nu=0; nu<Mp; nu++ )
           for( mu=0; mu<Np; mu++ )
-            sbuffH[nu*Np+mu] = fac_minus * pbuff1[nu*Np+mu] + fac_plus * pbuff2[nu*Np+mu];
+            sbuffH(mu,nu) = fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu);
 
 
         for( in=1; in<dims[0]; in++ )
@@ -295,13 +312,13 @@ int self_energy(
           for( iK=0; iK<NKloc; iK++ )
           {
             iKglo = iK + coords[0]*NKloc;
-            pSigma = (double complex *) Sigma[iK*NEloc + iE];
+            pSigma = (double complex *) Sigma(iE, iK);
             for( nu=0; nu<Mp; nu++ )
             {
               for( mu=0; mu<Np; mu++ )
               {
                 im = abs(izr[mu]-izc[nu]);
-                pSigma[nu*Np + mu] += KK(im, iKglo, iQglo2) * rbuffH[nu*Np+mu];
+                pSigma(mu,nu) += KK(im, iKglo, iQglo2) * rbuffH(mu,nu);
                 //im = abs(iz-jz);
                 //sigless[(iQ*NEloc+iE)*Np*Np+jz*Np+iz] += dK * qe * hbaromegaLO/(4.0*pow(M_PI,2.0)) *
                 //  (1.0/(epsinfr*eps0) - 1.0/(eps0r*eps0)) * K[iKglo2] * F[ im+ Np*iKglo + Np*NK*iQglo2 ] *

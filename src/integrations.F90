@@ -174,8 +174,8 @@ contains
     integer, intent(in) :: global_point
 
     if (id0 .and. verbose.gt.VBT) then
-      write(6,'(a,i0,a,i0)') 'K-Point: point # ', local_point, &
-          &' -> ',global_point
+      write(6,'(a,i0,a,i0)') 'K-Point: local point # ', local_point, &
+          &' -> global ',global_point
     endif
 
   end subroutine write_kpoint
@@ -1495,8 +1495,8 @@ contains
         !! Loop over energy points
         enloop: do iE = 1, Nstep
 
-          call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
           if (negf%en_grid(iE)%cpu /= id) cycle
+          call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
           Ec = negf%en_grid(iE)%Ec
           negf%iE = negf%en_grid(iE)%pt
 
@@ -1647,7 +1647,7 @@ contains
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
     end if
     scba_iter = 0
-
+ 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
       if (negf%cartComm%rank == 0) then
@@ -1672,8 +1672,8 @@ contains
         !! Loop over energy points
         enloop: do iE = 1, Nstep
 
-          call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
           if (negf%en_grid(iE)%cpu /= id) cycle
+          call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
           Ec = negf%en_grid(iE)%Ec
           negf%iE = negf%en_grid(iE)%pt  ! global energy index
 
@@ -1781,10 +1781,11 @@ contains
 
     do while (associated(it))
       select type(pInter => it%inter)
-      type is(ElPhonInel)
+      class is(ElPhonInel)
         deltaE = real(negf%en_grid(2)%Ec - negf%en_grid(1)%Ec)
-        call ElPhonInel_setEnGrid(pInter, deltaE, size(negf%en_grid), negf%local_en_points)
-        call ElPhonInel_setkpoints(pInter, negf%kpoints, negf%kweights, negf%local_k_index)
+        call pInter%set_EnGrid(deltaE, size(negf%en_grid), negf%local_en_points)
+        call pInter%set_kpoints(negf%kpoints, negf%kweights, negf%local_k_index)
+        call pInter%prepare()
       end select
       it => it%next
     end do
@@ -1800,8 +1801,8 @@ contains
 
     do while (associated(it))
       select type(pInter => it%inter)
-      type is(ElPhonInel)
-         call ElPhonInel_destroy(pInter)
+      class is(ElPhonInel)
+         call pInter%destroy()
       end select
       it => it%next
     end do
@@ -1818,7 +1819,9 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (TInelastic)
+        call it%inter%destroy_Sigma_n()
         call it%inter%compute_Sigma_n(spin=negf%spin)
+        call it%inter%destroy_Sigma_r()
         call it%inter%compute_Sigma_r(spin=negf%spin)
       end select
       it => it%next

@@ -27,7 +27,7 @@ module elphdb
   use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
-  use mat_def, only : z_dns, create
+  use mat_def, only : z_dns, create, destroy
 
   implicit none
   private
@@ -67,6 +67,8 @@ module elphdb
     procedure :: set_Gn
     procedure :: compute_Sigma_r
     procedure :: compute_Sigma_n
+    procedure :: destroy_Sigma_r
+    procedure :: destroy_Sigma_n
 
   end type ElPhonDephB
 
@@ -337,4 +339,25 @@ contains
     integer, intent(in), optional  :: spin
   end subroutine compute_Sigma_n
 
+  !> Destroy Sigma_r
+  subroutine destroy_Sigma_r(this)
+    class(ElPhonDephB) :: this
+    integer :: ii
+    do ii=1,size(this%Sigma_r)
+      if (allocated(this%sigma_r(ii)%val)) then
+        call destroy(this%sigma_r(ii))
+      end if
+    end do  
+  end subroutine destroy_Sigma_r
+
+  !> Destroy Sigma_n
+  subroutine destroy_Sigma_n(this)
+    class(ElPhonDephB) :: this
+    integer :: ii
+    do ii=1,size(this%Sigma_n)
+      if (allocated(this%sigma_n(ii)%val)) then
+        call destroy(this%sigma_n(ii))
+      end if
+    end do  
+  end subroutine destroy_Sigma_n
 end module elphdb

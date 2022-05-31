@@ -26,8 +26,8 @@ module libnegf
  use lib_param
  use ln_cache
  use globals, only : LST
- use mpi_globals, only : id, id0, negf_cart_init, check_cart_comm, &
-           & globals_mpi_init => negf_mpi_init
+ use mpi_globals, only : id, id0, numprocs, negf_cart_init, check_cart_comm, &
+      & globals_mpi_init => negf_mpi_init 
  use input_output
  use ln_structure
  use rcm_module
@@ -53,7 +53,7 @@ module libnegf
  public :: Tnegf
  public :: set_bp_dephasing
  public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
- public :: set_elph_inelastic, destroy_interactions
+ public :: set_elph_polaroptical, set_elph_nonpolaroptical, destroy_interactions
  public :: interaction_models
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
@@ -246,7 +246,7 @@ contains
     kpoints(:,1) = (/0.0_dp, 0.0_dp, 0.0_dp /)
     kweights(1) = 1.0_dp
     local_kindex(1) = 1
-    call set_kpoints(negf, kpoints, kweights, local_kindex)
+    call set_kpoints(negf, kpoints, kweights, local_kindex, 0)
 
   end subroutine init_negf
 
@@ -652,13 +652,19 @@ contains
 
 
   !> Initialize basis
-  subroutine init_basis(negf, coords, nCentral, matrixIndices)
+  subroutine init_basis(negf, coords, nCentral, matrixIndices, latticeVects)
     type(Tnegf) :: negf
     real(dp), intent(in) :: coords(:,:)
     integer, intent(in) :: nCentral
     integer, intent(in) :: matrixIndices(:)
+    real(dp), intent(in), optional :: latticeVects(:,:)
 
-    call create_TBasis(negf%basis, coords, nCentral, basisToMatrix=matrixIndices)
+    if (present(latticeVects)) then
+       call create_TBasis(negf%basis, coords, nCentral, lattVecs=latticeVects, &
+             & basisToMatrix=matrixIndices)
+    else
+       call create_TBasis(negf%basis, coords, nCentral, basisToMatrix=matrixIndices)
+    end if
 
   end subroutine init_basis
 
@@ -700,22 +706,50 @@ contains
   end subroutine init_contacts
 
   !> subroutine used to setup kpoints
+  !  k-point sampling must be expressed in reduced coordinates, i.e. 
+  !  either [-0.5..+0.5]x[-0.5..+0.5] (Gamma-centered) or [0..1]x[0..1] (I quadrant)
   !  kpoints(:)  kweights(:)  are global
-  !  local_kindex(:) is a local array storing the local indices
-  subroutine set_kpoints(negf, kpoints, kweights, local_kindex)
+  !  local_kindex(:) is a local array storing the local indices 
+  !  kSamplingType: 0 = Gamma-centered, no inversion
+  !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
+  subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType)
     type(Tnegf) :: negf
     real(dp), intent(in) :: kpoints(:,:)
     real(dp), intent(in) :: kweights(:)
     integer, intent(in) :: local_kindex(:)
+    integer, intent(in) :: kSamplingType  
+
+    integer :: ii
+    real(dp) :: shift(3)
 
     if (size(kpoints,2) /= size(kweights)) then
        STOP 'Error: size of kpoints do not match'
+    end if
+    if (any(kpoints(3,:) /= 0.0_dp)) then
+       stop "Error: System cannot be periodic along z in transport"
     end if
     if (allocated(negf%kpoints)) then
        call log_deallocate(negf%kpoints)
     end if
     call log_allocate(negf%kpoints,3,size(kweights))
-    negf%kpoints = kpoints
+    if (kSamplingType == 0) then
+      negf%kpoints = kpoints
+    else if (kSamplingType == 1) then
+      ! Try to guess if the system is 2D or 3D
+      ! If all k-components are 0 along x or y     
+      shift = [-0.5_dp, -0.5_dp, 0.0_dp]
+      if (all(kpoints(1,:)==0.0_dp)) then
+         shift(1) = 0.0_dp
+      end if   
+      if (all(kpoints(2,:)==0.0_dp)) then    
+         shift(2) = 0.0_dp
+      end if   
+      do ii = 1, size(kweights)     
+        negf%kpoints(:,ii) = kpoints(:,ii) + shift
+      end do 
+    else
+      stop "kSamplingType must be either 0 or 1"    
+    end if    
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
     end if
@@ -727,6 +761,12 @@ contains
     call log_allocate(negf%local_k_index,size(local_kindex))
     negf%local_k_index = local_kindex
 
+    if (id0) then
+      write(*,*) 'k-points used in NEGF:'
+      do ii = 1, size(kweights)     
+        write(*,*) negf%kpoints(:,ii), negf%kweights(ii)
+      end do 
+    end if
   end subroutine set_kpoints
 
 
@@ -1089,6 +1129,7 @@ contains
        negf%cartComm = cartComm
        negf%energyComm = energyComm
        negf%kComm = kComm
+       id0 = (negf%cartComm%rank == 0)
     else
        if (.not.present(energyComm)) then
           stop "ERROR: negf_mpi_init needs at lest the energy communicator"
@@ -1101,8 +1142,10 @@ contains
           negf%kComm%id = 0
        end if
        negf%cartComm%id = 0
+       id0 = (negf%energyComm%rank == 0)
     end if
-    call globals_mpi_init(negf%energyComm)
+    numprocs = negf%energyComm%size
+    id = negf%energyComm%rank
 
   end subroutine negf_mpi_init
 
