@@ -593,12 +593,12 @@ contains
     params%FictCont(nn+1:MAXNCONT) = .false.
     params%kbT_dm(nn+1:MAXNCONT) = 0.0_dp
     params%kbT_t(nn+1:MAXNCONT) = 0.0_dp
-    if (nn == 0) then
+    !if (nn == 0) then
       params%mu_n(1) = negf%mu_n
       params%mu_p(1) = negf%mu_p
       params%mu(1) = negf%mu
       params%kbT_dm(1) = negf%kbT
-    end if
+    !end if
     params%Np_n = negf%Np_n
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
@@ -1516,8 +1516,14 @@ contains
     integer :: particle  ! +1 for electrons, -1 for holes
 
     !Work
-    integer :: i, ndofs, N_coarse
-    real(dp), dimension(:), allocatable :: E_half
+    integer :: i, ndofs, N_coarse, k
+    real(dp) :: thres
+    !real(dp), dimension(:), allocatable :: E_half
+    real(dp), dimension(:), allocatable :: coarse_mu_n, coarse_mu_p, coarse_Ec, coarse_Ev
+    integer, dimension(:), allocatable :: start_idx, end_idx
+    complex(dp), dimension(:), allocatable :: q_tmp
+
+    integer :: rs, re
 
     if (particle /= +1 .and. particle /= -1) then
        write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
@@ -1526,20 +1532,57 @@ contains
 
 
     call extract_cont(negf)
+    
+    call create_DM(negf)
+    ! it is not zeroed out at end of integration, so we have to do it here
+    ! (otherwise k-integration from tibercad will not work)
+    if (allocated(negf%rho%nzval)) then
+      call destroy(negf%rho)
+    end if
 
-    ndofs = size(Ec)
-    allocate(E_half(ndofs))
-    E_half(:) = (Ec(:) + Ev(:)) / 2.0_dp
+    !ndofs = size(Ec)
+    !allocate(E_half(ndofs))
+    !E_half(:) = (Ec(:) + Ev(:)) / 2.0_dp
 
-    q = 0.0_dp
+!Dont forget to decomment this line if you keep the inital idea!!
+    !q = 0.0_dp
 
     if (particle == 1) then
-      call quasiEq_int_n(negf, mu_n, E_half, Ec, q)
+      thres = 0.001_dp
+      call aggregate_vec(mu_n, thres, coarse_mu_n, start_idx, end_idx)
+      
+      allocate(coarse_Ec(size(coarse_mu_n)))
+      do i = 1, size(coarse_mu_n)
+        rs = start_idx(i)
+        re = end_idx(i)
+        coarse_Ec(i) = minval(Ec(rs:re))
+      end do
+
+      call quasiEq_int_n(negf, coarse_mu_n, start_idx, end_idx, coarse_Ec, q)
+      deallocate(coarse_mu_n)
+      deallocate(coarse_Ec)
+    
     else ! particle == -1
-      call quasiEq_int_p(negf, mu_p, E_half, Ev, q)
+      !call quasiEq_int_p(negf, mu_p, E_half, Ev, q)
+    endif
+   
+    if (negf%rho%nrow.gt.0) then
+       call log_allocate(q_tmp, negf%rho%nrow)
+
+       call getdiag(negf%rho, q_tmp)
+
+       do k = 1, size(q)
+          q(k) = real(q_tmp(k))
+       enddo
+
+       call log_deallocate(q_tmp)
+    else
+       q = 0.0_dp
     endif
 
-    deallocate(E_half)
+    deallocate(start_idx)
+    deallocate(end_idx)
+    !deallocate(E_half)
 
     call destroy_matrices(negf)
 
@@ -2211,5 +2254,41 @@ contains
     el = getelement(i,j,mat)
 
   end function getel
+  
+  subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
+      real(dp), dimension(:), intent(in) :: v_in
+      real(dp), intent(in) :: thres
+      real(dp), dimension(:), allocatable, intent(out) :: v_out
+      integer, dimension(:), allocatable, intent(out) :: start_idx, end_idx
+
+      real(dp) :: avg
+      integer :: i, rs, re
+
+      allocate(start_idx(0))
+      allocate(end_idx(0))
+      allocate(v_out(0))
+
+      start_idx = [start_idx, 1]
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+            start_idx = [start_idx, i+1]
+         endif
+      end do
+
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+                 end_idx = [end_idx, i]
+         endif
+      end do
+      end_idx = [end_idx, size(v_in)]
+
+      do i = 1, size(start_idx)
+         rs = start_idx(i)
+         re = end_idx(i)
+         avg = sum(v_in(rs:re))/real(size(v_in(rs:re)), dp)
+         v_out = [v_out, avg]
+      end do
+
+   end subroutine aggregate_vec
 
 end module libnegf
