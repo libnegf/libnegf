@@ -1515,17 +1515,6 @@ contains
     real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
     integer :: particle  ! +1 for electrons, -1 for holes
 
-    !Work
-    integer :: i, ndofs, N_coarse, k
-    real(dp) :: thres
-    !real(dp), dimension(:), allocatable :: E_half
-    real(dp), dimension(:), allocatable :: coarse_mu_n, coarse_mu_p, coarse_Ec, coarse_Ev
-    integer, dimension(:), allocatable :: start_idx, end_idx
-    !complex(dp), dimension(:), allocatable :: q_tmp
-    real(dp), dimension(:), allocatable :: q_tmp
-
-    integer :: rs, re
-
     if (particle /= +1 .and. particle /= -1) then
        write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
        stop
@@ -1533,60 +1522,14 @@ contains
 
 
     call extract_cont(negf)
-    
-    call create_DM(negf)
-    ! it is not zeroed out at end of integration, so we have to do it here
-    ! (otherwise k-integration from tibercad will not work)
-    if (allocated(negf%rho%nzval)) then
-      call destroy(negf%rho)
-    end if
-
-    !ndofs = size(Ec)
-    !allocate(E_half(ndofs))
-    !E_half(:) = (Ec(:) + Ev(:)) / 2.0_dp
-
-!Dont forget to decomment this line if you keep the inital idea!!
     q = 0.0_dp
 
     if (particle == 1) then
-      thres = negf%Estep_coarse
-      call aggregate_vec(mu_n, thres, coarse_mu_n, start_idx, end_idx)
-      
-      allocate(coarse_Ec(size(coarse_mu_n)))
-      do i = 1, size(coarse_mu_n)
-        rs = start_idx(i)
-        re = end_idx(i)
-        coarse_Ec(i) = minval(Ec(rs:re))
-      end do
-
-      call quasiEq_int_n(negf, coarse_mu_n, start_idx, end_idx, coarse_Ec, q)
-      !call log_allocate(q_tmp, negf%H%nrow)
-      !call quasiEq_int_n(negf, coarse_mu_n, start_idx, end_idx, coarse_Ec, q_tmp)
-      deallocate(coarse_mu_n)
-      deallocate(coarse_Ec)
-    
+      call quasiEq_int_n(negf, mu_n, Ec, q)
     else ! particle == -1
-      !call quasiEq_int_p(negf, mu_p, E_half, Ev, q)
+      call quasiEq_int_p(negf, mu_p, Ev, q)
     endif
    
-!    if (negf%rho%nrow.gt.0) then
-       !call log_allocate(q_tmp, negf%rho%nrow)
-
-       !call getdiag(negf%rho, q_tmp)
-
-       !do k = 1, size(q)
-       !   q(k) = real(q_tmp(k))
-       !enddo
-       ! 
-       !call log_deallocate(q_tmp)
-!    else
-!       q = 0.0_dp
-!    endif
-
-    deallocate(start_idx)
-    deallocate(end_idx)
-    !deallocate(E_half)
-
     call destroy_matrices(negf)
 
   end subroutine compute_density_quasiEq
