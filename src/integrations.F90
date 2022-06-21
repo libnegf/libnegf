@@ -2408,10 +2408,11 @@ contains
     integer :: i, nr, rs, re 
     integer ::  ncont, outer
     integer ::  Nz, Npoles
-    complex(dp) :: Ez, ww, z1, z2, z_diff, num, ff
-    type(z_CSR) :: Gr, tmpMt, subGr, tmpRho 
+    complex(dp) :: Ez, ww, z1, z2, z_diff, ff
+    type(z_CSR) :: Gr, tmpMt, subGr 
+    type(z_DNS) :: dnsRho
     real(dp), dimension(:), allocatable :: wght, pnts, minE, maxE
-    complex(dp), dimension(:), allocatable :: diag, temp_vec, temp_rho
+    complex(dp), dimension(:), allocatable :: diag, temp_vec
     real(dp) :: Omega, kbT, Lambda 
 
     kbT = maxval(negf%cont(:)%kbT_dm)
@@ -2431,25 +2432,18 @@ contains
     call create(tmpMt, negf%H%nrow, negf%H%ncol, negf%H%nrow)
     call initialize(tmpMt)
 
-    !allocate(temp_vec(size(rho)))
+    allocate(temp_vec(negf%H%nrow))
     allocate(minE(Nz))
     allocate(maxE(Nz))
 
     minE(:) = Ec(:) - negf%deltaEc 
     maxE(:) = mu_n(:) + Omega 
+    temp_vec = 0.0_dp
 
     z1 = minval(minE) + j*Lambda
     z2 = maxval(maxE) + j*Lambda
-    print*, 'quasiEq integral:'
-    print*, 'tract2'
-    print*, 'z1 =',z1
-    print*, 'z2 =',z2
-    print*, 'Npoles =',Npoles
     z_diff = z2 - z1
-    print*, 'z_diff', z_diff
 
-    !N_refined = nint(abs(maxval(maxE) - minval(minE)) / negf%Estep)  
-    
     allocate(pnts(negf%Np_n(2)))
     allocate(wght(negf%Np_n(2)))
 
@@ -2459,8 +2453,8 @@ contains
 
        Ez = z1 + pnts(i) * z_diff
        call compute_Gr(negf, outer, ncont, Ez, Gr)
-       !call log_allocate(diag, Gr%nrow)
-       !call getdiag(Gr,diag)
+       call log_allocate(diag, Gr%nrow)
+       call getdiag(Gr,diag)
 
        do nr = 1,Nz
           if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
@@ -2468,18 +2462,16 @@ contains
              re = end_idx(nr)
 
              ff = fermi(Ez, mu_n(nr), kbT)
-             !ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
-             ww = negf%g_spin * wght(i) * z_diff * ff/(2.0_dp*pi)   
-             print*, 'zt =', ww
-!             call extract(Gr, rs, re+4, rs, re+4, subGr)
+             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
+             !ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(pi)   
+!             call extract(Gr, rs, re, rs, re, subGr)
 !             call concat(tmpMt, ww, subGr, rs, rs)
-             call concat(tmpMt, ww, Gr, rs, rs)
 !             call destroy(subGr)
-             !temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re)*ww 
+             temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re)*ww 
           endif
        enddo
 
-       !call log_deallocate(diag)
+       call log_deallocate(diag)
        call destroy(Gr)
     enddo
     
@@ -2487,24 +2479,12 @@ contains
     deallocate(wght)
 
     do nr = 1,Nz
-    print*, ''
-       print*, 'nr =', nr
-       print*, 'mu_n(nr) =', mu_n(nr)
-       print*, 'Emin =', minE(nr)
-       print*, 'Omega =', Omega
-       print*, 'Lambda =', Lambda
-       print*, 'kbT =', kbT
        rs = start_idx(nr)    
        re = end_idx(nr)    
    
        z1 = minE(nr)
        z2 = minE(nr) + j*Lambda 
        z_diff = z2 - z1
-    print*, ''
-    print*, 'tract1'
-    print*, 'z1 =',z1
-    print*, 'z2 =',z2
-    print*, ''
       
        allocate(wght(negf%Np_n(1)))
        allocate(pnts(negf%Np_n(1)))
@@ -2513,19 +2493,18 @@ contains
        do i = 1, negf%Np_n(1)
          Ez = z1 + pnts(i) * z_diff
          ff = fermi(Ez, mu_n(nr), kbT)
-         !ww = negf%g_spin * ff * negf%kwght * wght(i) * z_diff / (2.d0 *pi)
-         ww = negf%g_spin * ff * wght(i) * z_diff / (2.d0 *pi)
+         ww = negf%g_spin * ff * negf%kwght * wght(i) * z_diff / (2.d0 *pi)
+         !ww = - negf%g_spin * ff * negf%kwght * wght(i) * z_diff / (pi)
         
          call compute_Gr(negf, outer, ncont, Ez, Gr)
-         !call log_allocate(diag, Gr%nrow)
-         !call getdiag(Gr,diag)
-!         call extract(Gr, rs, re+4, rs, re+4, subGr)
+         call log_allocate(diag, Gr%nrow)
+         call getdiag(Gr,diag)
+!         call extract(Gr, rs, re, rs, re, subGr)
 !         call concat(tmpMt, ww, subGr, rs, rs)
-         call concat(tmpMt, ww, Gr, rs, rs)
 !         call destroy(subGr)
 
-         !temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re)*ww
-         !call log_deallocate(diag)
+         temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re)*ww
+         call log_deallocate(diag)
          call destroy(Gr)
        end do
        deallocate(wght)
@@ -2533,48 +2512,36 @@ contains
 
        do i = 1,Npoles
           Ez = mu_n(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
-          ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp)
+          ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
 
           call compute_Gr(negf, outer, ncont, Ez, Gr)
-          !call log_allocate(diag, Gr%nrow)
-          !call getdiag(Gr,diag)
-!          call extract(Gr, rs, re+4, rs, re+4, subGr)
+          call log_allocate(diag, Gr%nrow)
+          call getdiag(Gr,diag)
+!          call extract(Gr, rs, re, rs, re, subGr)
 !          call concat(tmpMt, ww, subGr, rs, rs)
-          call concat(tmpMt, ww, Gr, rs, rs)
 !          call destroy(subGr)
 
-          !temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re) * ww
-          !call log_deallocate(diag)
+          temp_vec(rs:re) = temp_vec(rs:re) + diag(rs:re) * ww
+          call log_deallocate(diag)
           call destroy(Gr)
        end do 
     end do
 
-    !allocate(temp_rho(size(temp_vec)))
-    !temp_rho(:) = j*(temp_vec(:) - conjg(temp_vec(:)))
-    !print*, 'temp_rho'
-    !print*, temp_rho
-
-    !do i = 1, size(temp_vec)
-    !   num = j*(temp_vec(i)-conjg(temp_vec(i)))
-    !   rho(i) = real(num)
+    !call create(dnsRho, negf%H%nrow, negf%H%ncol)
+    !do i = 1, negf%H%nrow
+    !   dnsRho%val(i,i) = temp_vec(i)
     !end do
-    !deallocate(temp_vec)
+    !rho(:) = aimag(temp_vec(:))
+    rho(:) = real(j*(temp_vec(:)-conjg(temp_vec(:))),dp)
 
-    !call zspectral(TmpMt,TmpMt,0,tmpRho)
-    call zspectral(TmpMt,TmpMt,0,negf%rho)
-    !call log_allocate(diag, tmpRho%nrow)
-    !call getdiag(tmpRho, diag)
-    
-    !do i = 1, size(diag)
-    !   rho(i) = real(diag(i))
-    !end do
+    !call dns2csr(dnsRho, tmpMt)
+
+    !call zspectral(TmpMt,TmpMt,0,negf%rho)
 
     call destroy(tmpMt)
-    !call destroy(tmpRho)
-    !call log_deallocate(diag)
-    !deallocate(temp_rho)
     deallocate(minE)
     deallocate(maxE)
+    deallocate(temp_vec)
 
   end subroutine quasiEq_int_n
 
