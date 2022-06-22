@@ -663,12 +663,12 @@ contains
     negf%cont(1:nn)%FictCont    = params%FictCont(1:nn)
     negf%cont(1:nn)%kbT_dm      = params%kbT_dm(1:nn)
     negf%cont(1:nn)%kbT_t       = params%kbT_t(1:nn)
-    if (nn == 0) then
+    !if (nn == 0) then
       negf%mu   = params%mu(1)
       negf%mu_n = params%mu_n(1)
       negf%mu_p = params%mu_p(1)
       negf%kbT = params%kbT_dm(1)
-    end if
+    !end if
     negf%Np_n = params%Np_n
     negf%Np_p = params%Np_p
     negf%Np_real = params%Np_real
