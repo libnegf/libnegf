@@ -176,6 +176,12 @@ subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl,
 
   call init_structure(LIB%pNEGF, ncont, surfstart_al, surfend_al, contend_al, npl, plend_al, cblk_al)
 
+  deallocate(surfstart_al)
+  deallocate(surfend_al)
+  deallocate(contend_al)
+  deallocate(cblk_al)
+  deallocate(plend_al)
+
 end subroutine negf_init_structure
 
 
@@ -217,8 +223,14 @@ subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl,
   contend_al(1:ncont) = contend(1:ncont)
 
   call find_cblocks(LIB%pNEGF%H, ncont, npl, plend_al, surfstart_al, contend_al, cblk_al)
-  
+
   cblk(1:ncont) = cblk_al(1:ncont)
+
+  deallocate(surfstart_al)
+  deallocate(surfend_al)
+  deallocate(contend_al)
+  deallocate(cblk_al)
+  deallocate(plend_al)
 
 end subroutine negf_contact_blocks
 

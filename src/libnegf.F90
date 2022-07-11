@@ -333,8 +333,13 @@ contains
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%H)
-    call create(negf%H,nrow,nrow,nnz)
+    if (.not. associated(negf%H)) then
+      allocate(negf%H)
+      call create(negf%H,nrow,nrow,nnz)
+    else
+      call destroy(negf%H)
+      call create(negf%H,nrow,nrow,nnz)
+    endif
 
     do i = 1, nnz
       negf%H%nzval(i) = nzval(i)
@@ -368,8 +373,13 @@ contains
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%S)
-    call create(negf%S,nrow,nrow,nnz)
+    if (.not. associated(negf%S)) then
+      allocate(negf%S)
+      call create(negf%S,nrow,nrow,nnz)
+    else
+      call destroy(negf%S)
+      call create(negf%S,nrow,nrow,nnz)
+    endif
 
     do i = 1, nnz
       negf%S%nzval(i) = nzval(i)
