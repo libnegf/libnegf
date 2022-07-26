@@ -725,9 +725,6 @@ contains
     if (size(kpoints,2) /= size(kweights)) then
        STOP 'Error: size of kpoints do not match'
     end if
-    if (any(kpoints(3,:) /= 0.0_dp)) then
-       stop "Error: System cannot be periodic along z in transport"
-    end if
     if (allocated(negf%kpoints)) then
        call log_deallocate(negf%kpoints)
     end if
@@ -1819,7 +1816,7 @@ contains
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    ! TODO: need a check on elph here, but how to handle exception and messages
+    
     call tunneling_and_dos(negf)
 
     call electron_current(negf)

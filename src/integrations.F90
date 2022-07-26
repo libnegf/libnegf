@@ -1996,9 +1996,7 @@ contains
     real(dp) :: mu1, mu2
 
     if (.not.allocated(negf%tunn_mat)) then
-      write(*,*) 'Internal error: electron_current must be invoked'
-      write(*,*) 'after tunneling calculation'
-      stop
+       return   
     end if
 
     size_ni = size(negf%tunn_mat,2)
