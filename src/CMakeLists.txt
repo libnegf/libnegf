@@ -90,6 +90,10 @@ if(WITH_MPI)
   find_package(MPI REQUIRED)
   target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
 endif()
+if(WITH_OMP)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(negf PUBLIC OpenMP::OpenMP_Fortran)
+endif()
 target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 target_include_directories(negf PUBLIC

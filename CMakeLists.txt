@@ -35,9 +35,6 @@ if(WITH_MPI)
   find_or_fetch_mpifx()
 endif()
 
-if(WITH_OMP)
-  find_package(OpenMP REQUIRED)
-endif()
 
 # Subdirectories.
 add_subdirectory(ext_system)

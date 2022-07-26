@@ -27,7 +27,7 @@ module libnegf
  use ln_cache
  use globals, only : LST
  use mpi_globals, only : id, id0, numprocs, negf_cart_init, check_cart_comm, &
-      & globals_mpi_init => negf_mpi_init 
+      & globals_mpi_init => negf_mpi_init
  use input_output
  use ln_structure
  use rcm_module
@@ -706,10 +706,10 @@ contains
   end subroutine init_contacts
 
   !> subroutine used to setup kpoints
-  !  k-point sampling must be expressed in reduced coordinates, i.e. 
+  !  k-point sampling must be expressed in reduced coordinates, i.e.
   !  either [-0.5..+0.5]x[-0.5..+0.5] (Gamma-centered) or [0..1]x[0..1] (I quadrant)
   !  kpoints(:)  kweights(:)  are global
-  !  local_kindex(:) is a local array storing the local indices 
+  !  local_kindex(:) is a local array storing the local indices
   !  kSamplingType: 0 = Gamma-centered, no inversion
   !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
   subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType)
@@ -717,7 +717,7 @@ contains
     real(dp), intent(in) :: kpoints(:,:)
     real(dp), intent(in) :: kweights(:)
     integer, intent(in) :: local_kindex(:)
-    integer, intent(in) :: kSamplingType  
+    integer, intent(in) :: kSamplingType
 
     integer :: ii
     real(dp) :: shift(3)
@@ -736,20 +736,20 @@ contains
       negf%kpoints = kpoints
     else if (kSamplingType == 1) then
       ! Try to guess if the system is 2D or 3D
-      ! If all k-components are 0 along x or y     
+      ! If all k-components are 0 along x or y
       shift = [-0.5_dp, -0.5_dp, 0.0_dp]
       if (all(kpoints(1,:)==0.0_dp)) then
          shift(1) = 0.0_dp
-      end if   
-      if (all(kpoints(2,:)==0.0_dp)) then    
+      end if
+      if (all(kpoints(2,:)==0.0_dp)) then
          shift(2) = 0.0_dp
-      end if   
-      do ii = 1, size(kweights)     
+      end if
+      do ii = 1, size(kweights)
         negf%kpoints(:,ii) = kpoints(:,ii) + shift
-      end do 
+      end do
     else
-      stop "kSamplingType must be either 0 or 1"    
-    end if    
+      stop "kSamplingType must be either 0 or 1"
+    end if
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
     end if
@@ -763,9 +763,9 @@ contains
 
     if (id0) then
       write(*,*) 'k-points used in NEGF:'
-      do ii = 1, size(kweights)     
+      do ii = 1, size(kweights)
         write(*,*) negf%kpoints(:,ii), negf%kweights(ii)
-      end do 
+      end do
     end if
   end subroutine set_kpoints
 
@@ -1793,6 +1793,11 @@ contains
   !-------------------------------------------------------------------------------
   subroutine compute_current(negf)
     type(Tnegf) :: negf
+
+    integer :: fu
+    open(newunit=fu, file='H.dat')
+    call zprint_csrcoo(fu,negf%HS(1)%H,'r')
+    close(fu)
 
     if ( negf%interactList%counter > 0 ) then
        if (get_max_wq(negf%interactList) == 0.0_dp) then

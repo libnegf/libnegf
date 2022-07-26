@@ -39,13 +39,13 @@ module elphinel
 #:if defined("MPI")
   use libmpifx_module
 #:endif
-
+  use clock
   implicit none
   private
 
   public :: ElPhonInel, ElPhonPolarOptical, ElPhonNonPolarOptical
   public :: ElPhonPO_create, ElPhonNonPO_create
-  public :: ElPhonPO_init, ElPhonNonPO_init 
+  public :: ElPhonPO_init, ElPhonNonPO_init
 
   type, abstract, extends(TInelastic) :: ElPhonInel
     private
@@ -58,7 +58,7 @@ module elphinel
     !> Bose-Einstein phonon occupation
     real(dp) :: Nq
 
-    !> A general scalar coupling 
+    !> A general scalar coupling
     real(dp) :: coupling
 
     !> Kpoints
@@ -75,9 +75,9 @@ module elphinel
     real(dp), allocatable :: Kmat(:,:,:)
     !> binning resolution for z-coordinates
     real(dp) :: dz
-    !> Supercell area for integrations 
+    !> Supercell area for integrations
     real(dp) :: cell_area
-  
+
   contains
 
     procedure :: add_sigma_r
@@ -94,12 +94,12 @@ module elphinel
     procedure :: set_EnGrid
     procedure(abstract_prepare), deferred :: prepare
     procedure :: destroy => destroy_elph
-     
+
   end type ElPhonInel
 
-  abstract interface 
+  abstract interface
     subroutine abstract_prepare(this)
-      import ElPhonInel    
+      import ElPhonInel
       class(ElPhonInel) :: this
     end subroutine abstract_prepare
   end interface
@@ -107,7 +107,7 @@ module elphinel
 
   type, extends(ElPhonInel) :: ElPhonPolarOptical
     private
-    !> Parameters for Polar-optical K-function 
+    !> Parameters for Polar-optical K-function
     real(dp) :: Ce
     real(dp) :: eps0
     real(dp) :: eps_inf
@@ -118,15 +118,15 @@ module elphinel
 
   type, extends(ElPhonInel) :: ElPhonNonPolarOptical
     private
-    !> Parameters for Non-polar-optical K-function 
-    real(dp) :: D0 
+    !> Parameters for Non-polar-optical K-function
+    real(dp) :: D0
     contains
     procedure :: prepare => prepare_NonPOKmat
   end type ElPhonNonPolarOptical
 
   !type, extends(TInelastic) :: ElPhoton
   !  private
-  !  !> Parameters for Polar-optical K-function 
+  !  !> Parameters for Polar-optical K-function
   !  real(dp) :: I0
   !  real(dp) :: eps_inf
   !end type ElPhoton
@@ -135,7 +135,7 @@ module elphinel
   !  sigma_r and sigma_n
   interface
    integer (c_int) function self_energy(cart_comm, Nrow, Ncol, NK, NE, NKloc, NEloc, iEshift, &
-        & GG, Sigma, sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, & 
+        & GG, Sigma, sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, &
         & KK, Ndz) bind(C, name='self_energy')
      use iso_c_binding
      !> Cartesian MPI_communicator (negf%cartgrid%id)
@@ -316,14 +316,14 @@ contains
 
   !--------------------------------------------------------------------------
   ! PO phonons: see derivation slides:
-  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)] 
+  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
   subroutine prepare_POKmat(this)
     class(ElPhonPolarOptical) :: this
 
     integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
     real(dp) :: kq(3), kk(3), QQ(3), Q2, bb, z_mn, Kf
     real(dp) :: zmin, zmax, recVecs2p(3,3)
-    real(dp), allocatable :: kpoint(:,:) 
+    real(dp), allocatable :: kpoint(:,:)
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
@@ -341,7 +341,7 @@ contains
     allocate(kpoint(3,size(this%kweight)))
     if (all(this%basis%lattVecs == 0.0_dp)) then
        kpoint = 0.0_dp
-    else   
+    else
        recVecs2p = 0.0_dp
        recVecs2p(1,1) = 2.0_dp*pi/this%basis%lattVecs(1,1)
        recVecs2p(2,2) = 2.0_dp*pi/this%basis%lattVecs(2,2)
@@ -365,7 +365,7 @@ contains
         end do
       end do
     end do
-    
+
     !print*,'debug print Kmat'
     !open(newunit=fu, file='Kmat.dat')
     !do iZ = 0, nDeltaZ
@@ -377,15 +377,15 @@ contains
 
   !--------------------------------------------------------------------------
   ! Non PO phonons: see derivation slides:
-  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)] 
+  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
   subroutine prepare_NonPOKmat(this)
     class(ElPhonNonPolarOptical) :: this
 
     integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
     real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf
     real(dp) :: zmin, zmax, recVecs2p(3,3)
-    real(dp), allocatable :: kpoint(:,:) 
- 
+    real(dp), allocatable :: kpoint(:,:)
+
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
 
@@ -406,21 +406,21 @@ contains
        recVecs2p(3,3) = 2.0_dp*pi/this%basis%lattVecs(3,3)
        kpoint = matmul(recVecs2p, this%kpoint)
     end if
-    
+
     do iQ = 1, size(this%kweight)
       kq = kpoint(:, iQ)
       kq2 = dot_product(kq,kq)
       if (kq2==0.0_dp) then
          this%Kmat(:,:,iQ) = 0.0_dp
          cycle
-      end if   
+      end if
       do iK = 1, size(this%kweight)
         kk = kpoint(:, iK)
         kk2 = dot_product(kk,kk)
         if (kk2==0.0_dp) then
            this%Kmat(:,iK,iQ) = 0.0_dp
            cycle
-        end if   
+        end if
         QQ = dot_product(kk, kq)
         Q2 = QQ*QQ
         do iZ = 0, nDeltaZ
@@ -429,7 +429,7 @@ contains
           !if (isNan(Kf)) then
           !   print*,kq2,kk2,QQ
           !   stop
-          !end if   
+          !end if
           this%Kmat(iZ+1,iK,iQ) = this%coupling * this%kweight(iQ) * Kf
         end do
       end do
@@ -437,7 +437,7 @@ contains
     !if (any(isNan(this%Kmat))) then
     !  print*,'Kmat= NaN'
     !  stop
-    !end if  
+    !end if
     !open(newunit=fu, file='Kmat.dat')
     !do iZ = 0, nDeltaZ
     !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
@@ -672,9 +672,9 @@ contains
     NE = this%nE_global
     NEloc = this%nE_local
     iEshift = nint(this%wq/this%dE)
-    if (iEshift > NEloc) then
-      stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
-    end if
+    !if (iEshift > NEloc) then
+    !  stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
+    !end if
     Ndz = size(this%Kmat,1)
     label%spin = 0
     if (present(spin)) then
@@ -693,7 +693,7 @@ contains
       Np = this%struct%mat_PL_end(ibl) - PL_start + 1
       ! create buffers
       call allocate_buff(Np,Np)
-      
+
       ! Project atom position on the coarser grid
       call log_allocate(izr,Np)
       do ii = 1, Np
@@ -708,7 +708,7 @@ contains
       ! Compute the retarded part
       fac_min = cmplx(this%Nq + 1, 0.0, dp)
       fac_plus = cmplx(this%Nq, 0.0, dp)
-      
+
       err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
             & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
 
@@ -733,7 +733,7 @@ contains
         do ii = 1, Mp
           izc(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
         end do
-        
+
         ! -------------------- supradiagonal blocks -----------------------------------------------------
         label%row_block = ibl
         label%col_block = ibl + 1
@@ -749,17 +749,17 @@ contains
 
         err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
- 
+
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
- 
+
         err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
 
         call deallocate_buff()
-        
+
         ! -------------------- subdiagonal blocks -----------------------------------------------------
         label%row_block = ibl + 1
         label%col_block = ibl
@@ -775,18 +775,18 @@ contains
 
         err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
-        
+
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
- 
+
         err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
- 
+
         call deallocate_buff()
         call log_deallocate(izc)
-      end if      
+      end if
       ! ==================================================================================================
 
       call log_deallocate(izr)
@@ -794,21 +794,21 @@ contains
 
     deallocate(pGG)
     deallocate(pSigma)
-#:else    
+#:else
     stop "inelastic scattering requires MPI compilation"
 #:endif
     contains
- 
+
     subroutine allocate_buff(Nr,Nc)
       integer, intent(in) :: Nr, Nc
-      
+
       call log_allocate(sbuff1, Nr, Nc)
       call log_allocate(rbuff1, Nr, Nc)
       call log_allocate(sbuff2, Nr, Nc)
       call log_allocate(rbuff2, Nr, Nc)
       call log_allocate(sbuffH, Nr, Nc)
       call log_allocate(rbuffH, Nr, Nc)
-    end subroutine allocate_buff      
+    end subroutine allocate_buff
 
     subroutine deallocate_buff()
       call log_deallocate(sbuff1)
@@ -817,11 +817,11 @@ contains
       call log_deallocate(rbuff2)
       call log_deallocate(sbuffH)
       call log_deallocate(rbuffH)
-    end subroutine deallocate_buff      
+    end subroutine deallocate_buff
 
     ! setup the array of pointers to G_r and sigma_r
     subroutine setup_pointers_Gr()
-      
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           ! map local to global index for label
@@ -843,7 +843,7 @@ contains
       end do
     end subroutine setup_pointers_Gn
 
-    
+
     subroutine setup_pointers_Sigma_r(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
@@ -852,7 +852,7 @@ contains
           label%kpoint = this%local_kindex(iK)
           label%energy_point = iE + id*NEloc
           if (.not.this%Sigma_r%is_cached(label)) then
-            !print*,'create Sigma_r', label%kpoint, label%energy_point 
+            !print*,'create Sigma_r', label%kpoint, label%energy_point
             call create(Sigma_r,Nr,Nc)
             Sigma_r%val = (0.0_dp, 0.0_dp)
             call this%Sigma_r%add(Sigma_r, label)
@@ -863,7 +863,7 @@ contains
       end do
 
     end subroutine setup_pointers_Sigma_r
-    
+
     subroutine check_elements(Mat,arg)
        class(TMatrixCache) :: Mat
        character(*) :: arg
@@ -874,7 +874,7 @@ contains
           pMat => Mat%retrieve_pointer(label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
-          end if   
+          end if
         end do
       end do
     end subroutine check_elements
@@ -912,9 +912,9 @@ contains
     NE = this%nE_global
     NEloc = this%nE_local
     iEshift = nint(this%wq/this%dE)
-    if (iEshift > NEloc) then
-      stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
-    end if
+    !if (iEshift > NEloc) then
+    !  stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
+    !end if
     Ndz = size(this%Kmat, 1)
     label%spin = 1
     if (present(spin)) then
@@ -947,7 +947,7 @@ contains
       ! Compute the retarded part
       fac_min = cmplx(this%Nq, 0.0, dp)
       fac_plus = cmplx(this%Nq + 1, 0.0, dp)
-      
+
       err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
             & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
 
@@ -964,7 +964,7 @@ contains
         do ii = 1, Mp
           izc(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
         end do
-        
+
         ! -------------------- supradiagonal blocks -----------------------------------------------------
         label%row_block = ibl
         label%col_block = ibl + 1
@@ -973,17 +973,17 @@ contains
 
         call setup_pointers_Gn()
         call setup_pointers_Sigma_n(Np,Np)
-        !call check_elements(this%G_n,"G_n")  
-        
+        !call check_elements(this%G_n,"G_n")
+
         ! Compute the retarded part
         fac_min = cmplx(this%Nq, 0.0, dp)
         fac_plus = cmplx(this%Nq + 1, 0.0, dp)
-      
+
         err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
               & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
-        
-       ! call check_elements(this%Sigma_n,"Sigma_n")  
-      
+
+       ! call check_elements(this%Sigma_n,"Sigma_n")
+
         call deallocate_buff()
         call log_deallocate(izc)
       end if
@@ -994,22 +994,22 @@ contains
 
     deallocate(pGG)
     deallocate(pSigma)
-#:else    
+#:else
     stop "inelastic scattering requires MPI compilation"
 #:endif
 
     contains
- 
+
     subroutine allocate_buff(Nr,Nc)
       integer, intent(in) :: Nr, Nc
-      
+
       call log_allocate(sbuff1, Nr, Nc)
       call log_allocate(rbuff1, Nr, Nc)
       call log_allocate(sbuff2, Nr, Nc)
       call log_allocate(rbuff2, Nr, Nc)
       call log_allocate(sbuffH, Nr, Nc)
       call log_allocate(rbuffH, Nr, Nc)
-    end subroutine allocate_buff      
+    end subroutine allocate_buff
 
     subroutine deallocate_buff()
       call log_deallocate(sbuff1)
@@ -1018,11 +1018,11 @@ contains
       call log_deallocate(rbuff2)
       call log_deallocate(sbuffH)
       call log_deallocate(rbuffH)
-    end subroutine deallocate_buff      
-    
+    end subroutine deallocate_buff
+
     ! setup the array of pointers to G_n and sigma_n
     subroutine setup_pointers_Gn()
-      
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = this%local_kindex(iK)
@@ -1031,7 +1031,7 @@ contains
         end do
       end do
     end subroutine setup_pointers_Gn
-    
+
     subroutine setup_pointers_Sigma_n(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
@@ -1040,7 +1040,7 @@ contains
           label%kpoint = this%local_kindex(iK)
           label%energy_point = iE + id*NEloc
           if (.not.this%Sigma_n%is_cached(label)) then
-            !print*,'create Sigma_r', label%kpoint, label%energy_point 
+            !print*,'create Sigma_r', label%kpoint, label%energy_point
             call create(Sigma_n,Nr,Nc)
             Sigma_n%val = (0.0_dp, 0.0_dp)
             call this%Sigma_n%add(Sigma_n, label)
@@ -1062,7 +1062,7 @@ contains
           pMat => Mat%retrieve_pointer(label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
-          end if   
+          end if
         end do
       end do
     end subroutine check_elements
@@ -1072,13 +1072,13 @@ contains
   !> Destroy Sigma_r
   subroutine destroy_Sigma_r(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_r)) call this%sigma_r%destroy()      
+    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
   end subroutine destroy_Sigma_r
 
   !> Destroy Sigma_n
   subroutine destroy_Sigma_n(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_n)) call this%sigma_n%destroy()      
+    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
   end subroutine destroy_Sigma_n
 
   !> Integral over qz of the electron-phonon polar optical couping.
