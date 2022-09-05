@@ -2171,7 +2171,7 @@ contains
     real(dp), dimension(:), intent(in) :: Ec, mu_n
 
     !Work
-    integer :: i, nr 
+    integer :: i, nr, ioffs
     integer ::  ncont, outer
     integer ::  Nz, Npoles
     complex(dp) :: Ez, ww, z1, z2, z_diff, ff
@@ -2212,7 +2212,7 @@ contains
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_n(2))
     do i = 1, negf%Np_n(2) 
-       !if (mod(i-1,numprocs) .ne. id) cycle
+       if (mod(i-1,numprocs) .ne. id) cycle
 
        Ez = z1 + pnts(i) * z_diff
        call compute_Gr(negf, outer, ncont, Ez, Gr)
@@ -2245,7 +2245,9 @@ contains
 
     z_diff = z2 - z1
 
+    ioffs = negf%Np_n(2)
     do i = 1, negf%Np_n(1)
+         if (mod(i-1+ioffs, numprocs) .ne. id) cycle
          Ez = z1 + pnts(i) * z_diff
         
          call compute_Gr(negf, outer, ncont, Ez, Gr)
@@ -2263,9 +2265,11 @@ contains
     deallocate(wght)
     deallocate(pnts)
 
+    ioffs = negf%Np_n(2) + negf%Np_n(1)
     if (Npoles.ne.0) then
       do nr = 1,Nz
           do i = 1,Npoles
+             if (mod(i-1+ioffs, numprocs) .ne. id) cycle
              Ez = mu_n(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
              ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
 
@@ -2295,7 +2299,7 @@ contains
     real(dp), dimension(:), intent(in) :: Ev, mu_p
 
     !Work
-    integer :: i, nr 
+    integer :: i, nr, ioffs
     integer ::  ncont, outer
     integer ::  Nz, Npoles
     complex(dp) :: Ez, ww, z1, z2, z_diff, ff
@@ -2337,7 +2341,7 @@ contains
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_p(2))
     do i = 1, negf%Np_p(2) 
-       !if (mod(i-1,numprocs) .ne. id) cycle
+       if (mod(i-1,numprocs) .ne. id) cycle
 
        Ez = z1 + pnts(i) * z_diff
        call compute_Gr(negf, outer, ncont, Ez, Gr)
@@ -2370,7 +2374,9 @@ contains
 
     z_diff = z2 - z1
 
+    ioffs = negf%Np_p(2)
     do i = 1, negf%Np_p(1)
+         if (mod(i-1+ioffs,numprocs) .ne. id) cycle
          Ez = z1 + pnts(i) * z_diff
         
          call compute_Gr(negf, outer, ncont, Ez, Gr)
@@ -2388,9 +2394,11 @@ contains
     deallocate(wght)
     deallocate(pnts)
 
+    ioffs = negf%Np_p(2) + negf%Np_p(1)
     if (Npoles.ne.0) then
       do nr = 1,Nz
           do i = 1,Npoles
+             if (mod(i-1+ioffs,numprocs) .ne. id) cycle
              Ez = mu_p(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
              ww = j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
 
