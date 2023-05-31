@@ -92,6 +92,8 @@ module libnegf
  public :: compute_density_efa      ! high-level wrapping
                                     ! Extract HM and SM
                                     ! run DM calculation
+ public :: compute_density_quasiEq  ! Run DM calculation with
+                                    ! quasi-equilibr. approximation
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
@@ -168,6 +170,8 @@ module libnegf
    real(c_double) :: emax
    !> Energy step for real axis
    real(c_double) :: estep
+   !> Energy step for coarse integrations
+   real(c_double) :: estep_coarse
    !! Contacts info
    !> Electron electrochemical potential
    real(c_double) :: mu_n(MAXNCONT)
@@ -329,8 +333,13 @@ contains
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%H)
-    call create(negf%H,nrow,nrow,nnz)
+    if (.not. associated(negf%H)) then
+      allocate(negf%H)
+      call create(negf%H,nrow,nrow,nnz)
+    else
+      call destroy(negf%H)
+      call create(negf%H,nrow,nrow,nnz)
+    endif
 
     do i = 1, nnz
       negf%H%nzval(i) = nzval(i)
@@ -364,8 +373,13 @@ contains
 
     nnz = rowpnt(nrow+1)-rowpnt(1)
 
-    allocate(negf%S)
-    call create(negf%S,nrow,nrow,nnz)
+    if (.not. associated(negf%S)) then
+      allocate(negf%S)
+      call create(negf%S,nrow,nrow,nnz)
+    else
+      call destroy(negf%S)
+      call create(negf%S,nrow,nrow,nnz)
+    endif
 
     do i = 1, nnz
       negf%S%nzval(i) = nzval(i)
@@ -589,12 +603,12 @@ contains
     params%FictCont(nn+1:MAXNCONT) = .false.
     params%kbT_dm(nn+1:MAXNCONT) = 0.0_dp
     params%kbT_t(nn+1:MAXNCONT) = 0.0_dp
-    if (nn == 0) then
+    !if (nn == 0) then
       params%mu_n(1) = negf%mu_n
       params%mu_p(1) = negf%mu_p
       params%mu(1) = negf%mu
       params%kbT_dm(1) = negf%kbT
-    end if
+    !end if
     params%Np_n = negf%Np_n
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
@@ -659,12 +673,12 @@ contains
     negf%cont(1:nn)%FictCont    = params%FictCont(1:nn)
     negf%cont(1:nn)%kbT_dm      = params%kbT_dm(1:nn)
     negf%cont(1:nn)%kbT_t       = params%kbT_t(1:nn)
-    if (nn == 0) then
+    !if (nn == 0) then
       negf%mu   = params%mu(1)
       negf%mu_n = params%mu_n(1)
       negf%mu_p = params%mu_p(1)
       negf%kbT = params%kbT_dm(1)
-    end if
+    !end if
     negf%Np_n = params%Np_n
     negf%Np_p = params%Np_p
     negf%Np_real = params%Np_real
@@ -677,6 +691,7 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
+    negf%Estep_coarse = params%Estep_coarse
     if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
     allocate(negf%ni(nn))
@@ -1503,6 +1518,31 @@ contains
 
   end subroutine compute_density_efa
 
+  subroutine compute_density_quasiEq(negf, q, particle, &
+                                     Ec, Ev, mu_n, mu_p)
+    !In/Out
+    type(Tnegf) :: negf
+    real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
+    integer :: particle  ! +1 for electrons, -1 for holes
+
+    if (particle /= +1 .and. particle /= -1) then
+       write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
+       stop
+    endif
+
+
+    call extract_cont(negf)
+    q = 0.0_dp
+
+    if (particle == 1) then
+      call quasiEq_int_n(negf, mu_n, Ec, q)
+    else ! particle == -1
+      call quasiEq_int_p(negf, mu_p, Ev, q)
+    endif
+   
+    call destroy_matrices(negf)
+
+  end subroutine compute_density_quasiEq
   !-------------------------------------------------------------------------------
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
@@ -2170,5 +2210,41 @@ contains
     el = getelement(i,j,mat)
 
   end function getel
+  
+  subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
+      real(dp), dimension(:), intent(in) :: v_in
+      real(dp), intent(in) :: thres
+      real(dp), dimension(:), allocatable, intent(out) :: v_out
+      integer, dimension(:), allocatable, intent(out) :: start_idx, end_idx
+
+      real(dp) :: avg
+      integer :: i, rs, re
+
+      allocate(start_idx(0))
+      allocate(end_idx(0))
+      allocate(v_out(0))
+
+      start_idx = [start_idx, 1]
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+            start_idx = [start_idx, i+1]
+         endif
+      end do
+
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+                 end_idx = [end_idx, i]
+         endif
+      end do
+      end_idx = [end_idx, size(v_in)]
+
+      do i = 1, size(start_idx)
+         rs = start_idx(i)
+         re = end_idx(i)
+         avg = sum(v_in(rs:re))/real(size(v_in(rs:re)), dp)
+         v_out = [v_out, avg]
+      end do
+
+   end subroutine aggregate_vec
 
 end module libnegf

@@ -46,6 +46,8 @@ module integrations
 
  public :: contour_int       ! generalized contour integrator
  public :: real_axis_int     ! real-axis integrator
+ public :: quasiEq_int_p     ! real-axis integration - quasi-equilibrium - holes     
+ public :: quasiEq_int_n     ! real-axis integration - quasi-equilibrium - electrons    
  public :: ldos_int          ! ldos only integrator
 
  public :: contour_int_def   ! contour integration for DFT(B)
@@ -360,8 +362,6 @@ contains
     enddo
 
   end subroutine contour_int_n_def
-
-
 
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix, holes
@@ -2163,5 +2163,262 @@ contains
     x2=tmp
 
   end subroutine swap
+
+  subroutine quasiEq_int_n(negf, mu_n, Ec, rho)
+    !In/Out
+    type(Tnegf), intent(inout) :: negf
+    real(dp), dimension(:), intent(inout) :: rho
+    real(dp), dimension(:), intent(in) :: Ec, mu_n
+
+    !Work
+    integer :: i, nr, ioffs
+    integer ::  ncont, outer
+    integer ::  Nz, Npoles
+    complex(dp) :: Ez, ww, z1, z2, z_diff, ff
+    type(z_CSR) :: Gr 
+    real(dp), dimension(:), allocatable :: wght, pnts, minE, maxE
+    complex(dp), dimension(:), allocatable :: diag, temp
+    real(dp) :: Omega, kbT, Lambda 
+
+    kbT = maxval(negf%cont(:)%kbT_dm)
+    ncont = negf%str%num_conts
+    outer = negf%outer
+
+    if (negf%n_poles.eq.0) then
+      Lambda = 0.5d0* kbT * pi
+    else
+      Lambda = 2.d0* negf%n_poles * KbT * pi
+    endif
+
+    ! Omega considers maximum kT so interval is always large enough
+    Omega = negf%n_kt * kbT
+    Nz = size(mu_n)
+    Npoles = negf%n_poles
+
+    allocate(temp(negf%H%nrow))
+    allocate(minE(Nz))
+    allocate(maxE(Nz))
+
+    minE(:) = Ec(:) - negf%deltaEc 
+    maxE(:) = Ec(:) + Omega 
+    temp = 0.0_dp
+
+    z1 = minval(minE) + j*Lambda
+    z2 = maxval(maxE) + j*Lambda
+    z_diff = z2 - z1
+
+    allocate(pnts(negf%Np_n(2)))
+    allocate(wght(negf%Np_n(2)))
+
+    call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_n(2))
+    do i = 1, negf%Np_n(2) 
+       if (mod(i-1,numprocs) .ne. id) cycle
+
+       Ez = z1 + pnts(i) * z_diff
+       call compute_Gr(negf, outer, ncont, Ez, Gr)
+       call log_allocate(diag, Gr%nrow)
+       call getdiag(Gr,diag)
+
+       do nr = 1,Nz
+          !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
+             ff = fermi(Ez, mu_n(nr), kbT)
+             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
+             temp(nr) = temp(nr) + diag(nr)*ww 
+          !endif
+       enddo
+
+       call log_deallocate(diag)
+       call destroy(Gr)
+    enddo
+    
+    deallocate(pnts)
+    deallocate(wght)
+    
+   
+    allocate(wght(negf%Np_n(1)))
+    allocate(pnts(negf%Np_n(1)))
+
+    call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_n(1))
+    z1 = minval(minE(:))
+    z2 = minval(minE(:)) + j*Lambda 
+
+
+    z_diff = z2 - z1
+
+    ioffs = negf%Np_n(2)
+    do i = 1, negf%Np_n(1)
+         if (mod(i-1+ioffs, numprocs) .ne. id) cycle
+         Ez = z1 + pnts(i) * z_diff
+        
+         call compute_Gr(negf, outer, ncont, Ez, Gr)
+         call log_allocate(diag, Gr%nrow)
+         call getdiag(Gr,diag)
+         do nr = 1,Nz
+            ff = fermi(Ez, mu_n(nr), kbT)
+            ww = negf%g_spin * ff * negf%kwght * wght(i) * z_diff / (2.0_dp*pi)
+            temp(nr) = temp(nr) + diag(nr)*ww
+         end do
+
+         call log_deallocate(diag)
+         call destroy(Gr)
+    end do
+    deallocate(wght)
+    deallocate(pnts)
+
+    ioffs = negf%Np_n(2) + negf%Np_n(1)
+    if (Npoles.ne.0) then
+      do nr = 1,Nz
+          do i = 1,Npoles
+             if (mod(i-1+ioffs, numprocs) .ne. id) cycle
+             Ez = mu_n(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
+             ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
+
+             call compute_Gr(negf, outer, ncont, Ez, Gr)
+             call log_allocate(diag, Gr%nrow)
+             call getdiag(Gr,diag)
+
+             temp(nr) = temp(nr) + diag(nr) * ww
+             call log_deallocate(diag)
+             call destroy(Gr)
+          end do 
+      end do
+    endif
+
+    rho(:) = real(j*(temp(:)-conjg(temp(:))),dp)
+
+    deallocate(minE)
+    deallocate(maxE)
+    deallocate(temp)
+
+  end subroutine quasiEq_int_n
+  
+  subroutine quasiEq_int_p(negf, mu_p, Ev, rho)
+    !In/Out
+    type(Tnegf), intent(inout) :: negf
+    real(dp), dimension(:), intent(inout) :: rho
+    real(dp), dimension(:), intent(in) :: Ev, mu_p
+
+    !Work
+    integer :: i, nr, ioffs
+    integer ::  ncont, outer
+    integer ::  Nz, Npoles
+    complex(dp) :: Ez, ww, z1, z2, z_diff, ff
+    type(z_CSR) :: Gr 
+    real(dp), dimension(:), allocatable :: wght, pnts, minE, maxE
+    complex(dp), dimension(:), allocatable :: diag, temp
+    real(dp) :: Omega, kbT, Lambda 
+
+    kbT = maxval(negf%cont(:)%kbT_dm)
+    ncont = negf%str%num_conts
+    outer = negf%outer
+
+    if (negf%n_poles.eq.0) then
+      Lambda = 0.5d0* kbT * pi
+    else
+      Lambda = 2.d0* negf%n_poles * KbT * pi
+    endif
+
+    ! Omega considers maximum kT so interval is always large enough
+    Omega = negf%n_kt * kbT
+    Nz = size(mu_p)
+    Npoles = negf%n_poles
+
+    allocate(temp(negf%H%nrow))
+    allocate(minE(Nz))
+    allocate(maxE(Nz))
+
+    minE(:) = Ev(:) - Omega 
+    maxE(:) = Ev(:) + negf%deltaEv 
+    temp = 0.0_dp
+
+    !TODO: extremes and weights are correct but a bit convoluted (following contour_int_p_def): should evetually fix it
+    z1 = maxval(maxE) + j*Lambda
+    z2 = minval(minE) + j*Lambda
+    z_diff = z2 - z1
+
+    allocate(pnts(negf%Np_p(2)))
+    allocate(wght(negf%Np_p(2)))
+
+    call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_p(2))
+    do i = 1, negf%Np_p(2) 
+       if (mod(i-1,numprocs) .ne. id) cycle
+
+       Ez = z1 + pnts(i) * z_diff
+       call compute_Gr(negf, outer, ncont, Ez, Gr)
+       call log_allocate(diag, Gr%nrow)
+       call getdiag(Gr,diag)
+
+       do nr = 1,Nz
+          !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
+             ff = fermi(-Ez, -mu_p(nr), kbT)
+             ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
+             temp(nr) = temp(nr) + diag(nr)*ww 
+          !endif
+       enddo
+
+       call log_deallocate(diag)
+       call destroy(Gr)
+    enddo
+    
+    deallocate(pnts)
+    deallocate(wght)
+    
+   
+    allocate(wght(negf%Np_p(1)))
+    allocate(pnts(negf%Np_p(1)))
+
+    call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_p(1))
+    z1 = maxval(maxE(:))
+    z2 = maxval(maxE(:)) + j*Lambda 
+
+
+    z_diff = z2 - z1
+
+    ioffs = negf%Np_p(2)
+    do i = 1, negf%Np_p(1)
+         if (mod(i-1+ioffs,numprocs) .ne. id) cycle
+         Ez = z1 + pnts(i) * z_diff
+        
+         call compute_Gr(negf, outer, ncont, Ez, Gr)
+         call log_allocate(diag, Gr%nrow)
+         call getdiag(Gr,diag)
+         do nr = 1,Nz
+            ff = fermi(-Ez, -mu_p(nr), kbT)
+            ww = - negf%g_spin * ff * negf%kwght * wght(i) * z_diff / (2.0_dp*pi)
+            temp(nr) = temp(nr) + diag(nr)*ww
+         end do
+
+         call log_deallocate(diag)
+         call destroy(Gr)
+    end do
+    deallocate(wght)
+    deallocate(pnts)
+
+    ioffs = negf%Np_p(2) + negf%Np_p(1)
+    if (Npoles.ne.0) then
+      do nr = 1,Nz
+          do i = 1,Npoles
+             if (mod(i-1+ioffs,numprocs) .ne. id) cycle
+             Ez = mu_p(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
+             ww = j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
+
+             call compute_Gr(negf, outer, ncont, Ez, Gr)
+             call log_allocate(diag, Gr%nrow)
+             call getdiag(Gr,diag)
+
+             temp(nr) = temp(nr) + diag(nr) * ww
+             call log_deallocate(diag)
+             call destroy(Gr)
+          end do 
+      end do
+    endif
+
+    rho(:) = real(j*(temp(:)-conjg(temp(:))),dp)
+
+    deallocate(minE)
+    deallocate(maxE)
+    deallocate(temp)
+
+  end subroutine quasiEq_int_p
 
 end module integrations
