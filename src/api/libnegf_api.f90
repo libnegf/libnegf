@@ -487,7 +487,7 @@ subroutine negf_set_s_id(handler, nrow) bind(C)
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer(c_int), intent(in), value:: nrow     ! if:var:out
+  integer(c_int), intent(in), value:: nrow     ! if:var:in
 
   type(NEGFpointers) :: LIB
 
