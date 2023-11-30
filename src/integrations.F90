@@ -948,15 +948,18 @@ contains
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
 
-    call gauleg(negf%Ec-negf%DeltaEc, max(mumax, negf%Ec) + Omega,pnts,wght,Ntot)
+    !call gauleg(negf%Ec-negf%DeltaEc, max(mumax, negf%Ec) + Omega,pnts,wght,Ntot)
+    call gauleg(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Ntot)
 
     do i = 1, Ntot
        negf%en_grid(i)%path = 1
        negf%en_grid(i)%pt = ioffset + i
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       ff = fermi(pnts(i),muref,KbT)
-       negf%en_grid(i)%wght = negf%g_spin * negf%kwght * ff * wght(i) / (2.d0 * pi)
+
+       !IMPORTANT: there is no fermi function multiplied in negf%en_grid(i)%wght anymore,
+       !so we cannot use this routine in combination with contour_int
+       negf%en_grid(i)%wght = negf%g_spin * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)
@@ -1019,8 +1022,10 @@ contains
        negf%en_grid(i)%pt = ioffset + i
        negf%en_grid(i)%pt_path = i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       ff = fermi(-pnts(i),-muref,KbT)
-       negf%en_grid(i)%wght = negf%g_spin * negf%kwght * ff * wght(i) / (2.d0 * pi)
+
+       !IMPORTANT: there is no fermi function multiplied in negf%en_grid(i)%wght anymore,
+       !so we cannot use this routine in combination with contour_int
+       negf%en_grid(i)%wght = negf%g_spin * wght(i) / (2.d0 * pi)
     enddo
 
     deallocate(wght)

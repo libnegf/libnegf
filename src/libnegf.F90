@@ -1462,6 +1462,7 @@ contains
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
 
+    ! Contour integral for equilibrium calculations
     if (particle == 1) then
       negf%muref = negf%mu_n
 
@@ -1484,6 +1485,7 @@ contains
       endif
     endif
 
+    ! Real axis integral for non-equilibrium calculations
     if (negf%Np_real.gt.0) then
        if (particle == 1) then
           call real_axis_int_n_def(negf)
