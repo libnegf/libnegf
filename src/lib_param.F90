@@ -146,6 +146,9 @@ module lib_param
     real(dp) :: Estep             ! Tunneling or dos E step
     real(dp) :: Estep_coarse      ! dos E step for coarse integration (quasiEq integral)
 
+    !Particle info for holes/electrons integration
+    integer :: particle
+
     !! Emitter and collector for transmission or Meir-Wingreen
     !! (only emitter in this case)
     integer, allocatable :: ni(:) ! ni: emitter contact list
@@ -360,6 +363,7 @@ contains
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
      negf%ndos_proj = 0
+     negf%particle = 1       ! Used for setting correct fermi function in real_axis_int. Can become -1 only in compute_density_efa
 
      negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
 

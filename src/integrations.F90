@@ -861,9 +861,16 @@ contains
        zt = negf%en_grid(i)%wght
        negf%iE = negf%en_grid(i)%pt
 
-       do j1 = 1,ncont
-          frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
-       enddo
+       if (negf%particle == 1) then
+         do j1 = 1,ncont
+             frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+         enddo
+       else
+         do j1 = 1,ncont
+             frm_f(j1)=fermi(-Er,-negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+         enddo
+       endif
+
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 

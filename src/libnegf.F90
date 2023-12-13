@@ -1488,8 +1488,10 @@ contains
     ! Real axis integral for non-equilibrium calculations
     if (negf%Np_real.gt.0) then
        if (particle == 1) then
+          negf%particle = 1
           call real_axis_int_n_def(negf)
        else
+          negf%particle = -1
           call real_axis_int_p_def(negf)
        endif
        ! we use contour_int here because it integrates Gr, while
