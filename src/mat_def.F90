@@ -33,6 +33,7 @@ public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 public :: createp, destroyp
+public :: assignment(=)
 
 interface create
    module procedure zcreate_CSR
@@ -72,6 +73,14 @@ interface initialize
    module procedure zinit_CSR
 end interface
 
+interface assignment (=)
+   module procedure rassign_CSR
+   module procedure zassign_CSR
+   module procedure rassign_DNS
+   module procedure zassign_DNS
+   module procedure rassign_COO
+   module procedure zassign_COO
+end interface
 
 interface destroy
    module procedure zdestroy_CSR
@@ -340,7 +349,7 @@ subroutine zinit_CSR(mat)
   if(mat%nnz.ne.mat%nrow) STOP 'cannot initialize matrix (nnz != nrow)'
 
   do k=1,Mat%nrow
-     Mat%nzval(k)=0.d0
+     Mat%nzval(k)=0.0_dp
      Mat%colind(k)=k
      Mat%rowpnt(k)=k
   enddo
@@ -354,7 +363,7 @@ subroutine zcreate_id_CSR(mat,nrow)
 
   call zcreate_CSR(mat,nrow,nrow,nrow)
   do i=1,nrow
-     mat%nzval(i)=(1.d0, 0.d0)
+     mat%nzval(i)=(1.0_dp, 0.0_dp)
      mat%rowpnt(i)=i
      mat%colind(i)=i
   enddo
@@ -385,9 +394,9 @@ subroutine zclone_id_CSR(mat, matH)
   do i=1,nrow
     do j =mat%rowpnt(i), mat%rowpnt(i+1)-1
       if (mat%colind(j) .eq. i) then
-         mat%nzval(j)=(1.d0,0.d0)
+         mat%nzval(j)=(1.0_dp,0.0_dp)
       else
-         mat%nzval(j)=(0.d0,0.d0)
+         mat%nzval(j)=(0.0_dp,0.0_dp)
       end if
     enddo
   enddo
@@ -402,7 +411,7 @@ subroutine zcreate_id_DNS(mat,nrow,alpha)
 
   call zcreate_DNS(mat,nrow,nrow)
 
-  mat%val = (0.d0,0.d0)
+  mat%val = (0.0_dp,0.0_dp)
 
   if (present(alpha)) then
      do i=1,nrow
@@ -429,7 +438,7 @@ subroutine zrecreate_CSR(mat)
   call zcreate_CSR(mat,ncol,ncol,ncol)
 
    do k=1,ncol
-     mat%nzval(k)=0.d0
+     mat%nzval(k)=0.0_dp
      mat%colind(k)=k
      mat%rowpnt(k)=k
   enddo
@@ -1371,7 +1380,7 @@ subroutine rrecreate_CSR(mat)
   call rcreate_CSR(mat,ncol,ncol,ncol)
 
    do k=1,ncol
-     mat%nzval(k)=0.d0
+     mat%nzval(k)=0.0_dp
      mat%colind(k)=k
      mat%rowpnt(k)=k
   enddo
@@ -1860,6 +1869,70 @@ subroutine zwriteMem_CSR(id,mat)
   write(id,*) 'Memory Used=',mem/dec,str
 
 end subroutine zwriteMem_CSR
+
+
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_CSR(M_lhs, M_rhs)
+  type(r_CSR), intent(inout) :: M_lhs
+  type(r_CSR), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%colind = M_rhs%colind
+  M_lhs%rowpnt = M_rhs%rowpnt
+end subroutine rassign_CSR
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_CSR(M_lhs, M_rhs)
+  type(z_CSR), intent(inout) :: M_lhs
+  type(z_CSR), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%colind = M_rhs%colind
+  M_lhs%rowpnt = M_rhs%rowpnt
+end subroutine zassign_CSR
+
+
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_DNS(M_lhs, M_rhs)
+  type(r_DNS), intent(inout) :: M_lhs
+  type(r_DNS), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  M_lhs%val = M_rhs%val 
+end subroutine rassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_DNS(M_lhs, M_rhs)
+  type(z_DNS), intent(inout) :: M_lhs
+  type(z_DNS), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  M_lhs%val = M_rhs%val 
+end subroutine zassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_COO(M_lhs, M_rhs)
+  type(r_COO), intent(inout) :: M_lhs
+  type(r_COO), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%index_i = M_rhs%index_i
+  M_lhs%index_j = M_rhs%index_j
+end subroutine rassign_COO
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_COO(M_lhs, M_rhs)
+  type(z_COO), intent(inout) :: M_lhs
+  type(z_COO), intent(in) :: M_rhs
+
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%index_i = M_rhs%index_i
+  M_lhs%index_j = M_rhs%index_j
+end subroutine zassign_COO
 
 
 end module mat_def

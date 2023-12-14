@@ -70,8 +70,15 @@ module ln_allocation
   !---------------------------------------------------------------
 contains
 
+  subroutine allocError()
+     write(*,*) "ALLOCATION ERROR";
+     call writeMemInfo(6)
+     STOP
+  end subroutine allocError
 
-   subroutine allocate_pl(array,length)
+
+  !---------------------------------------------------------------
+  subroutine allocate_pl(array,length)
     logical, DIMENSION(:), POINTER :: array
     integer :: length,ierr
 
@@ -83,7 +90,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -111,7 +118,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -137,7 +144,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -164,7 +171,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -189,7 +196,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -216,7 +223,7 @@ contains
     if(.not. associated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*dp
           if (alloc_mem.gt.peak_mem) then
@@ -242,7 +249,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -267,7 +274,7 @@ contains
     if(.not.ALLOCATED(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -292,7 +299,7 @@ contains
     if(.not.ALLOCATED(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*dp
           if (alloc_mem.gt.peak_mem) then
@@ -318,7 +325,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -343,7 +350,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -368,7 +375,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*dp
           if (alloc_mem.gt.peak_mem) then
@@ -393,7 +400,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*sp
           if (alloc_mem.gt.peak_mem) then
@@ -418,7 +425,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col,np),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*sp
           if (alloc_mem.gt.peak_mem) then
@@ -446,7 +453,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col,dep),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -471,7 +478,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col,dep),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -496,7 +503,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col,dep),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*2*dp
           if (alloc_mem.gt.peak_mem) then
@@ -521,7 +528,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(row,col,dep,qep),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*dp
           if (alloc_mem.gt.peak_mem) then
@@ -548,7 +555,7 @@ contains
     if(.not. allocated(array)) then
        allocate(array(length),stat=ierr)
        if (ierr.ne.0) then
-          write(*,*) "ALLOCATION ERROR"; STOP
+          call allocError()
        else
           alloc_mem= alloc_mem + size(array)*4
           if (alloc_mem.gt.peak_mem) then
@@ -855,8 +862,11 @@ contains
     integer :: dec
 
     call memstr(alloc_mem,dec,str)
-    write(iofile,'(A26,F8.2,A3)') 'current memory allocated: ',real(alloc_mem)*1.0/dec,str
-
+    if (alloc_mem > 0) then
+      write(iofile,'(A26,F8.2,A3)') 'current memory allocated: ',real(alloc_mem)*1.0/dec,str
+    else
+      write(iofile,'(A26,F15.4)')   'current memory < 0 ??!    ',real(alloc_mem)
+    endif
   end subroutine writeMemInfo
   ! ------------------------------------------------------------
   subroutine writePeakInfo(iofile)

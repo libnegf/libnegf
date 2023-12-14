@@ -24,15 +24,18 @@ module lib_param
   use ln_precision, only : dp
   use globals
   use mat_def
-  use ln_structure, only : TStruct_info, print_Tstruct
+  use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use input_output
-  use elph, only : init_elph_1, Telph, destroy_elph, init_elph_2, init_elph_3
+  !use elph, only : Telph
   use phph
   use energy_mesh, only : mesh
-  use interactions, only : Interaction
-  use elphdd, only : ElPhonDephD, ElPhonDephD_create
-  use elphdb, only : ElPhonDephB, ElPhonDephB_create
-  use elphds, only : ElPhonDephS, ElPhonDephS_create
+  use interactions, only : TInteraction, TInteractionList, TInteractionNode
+  use elphdd, only : ElPhonDephD, ElPhonDephD_create, ElPhonDephD_init
+  use elphdb, only : ElPhonDephB, ElPhonDephB_create, ElPhonDephB_init
+  use elphds, only : ElPhonDephS, ElPhonDephS_create, ElPhonDephS_init
+  use elphinel, only : ElPhonPolarOptical, ElPhonPO_create, ElPhonPO_init
+  use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
+  use scba
   use ln_cache
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
@@ -40,12 +43,16 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, intArray, TEnGrid
+  public :: Tnegf, intArray, TEnGrid, TInteractionList
   public :: set_defaults, print_all_vars
-
+  public :: destroy_interactions
+  public :: init_cache_space, destroy_cache_space
   public :: set_bp_dephasing
-  public :: set_elph_dephasing, destroy_elph_model
-  public :: set_elph_block_dephasing, set_elph_s_dephasing
+  public :: set_elph_dephasing
+  public :: set_elph_block_dephasing
+  public :: set_elph_s_dephasing
+  public :: set_elph_polaroptical
+  public :: set_elph_nonpolaroptical
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
@@ -53,6 +60,20 @@ module lib_param
     integer, dimension(:), allocatable :: indexes
   end type intArray
 
+  ! Array used to store the k-dependent matrices
+  type TMatrixArrayHS
+    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+    type(z_CSR), pointer :: S => null()
+    logical    :: isSid = .false.          ! True if overlap S == Id
+    logical    :: internalHS = .true.      ! tells HS are internally allocated
+  end type TMatrixArrayHS
+
+  ! Array used to store the k-dependent matrices
+  type TMatrixArrayDM
+    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
+    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
+    logical    :: internalDM = .true.          ! tells DM is internally allocated
+  end type TMatrixArrayDM
 
   !! Structure used to define energy points for the integration
   !! For every point we define
@@ -183,16 +204,19 @@ module lib_param
 
     !! Note: H,S are partitioned immediately after input, therefore they are
     !! built runtime from input variable
-    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
+    type(TMatrixArrayHS), allocatable :: HS(:)
+    type(TMatrixArrayDM), allocatable :: DM(:)
+    ! Ponters of current working Hamiltonian
+    type(z_CSR), pointer :: H => null()
     type(z_CSR), pointer :: S => null()
-    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
-    logical    :: isSid           ! True if overlap S == Id
-    logical    :: intHS           ! tells HS are internally allocated
-    logical    :: intDM           ! tells DM is internally allocated
+    ! Ponters of current working density matrix 
+    type(z_CSR), pointer :: rho => null()
+    type(z_CSR), pointer :: rho_eps => null()
+    logical :: internalDM
 
     type(TStruct_Info) :: str     ! system structure
-
+    type(TBasisCenters) :: basis  ! local basis centers
+    type(TNeighbourMap), dimension(:), allocatable :: neighbour_map
     integer :: iE                 ! Currently processed En point (index)
     complex(dp) :: Epnt           ! Currently processed En point (value)
     real(dp) :: kwght             ! currently processed k-point weight
@@ -202,15 +226,24 @@ module lib_param
     type(TEnGrid), dimension(:), allocatable :: en_grid
     integer :: local_en_points    ! Local number of energy points
 
+    ! Array to store all k-points and k-weights
+    real(dp), allocatable, dimension(:,:) :: kpoints
+    real(dp), allocatable, dimension(:) :: kweights
+    ! Array of local k-point indices
+    integer, allocatable, dimension(:) :: local_k_index
+
     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
     real(dp) :: int_acc           ! adaptive integration accuracy
 
-    type(Telph) :: elph           ! electron-phonon data
     type(Tphph) :: phph           ! phonon-phonon data
+     
+    ! Many Body Interactions as array of pointers
+    type(TInteractionList)  :: interactList
+    type(TScbaDriverElastic) :: scbaDriverElastic
+    type(TScbaDriverInelastic) :: scbaDriverInelastic
 
-    ! Many Body Interactions
-    class(Interaction), allocatable :: inter
-
+    real(dp) :: scba_elastic_tol = 1.0e-7_dp
+    real(dp) :: scba_inelastic_tol = 1.0e-7_dp
 
     !! Output variables: these arrays are filled by internal subroutines to store
     !! library outputs
@@ -219,6 +252,7 @@ module lib_param
     real(dp), dimension(:,:), allocatable :: ldos_mat
     real(dp), dimension(:), allocatable :: currents
 
+    ! These variables need to be done to clean up
     logical :: tOrthonormal = .false.
     logical :: tOrthonormalDevice = .false.
     integer :: numStates = 0
@@ -234,9 +268,21 @@ module lib_param
     integer :: readOldSGF
 
     ! Work variable: surface green cache.
-    class(TSurfaceGreenCache), allocatable :: surface_green_cache
+    class(TMatrixCache), allocatable :: surface_green_cache
+    class(TMatrixCache), allocatable :: ESH
+    ! These are pointers so they can be passed to inelastic
+    class(TMatrixCache), pointer :: G_r => null()
+    class(TMatrixCache), pointer :: G_n => null()
 
- end type Tnegf
+    contains
+
+    !procedure :: set_defaults => set_defaults
+    !procedure :: print_all_vars => print_all_vars
+    !procedure :: destroy_interactions => destroy_interactions
+    !procedure :: init_cache_space => init_cache_space
+    !procedure :: destroy_cache_space => destroy_cache_space
+
+  end type Tnegf
 
 contains
 
@@ -255,62 +301,169 @@ contains
   !> Set values for the local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
-
-    type(Tnegf) :: negf
-    type(ElPhonDephD) :: elphdd_tmp
+    type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
-    integer :: niter
+    integer, intent(in) :: niter
 
-    call elphondephd_create(elphdd_tmp, negf%str, coupling, niter, 1.0d-7)
-    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphdd_tmp)
+    type(TInteractionNode), pointer :: node
+
+    call negf%interactList%add(node)
+    call elphondephd_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonDephD)
+      call elphondephd_init(pInter, negf%str, coupling, niter)
+    class default
+      stop 'ERROR: error of type downcast to ElPhonDephD'
+    end select
 
   end subroutine set_elph_dephasing
 
   !> Set values for the semi-local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
-
-    type(Tnegf) :: negf
-    type(ElPhonDephB) :: elphdb_tmp
+    type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
-    integer :: niter
+    integer, intent(in) :: niter
 
-    call elphondephb_create(elphdb_tmp, negf%str, coupling, orbsperatom, niter, 1.0d-7)
-    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphdb_tmp)
+    type(TInteractionNode), pointer :: node
+
+    call negf%interactList%add(node)
+    call elphondephd_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonDephB)
+      call elphondephb_init(pInter, negf%str, coupling, orbsperatom, niter)
+    class default
+      stop 'ERROR: error of type downcast to ElPhonDephB'
+    end select
 
   end subroutine set_elph_block_dephasing
 
- !> Set values for the semi-local electron phonon dephasing model
+  !> Set values for the semi-local electron phonon dephasing model
   !! (elastic scattering only)
   subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
-
-    type(Tnegf) :: negf
-    type(ElPhonDephS) :: elphds_tmp
+    type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     integer,  dimension(:), allocatable, intent(in) :: orbsperatom
-    integer :: niter
+    integer, intent(in) :: niter
 
-    call elphondephs_create(elphds_tmp, negf%str, coupling, orbsperatom, negf%S, niter, 1.0d-7)
-    if(.not.allocated(negf%inter)) allocate(negf%inter, source=elphds_tmp)
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphondephd_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonDephS)
+      call elphondephs_init(pInter, negf%str, coupling, orbsperatom, negf%S, niter)
+    class default
+      stop 'ERROR: error of type downcast to ElPhonDephS'
+    end select
 
   end subroutine set_elph_s_dephasing
 
+  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
+              & tridiag)
+    type(Tnegf), intent(inout) :: negf
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp), intent(in) :: wq
+    real(dp), intent(in) :: Temp
+    real(dp), intent(in) :: dz
+    real(dp), intent(in) :: eps0
+    real(dp), intent(in) :: eps_inf
+    real(dp), intent(in) :: q0
+    real(dp), intent(in) :: area
+    integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
+
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphonpo_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonPolarOptical)
+#:if defined("MPI")
+      call ElPhonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+          &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
+#:else
+      stop "Inelastic scattering requires MPI"
+#:endif    
+    class default
+      stop 'ERROR: error of type downcast to ElPhonInel'
+    end select
+
+  end subroutine set_elph_polaroptical
+
+  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, area, niter, &
+              & tridiag)
+    type(Tnegf), intent(inout) :: negf
+    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp), intent(in) :: wq
+    real(dp), intent(in) :: Temp
+    real(dp), intent(in) :: dz
+    real(dp), intent(in) :: D0
+    real(dp), intent(in) :: area
+    integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
+
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphonnonpo_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhonNonPolarOptical)
+#:if defined("MPI")
+    call ElPhonNonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+            &  wq, Temp, dz, D0, area, niter, tridiag)
+#:else
+      stop "Inelastic scattering requires MPI"
+#:endif    
+    class default
+      stop 'ERROR: error of type downcast to ElPhonInel'
+    end select
+
+  end subroutine set_elph_nonpolaroptical
 
 
-  !> Destroy elph model. This routine is accessible from interface as
-  !! it can be meaningful to "switch off" elph when doing different
-  !! task (density or current)
-  subroutine destroy_elph_model(negf)
+  !> clean interactions objects
+  subroutine destroy_interactions(negf)
+    type(Tnegf) :: negf
+    call negf%interactList%destroy()
+  end subroutine destroy_interactions
+
+  subroutine init_cache_space(negf, matrix)
+    type(Tnegf) :: negf
+    character(3), intent(in) :: matrix
+
+    if (matrix == 'G_r' .and. .not.associated(negf%G_r)) then
+       allocate(TMatrixCacheMem::negf%G_r)
+       select type( p => negf%G_r)
+       type is(TMatrixCacheMem)
+         p%tagname='G_r'
+       end select
+    end if
+
+    if (matrix == 'G_n' .and. .not.associated(negf%G_n)) then
+       allocate(TMatrixCacheMem::negf%G_n)
+       select type( p => negf%G_n)
+       type is(TMatrixCacheMem)
+         p%tagname='G_n'
+       end select
+    end if
+  end subroutine init_cache_space
+
+  subroutine destroy_cache_space(negf)
     type(Tnegf) :: negf
 
-    if (allocated(negf%inter)) deallocate(negf%inter)
-    call destroy_elph(negf%elph)
+    if (associated(negf%G_r)) then
+       call negf%G_r%destroy()
+       deallocate(negf%G_r)
+    end if
 
-  end subroutine destroy_elph_model
+    if (associated(negf%G_n)) then
+       call negf%G_n%destroy()
+       deallocate(negf%G_n)
+    end if
+  end subroutine destroy_cache_space
+
 
   subroutine set_defaults(negf)
-    type(Tnegf) :: negf
+     type(Tnegf) :: negf
 
      negf%verbose = 10
 
@@ -321,31 +474,29 @@ contains
      negf%ReadOldDM_SGFs = 1   ! Compute Surface G.F. do not save
      negf%ReadOldT_SGFs = 1    ! Compute Surface G.F. do not save
 
-     negf%kwght = 1.d0
+     negf%kwght = 1.0_dp
      negf%ikpoint = 1
 
-     negf%Ec = 0.d0
-     negf%Ev = 0.d0
-     negf%DeltaEc = 0.d0
-     negf%DeltaEv = 0.d0
+     negf%Ec = 0.0_dp
+     negf%Ev = 0.0_dp
+     negf%DeltaEc = 0.0_dp
+     negf%DeltaEv = 0.0_dp
 
-     negf%E = 0.d0            ! Holding variable
-     negf%dos = 0.d0          ! Holding variable
-     negf%eneconv = 1.d0      ! Energy conversion factor
-
-     negf%isSid = .false.
-     negf%intHS = .true.
-     negf%intDM = .true.
+     negf%E = 0.0_dp            ! Holding variable
+     negf%dos = 0.0_dp          ! Holding variable
+     negf%eneconv = 1.0_dp      ! Energy conversion factor
+    
+     negf%internalDM = .true.   ! Internal allocation of D.M.
 
      negf%delta = 1.d-4      ! delta for G.F.
      negf%dos_delta = 1.d-4  ! delta for DOS
      negf%deltaModel = 1     ! deltaOmega model
-     negf%wmax = 0.009d0     ! about 2000 cm^-1 cutoff
-     negf%Emin = 0.d0        ! Tunneling or dos interval
-     negf%Emax = 0.d0        !
-     negf%Estep = 0.d0       ! Tunneling or dos E step
-     negf%Estep_coarse = 0.d0       ! Tunneling or dos E step
-     negf%g_spin = 2.d0      ! spin degeneracy
+     negf%wmax = 0.009_dp     ! about 2000 cm^-1 cutoff
+     negf%Emin = 0.0_dp        ! Tunneling or dos interval
+     negf%Emax = 0.0_dp        !
+     negf%Estep = 0.0_dp       ! Tunneling or dos E step
+     negf%Estep_coarse = 0.0_dp       ! Tunneling or dos E step
+     negf%g_spin = 2.0_dp      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n
      negf%Np_p = (/20, 20/)  ! Number of points for p
@@ -362,10 +513,16 @@ contains
      negf%dumpHS = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
+     negf%scba_elastic_tol = 1.d-7
+     negf%scba_inelastic_tol = 1.d-7
      negf%ndos_proj = 0
      negf%particle = 1       ! Used for setting correct fermi function in real_axis_int. Can become -1 only in compute_density_efa
 
-     negf%surface_green_cache = TSurfaceGreenCacheDisk(scratch_path=negf%scratch_path)
+     negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
+
+     ! Initialize the cache space for Gr and Gn
+     call init_cache_space(negf, 'G_r')
+     call init_cache_space(negf, 'G_n')
 
    end subroutine set_defaults
 
@@ -391,14 +548,11 @@ contains
 
      integer :: ii
 
-     call print_Tstruct(negf%str,io)
-
      write(io,*) 'verbose=',negf%verbose
 
      write(io,*) 'scratch= "'//trim(negf%scratch_path)//'"'
      write(io,*) 'output= "'//trim(negf%out_path)//'"'
 
-     write(io,*) 'isSid= ',negf%isSid
      write(io,*) 'mu= ', negf%mu
      write(io,*) 'mu_n= ', negf%mu_n
      write(io,*) 'mu_p= ', negf%mu_p
@@ -441,8 +595,6 @@ contains
      write(io,*) 'DorE= ',negf%DorE
 
      write(io,*) 'Internal variables:'
-     write(io,*) 'intHS= ',negf%intHS
-     write(io,*) 'intDM= ',negf%intDM
      write(io,*) 'kp= ', negf%ikpoint
      write(io,*) 'wght= ', negf%kwght
      write(io,*) 'E= ',negf%E
@@ -450,6 +602,7 @@ contains
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'activecont= ', negf%activecont
+     write(io,*) 'internalDM= ', negf%internalDM
   end subroutine print_all_vars
 
 end module lib_param

@@ -242,13 +242,13 @@ contains
     ! [ Z0   Z1 ] [C0]  =  exp(-ik) [ -Z1^H  0 ] [C0]
     ! [  I    0 ] [C1]              [  0     I ] [C1]
 
-    TA=0.d0
-    TB=0.d0
+    TA=0.0_dp
+    TB=0.0_dp
     
     TA(1:PLdim,1:PLdim) = Z11
     TA(1:PLdim,PLdim+1:Sdim)  = Z12
     do i=1,PLdim
-       TA(PLdim+i,i)  = 1.d0
+       TA(PLdim+i,i)  = 1.0_dp
     enddo
     
     if(present(Z21)) then
@@ -257,13 +257,13 @@ contains
        TB(1:PLdim,1:PLdim) = -conjg(transpose(Z12))
     endif
     do i=1,PLdim
-       TB(PLdim+i,PLdim+i) = 1.d0
+       TB(PLdim+i,PLdim+i) = 1.0_dp
     enddo
     
     !write(*,*) "TA,TB defined"
     !------------------------------------------------------------------ 
-    Ad=0.d0
-    Bd=0.d0
+    Ad=0.0_dp
+    Bd=0.0_dp
     
     ! compute generalized eigenproblem:
     ! TA * c = lambda * TB * c

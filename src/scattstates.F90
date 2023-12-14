@@ -20,9 +20,9 @@
 
 
 module scattstates
-  use precision
-  use constants
-  use allocation
+  use ln_precision
+  use ln_constants
+  use ln_allocation
   use mat_def
   use sparsekit_drv
   use contselfenergy, only : surface_green,selfenergy
@@ -162,8 +162,8 @@ contains
 
     ones1 = 1
     ones2 = 1
-    Vr1=(0.d0,0.d0)
-    Vr2=(0.d0,0.d0)
+    Vr1=(0.0_dp,0.0_dp)
+    Vr2=(0.0_dp,0.0_dp)
 
     if(emcont.eq.1) then
        open(111,file='contact1_bands.dat', &
@@ -440,7 +440,7 @@ contains
     type(TStatesSummary) :: summ(2)
     real(dp) :: E, T, R, s, tmp
     complex(dp) :: Ec
-    complex(dp), parameter :: minusONE = (-1.d0, 0.d0)
+    complex(dp), parameter :: minusONE = (-1.0_dp, 0.0_dp)
 
     character(4) :: Energy
     character(1) :: LR
@@ -484,7 +484,7 @@ contains
     ! BEGIN ENERGY LOOP 
     ! ---------------------------------------------------------------
     E = Erange(1)
-    s = 0.d0
+    s = 0.0_dp
     iE = 0
 
     do while (E .le. Erange(2)) 
@@ -578,14 +578,14 @@ contains
          
 
        if (n_prop_states(ni).eq.0) then
-          !write(1000,'(3(F15.8),i4)') E*HAR,0.d0,0.d0,0
-          write(1001,'(3(F15.8))') E*HAR,0.d0,s
+          !write(1000,'(3(F15.8),i4)') E*HAR,0.0_dp,0.0_dp,0
+          write(1001,'(3(F15.8))') E*HAR,0.0_dp,s
           E = E + Erange(3)
           cycle
        else if(n_prop_states(nf).eq.0) then
           i1 = n_prop_states(ni)
-          !write(1000,'(3(F15.8),i4)') E*HAR,0.d0,i1*0.d0,i1
-          write(1001,'(3(F15.8))') E*HAR,0.d0,s
+          !write(1000,'(3(F15.8),i4)') E*HAR,0.0_dp,i1*0.0_dp,i1
+          write(1001,'(3(F15.8))') E*HAR,0.0_dp,s
           E = E + Erange(3)
           cycle         
        endif
@@ -878,8 +878,8 @@ contains
     !In=(0.0_dp,0.0_dp)
     ! Setup injection matrix
     !In(1:nrhs,1:nrhs) = &
-    !     reshape((/(1.d0, (0.d0,i1=1,nrhs),&
-    !     j1=1,nrhs-1), 1.d0/),(/nrhs,nrhs/));
+    !     reshape((/(1.0_dp, (0.0_dp,i1=1,nrhs),&
+    !     j1=1,nrhs-1), 1.0_dp/),(/nrhs,nrhs/));
     
     call log_allocate(TT1,PLdim,nrhs)
     call log_allocate(TT2,PLdim,nrhs)
@@ -1035,7 +1035,6 @@ contains
     type(TStatesSummary) :: summ(2)
     real(dp) :: E, T, s, tmp
     complex(dp) :: Ec
-    complex(dp), parameter :: minusONE = (-1.d0, 0.d0)
 
     character(4) :: Energy
     ! ---------------------------------------------------------------
@@ -1071,7 +1070,7 @@ contains
     ! ---------------------------------------------------------------
     E = Erange(1)
     iE = 1
-    s = 0.d0
+    s = 0.0_dp
     do while (E .le. Erange(2)) 
 
        iE = iE + 1
@@ -1102,14 +1101,14 @@ contains
        
 
        if (n_prop_states(ni).eq.0) then
-          !write(1000,'(3(F15.8),i4)') E*HAR,0.d0,0.d0,0
-          !write(1001,'(3(F15.8))') E*HAR,0.d0,0.d0
+          !write(1000,'(3(F15.8),i4)') E*HAR,0.0_dp,0.0_dp,0
+          !write(1001,'(3(F15.8))') E*HAR,0.0_dp,0.0_dp
           E = E + Erange(3)
           cycle
        else if(n_prop_states(nf).eq.0) then
           i1 = n_prop_states(ni)
-          !write(1000,'(3(F15.8),i4)') E*HAR,0.d0,i1*0.d0,i1
-          !write(1001,'(3(F15.8))') E*HAR,0.d0,0.d0
+          !write(1000,'(3(F15.8),i4)') E*HAR,0.0_dp,i1*0.0_dp,i1
+          !write(1001,'(3(F15.8))') E*HAR,0.0_dp,0.0_dp
           E = E + Erange(3)
           cycle         
        endif

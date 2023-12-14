@@ -21,70 +21,87 @@
 
 module mpi_globals
 
-
 #:if defined("MPI")
-
   use mpi
   use libmpifx_module, only : mpifx_comm
-
+  private
 #:endif
 
-  INTEGER, SAVE ::  numprocs = 1
-  INTEGER, SAVE ::  id = 0
-  LOGICAL, SAVE ::  id0 = .true.
+  integer, public ::  numprocs = 1
+  integer, public ::  id = 0
+  logical, public ::  id0 = .true.
 
 #:if defined("MPI")
+  public :: negf_mpi_init
+  public :: negf_cart_init
+  public :: check_cart_comm
 
   contains
 
     subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
       logical, optional :: ioProc
-
+    
       id =energyComm%rank
       numprocs = energyComm%size
-
+    
       if (present(ioProc)) then
         id0 = ioProc
       else
         id0 = (id == 0)
       end if
-
+    
     end subroutine negf_mpi_init
 
     ! Initialize a 2D cartesian grid
+    !
+    ! Order: dim 1: k; dim 2: E
+    ! It must be periodic in k for all-to-all communications
+    ! CAVEAT:
+    ! All processes MUST have the same number of points in K and E
+    ! For E it is used to compute where E +/- wq are located
+    ! For K it is used to compute where another q is placed
+    !
     subroutine negf_cart_init(inComm, nk, cartComm, energyComm, kComm)
+      !> Input communicator
       type(mpifx_comm), intent(in) :: inComm
+      !> Number of processors for k
       integer, intent(in) :: nk
+      !> Output 2D cartesian communicator
+      type(mpifx_comm) :: cartComm
+      !> Output communicator for the energy sub-grid
       type(mpifx_comm), intent(out) :: energyComm
+      !> Output communicator for the k sub-grid
       type(mpifx_comm), intent(out) :: kComm
 
-      type(mpifx_comm) :: cartComm
       integer :: outComm
-      integer :: ndims
+      integer :: ndims = 2
       integer :: dims(2)
-      logical :: periods(2)
+      logical :: periods(2) = .false.
       logical :: remain_dims(2)
       integer :: nE
-      logical :: reorder
+      logical :: reorder = .true.
       integer :: mpierr
-
-      ndims = 2
-      periods(:) = .false.
-      reorder = .true.
 
       if (mod(inComm%size,nk) /=0 ) then
         stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
       end if
+
       nE = inComm%size/nk
       dims(1)=nk; dims(2)=nE
+      periods(1) = .true.
 
       call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
+      ! Global master id=0 node as writing node
+      id0 = (cartComm%rank == 0)
 
+      ! Extract sub-communicators
       remain_dims(:) = [.false., .true.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
       call energyComm%init(outComm, mpierr)
+      id = energyComm%rank
+      numprocs = energyComm%size
 
       remain_dims(:) = [.true., .false.]
       call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
@@ -92,6 +109,19 @@ module mpi_globals
 
     end subroutine negf_cart_init
 
+    subroutine check_cart_comm(cartComm, mpierror)
+      !> Input 2d cartesian communicator
+      type(mpifx_comm), intent(in) :: cartComm
+      !> output error
+      integer, intent(out) :: mpierror
+
+      integer :: coords(2)
+
+      mpierror = 0
+
+      call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror)
+
+    end subroutine check_cart_comm
 
 #:endif
 

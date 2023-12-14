@@ -22,7 +22,7 @@
 module distributions
 
   use ln_precision
-  
+  use ln_constants, only : zero, one 
   implicit none
   private
 
@@ -50,11 +50,11 @@ contains
     real(kind=dp), intent(in) :: E, Ef, kT
 
     ! the check over 0 is important otherwise the next fails
-    if (kT.eq.0.d0) then
+    if (kT.eq.0.0_dp) then
       if(E.gt.Ef) then
-        fermi_f = 0.D0
+        fermi_f = 0.0_dp
       else
-        fermi_f = 1.D0
+        fermi_f = 1.0_dp
       end if
       return
     endif
@@ -63,11 +63,11 @@ contains
       if(E.gt.Ef) then
         fermi_f = exp(-(E-Ef)/kT) 
       else
-        fermi_f = 1.D0
+        fermi_f = 1.0_dp
       end if
       return
     else        
-      fermi_f = 1.d0/(exp((E-Ef)/kT)+1.d0);
+      fermi_f = 1.0_dp/(exp((E-Ef)/kT)+1.0_dp);
       return
     endif
 
@@ -81,16 +81,16 @@ contains
     complex(kind=dp), intent(in) :: Ec
     real(kind=dp), intent(in) :: Ef, kT
 
-    complex(kind=dp) :: Efc,kTc,ONE=(1.d0,0.d0)
+    complex(kind=dp) :: Efc,kTc
 
     Efc=Ef*ONE
     kTc=kT*ONE
 
-    if (kT.eq.0.d0) then
+    if (kT.eq.0.0_dp) then
       if(real(Ec).gt.Ef) then
-        fermi_fc = (0.D0,0.D0)
+        fermi_fc = zero
       else
-        fermi_fc = (1.D0,0.D0)
+        fermi_fc = one
       end if
       return
     endif
@@ -99,12 +99,12 @@ contains
       if(real(Ec).gt.Ef) then
         fermi_fc = exp( -(Ec-Efc)/kTc )
       else
-        fermi_fc = (1.D0,0.D0)
+        fermi_fc = one
       end if
       return
     else        
 
-      fermi_fc = ONE/(exp( (Ec-Efc)/kTc ) + ONE);
+      fermi_fc = one/(exp( (Ec-Efc)/kTc ) + one);
       return
     endif
 
@@ -115,15 +115,15 @@ contains
     real(dp), intent(in) :: E, kT
 
     ! the check over 0 is important otherwise the next fails
-    if (kT.eq.0.d0) then
-      bose_r = 0.D0
+    if (kT.eq.0.0_dp) then
+      bose_r = 0.0_dp
       return
     endif
 
-    if (abs(E/kT).gt.30.d0) then
+    if (abs(E/kT).gt.30.0_dp) then
       bose_r = exp(-E/kT);
     else        
-      bose_r = 1.d0/(exp(E/kT) - 1.d0);
+      bose_r = 1.0_dp/(exp(E/kT) - 1.0_dp);
     endif
      
   end function bose_r   
@@ -132,17 +132,17 @@ contains
     complex(kind=dp), intent(in) :: Ec
     real(kind=dp), intent(in) :: Ef, kT
 
-    complex(kind=dp) :: Efc,kTc,ONE=(1.d0,0.d0)
+    complex(kind=dp) :: Efc,kTc
 
     Efc=Ef*ONE
     kTc=kT*ONE
 
-    if (kT.eq.0.d0) then
-      bose_c = (0.D0,0.D0)
+    if (kT.eq.0.0_dp) then
+      bose_c = zero
       return
     endif
 
-    if (abs( real(Ec)/kT ).gt.30.d0) then
+    if (abs( real(Ec)/kT ).gt.30.0_dp) then
       bose_c = exp( -Ec/kTc )
     else        
       bose_c = ONE/(exp( Ec/kTc ) - ONE);
@@ -155,20 +155,20 @@ contains
     real(dp), intent(in) :: E, kT
 
     ! the check over 0 is important otherwise the next fails
-    if (kT.eq.0.d0) then
-      diff_bose = 0.D0
+    if (kT.eq.0.0_dp) then
+      diff_bose = 0.0_dp
       return
     endif
 
-    if (E.eq.0.d0) then
-      diff_bose = 1.d0
+    if (E.eq.0.0_dp) then
+      diff_bose = 1.0_dp
       return
     endif
 
-    if (abs(E/kT).gt.30.d0) then
+    if (abs(E/kT).gt.30.0_dp) then
       diff_bose = exp(-E/kT)*(E/kT)**2
     else        
-      diff_bose = exp(E/kT)/((exp(E/kT)-1.d0)**2.d0)*(E/kT)**2
+      diff_bose = exp(E/kT)/((exp(E/kT)-1.0_dp)**2)*(E/kT)**2
     endif
      
   end function diff_bose
