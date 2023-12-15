@@ -387,7 +387,11 @@ contains
     if (ii > size(negf%HS)) then
        stop "Error: set_H with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%H)) allocate(negf%HS(ii)%H)
+      if (.not.associated(negf%HS(ii)%H)) then 
+        allocate(negf%HS(ii)%H)
+      else
+        call destroy(negf%HS(ii)%H)
+      endif
     end if
 
     base = 0
@@ -436,7 +440,11 @@ contains
     if (ii > size(negf%HS)) then
        stop "Error: set_S with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+      if (.not.associated(negf%HS(ii)%S)) then 
+        allocate(negf%HS(ii)%S)
+      else
+        call destroy(negf%HS(ii)%S)
+      endif
     end if
 
     base = 0
@@ -1807,7 +1815,7 @@ contains
       call quasiEq_int_p(negf, mu_p, Ev, q)
     endif
    
-    call destroy_matrices(negf)
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_density_quasiEq
   !-------------------------------------------------------------------------------

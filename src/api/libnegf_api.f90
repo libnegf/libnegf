@@ -382,6 +382,8 @@ subroutine negf_set_h(handler, nrow, A, JA, IA) bind(C)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
+  call create_HS(LIB%pNEGF, 1) ! Hack for now, needs to be re-thought for including phonon inel interactions
+                               ! Probably needs to be initialized with its own API
   call set_H(LIB%pNEGF,nrow, A, JA, IA)
 end subroutine negf_set_h
 
