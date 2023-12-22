@@ -888,10 +888,11 @@ contains
   subroutine real_axis_int(negf)
     type(Tnegf) :: negf
 
-    type(z_CSR) :: Gn, TmpMt
+    type(z_CSR) :: G, TmpMt
 
     integer :: ref, Npoints
     integer :: i, i1, j1, outer, ncont
+    integer :: particle
 
     real(dp), DIMENSION(:), allocatable :: frm_f
     real(dp) :: ncyc, Er, scba_error
@@ -902,6 +903,7 @@ contains
     ncont = negf%str%num_conts
     outer = negf%outer
     Npoints = size(negf%en_grid)
+    particle = negf%particle
 
     call log_allocate(frm_f,ncont)
 
@@ -920,20 +922,18 @@ contains
        zt = negf%en_grid(i)%wght
        negf%iE = negf%en_grid(i)%pt
 
-       if (negf%particle == 1) then
-         do j1 = 1,ncont
-             frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
-         enddo
-       else
-         do j1 = 1,ncont
-             frm_f(j1)=fermi(-Er,-negf%cont(j1)%mu_p,negf%cont(j1)%kbT_dm)
-         enddo
-       endif
-
+       do j1 = 1,ncont
+           frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+       enddo
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+       
+       if (particle == 1) then
+          call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_error)
+       else
+          call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_error)
+       endif
 
-       call compute_Gn(negf, outer, ncont, Ec, frm_f, Gn, scba_error)
 
        if (id0.and.negf%verbose.gt.VBT) call write_clock
 
@@ -943,9 +943,9 @@ contains
 
        if(negf%DorE.eq.'E') zt = zt * Er
 
-       call concat(TmpMt,zt,Gn,1,1)
+       call concat(TmpMt,zt,G,1,1)
 
-       call destroy(Gn)
+       call destroy(G)
 
     enddo
 
@@ -1948,13 +1948,14 @@ contains
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error)
+  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Grout)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
     Type(z_CSR), intent(out) :: Gn
     real(dp), intent(out) :: scba_error
+    Type(z_CSR), intent(out), optional :: Grout
 
     integer :: scba_iter, max_scba_iter, i1
     real(dp) :: ncyc
@@ -1965,7 +1966,7 @@ contains
     Er = real(Ec,dp)
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
-    call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+    call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer, Grout)
 
     scba_error = 0.0_dp
     ! In case of interactions (only elastic supported now) we go into
@@ -1981,7 +1982,7 @@ contains
         call negf%scbaDriverElastic%check_Mat_convergence(Gn)
         if (negf%scbaDriverElastic%is_converged()) exit
         call destroy(Gn)
-        call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer)
+        call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer, Grout)
       enddo
       scba_error = negf%scbaDriverElastic%scba_err
       call negf%scbaDriverElastic%destroy()
@@ -1992,6 +1993,26 @@ contains
     enddo
 
   end subroutine compute_Gn
+
+
+  subroutine compute_Gp(negf, outer, ncont, Ec, frm, Gp, scba_error)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: outer, ncont
+    complex(dp), intent(in) :: Ec
+    real(dp), dimension(:), intent(in) :: frm
+    Type(z_CSR), intent(out) :: Gp
+    real(dp), intent(out) :: scba_error
+
+    Type(z_CSR) :: Gr, Gn, A
+    complex(dp) :: minusOne = (-1.0_dp, 0.0_dp)
+
+    call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
+    call zspectral(Gr, Gr, 0, A)
+    call prealloc_sum(A, Gn, minusOne, Gp)
+    
+    call destroy(Gr, Gn, A)
+
+  end subroutine compute_Gp
 
   !---------------------------------------------------------------------------
   !   COMPUTATION OF CURRENTS - INTEGRATION OF T(E)
