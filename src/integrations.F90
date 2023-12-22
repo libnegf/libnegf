@@ -926,7 +926,7 @@ contains
          enddo
        else
          do j1 = 1,ncont
-             frm_f(j1)=fermi(-Er,-negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+             frm_f(j1)=fermi(-Er,-negf%cont(j1)%mu_p,negf%cont(j1)%kbT_dm)
          enddo
        endif
 
@@ -988,7 +988,7 @@ contains
 
     integer :: i, ioffset, ncont, Ntot
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, mumax, muref, ff, kbT
+    real(dp) :: Omega, mumax, muref, ff, kbT
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -997,10 +997,8 @@ contains
     muref = negf%muref
 
     if (ncont.gt.0) then
-       mumin=minval(negf%cont(:)%mu_n)
        mumax=maxval(negf%cont(:)%mu_n)
     else
-       mumin=negf%muref
        mumax=negf%muref
     endif
 
@@ -1011,7 +1009,6 @@ contains
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
 
-    !call gauleg(negf%Ec-negf%DeltaEc, max(mumax, negf%Ec) + Omega,pnts,wght,Ntot)
     call gauleg(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Ntot)
 
     do i = 1, Ntot
@@ -1053,7 +1050,7 @@ contains
 
     integer :: i, ioffset, ncont, Ntot
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, mumax, muref, ff, kbT
+    real(dp) :: Omega, mumin, Emax, muref, ff, kbT
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1063,10 +1060,8 @@ contains
 
     if (ncont.gt.0) then
        mumin=minval(negf%cont(:)%mu_p)
-       mumax=maxval(negf%cont(:)%mu_p)
     else
        mumin=negf%muref
-       mumax=negf%muref
     endif
 
     Ntot = negf%Np_real
@@ -1076,9 +1071,9 @@ contains
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
 
-    mumax = negf%Ev+negf%DeltaEv
+    Emax = negf%Ev+negf%DeltaEv
 
-    call gauleg(mumin-Omega, mumax, pnts, wght, Ntot)
+    call trapez(mumin-Omega, Emax, pnts, wght, Ntot)
 
     do i = 1, Ntot
        negf%en_grid(i)%path = 1
