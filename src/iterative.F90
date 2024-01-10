@@ -196,7 +196,7 @@ CONTAINS
     !   outblocks = 2  D/C and C/D parts are computed
     !              (needed for K-points calculations)
     !
-    !Optional: Gr (used with Gn to calculate Gp)
+    !Optional: Grout (used with Gn to calculate Gp)
     !   outblokcs -> same options as above
     !*****************************************************************************
 

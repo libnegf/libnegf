@@ -63,6 +63,7 @@ module libnegf
 #:if defined("MPI")
  public :: negf_mpi_init
  public :: negf_cart_init !from mpi_globals
+ public :: set_cartesian_bare_comms
 #:endif
  public :: set_kpoints
  public :: set_mpi_bare_comm
@@ -1172,6 +1173,20 @@ contains
     call globals_mpi_init(negf%energyComm)
 
   end subroutine
+
+  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: mpicomm
+    integer, intent(in) :: nk
+    integer, intent(out) :: cartComm
+    integer, intent(out) :: kComm
+
+    call negf%globalComm%init(mpicomm)
+
+    call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, cartComm, kComm)
+    call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
+
+  end subroutine set_cartesian_bare_comms
 #:else
   !> Dummy method for the C-interface, when mpi implementation is missing.
   !!
