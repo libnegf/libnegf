@@ -165,6 +165,10 @@ module lib_param
     real(dp) :: Emin              ! Tunneling or dos interval
     real(dp) :: Emax              !
     real(dp) :: Estep             ! Tunneling or dos E step
+    real(dp) :: Estep_coarse      ! dos E step for coarse integration (quasiEq integral)
+
+    !Particle info for holes/electrons integration
+    integer :: particle
 
     !! Emitter and collector for transmission or Meir-Wingreen
     !! (only emitter in this case)
@@ -491,6 +495,7 @@ contains
      negf%Emin = 0.0_dp        ! Tunneling or dos interval
      negf%Emax = 0.0_dp        !
      negf%Estep = 0.0_dp       ! Tunneling or dos E step
+     negf%Estep_coarse = 0.0_dp       ! Tunneling or dos E step
      negf%g_spin = 2.0_dp      ! spin degeneracy
 
      negf%Np_n = (/20, 20/)  ! Number of points for n
@@ -511,6 +516,7 @@ contains
      negf%scba_elastic_tol = 1.d-7
      negf%scba_inelastic_tol = 1.d-7
      negf%ndos_proj = 0
+     negf%particle = 1       ! Used for setting correct fermi function in real_axis_int. Can become -1 only in compute_density_efa
 
      negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
 

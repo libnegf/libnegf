@@ -176,7 +176,7 @@ CONTAINS
   ! NOTE: Setting reference to ncont+1 removes the reference part
   !****************************************************************************
 
-  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks)
+  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks,Grout)
 
     !****************************************************************************
     !
@@ -196,6 +196,8 @@ CONTAINS
     !   outblocks = 2  D/C and C/D parts are computed
     !              (needed for K-points calculations)
     !
+    !Optional: Grout (used with Gn to calculate Gp)
+    !   outblokcs -> same options as above
     !*****************************************************************************
 
     implicit none
@@ -205,7 +207,7 @@ CONTAINS
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
     real(dp), dimension(:), intent(in)  :: frm
-    type(z_CSR), intent(inout), optional  :: Glout
+    type(z_CSR), intent(inout), optional  :: Glout, Grout
     integer, intent(in), optional  :: outblocks
 
     !Work
@@ -268,7 +270,13 @@ CONTAINS
     if (present(Glout)) then
       call blk2csr(Gn,negf%str,negf%S,Glout)
     end if
+
+    if (present(Grout)) then
+      call blk2csr(Gr,negf%str,negf%S,Grout)
+    end if
     end associate
+
+
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
     if (present(Glout)) then
@@ -278,6 +286,16 @@ CONTAINS
         call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,.false.,Glout)
       CASE(2)
         call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,.true.,Glout)
+      end SELECT
+    end if
+
+    if (present(Grout)) then
+      SELECT CASE (outblocks)
+      CASE(0)
+      CASE(1)
+        call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.false.,Grout)
+      CASE(2)
+        call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.true.,Grout)
       end SELECT
     end if
 

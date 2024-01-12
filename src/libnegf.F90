@@ -63,6 +63,7 @@ module libnegf
 #:if defined("MPI")
  public :: negf_mpi_init
  public :: negf_cart_init !from mpi_globals
+ public :: set_cartesian_bare_comms
 #:endif
  public :: set_kpoints
  public :: set_mpi_bare_comm
@@ -97,6 +98,8 @@ module libnegf
  public :: compute_density_efa      ! high-level wrapping
                                     ! Extract HM and SM
                                     ! run DM calculation
+ public :: compute_density_quasiEq  ! Run DM calculation with
+                                    ! quasi-equilibr. approximation
  public :: compute_current          ! high-level wrapping routines
                                     ! Extract HM and SM
                                     ! run total current calculation
@@ -174,6 +177,8 @@ module libnegf
    real(c_double) :: emax
    !> Energy step for real axis
    real(c_double) :: estep
+   !> Energy step for coarse integrations
+   real(c_double) :: estep_coarse
    !! Contacts info
    !> Electron electrochemical potential
    real(c_double) :: mu_n(MAXNCONT)
@@ -383,7 +388,11 @@ contains
     if (ii > size(negf%HS)) then
        stop "Error: set_H with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%H)) allocate(negf%HS(ii)%H)
+      if (.not.associated(negf%HS(ii)%H)) then 
+        allocate(negf%HS(ii)%H)
+      else
+        call destroy(negf%HS(ii)%H)
+      endif
     end if
 
     base = 0
@@ -432,7 +441,11 @@ contains
     if (ii > size(negf%HS)) then
        stop "Error: set_S with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+      if (.not.associated(negf%HS(ii)%S)) then 
+        allocate(negf%HS(ii)%S)
+      else
+        call destroy(negf%HS(ii)%S)
+      endif
     end if
 
     base = 0
@@ -893,6 +906,7 @@ contains
     negf%Emin = params%Emin
     negf%Emax = params%Emax
     negf%Estep = params%Estep
+    negf%Estep_coarse = params%Estep_coarse
     if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
     allocate(negf%ni(nn))
@@ -1159,6 +1173,20 @@ contains
     call globals_mpi_init(negf%energyComm)
 
   end subroutine
+
+  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: mpicomm
+    integer, intent(in) :: nk
+    integer, intent(out) :: cartComm
+    integer, intent(out) :: kComm
+
+    call negf%globalComm%init(mpicomm)
+
+    call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, cartComm, kComm)
+    call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
+
+  end subroutine set_cartesian_bare_comms
 #:else
   !> Dummy method for the C-interface, when mpi implementation is missing.
   !!
@@ -1720,8 +1748,13 @@ contains
     ! Reference contact for contour/real axis separation
     call set_ref_cont(negf)
 
+    ! Contour integral for equilibrium calculations
     if (particle == 1) then
-      negf%muref = negf%mu_n
+      if (negf%str%num_conts > 0) then
+        negf%muref = negf%cont(1)%mu_n
+      else
+        negf%muref = mu_n
+      endif
 
       if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
          call contour_int_n_def(negf)
@@ -1731,7 +1764,11 @@ contains
          negf%refcont = negf%str%num_conts+1
       endif
     else ! particle == -1
-      negf%muref = negf%mu_p
+      if (negf%str%num_conts > 0) then
+        negf%muref = negf%cont(1)%mu_p
+      else
+        negf%muref = mu_p
+      endif
 
       if (negf%Np_p(1)+negf%Np_p(2)+negf%n_poles.gt.0) then
          call contour_int_p_def(negf)
@@ -1742,10 +1779,13 @@ contains
       endif
     endif
 
+    ! Real axis integral for non-equilibrium calculations
     if (negf%Np_real.gt.0) then
        if (particle == 1) then
+          negf%particle = 1
           call real_axis_int_n_def(negf)
        else
+          negf%particle = -1
           call real_axis_int_p_def(negf)
        endif
        ! we use contour_int here because it integrates Gr, while
@@ -1776,6 +1816,31 @@ contains
 
   end subroutine compute_density_efa
 
+  subroutine compute_density_quasiEq(negf, q, particle, &
+                                     Ec, Ev, mu_n, mu_p)
+    !In/Out
+    type(Tnegf) :: negf
+    real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
+    integer :: particle  ! +1 for electrons, -1 for holes
+
+    if (particle /= +1 .and. particle /= -1) then
+       write(*,*) "libNEGF error. In compute_density_quasiEq, unknown particle"
+       stop
+    endif
+
+
+    call extract_cont(negf)
+    q = 0.0_dp
+
+    if (particle == 1) then
+      call quasiEq_int_n(negf, mu_n, Ec, q)
+    else ! particle == -1
+      call quasiEq_int_p(negf, mu_p, Ev, q)
+    endif
+   
+    call destroy_contact_matrices(negf)
+
+  end subroutine compute_density_quasiEq
   !-------------------------------------------------------------------------------
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
@@ -2431,5 +2496,41 @@ contains
     el = getelement(i,j,mat)
 
   end function getel
+  
+  subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
+      real(dp), dimension(:), intent(in) :: v_in
+      real(dp), intent(in) :: thres
+      real(dp), dimension(:), allocatable, intent(out) :: v_out
+      integer, dimension(:), allocatable, intent(out) :: start_idx, end_idx
+
+      real(dp) :: avg
+      integer :: i, rs, re
+
+      allocate(start_idx(0))
+      allocate(end_idx(0))
+      allocate(v_out(0))
+
+      start_idx = [start_idx, 1]
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+            start_idx = [start_idx, i+1]
+         endif
+      end do
+
+      do i = 1, size(v_in)-1
+         if (abs(v_in(i+1) - v_in(i)) > thres) then
+                 end_idx = [end_idx, i]
+         endif
+      end do
+      end_idx = [end_idx, size(v_in)]
+
+      do i = 1, size(start_idx)
+         rs = start_idx(i)
+         re = end_idx(i)
+         avg = sum(v_in(rs:re))/real(size(v_in(rs:re)), dp)
+         v_out = [v_out, avg]
+      end do
+
+   end subroutine aggregate_vec
 
 end module libnegf

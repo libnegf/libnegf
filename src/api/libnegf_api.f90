@@ -176,6 +176,12 @@ subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl,
 
   call init_structure(LIB%pNEGF, ncont, surfstart_al, surfend_al, contend_al, npl, plend_al, cblk_al)
 
+  deallocate(surfstart_al)
+  deallocate(surfend_al)
+  deallocate(contend_al)
+  deallocate(cblk_al)
+  deallocate(plend_al)
+
 end subroutine negf_init_structure
 
 
@@ -217,8 +223,14 @@ subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl,
   contend_al(1:ncont) = contend(1:ncont)
 
   call find_cblocks(LIB%pNEGF%H, ncont, npl, plend_al, surfstart_al, contend_al, cblk_al)
-  
+
   cblk(1:ncont) = cblk_al(1:ncont)
+
+  deallocate(surfstart_al)
+  deallocate(surfend_al)
+  deallocate(contend_al)
+  deallocate(cblk_al)
+  deallocate(plend_al)
 
 end subroutine negf_contact_blocks
 
@@ -370,6 +382,8 @@ subroutine negf_set_h(handler, nrow, A, JA, IA) bind(C)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
+  call create_HS(LIB%pNEGF, 1) ! Hack for now, needs to be re-thought for including phonon inel interactions
+                               ! Probably needs to be initialized with its own API
   call set_H(LIB%pNEGF,nrow, A, JA, IA)
 end subroutine negf_set_h
 
@@ -389,6 +403,26 @@ subroutine negf_set_mpi_fcomm(handler, comm) bind(C)
   call set_mpi_bare_comm(LIB%pNEGF, comm)
 
 end subroutine negf_set_mpi_fcomm
+
+!!* Initializing mpi k-E cartesian communicators
+subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm) bind(C)
+  use iso_c_binding, only : c_int  ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf           ! if:mod:use
+  use ln_precision      ! if:mod:use
+  implicit none
+  integer :: handler(DAC_handlerSize)            ! if:var:in
+  integer(c_int), intent(in), value :: nk      ! if:var:in
+  integer, intent(in), value :: in_comm             ! if:var:in
+  integer, intent(out) :: cart_comm      ! if:var:out
+  integer, intent(out) :: k_comm         ! if:var:out
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB)
+  call set_cartesian_bare_comms(LIB%pNEGF, in_comm, nk, cart_comm, k_comm)
+
+end subroutine negf_cartesian_init
 
 !!* Passing Overlap from memory
 !!* @param  handler  Contains the handler for the new instance on return
@@ -475,7 +509,7 @@ subroutine negf_set_s_id(handler, nrow) bind(C)
   use ln_precision      ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer(c_int), intent(in), value:: nrow     ! if:var:out
+  integer(c_int), intent(in), value:: nrow     ! if:var:in
 
   type(NEGFpointers) :: LIB
 
@@ -685,6 +719,31 @@ subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
 
 end subroutine negf_density_efa
 
+!>
+!! Compute charge Density for EFA, using quasi-equilibrium approximation
+subroutine negf_density_quasi_equilibrium(handler,ndofs,density,particle, Ec, Ev, mu_n, mu_p) bind(C)
+  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use ln_precision      !if:mod:use
+  use libnegf           ! if:mod:use 
+  implicit none
+  integer :: handler(DAC_handlerSize)    ! if:var:in
+  integer :: ndofs                       ! if:var:in 
+  real(dp) :: density(ndofs)             ! if:var:in
+  real(dp) :: Ec(ndofs)                  ! if:var:in
+  real(dp) :: Ev(ndofs)                  ! if:var:in
+  real(dp) :: mu_n(ndofs)                ! if:var:in
+  real(dp) :: mu_p(ndofs)                ! if:var:in
+  integer :: particle                    ! if:var:in 
+
+  ! particle = 1 for electrons
+  ! particle =-1 for holes
+
+  type(NEGFpointers) :: LIB
+
+  LIB = transfer(handler, LIB) 
+  call compute_density_quasiEq(LIB%pNEGF, density, particle, Ec, Ev, mu_n, mu_p)
+
+end subroutine negf_density_quasi_equilibrium
 
 !>
 !! Calculate the density matrix for the dft problem
