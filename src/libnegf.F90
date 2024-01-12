@@ -817,12 +817,12 @@ contains
     params%kbT_t(nn+1:MAXNCONT) = 0.0_dp
     params%scba_inelastic_tol = negf%scba_inelastic_tol
     params%scba_elastic_tol = negf%scba_elastic_tol
-    !if (nn == 0) then
+    if (nn == 0) then
       params%mu_n(1) = negf%mu_n
       params%mu_p(1) = negf%mu_p
       params%mu(1) = negf%mu
       params%kbT_dm(1) = negf%kbT
-    !end if
+    end if
     params%Np_n = negf%Np_n
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
@@ -888,12 +888,12 @@ contains
     negf%cont(1:nn)%kbT_t       = params%kbT_t(1:nn)
     negf%scba_inelastic_tol = params%scba_inelastic_tol
     negf%scba_elastic_tol   = params%scba_elastic_tol
-    !if (nn == 0) then
+    if (nn == 0) then
       negf%mu   = params%mu(1)
       negf%mu_n = params%mu_n(1)
       negf%mu_p = params%mu_p(1)
       negf%kbT = params%kbT_dm(1)
-    !end if
+    end if
     negf%Np_n = params%Np_n
     negf%Np_p = params%Np_p
     negf%Np_real = params%Np_real
@@ -1750,7 +1750,11 @@ contains
 
     ! Contour integral for equilibrium calculations
     if (particle == 1) then
-      negf%muref = negf%mu_n
+      if (negf%str%num_conts > 0) then
+        negf%muref = negf%cont(1)%mu_n
+      else
+        negf%muref = mu_n
+      endif
 
       if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
          call contour_int_n_def(negf)
@@ -1760,7 +1764,11 @@ contains
          negf%refcont = negf%str%num_conts+1
       endif
     else ! particle == -1
-      negf%muref = negf%mu_p
+      if (negf%str%num_conts > 0) then
+        negf%muref = negf%cont(1)%mu_p
+      else
+        negf%muref = mu_p
+      endif
 
       if (negf%Np_p(1)+negf%Np_p(2)+negf%n_poles.gt.0) then
          call contour_int_p_def(negf)

@@ -1009,7 +1009,7 @@ contains
     allocate(pnts(Ntot))
     allocate(wght(Ntot))
 
-    call gauleg(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Ntot)
+    call trapez(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Ntot)
 
     do i = 1, Ntot
        negf%en_grid(i)%path = 1
