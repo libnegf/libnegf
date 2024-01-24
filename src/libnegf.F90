@@ -1753,7 +1753,7 @@ contains
       if (negf%str%num_conts > 0) then
         negf%muref = negf%cont(1)%mu_n
       else
-        negf%muref = mu_n
+        negf%muref = negf%mu_n
       endif
 
       if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
@@ -1767,7 +1767,7 @@ contains
       if (negf%str%num_conts > 0) then
         negf%muref = negf%cont(1)%mu_p
       else
-        negf%muref = mu_p
+        negf%muref = negf%mu_p
       endif
 
       if (negf%Np_p(1)+negf%Np_p(2)+negf%n_poles.gt.0) then

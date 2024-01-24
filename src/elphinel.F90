@@ -972,7 +972,7 @@ contains
         call allocate_buff(Np,Mp)
 
         call setup_pointers_Gn()
-        call setup_pointers_Sigma_n(Np,Np)
+        call setup_pointers_Sigma_n(Np,Mp)
         !call check_elements(this%G_n,"G_n")
 
         ! Compute the retarded part

@@ -1438,7 +1438,7 @@ contains
     real(dp), dimension(:), optional :: fixed_occupations
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
-    integer :: iE, iK, jj, i1, j1, Nstep, outer, ncont, icont
+    integer :: iE, iK, jj, i1, j1, Nstep, outer, ncont, icont, scba_elastic_iter
     real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error, scba_inelastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
@@ -1527,7 +1527,7 @@ contains
           negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
-                scba_elastic_tol, scba_elastic_error)
+                scba_elastic_tol, scba_elastic_iter, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           !call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
@@ -1609,7 +1609,7 @@ contains
     type(Tnegf) :: negf
 
     integer :: nbl, scba_iter, scba_niter_inela, scba_niter_ela, Nstep
-    integer :: iE, i1, j1, iK, icont, ncont, ref_bk
+    integer :: iE, i1, j1, iK, icont, ncont, ref_bk, scba_elastic_iter
     real(dp) :: ncyc, scba_elastic_error, scba_inelastic_error, scba_elastic_tol
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
@@ -1652,6 +1652,7 @@ contains
     scba_elastic_tol = negf%scba_elastic_tol
     if (negf%cartComm%rank == 0) then
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
+      call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
     end if
     scba_iter = 0
  
@@ -1704,10 +1705,11 @@ contains
           negf%tDestroyGn = .false.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
-                scba_elastic_tol, scba_elastic_error)
+                scba_elastic_tol, scba_elastic_iter, scba_elastic_error)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           if (negf%cartComm%rank == 0) then
+            call write_int_info(negf%verbose, VBT, 'scba elastic iterations',scba_elastic_iter)
             call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
           end if
           ! ---------------------------------------------------------------------

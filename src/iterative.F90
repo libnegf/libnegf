@@ -308,18 +308,19 @@ CONTAINS
   !---------------------------------------------------------------------
   !---------------------------------------------------------------------
   subroutine calculate_elastic_scba(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,scba_niter, &
-            &  scba_tol, scba_error)
+            &  scba_tol, scba_iter, scba_error)
     type(Tnegf), intent(inout) :: negf
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
     real(dp), dimension(:), intent(in)  :: frm
     integer, intent(in) :: scba_niter
     real(dp), intent(in) :: scba_tol
+    integer, intent(inout) :: scba_iter
     real(dp), intent(inout) :: scba_error
 
     logical :: tDestroyGn, tDestroyESH, tDestroyGr
     Type(z_CSR) :: csrGn
-    integer :: scba_iter, outer = 0
+    integer :: outer = 0
 
     tDestroyGn = negf%tDestroyGn
     tDestroyGr = negf%tDestroyGr
