@@ -77,7 +77,10 @@ set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
+  # MPI_Fortran dependency should be private to avoid the leakage of the '-fallow-argument-mismatch'
+  # option (from MPI_Fortran_COMPILE_OPTONS) when compiling C-code with dependence on negf.
+  target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
 endif()
 target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
