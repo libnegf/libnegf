@@ -18,13 +18,13 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-module elph
+module ln_enums
 
   implicit none
   private
 
-  public :: Telph
   public :: interaction_models
+  public :: integration_type
 
   !> Describe the model implemented. Currently supported:
   !! 0 : dummy model, no electron-phonon interactions
@@ -58,13 +58,13 @@ module elph
 
   type(TModelsEnum), parameter :: interaction_models = TModelsEnum()
 
-  !> This type is not currently used 
-  type Telph
-    logical :: Selfene_Gr
-    logical :: Selfene_Gless
-    logical :: Selfene_Hilb
-    logical :: memory
-    logical :: check
-  end type Telph
+  type TIntegrationsEnum
+     integer :: trapezoidal = 0
+     integer :: simpson13 = 1
+     integer :: simpson38 = 2
+     integer :: gaussian = 3
+  end type TIntegrationsEnum
 
-end module elph
+  type(TIntegrationsEnum), parameter :: integration_type = TIntegrationsEnum()
+
+end module ln_enums

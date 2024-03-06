@@ -41,6 +41,7 @@ module integrations
  use ln_elastic
  use ln_inelastic
  use elphinel
+ use ln_enums, only : integration_type
 #:if defined("MPI")
   use libmpifx_module
 #:endif
@@ -51,8 +52,9 @@ module integrations
 
  public :: contour_int       ! generalized contour integrator
  public :: real_axis_int     ! real-axis integrator
- public :: quasiEq_int_p     ! real-axis integration - quasi-equilibrium - holes     
- public :: quasiEq_int_n     ! real-axis integration - quasi-equilibrium - electrons    
+ public :: real_axis_int_inel! real-axis integrator with inelastic scattering
+ public :: quasiEq_int_p     ! real-axis integration - quasi-equilibrium - holes
+ public :: quasiEq_int_n     ! real-axis integration - quasi-equilibrium - electrons
  public :: ldos_int          ! ldos only integrator
 
  public :: contour_int_def   ! contour integration for DFT(B)
@@ -163,7 +165,7 @@ contains
     integer, intent(in) :: Npoints
 
     if (id0 .and. verbose.gt.VBT) then
-      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt_path, &
+      write(6,'(3(a,i0),a,ES15.8)') 'INTEGRAL: point # ',gridpn%pt, &
           &'/',Npoints,'  CPU= ', gridpn%cpu, '  E=',real(gridpn%Ec)
     endif
 
@@ -211,7 +213,7 @@ contains
     Type(z_CSR) ::  Gr
     complex(dp), Dimension(:), ALLOCATABLE :: diag
 
-    integer :: Nstep, i, i1, l, kb, ke
+    integer :: Npoints, i, i1, l, kb, ke
     integer :: outer, ncont
 
     real(dp) :: ncyc
@@ -222,19 +224,19 @@ contains
     outer = 1
     ncont = negf%str%num_conts
 
-    Nstep = size(negf%en_grid)
+    Npoints = size(negf%en_grid)
 
-    call log_allocate(negf%ldos_mat, Nstep, negf%ndos_proj)
+    call log_allocate(negf%ldos_mat, Npoints, negf%ndos_proj)
     negf%ldos_mat(:,:)=0.0_dp
 
-    do i = 1, Nstep
+    do i = 1, Npoints
 
        call write_Epoint(negf%verbose,negf%en_grid(i), size(negf%en_grid))
-
        if (negf%en_grid(i)%cpu /= id) cycle
 
        Ec = negf%en_grid(i)%Ec + j*negf%dos_delta
        negf%iE = negf%en_grid(i)%pt
+       negf%iE_path = negf%en_grid(i)%pt_path
 
        call compute_Gr(negf, outer, ncont, Ec, Gr)
 
@@ -279,7 +281,7 @@ contains
   subroutine contour_int_n_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, Ntot, Npoles, ioffs
+    integer :: i, Npoints, Npoles, ioffs
     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, Lambda
     real(dp) :: muref, kbT, Emin
@@ -313,9 +315,9 @@ contains
       Npoles = 0
     endif
 
-    Ntot = negf%Np_n(1) + negf%Np_n(2) + Npoles
+    Npoints = negf%Np_n(1) + negf%Np_n(2) + Npoles
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Ntot))
+    allocate(negf%en_grid(Npoints))
 
     ! *******************************************************************************
     ! 1. INTEGRATION OVER THE SEGMENT [Ec - dEc , Ec - dEc + j*Lambda]
@@ -417,7 +419,7 @@ contains
     ! pts 1 2 3 4 5 6 7 8 9 ...
     ! cpu 0 1 2 3 0 1 2 3 0 ...
     ! *******************************************************************************
-    do i = 0, Ntot-1
+    do i = 0, Npoints-1
        negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
@@ -445,7 +447,7 @@ contains
   subroutine contour_int_p_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, Ntot, Npoles, ioffs
+    integer :: i, Npoints, Npoles, ioffs
     real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, Lambda
     real(dp) :: muref, kbT, Emax
@@ -479,9 +481,9 @@ contains
       Npoles = 0
     endif
 
-    Ntot=negf%Np_p(1)+negf%Np_p(2)+Npoles
+    Npoints=negf%Np_p(1)+negf%Np_p(2)+Npoles
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Ntot))
+    allocate(negf%en_grid(Npoints))
 
     ! *******************************************************************************
     ! 1. INTEGRATION OVER THE SEGMENT [Ec - dEc , Ec - dEc + j*Lambda]
@@ -583,7 +585,7 @@ contains
     ! pts 1 2 3 4 5 6 7 8 9 ...
     ! cpu 0 1 2 3 0 1 2 3 0 ...
     ! *******************************************************************************
-    do i = 0, Ntot-1
+    do i = 0, Npoints-1
        negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
@@ -593,7 +595,8 @@ contains
   ! Contour integration for density matrix
   ! DOES INCLUDE FACTOR 2 FOR SPIN !!
   !-----------------------------------------------------------------------
-  ! Performs the complex contur integration
+  ! Performs the complex contur integration.
+  ! Coherent transport:
   !
   ! T=0                             T>0
   !         * * * *                          * * *      +
@@ -605,33 +608,53 @@ contains
   !
   !  muref is the energy of the reference contact
   !
+  !  With inelastic scattering (wq > 0) the contour goes as:
   !
+  !         * * * *
+  !      *          *
+  !    *              *
+  !   *                *
+  !  -*----------------*-------
+  !  Elow         mumin - nkT - wq
+  !
+  !-----------------------------------------------------------------------
   subroutine contour_int_def(negf)
      type(Tnegf) :: negf
 
-     integer :: i, Ntot, ioffs
+     integer :: i, Npoints, ioffs, nPoles
      real(dp) :: Lambda, Rad, Centre
      real(dp), DIMENSION(:), ALLOCATABLE :: wght,pnts   ! Gauss-quadrature points
      real(dp) :: dt, Elow
-     real(dp) :: muref, mumin, kbT, nkT, alpha
+     real(dp) :: muref, mumin, kbT, nkT, alpha, wqmax = 0.0_dp
      complex(dp) :: z1,z2,z_diff, zt
      complex(dp) :: Ec, ff, Pc
 
      if (negf%str%num_conts > 0) then
        kbT = negf%cont(negf%refcont)%kbT_dm
+       mumin = minval(negf%cont(:)%mu)
      else
        kbT = negf%kbT
+       mumin = negf%mu
      end if
-     muref = negf%muref
      nkT = negf%n_kt * kbT
-     Lambda = 2.0_dp* negf%n_poles * KbT * pi
-     mumin = muref - nkT
      Elow = negf%Ec
+     muref = negf%muref
+     ! Get maximum wq for inelastic interactions
+     wqmax = get_max_wq(negf%interactList)
+     if (wqmax > 0.0_dp) then
+       mumin = mumin - nkT - wqmax
+       Lambda = 0.0_dp
+       nPoles = 0
+     else
+       mumin = muref - nkT
+       nPoles = negf%n_poles
+       Lambda = 2.0_dp* negf%n_poles * KbT * pi
+     end if
 
-     Ntot=negf%Np_n(1)+negf%Np_n(2)+negf%n_poles
+     Npoints=negf%Np_n(1) + negf%Np_n(2) + nPoles
      !! destroy previously defined grids, if any
      call destroy_en_grid(negf%en_grid)
-     allocate(negf%en_grid(Ntot))
+     allocate(negf%en_grid(Npoints))
 
      ! ***********************************************************************
      ! 1. INTEGRATION OVER THE CIRCLE Pi..alpha    Np(1)
@@ -644,10 +667,10 @@ contains
      !----------------------------------------------------
      Centre = (Lambda**2-Elow**2+(mumin)**2)/(2.0_dp*(mumin-Elow))
      Rad = Centre - Elow
-     if (kbT.ne.0.0_dp) then
-        alpha = atan(Lambda/(mumin-Centre))
+     if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then
+        alpha = 0.1_dp*pi
      else
-        alpha = 0.1d0*pi
+        alpha = atan(Lambda/(mumin-Centre))
      end if
 
      !Setting weights for gaussian integration
@@ -688,7 +711,7 @@ contains
      allocate(wght(negf%Np_n(2)))
      allocate(pnts(negf%Np_n(2)))
 
-     if (kbT.eq.0.0_dp) then                        ! Circle integration T=0
+     if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then     ! Circle integration T=0
        call  gauleg(alpha,0.0_dp,pnts,wght,negf%Np_n(2))
      else                                          ! Segment integration T>0
        z1 = muref + nkT + j*Lambda
@@ -700,7 +723,7 @@ contains
      ioffs = negf%Np_n(1)
 
      do i = 1, negf%Np_n(2)
-        if (kbT.eq.0.0_dp) then                  ! Circle integration T=0
+        if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then   ! Circle integration T=0
            Pc = Rad*exp(j*pnts(i))
            Ec = Centre+Pc
            dt = negf%g_spin*wght(i)/(2.0_dp*pi)
@@ -727,7 +750,7 @@ contains
      !                                         (-kb*T) <- Residue
      !---------------------------------------------------------------------
      ioffs = negf%Np_n(1)+negf%Np_n(2)
-     do i = 1, negf%n_poles
+     do i = 1, nPoles
         Ec = muref + j * KbT *pi* (2.0_dp*real(i,dp) - 1.0_dp)
         zt= -j*negf%g_spin*KbT
         negf%en_grid(ioffs+i)%path=3
@@ -742,7 +765,7 @@ contains
      ! pts 1 2 3 4 5 6 7 8 9 ...
      ! cpu 0 1 2 3 0 1 2 3 0 ...
      ! *******************************************************************************
-     do i = 0, Ntot-1
+     do i = 0, Npoints-1
         negf%en_grid(i+1)%cpu = mod(i,numprocs)
      enddo
 
@@ -753,36 +776,33 @@ contains
      type(Tnegf) :: negf
 
      type(z_CSR) :: GreenR, TmpMt
-     integer :: i, i1, ncont, Ntot, outer
+     integer :: i, i1, ncont, Npoints, outer
      real(dp) :: ncyc
      complex(dp) :: Ec, zt
 
      ncont = negf%str%num_conts
-     outer = negf%outer
-     Ntot = size(negf%en_grid)
+     outer = negf%outer_blocks
+     Npoints = size(negf%en_grid)
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
 
-     call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL',Ntot)
+     call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL',Npoints)
 
-     do i = 1, Ntot
+     do i = 1, Npoints
 
-        call write_Epoint(negf%verbose,negf%en_grid(i), Ntot)
+        call write_Epoint(negf%verbose,negf%en_grid(i), Npoints)
         if (negf%en_grid(i)%cpu .ne. id) cycle
 
         Ec = negf%en_grid(i)%Ec
         zt = negf%en_grid(i)%wght
         negf%iE = negf%en_grid(i)%pt
+        negf%iE_path = negf%en_grid(i)%pt_path
 
         if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
 
         call compute_Gr(negf, outer, ncont, Ec, GreenR)
 
         if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-        !if (negf%interactList%counter /= 0) then
-        !  call write_real_info(negf%verbose,30,'SCBA error', scba_error)
-        !end if
 
         if(negf%DorE.eq.'E') zt = zt * Ec
 
@@ -819,14 +839,28 @@ contains
   subroutine real_axis_int_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, i1, np, ioffset, ncont, Ntot
-    real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, mumax
+    integer :: i, i1, np, ioffset, ncont, Npoints
+    real(dp), DIMENSION(:), allocatable :: wght, pnts
+    real(dp) :: Omega, mumin, mumax, wqmax
 
     ncont = negf%str%num_conts
-    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    Npoints = negf%Np_real
+
+    ! With inelastic scattering equalize the energy points/process
+    if (negf%interactList%counter /= 0) then
+      if (mod(Npoints,numprocs) .ne. 0) then
+        do while (mod(Npoints,numprocs) .ne. 0)
+          Npoints = Npoints + 1
+        end do
+        negf%Np_real = Npoints
+      end if
+    end if
+
+    ! Get maximum wq for inelastic interactions
+    wqmax = get_max_wq(negf%interactList)
+
     ! Omega considers maximum kT so interval is always large enough
-    Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm)
+    Omega = negf%n_kt * maxval(negf%cont(:)%kbT_dm) + wqmax
 
     if (ncont.gt.0) then
        mumin=minval(negf%cont(:)%mu)
@@ -836,47 +870,63 @@ contains
        mumax=negf%muref
     endif
 
-    Ntot = negf%Np_real
+    ! Balance N points over the energy grid
+    if (mod(Npoints,numprocs) .ne. 0) then
+      do while (mod(Npoints,numprocs) .ne. 0)
+        Npoints = Npoints + 1
+      end do
+    end if
+
     !! destroy en_grid from previous calculation, if any
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Ntot))
+    allocate(negf%en_grid(Npoints))
 
-    allocate(pnts(Ntot))
-    allocate(wght(Ntot))
+    allocate(pnts(Npoints))
+    allocate(wght(Npoints))
 
-    call gauleg(mumin-Omega,mumax+Omega,pnts,wght,Ntot)
+    if (wqmax == 0.0_dp) then
+      call gauleg(mumin-Omega,mumax+Omega,pnts,wght,Npoints)
+    else
+      ! Trapezoidal is used as it gives a regular grid for inelastic S.E.
+      call trapez(mumin-Omega,mumax+Omega,pnts,wght,Npoints)
+    end if
 
-    do i = 1, Ntot
+    ! Offset due to the contour integration (for contact storage)
+    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    do i = 1, Npoints
        negf%en_grid(i)%path = 1
-       negf%en_grid(i)%pt = ioffset + i
-       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = ioffset + i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
-       negf%en_grid(i)%wght = negf%kwght * negf%g_spin * wght(i)/(2.0_dp *pi)
+       negf%en_grid(i)%wght = negf%g_spin * wght(i)/(2.0_dp *pi)
     enddo
 
     deallocate(wght)
     deallocate(pnts)
 
-    ! distribute energy grid:  0 1 2 3 ... 0 1 2 .... 0 1 2 ....
-    do i = 0, Ntot-1
-       negf%en_grid(i+1)%cpu = mod(i,numprocs)
-    enddo
+    np=Npoints/numprocs
+    if (id .ne. numprocs-1) then
+      negf%local_en_points = np
+    else
+      negf%local_en_points = np + mod(Npoints,numprocs)
+    end if
 
-    ! distribute energy grid:  0 0 0 0 ... 1 1 1 .... 2 2 2 ....
-    !np=Ntot/numprocs
-    !i1 = 0
-    !do i = 1, Ntot, np
-    !  negf%en_grid(i:i+np-1)%cpu = i1
-    !  i1 = i1 + 1
-    !end do
-    !
-    !if (id .ne. numprocs-1) then
-    !  negf%local_en_points = np
-    !else
-    !  negf%local_en_points = np + mod(Ntot,numprocs)
-    !endif
+    if (wqmax == 0.0_dp) then
+      ! distribute energy grid round robin scheme:
+      !     0 1 2 3 ... 0 1 2 .... 0 1 2 ....
+      do i = 0, Npoints-1
+        negf%en_grid(i+1)%cpu = mod(i,numprocs)
+      enddo
+    else
+      ! With inelastic points must be contigous
+      !    0 0 0 0 ... 1 1 1 .... 2 2 2 ....
+      do i = 0, numprocs-1
+        negf%en_grid(i*np+1:(i+1)*np)%cpu = i
+      end do
+    end if
 
   end subroutine real_axis_int_def
+
   !-----------------------------------------------------------------------
   !    g    --  [ /                                         ]
   ! ------  >   [ | j [f(i) - f(ref)] Gr(E) Gam_i Ga(E) dE  ]
@@ -884,24 +934,24 @@ contains
   !-----------------------------------------------------------------------
   ! note: refcont is passed to calls_neq via TNegf
   !-----------------------------------------------------------------------
-
   subroutine real_axis_int(negf)
     type(Tnegf) :: negf
 
     type(z_CSR) :: G, TmpMt
 
     integer :: ref, Npoints
-    integer :: i, i1, j1, outer, ncont
+    integer :: iE, i1, j1, iK, outer, ncont
     integer :: particle
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    real(dp) :: ncyc, Er, scba_error
+    complex(dp), DIMENSION(:), allocatable :: diag
+    real(dp) :: ncyc, Er, scba_error, scba_elastic_tol
 
     complex(dp) :: zt
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    outer = negf%outer
+    outer = negf%outer_blocks
     Npoints = size(negf%en_grid)
     particle = negf%particle
 
@@ -910,44 +960,41 @@ contains
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
 
-    call write_info_parallel(negf%verbose,30,'REAL AXIS INTEGRAL',Npoints)
+    if (negf%cartComm%rank == 0) then
+      call write_info_parallel(negf%verbose,30,'REAL AXIS INTEGRAL',Npoints)
+    end if
 
-    do i = 1, Npoints
+    !! Loop over energy points
+    enloop: do iE = 1, Npoints
 
-       call write_Epoint(negf%verbose,negf%en_grid(i),Npoints)
-       if (negf%en_grid(i)%cpu .ne. id) cycle
+      call write_Epoint(negf%verbose,negf%en_grid(iE),Npoints)
+      if (negf%en_grid(iE)%cpu .ne. id) cycle
+      Ec = negf%en_grid(iE)%Ec
+      Er = real(Ec)
+      negf%iE = negf%en_grid(iE)%pt
+      negf%iE_path = negf%en_grid(iE)%pt_path
 
-       Ec = negf%en_grid(i)%Ec
-       Er = real(Ec)
-       zt = negf%en_grid(i)%wght
-       negf%iE = negf%en_grid(i)%pt
+      frm_f = 0.0_dp
+      do j1 = 1,ncont
+        frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+      enddo
 
-       do j1 = 1,ncont
-           frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
-       enddo
+      if (particle == 1) then
+        call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_error)
+      else
+        call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_error)
+      endif
 
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
-       
-       if (particle == 1) then
-          call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_error)
-       else
-          call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_error)
-       endif
+      zt = negf%en_grid(iE)%wght !!* negf%kwght
+      if (negf%DorE.eq.'E') then
+         zt = zt * Er
+      end if
 
+      call concat(TmpMt,zt,G,1,1)
 
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call destroy(G)
 
-       if (negf%interactList%counter /= 0) then
-         call write_real_info(negf%verbose,30,'SCBA error',scba_error)
-       end if
-
-       if(negf%DorE.eq.'E') zt = zt * Er
-
-       call concat(TmpMt,zt,G,1,1)
-
-       call destroy(G)
-
-    enddo
+    enddo enloop
 
     if(negf%DorE.eq.'D') then
        if(allocated(negf%rho%nzval)) then
@@ -970,6 +1017,178 @@ contains
 
   end subroutine real_axis_int
 
+  !-----------------------------------------------------------------------
+  ! Real axis integral with inelastic scattering
+  !-----------------------------------------------------------------------
+  !    g     /
+  ! ------   | Gn(E) dE
+  ! 2*pi*j   /
+  !-----------------------------------------------------------------------
+  subroutine real_axis_int_inel(negf)
+    type(Tnegf) :: negf
+
+    integer :: ref, Npoints
+    integer :: scba_iter, scba_elastic_iter, scba_niter_ela, scba_niter_inela
+    integer :: iE, i1, j1, iK, outer, ncont, ref_bk
+    integer :: particle
+    type(z_CSR) :: G, TmpMt
+
+    real(dp), DIMENSION(:), allocatable :: frm_f
+    complex(dp), DIMENSION(:), allocatable :: diag
+    real(dp) :: ncyc, Er, scba_elastic_error, scba_inelastic_error
+    complex(dp) :: zt, Ec
+
+    ncont = negf%str%num_conts
+    outer = negf%outer_blocks
+    Npoints = size(negf%en_grid)
+    particle = negf%particle
+
+    ref_bk = negf%refcont
+    negf%refcont = ncont + 1
+    call log_allocate(frm_f,ncont+1)
+    frm_f = 0.0_dp
+
+    call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+    call initialize(TmpMt)
+
+    if (negf%cartComm%rank == 0) then
+      call write_info_parallel(negf%verbose,30,'REAL AXIS INTEGRAL (inel)',Npoints)
+    end if
+    ! ---------------------------------------------------------------------
+    ! SCBA Iteration
+    ! ---------------------------------------------------------------------
+    call interaction_prepare(negf)
+    call negf%scbaDriverInelastic%init(negf%scba_inelastic_tol, dowrite=.false.)
+    scba_niter_inela = get_max_niter_inelastic(negf%interactList)
+    scba_niter_ela = get_max_niter_elastic(negf%interactList)
+    if (negf%cartComm%rank == 0) then
+      call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
+      call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
+    end if
+    scba_iter = 0
+
+    scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
+
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
+      end if
+
+      call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
+
+      ! Density matrix initialization
+      TmpMt%nzval = (0.0_dp, 0.0_dp)
+
+      ! Loop over local k-points
+      kloop: do iK = 1, size(negf%local_k_index)
+
+        negf%iKpoint = negf%local_k_index(iK) ! global k index
+        negf%kwght = negf%kweights(negf%iKpoint)
+        call write_kpoint(negf%verbose, iK, negf%iKpoint)
+
+        ! Set the working pointers
+        negf%H => negf%HS(iK)%H
+        negf%S => negf%HS(iK)%S
+        call destroy_contact_matrices(negf)
+        call extract_cont(negf)
+
+        !! Loop over energy points
+        enloop: do iE = 1, Npoints
+
+          call write_Epoint(negf%verbose,negf%en_grid(iE),Npoints)
+          if (negf%en_grid(iE)%cpu .ne. id) cycle
+          Ec = negf%en_grid(iE)%Ec
+          Er = real(Ec)
+          negf%iE = negf%en_grid(iE)%pt
+          negf%iE_path = negf%en_grid(iE)%pt_path
+
+          frm_f = 0.0_dp
+          do j1 = 1,ncont
+            frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
+          enddo
+
+          if (particle == 1) then
+            call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+          else
+            call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+          endif
+
+          zt = negf%en_grid(iE)%wght * negf%kwght
+          if (negf%DorE.eq.'E') then
+             zt = zt * Er
+          end if
+
+          call concat(TmpMt,zt,G,1,1)
+
+          call destroy(G)
+
+        enddo enloop
+
+      enddo kloop
+
+      ! ---------------------------------------------------------------------
+      ! COMPUTE SELF-ENERGIES
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      call compute_Sigmas_inelastic(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      !Check SCBA convergence on layer currents.
+      call negf%scbaDriverInelastic%check_Mat_convergence(TmpMt)
+
+      if (negf%cartComm%rank == 0) then
+        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
+        call write_real_info(negf%verbose, 30, 'SCBA inelastic error',scba_inelastic_error)
+      end if
+
+#:if defined("MPI")
+      !In MPI runs only root has a meaningful result => Bcast the result
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
+
+      ! cleanup caches
+      call negf%G_r%destroy()
+      call negf%G_n%destroy()
+
+      scba_iter = scba_iter + 1
+
+    end do scba
+
+    if(negf%DorE.eq.'D') then
+       if(allocated(negf%rho%nzval)) then
+          call concat(negf%rho,TmpMt,1,1)
+       else
+          call clone(TmpMt,negf%rho)
+       endif
+       call destroy(TmpMt)
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
+      call mpifx_allreduceip(negf%kComm, negf%rho%nzval, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+    endif
+
+    if(negf%DorE.eq.'E') then
+       if(allocated(negf%rho_eps%nzval)) then
+          call concat(negf%rho_eps,TmpMt,1,1)
+       else
+          call clone(TmpMt,negf%rho_eps)
+       endif
+       call destroy(TmpMt)
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_allreduceip(negf%energyComm, negf%rho_eps%nzval, MPI_SUM)
+      call mpifx_allreduceip(negf%kComm, negf%rho_eps%nzval, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+    endif
+
+    call negf%scbaDriverInelastic%destroy()
+    call log_deallocate(frm_f)
+
+  end subroutine real_axis_int_inel
+
+
   !--------------------------------------------!
   !--------------------------------------------!
   ! Equilibrium integration over real axis     !
@@ -986,7 +1205,7 @@ contains
   subroutine real_axis_int_n_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, ioffset, ncont, Ntot
+    integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, mumax, muref, ff, kbT
 
@@ -1002,19 +1221,19 @@ contains
        mumax=negf%muref
     endif
 
-    Ntot = negf%Np_real
+    Npoints = negf%Np_real
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Ntot))
+    allocate(negf%en_grid(Npoints))
 
-    allocate(pnts(Ntot))
-    allocate(wght(Ntot))
+    allocate(pnts(Npoints))
+    allocate(wght(Npoints))
 
-    call trapez(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Ntot)
+    call trapez(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Npoints)
 
-    do i = 1, Ntot
+    do i = 1, Npoints
        negf%en_grid(i)%path = 1
-       negf%en_grid(i)%pt = ioffset + i
-       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = ioffset + i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
 
        !IMPORTANT: there is no fermi function multiplied in negf%en_grid(i)%wght anymore,
@@ -1026,7 +1245,7 @@ contains
     deallocate(pnts)
 
     ! distribute energy grid
-    do i = 0, Ntot-1
+    do i = 0, Npoints-1
        negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
@@ -1048,7 +1267,7 @@ contains
   subroutine real_axis_int_p_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, ioffset, ncont, Ntot
+    integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, mumin, Emax, muref, ff, kbT
 
@@ -1064,21 +1283,21 @@ contains
        mumin=negf%muref
     endif
 
-    Ntot = negf%Np_real
+    Npoints = negf%Np_real
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Ntot))
+    allocate(negf%en_grid(Npoints))
 
-    allocate(pnts(Ntot))
-    allocate(wght(Ntot))
+    allocate(pnts(Npoints))
+    allocate(wght(Npoints))
 
     Emax = negf%Ev+negf%DeltaEv
 
-    call trapez(mumin-Omega, Emax, pnts, wght, Ntot)
+    call trapez(mumin-Omega, Emax, pnts, wght, Npoints)
 
-    do i = 1, Ntot
+    do i = 1, Npoints
        negf%en_grid(i)%path = 1
-       negf%en_grid(i)%pt = ioffset + i
-       negf%en_grid(i)%pt_path = i
+       negf%en_grid(i)%pt = i
+       negf%en_grid(i)%pt_path = ioffset + i
        negf%en_grid(i)%Ec = cmplx(pnts(i),negf%delta,dp)
 
        !IMPORTANT: there is no fermi function multiplied in negf%en_grid(i)%wght anymore,
@@ -1090,7 +1309,7 @@ contains
     deallocate(pnts)
 
     ! distribute energy grid
-    do i = 0, Ntot-1
+    do i = 0, Npoints-1
        negf%en_grid(i+1)%cpu = mod(i,numprocs)
     enddo
 
@@ -1249,27 +1468,24 @@ contains
   subroutine tunneling_int_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, ncont, Nsteps, np
-    real(dp) :: wqmax
+    integer :: i, ncont, Npoints, np
 
+    Npoints=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
+
+    ! With inelastic scattering equalize the energy points/process
     if (negf%interactList%counter /= 0) then
-      wqmax = get_max_wq(negf%interactList)
-      Nsteps=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
-      if (mod(Nsteps,numprocs) .ne. 0) then
-        do while (mod(Nsteps,numprocs) .ne. 0)
-          Nsteps = Nsteps + 1
+      if (mod(Npoints,numprocs) .ne. 0) then
+        do while (mod(Npoints,numprocs) .ne. 0)
+          Npoints = Npoints + 1
         end do
-        negf%Emax = negf%Emin + (Nsteps-1) * negf%Estep
+        negf%Emax = negf%Emin + (Npoints-1) * negf%Estep
       end if
-    else
-      wqmax = 0.0_dp
-      Nsteps=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
     end if
 
     call destroy_en_grid(negf%en_grid)
-    allocate(negf%en_grid(Nsteps))
+    allocate(negf%en_grid(Npoints))
 
-    do i = 1, Nsteps
+    do i = 1, Npoints
        negf%en_grid(i)%path = 1
        negf%en_grid(i)%pt = i
        negf%en_grid(i)%pt_path = i
@@ -1277,20 +1493,22 @@ contains
        negf%en_grid(i)%wght = negf%kwght
     enddo
 
-    np=Nsteps/numprocs
+    np=Npoints/numprocs
     if (id .ne. numprocs-1) then
       negf%local_en_points = np
     else
-      negf%local_en_points = np + mod(Nsteps,numprocs)
+      negf%local_en_points = np + mod(Npoints,numprocs)
     end if
 
-    if (wqmax == 0.0_dp) then
+    if ( get_max_wq(negf%interactList) == 0.0_dp) then
       ! distribute energy grid round robin scheme
-      do i = 0, Nsteps-1
+      !     0 1 2 3 ... 0 1 2 .... 0 1 2 ....
+      do i = 0, Npoints-1
         negf%en_grid(i+1)%cpu = mod(i,numprocs)
       enddo
     else
       ! With inelastic points must be contigous
+      !    0 0 0 0 ... 1 1 1 .... 2 2 2 ....
       do i = 0, numprocs-1
         negf%en_grid(i*np+1:(i+1)*np)%cpu = i
       end do
@@ -1317,7 +1535,7 @@ contains
     Integer :: ncont               ! number of contacts
     Integer :: size_ni             ! emitter-collector contacts
 
-    Integer :: Nstep               ! number of integration points
+    Integer :: Npoints               ! number of integration points
     Complex(dp) :: Ec              ! Energy point
 
     Logical :: do_ledos            ! performs or not dos_proj
@@ -1337,7 +1555,7 @@ contains
     do_ledos = .false.
     if(negf%ndos_proj.gt.0) do_ledos=.true.
     ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
+    Npoints = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
     negf%readOldSGF = negf%readOldT_SGFs
@@ -1349,7 +1567,7 @@ contains
     if (allocated(negf%tunn_mat)) then
        call log_deallocate(negf%tunn_mat)
     end if
-    call log_allocate(negf%tunn_mat,Nstep,size_ni)
+    call log_allocate(negf%tunn_mat,Npoints,size_ni)
 
     negf%tunn_mat = 0.0_dp
 
@@ -1358,22 +1576,23 @@ contains
        if (allocated(negf%ldos_mat)) then
          call log_deallocate(negf%ldos_mat)
        end if
-       call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
+       call log_allocate(negf%ldos_mat,Npoints,negf%ndos_proj)
        call log_allocate(ledos,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.0_dp
     endif
 
     !-------------------------------------------------------
-    call write_info_parallel(negf%verbose,30,'CALCULATION OF COHERENT TRANSMISSION; Nsteps:',Nstep)
+    call write_info_parallel(negf%verbose,30,'CALCULATION OF COHERENT TRANSMISSION; Npoints:',Npoints)
 
     !Loop on energy points: tunneling
-    do i = 1, Nstep
+    do i = 1, Npoints
 
        call write_Epoint(negf%verbose,negf%en_grid(i), size(negf%en_grid))
        if (negf%en_grid(i)%cpu /= id) cycle
 
        Ec = negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
+       negf%iE_path = negf%en_grid(i)%pt_path
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
        call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
@@ -1438,20 +1657,20 @@ contains
     real(dp), dimension(:), optional :: fixed_occupations
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
-    integer :: iE, iK, jj, i1, j1, Nstep, outer, ncont, icont, scba_elastic_iter
+    integer :: iE, iK, jj, i1, j1, Npoints, outer, ncont, icont, scba_elastic_iter
     real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error, scba_inelastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
     complex(dp) :: Ec
 
     ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
+    Npoints = size(negf%en_grid)
     size_ni = size(negf%ni)
     negf%readOldSGF = negf%readOldT_SGFs
     outer = 0
 
     if (.not. allocated(negf%curr_mat)) then
-      call log_allocate(negf%curr_mat,Nstep,ncont)
+      call log_allocate(negf%curr_mat,Npoints,ncont)
     end if
     call log_allocate(curr_mat, ncont)
 
@@ -1466,7 +1685,7 @@ contains
       frm(1:ncont) = fixed_occupations
     end if
 
-    call write_info_parallel(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA; Nsteps:',Nstep)
+    call write_info_parallel(negf%verbose,30,'CALCULATION OF MEIR-WINGREEN FORMULA; Npoints:',Npoints)
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
     ! ---------------------------------------------------------------------
@@ -1495,17 +1714,19 @@ contains
         negf%kwght = negf%kweights(negf%iKpoint)
         call write_kpoint(negf%verbose, iK, negf%iKpoint)
 
+        ! Set the working pointers
         negf%H => negf%HS(iK)%H
         negf%S => negf%HS(iK)%S
         call extract_cont(negf)
 
         !! Loop over energy points
-        enloop: do iE = 1, Nstep
+        enloop: do iE = 1, Npoints
 
-          if (negf%en_grid(iE)%cpu /= id) cycle
           call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
+          if (negf%en_grid(iE)%cpu /= id) cycle
           Ec = negf%en_grid(iE)%Ec
           negf%iE = negf%en_grid(iE)%pt
+          negf%iE_path = negf%en_grid(iE)%pt_path
 
           if (.not.present(fixed_occupations)) then
             do j1 = 1,ncont
@@ -1585,7 +1806,7 @@ contains
 
     end do scba
 
-    call interaction_cleanup(negf)
+    !call interaction_cleanup(negf)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(curr_mat)
     call log_deallocate(frm)
@@ -1608,30 +1829,39 @@ contains
   subroutine layer_current(negf)
     type(Tnegf) :: negf
 
-    integer :: nbl, scba_iter, scba_niter_inela, scba_niter_ela, Nstep
-    integer :: iE, i1, j1, iK, icont, ncont, ref_bk, scba_elastic_iter
-    real(dp) :: ncyc, scba_elastic_error, scba_inelastic_error, scba_elastic_tol
+    integer :: nbl, Npoints, outer
+    integer :: iE, i1, j1, iK, icont, ncont, ref_bk
+    integer :: scba_iter, scba_elastic_iter, scba_niter_ela
+    integer :: scba_inelastic_iter, scba_niter_inela
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
+    real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
+    !real(dp) :: scba_elastic_error, scba_inelastic_error, scba_elastic_tol
+    real(dp) :: scba_inelastic_error
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
-    complex(dp) :: Ec
+    complex(dp), DIMENSION(:), allocatable :: diag
+    complex(dp) :: Ec, zt
+    type(z_CSR) :: G, TmpMt
 
     ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
+    Npoints = size(negf%en_grid)
     nbl = negf%str%num_PLs
     negf%readOldSGF = negf%readOldT_SGFs
+    outer = negf%outer_blocks
 
     ! Allocating curr_mat to nbl-1 so we compute L->L+1 currents
     if (.not. allocated(negf%curr_mat)) then
-      call log_allocate(negf%curr_mat, Nstep, nbl-1)
+      call log_allocate(negf%curr_mat, Npoints, nbl-1)
     end if
     call log_allocate(curr_mat, nbl-1)
 
     ! Allocating ldos_mat to nbl
     if (.not. allocated(negf%ldos_mat)) then
-      call log_allocate(negf%ldos_mat, Nstep, nbl)
+      call log_allocate(negf%ldos_mat, Npoints, nbl)
     end if
     call log_allocate(ldos_mat, nbl)
 
+    call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+    call initialize(TmpMt)
 
     ! Create Fermi array. Set reference such that f(ref)=0.
     ref_bk = negf%refcont
@@ -1640,7 +1870,7 @@ contains
     frm = 0.0_dp
 
     if (negf%cartComm%rank == 0) then
-      call write_info_parallel(negf%verbose,30,'CALCULATION OF LAYER CURRENTS; Nstep=',Nstep)
+      call write_info_parallel(negf%verbose,30,'CALCULATION OF LAYER CURRENTS; Npoints=',Npoints)
     end if
     ! ---------------------------------------------------------------------
     ! SCBA Iteration
@@ -1655,7 +1885,7 @@ contains
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
     end if
     scba_iter = 0
- 
+
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
       if (negf%cartComm%rank == 0) then
@@ -1664,6 +1894,8 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
+      ! Density matrix initialization
+      TmpMt%nzval = (0.0_dp, 0.0_dp)
       negf%curr_mat = 0.0_dp
       negf%ldos_mat = 0.0_dp
       ! Loop over local k-points
@@ -1678,55 +1910,38 @@ contains
         call extract_cont(negf)
 
         !! Loop over energy points
-        enloop: do iE = 1, Nstep
+        enloop: do iE = 1, Npoints
 
           if (negf%en_grid(iE)%cpu /= id) cycle
           call write_Epoint(negf%verbose, negf%en_grid(iE), size(negf%en_grid))
-          Ec = negf%en_grid(iE)%Ec
+          Ec = negf%en_grid(iE)%Ec + j*negf%delta
+          Er = real(Ec)
           negf%iE = negf%en_grid(iE)%pt  ! global energy index
+          negf%iE_path = negf%en_grid(iE)%pt_path
 
           frm = 0.0_dp
           do j1 = 1,ncont
              frm(j1)=fermi(real(Ec), negf%cont(j1)%mu, negf%cont(j1)%kbT_t)
           enddo
 
-          ! ---------------------------------------------------------------------
-          ! Compute contact GF
-          ! ---------------------------------------------------------------------
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
-          call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
-          call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
-
-          ! ---------------------------------------------------------------------
-          ! Compute block tri-diagonal Gr and Gn
-          ! ---------------------------------------------------------------------
-          ! Avoids cleanup of Gn and ESH components for later use
+          ! Avoids cleanup of block-dense Gn for layer currents (ESH is recomputed)
           negf%tDestroyGn = .false.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
-          call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
-                scba_elastic_tol, scba_elastic_iter, scba_elastic_error)
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-          if (negf%cartComm%rank == 0) then
-            call write_int_info(negf%verbose, VBT, 'scba elastic iterations',scba_elastic_iter)
-            call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
-          end if
+          call compute_Gn(negf, outer, ncont, Ec, frm, G, scba_elastic_error)
+
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
-          call iterative_layer_current(negf,real(Ec),curr_mat,ldos_mat)
+          call iterative_layer_current(negf, Er, curr_mat, ldos_mat)
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
           negf%ldos_mat(iE,:) = negf%ldos_mat(iE,:) + ldos_mat(:) * negf%kwght
 
-          do icont=1,ncont
-            call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
-          end do
+          call destroy(G)
 
         end do enloop
 
@@ -1753,14 +1968,15 @@ contains
 #:endif
 
       !Check SCBA convergence on layer currents.
-      !In MPI runs only root has a meaningful result => Bcast the result
       call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
 
       if (negf%cartComm%rank == 0) then
         scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
         call write_real_info(negf%verbose, 30, 'SCBA inelastic error',scba_inelastic_error)
       end if
+
 #:if defined("MPI")
+      !In MPI runs only root has a meaningful result => Bcast the result
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
       ! Clean up caches of G_r and G_n
@@ -1771,7 +1987,7 @@ contains
 
     end do scba
 
-    call interaction_cleanup(negf)
+    !call interaction_cleanup(negf)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(curr_mat)
     call log_deallocate(ldos_mat)
@@ -1779,6 +1995,26 @@ contains
     negf%refcont = ref_bk
 
   end subroutine layer_current
+
+  ! Code to compute the PDOS including S:
+  !  call clone(TmpMt, G)
+  !  call destroy(TmpMt)
+
+  !  #:if defined("MPI")
+  !    if (negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+  !      call mpifx_reduceip(negf%energyComm, G%nzval, MPI_SUM)
+  !      call mpifx_reduceip(negf%kComm, G%nzval, MPI_SUM)
+  !    if (negf%verbose.gt.VBT) call write_clock
+  !  #:endif
+
+  !  if (id0) then
+  !    call prealloc_mult(G,negf%S,TmpMt)
+  !    call log_allocate(diag, G%nrow)
+  !    call getdiag(TmpMt, diag)
+  !    call destroy(TmpMt)
+  !    call log_deallocate(diag)
+  !  end if
+  !  call destroy(G)
 
   !---------------------------------------------------------------------------
   subroutine interaction_prepare(negf)
@@ -1802,21 +2038,21 @@ contains
   end subroutine interaction_prepare
 
   !---------------------------------------------------------------------------
-  subroutine interaction_cleanup(negf)
-    type(TNegf) :: negf
+  !subroutine interaction_cleanup(negf)
+  !  type(TNegf) :: negf
+  !
+  !  type(TInteractionNode), pointer :: it
+  !  it => negf%interactList%first
+  !
+  !  do while (associated(it))
+  !    select type(pInter => it%inter)
+  !    class is(ElPhonInel)
+  !       call pInter%destroy()
+  !    end select
+   !   it => it%next
+  !  end do
 
-    type(TInteractionNode), pointer :: it
-    it => negf%interactList%first
-
-    do while (associated(it))
-      select type(pInter => it%inter)
-      class is(ElPhonInel)
-         call pInter%destroy()
-      end select
-      it => it%next
-    end do
-
-  end subroutine interaction_cleanup
+  !end subroutine interaction_cleanup
 
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_inelastic(negf)
@@ -1911,7 +2147,6 @@ contains
     integer :: scba_iter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    !type(TInteractionNode), pointer :: it
 
     negf%readOldSGF = negf%readOldDM_SGFs
 
@@ -1919,6 +2154,10 @@ contains
 
     call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
 
+!   Note: scba loop has been removed here because this Gr is mainly used
+!         for contour integrations and there are issues with inelastic
+!         scattering and contour as z+/-wq is not computed and should be
+!         computed on the fly. Similarly Sigma_r.
 !    scba_error = 0.0_dp
 !    if (negf%interactList%counter == 0) then
 !      max_scba_iter = 0
@@ -1943,52 +2182,53 @@ contains
   end subroutine compute_Gr
 
   !------------------------------------------------------------------------------
-  !>
-  !  Calculates the non equilibrium LESSER Green function (extended diagonal)
+  !
+  !  Calculates the non equilibrium Green function Gn = -i G<
   !  on a single energy point on real axis.
   !  It groups calculation of leads, scba loop if any and deallocations of
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Grout)
+  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
     Type(z_CSR), intent(out) :: Gn
     real(dp), intent(out) :: scba_error
-    Type(z_CSR), intent(out), optional :: Grout
+    Type(z_CSR), intent(out), optional :: Gr
 
-    integer :: scba_iter, max_scba_iter, i1
-    real(dp) :: ncyc
+    integer :: i1
+    integer :: scba_iter, scba_elastic_iter, scba_niter_ela
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    real(dp) :: Er
+    real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
 
-    negf%readOldSGF = negf%readOldDM_SGFs
     Er = real(Ec,dp)
-    call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
+    scba_elastic_tol = negf%scba_elastic_tol
+    scba_niter_ela = get_max_niter_elastic(negf%interactList)
 
-    call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer, Grout)
+    ! ---------------------------------------------------------------------
+    ! Compute contact GF
+    ! ---------------------------------------------------------------------
+    if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+    call compute_contacts(Ec, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
+    if (id0.and.negf%verbose.gt.VBT) call write_clock
+    call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
-    scba_error = 0.0_dp
-    ! In case of interactions (only elastic supported now) we go into
-    ! the Self Consistent Born Approximation loop.
-    if (negf%interactList%counter == 0) then
-      max_scba_iter = 0
-    else
-      max_scba_iter = get_max_niter(negf%interactList)
-      call negf%scbaDriverElastic%init(1.0e-7_dp, .false.)
+    ! ---------------------------------------------------------------------
+    ! Compute block tri-diagonal Gr and Gn
+    ! ---------------------------------------------------------------------
+    if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
+    call calculate_elastic_scba(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, scba_niter_ela, &
+                 & scba_elastic_tol, scba_elastic_iter, scba_elastic_error, outer, Gn, Gr)
+    if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      do scba_iter = 1, max_scba_iter
-        call negf%scbaDriverElastic%set_scba_iter(scba_iter, negf%interactList)
-        call negf%scbaDriverElastic%check_Mat_convergence(Gn)
-        if (negf%scbaDriverElastic%is_converged()) exit
-        call destroy(Gn)
-        call calculate_Gn_neq_components(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, Gn, outer, Grout)
-      enddo
-      scba_error = negf%scbaDriverElastic%scba_err
-      call negf%scbaDriverElastic%destroy()
+    if (negf%cartComm%rank == 0 .and. negf%interactList%counter /= 0) then
+      call write_int_info(negf%verbose, VBT, 'scba elastic iterations',scba_elastic_iter)
+      call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
     end if
+
+    scba_error = scba_elastic_error
 
     do i1=1,ncont
       call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
@@ -1996,7 +2236,14 @@ contains
 
   end subroutine compute_Gn
 
-
+  !------------------------------------------------------------------------------
+  !
+  !  Calculates the non equilibrium Green function Gp = i G> = A - Gn
+  !  on a single energy point on real axis.
+  !  It groups calculation of leads, scba loop if any and deallocations of
+  !  working arrays.
+  !
+  !-----------------------------------------------------------------------------
   subroutine compute_Gp(negf, outer, ncont, Ec, frm, Gp, scba_error)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
@@ -2011,7 +2258,7 @@ contains
     call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
     call zspectral(Gr, Gr, 0, A)
     call prealloc_sum(A, Gn, minusOne, Gp)
-    
+
     call destroy(Gr, Gn, A)
 
   end subroutine compute_Gp
@@ -2026,7 +2273,7 @@ contains
     real(dp) :: mu1, mu2
 
     if (.not.allocated(negf%tunn_mat)) then
-       return   
+       return
     end if
 
     size_ni = size(negf%tunn_mat,2)
@@ -2074,8 +2321,8 @@ contains
 
     negf%currents=0.0_dp
     do ii=1,size_ni
-       negf%currents(ii)= integrate_el_meir_wingreen(negf%curr_mat(:,ii), &
-                          & negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
+       negf%currents(ii)= integrate_el_meir_wingreen(negf%integration, &
+             negf%curr_mat(:,ii), negf%Emin, negf%Emax, negf%Estep) * negf%g_spin
     enddo
 
   end subroutine electron_current_meir_wingreen
@@ -2100,7 +2347,7 @@ contains
     Integer :: ncont               ! number of contacts
     Integer :: size_ni             ! emitter-collector contacts
 
-    Integer :: Nstep               ! number of integration points
+    Integer :: Npoints             ! number of integration points
     Complex(dp) :: Ec              ! Energy point
     Complex(dp) :: delta
     Logical :: do_ledos            ! performs or not dos_proj
@@ -2117,7 +2364,7 @@ contains
     do_ledos = .false.
     if(negf%ndos_proj.gt.0) do_ledos=.true.
     ncont = negf%str%num_conts
-    Nstep = size(negf%en_grid)
+    Npoints = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
     negf%readOldSGF = negf%readOldT_SGFs
@@ -2125,11 +2372,11 @@ contains
     !-------------------------------------------------------
 
     call log_allocate(tun_mat,size_ni)
-    call log_allocate(negf%tunn_mat,Nstep,size_ni)
+    call log_allocate(negf%tunn_mat,Npoints,size_ni)
     negf%tunn_mat = 0.0_dp
 
     if (do_ledos) then
-       call log_allocate(negf%ldos_mat,Nstep,negf%ndos_proj)
+       call log_allocate(negf%ldos_mat,Npoints,negf%ndos_proj)
        call log_allocate(ledos,negf%ndos_proj)
        negf%ldos_mat(:,:)=0.0_dp
     endif
@@ -2137,13 +2384,14 @@ contains
 
 
     !Loop on energy points: tunneling
-    do i = 1, Nstep
+    do i = 1, Npoints
 
        call write_Epoint(negf%verbose,negf%en_grid(i), size(negf%en_grid))
        if (negf%en_grid(i)%cpu /= id) cycle
 
        Ec = negf%en_grid(i)%Ec * negf%en_grid(i)%Ec
        negf%iE = negf%en_grid(i)%pt
+       negf%iE_path = negf%en_grid(i)%pt_path
 
        select case(negf%deltaModel)
        case(DELTA_SQ)
@@ -2233,13 +2481,13 @@ contains
 
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
-    INTEGER :: i,i1,N,Nstep,imin,imax
+    INTEGER :: i,i1,N,Npoints,imin,imax
     logical :: swapped
 
     curr=0.0_dp
     N=0
     destep=1.0d10
-    Nstep=NINT((emax-emin)/estep);
+    Npoints=NINT((emax-emin)/estep);
 
     !We set a minimum possible value T = 1.0 K to avoid
     !numerical issues
@@ -2263,7 +2511,7 @@ contains
     end if
 
     imin=0
-    imax=Nstep
+    imax=Npoints
 
     ! performs the integration with simple trapezium rule.
     do i=imin,imax-1
@@ -2307,11 +2555,12 @@ contains
   ! Function to integrate the current density I(E) !!! and get the current
   ! for meir_wingreen
   !************************************************************************
-  function integrate_el_meir_wingreen(TUN_TOT,emin,emax,estep)
+  function integrate_el_meir_wingreen(integration,TUN_TOT,emin,emax,estep)
 
     implicit none
 
     real(dp) :: integrate_el_meir_wingreen
+    integer, intent(in) :: integration
     real(dp), intent(in) :: emin,emax,estep
     real(dp), dimension(:), intent(in) :: TUN_TOT
 
@@ -2319,25 +2568,44 @@ contains
     REAL(dp) :: curr
     !REAL(dp) :: TT1,TT2
     !REAL(dp) :: E1,E2,curr
-    INTEGER :: i,Nstep
+    INTEGER :: i,Npoints
 
-    Nstep = size(TUN_TOT)
-
-    allocate(w(Nstep))
-    do i = 1, Nstep
-      w(i) = estep/3.0_dp*(mod(i-1,2)+1)**2
-    end do
-    do i = 3, Nstep-1, 2
-      w(i) = w(i) + estep/3.0_dp
-    end do
-
-    curr=0.0_dp
+    Npoints = size(TUN_TOT)
 
     ! performs the integration with Simpson's rule
     ! w = (1,4,2,4,2,4,...,4,1)/3*h
     ! h = (Emax - Emin)/(N-1)
-    !
-    do i = 1, Nstep
+    ! 1  2  3  4  5  6  7  8  9  10 11 12 13
+    ! |  |  |  |  |  |  |  |  |  |  |  |  |
+    ! 1  2  2  2  2  2  2  2  2  2  2  2  1  h/2
+    ! 1  4  2  4  2  4  2  4  2  4  2  4  1  h/3   (N-1)/2  15h/45
+    ! 1  3  3  2  3  3  2  3  3  2  3  3  1  3h/8  (N-1)/3
+    ! 7  32 12 32 14 32 12 32 14 32 12 32 7  2h/45 (N-1)/4
+
+    allocate(w(Npoints))
+    select case(integration)
+    case(integration_type%trapezoidal)
+       w = estep*1.0_dp
+       w(1) = estep*0.5_dp
+       w(Npoints) = estep*0.5_dp
+    case(integration_type%simpson13)
+      do i = 1, Npoints
+        w(i) = estep/3.0_dp*(mod(i-1,2)+1)**2
+      end do
+      do i = 3, Npoints-1, 2
+        w(i) = w(i) + estep/3.0_dp
+      end do
+    case(integration_type%simpson38)
+      w=9.0_dp/8.0_dp*estep
+      w(1)=3.0_dp/8.0_dp*estep
+      do i = 4, Npoints, 3
+        w(i)=6.0_dp/8.0_dp*estep
+      end do
+    end select
+
+    curr=0.0_dp
+
+    do i = 1, Npoints
        curr=curr+TUN_TOT(i)*w(i)
     enddo
 
@@ -2363,12 +2631,12 @@ contains
 
     REAL(dp) :: destep,kbT1,kbT2,TT1,TT2,E3,E4,TT3,TT4
     REAL(dp) :: E1,E2,c1,c2,curr
-    INTEGER :: i,i1,N,Nstep,imin,imax
+    INTEGER :: i,i1,N,Npoints,imin,imax
 
     curr=0.0_dp
     N=0
     destep=1.0e10_dp
-    Nstep=NINT((emax-emin)/estep);
+    Npoints=NINT((emax-emin)/estep);
 
     if (kT1.lt.0.01_dp*Kb) then
       kbT1 = Kb*0.01_dp
@@ -2382,7 +2650,7 @@ contains
     endif
 
     imin=0
-    imax=Nstep
+    imax=Npoints
 
     ! performs the integration with simple trapezium rule.
     do i=imin,imax-1
@@ -2432,10 +2700,10 @@ contains
 
     REAL(dp) :: destep,TT1,TT2
     REAL(dp) :: E1,E2,c1,c2,curr
-    INTEGER :: i,i1,N,Nstep,imin,imax
+    INTEGER :: i,i1,N,Npoints,imin,imax
 
     curr=0.0_dp
-    Nstep=NINT((emax-emin)/estep);
+    Npoints=NINT((emax-emin)/estep);
 
     TT1=TUN_TOT(1)
     do i = 0, 9
@@ -2447,25 +2715,20 @@ contains
     end do
 
     ! performs the integration with simple trapezium rule.
-!    do i=1,100
+    ! Within each substep the tunneling is linearly interpolated
+    ! Possibly perform a cubic-spline interpolation in future
+    do i=0,Npoints-1
 
-!       TT1=10.0_dp+3.0*(i-1)
+      E1=emin+estep*i
+      TT1=TUN_TOT(i+1)
+      E2=emin+estep*(i+1)
+      TT2=TUN_TOT(i+2)
 
-       ! Within each substep the tunneling is linearly interpolated
-       ! Possibly perform a cubic-spline interpolation in future
-       do i=0,Nstep-1
+      c1=diff_bose(E1,kbT)*TT1
+      c2=diff_bose(E2,kbT)*TT2
 
-         E1=emin+estep*i
-         TT1=TUN_TOT(i+1)
-         E2=emin+estep*(i+1)
-         TT2=TUN_TOT(i+2)
-
-         c1=diff_bose(E1,kbT)*TT1
-         c2=diff_bose(E2,kbT)*TT2
-
-         curr=curr+(c1+c2)*estep/2.0_dp
-       enddo
-!    enddo
+      curr=curr+(c1+c2)*estep/2.0_dp
+    enddo
 
     thermal_conductance = curr
 
@@ -2531,14 +2794,14 @@ contains
     integer ::  ncont, outer
     integer ::  Nz, Npoles
     complex(dp) :: Ez, ww, z1, z2, z_diff, ff
-    type(z_CSR) :: Gr 
+    type(z_CSR) :: Gr
     real(dp), dimension(:), allocatable :: wght, pnts, minE, maxE
     complex(dp), dimension(:), allocatable :: diag, temp
-    real(dp) :: Omega, kbT, Lambda 
+    real(dp) :: Omega, kbT, Lambda
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
-    outer = negf%outer
+    outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then
       Lambda = 0.5d0* kbT * pi
@@ -2555,8 +2818,8 @@ contains
     allocate(minE(Nz))
     allocate(maxE(Nz))
 
-    minE(:) = Ec(:) - negf%deltaEc 
-    maxE(:) = Ec(:) + Omega 
+    minE(:) = Ec(:) - negf%deltaEc
+    maxE(:) = Ec(:) + Omega
     temp = 0.0_dp
 
     z1 = minval(minE) + j*Lambda
@@ -2567,7 +2830,7 @@ contains
     allocate(wght(negf%Np_n(2)))
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_n(2))
-    do i = 1, negf%Np_n(2) 
+    do i = 1, negf%Np_n(2)
        if (mod(i-1,numprocs) .ne. id) cycle
 
        Ez = z1 + pnts(i) * z_diff
@@ -2578,25 +2841,25 @@ contains
        do nr = 1,Nz
           !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
              ff = fermi(Ez, mu_n(nr), kbT)
-             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
-             temp(nr) = temp(nr) + diag(nr)*ww 
+             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
+             temp(nr) = temp(nr) + diag(nr)*ww
           !endif
        enddo
 
        call log_deallocate(diag)
        call destroy(Gr)
     enddo
-    
+
     deallocate(pnts)
     deallocate(wght)
-    
-   
+
+
     allocate(wght(negf%Np_n(1)))
     allocate(pnts(negf%Np_n(1)))
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_n(1))
     z1 = minval(minE(:))
-    z2 = minval(minE(:)) + j*Lambda 
+    z2 = minval(minE(:)) + j*Lambda
 
 
     z_diff = z2 - z1
@@ -2605,7 +2868,7 @@ contains
     do i = 1, negf%Np_n(1)
          if (mod(i-1+ioffs, numprocs) .ne. id) cycle
          Ez = z1 + pnts(i) * z_diff
-        
+
          call compute_Gr(negf, outer, ncont, Ez, Gr)
          call log_allocate(diag, Gr%nrow)
          call getdiag(Gr,diag)
@@ -2627,7 +2890,7 @@ contains
           do i = 1,Npoles
              if (mod(i-1+ioffs, numprocs) .ne. id) cycle
              Ez = mu_n(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
-             ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
+             ww = -j * kbT * negf%g_spin *(1.0_dp, 0.0_dp)
 
              call compute_Gr(negf, outer, ncont, Ez, Gr)
              call log_allocate(diag, Gr%nrow)
@@ -2636,7 +2899,7 @@ contains
              temp(nr) = temp(nr) + diag(nr) * ww
              call log_deallocate(diag)
              call destroy(Gr)
-          end do 
+          end do
       end do
     endif
 
@@ -2647,7 +2910,7 @@ contains
     deallocate(temp)
 
   end subroutine quasiEq_int_n
-  
+
   subroutine quasiEq_int_p(negf, mu_p, Ev, rho)
     !In/Out
     type(Tnegf), intent(inout) :: negf
@@ -2659,14 +2922,14 @@ contains
     integer ::  ncont, outer
     integer ::  Nz, Npoles
     complex(dp) :: Ez, ww, z1, z2, z_diff, ff
-    type(z_CSR) :: Gr 
+    type(z_CSR) :: Gr
     real(dp), dimension(:), allocatable :: wght, pnts, minE, maxE
     complex(dp), dimension(:), allocatable :: diag, temp
-    real(dp) :: Omega, kbT, Lambda 
+    real(dp) :: Omega, kbT, Lambda
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
-    outer = negf%outer
+    outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then
       Lambda = 0.5d0* kbT * pi
@@ -2683,11 +2946,12 @@ contains
     allocate(minE(Nz))
     allocate(maxE(Nz))
 
-    minE(:) = Ev(:) - Omega 
-    maxE(:) = Ev(:) + negf%deltaEv 
+    minE(:) = Ev(:) - Omega
+    maxE(:) = Ev(:) + negf%deltaEv
     temp = 0.0_dp
 
-    !TODO: extremes and weights are correct but a bit convoluted (following contour_int_p_def): should evetually fix it
+    !TODO: extremes and weights are correct but a bit convoluted
+    !      (following contour_int_p_def): should evetually fix it
     z1 = maxval(maxE) + j*Lambda
     z2 = minval(minE) + j*Lambda
     z_diff = z2 - z1
@@ -2696,7 +2960,7 @@ contains
     allocate(wght(negf%Np_p(2)))
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_p(2))
-    do i = 1, negf%Np_p(2) 
+    do i = 1, negf%Np_p(2)
        if (mod(i-1,numprocs) .ne. id) cycle
 
        Ez = z1 + pnts(i) * z_diff
@@ -2707,25 +2971,25 @@ contains
        do nr = 1,Nz
           !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
              ff = fermi(-Ez, -mu_p(nr), kbT)
-             ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)   
-             temp(nr) = temp(nr) + diag(nr)*ww 
+             ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
+             temp(nr) = temp(nr) + diag(nr)*ww
           !endif
        enddo
 
        call log_deallocate(diag)
        call destroy(Gr)
     enddo
-    
+
     deallocate(pnts)
     deallocate(wght)
-    
-   
+
+
     allocate(wght(negf%Np_p(1)))
     allocate(pnts(negf%Np_p(1)))
 
     call gauleg(0.0_dp, 1.0_dp, pnts, wght, negf%Np_p(1))
     z1 = maxval(maxE(:))
-    z2 = maxval(maxE(:)) + j*Lambda 
+    z2 = maxval(maxE(:)) + j*Lambda
 
 
     z_diff = z2 - z1
@@ -2734,7 +2998,7 @@ contains
     do i = 1, negf%Np_p(1)
          if (mod(i-1+ioffs,numprocs) .ne. id) cycle
          Ez = z1 + pnts(i) * z_diff
-        
+
          call compute_Gr(negf, outer, ncont, Ez, Gr)
          call log_allocate(diag, Gr%nrow)
          call getdiag(Gr,diag)
@@ -2756,7 +3020,7 @@ contains
           do i = 1,Npoles
              if (mod(i-1+ioffs,numprocs) .ne. id) cycle
              Ez = mu_p(nr) + j * kbT * pi * (2.0_dp*i - 1.0_dp)
-             ww = j * kbT * negf%g_spin *(1.0_dp, 0.0_dp) 
+             ww = j * kbT * negf%g_spin *(1.0_dp, 0.0_dp)
 
              call compute_Gr(negf, outer, ncont, Ez, Gr)
              call log_allocate(diag, Gr%nrow)
@@ -2765,7 +3029,7 @@ contains
              temp(nr) = temp(nr) + diag(nr) * ww
              call log_deallocate(diag)
              call destroy(Gr)
-          end do 
+          end do
       end do
     endif
 

@@ -58,6 +58,7 @@ module elphdd
     procedure :: compute_Sigma_n
     procedure :: destroy_Sigma_r
     procedure :: destroy_Sigma_n
+    procedure :: destroy
 
   end type ElPhonDephD
 
@@ -276,13 +277,22 @@ contains
   !> Destroy Sigma_r
   subroutine destroy_Sigma_r(this)
     class(ElPhonDephD) :: this
-    call log_deallocate(this%sigma_r)      
+    if (allocated(this%sigma_r)) call log_deallocate(this%sigma_r)
   end subroutine destroy_Sigma_r
 
   !> Destroy Sigma_n
   subroutine destroy_Sigma_n(this)
     class(ElPhonDephD) :: this
-    call log_deallocate(this%sigma_n)      
+    if (allocated(this%sigma_n)) call log_deallocate(this%sigma_n)
   end subroutine destroy_Sigma_n
+
+  !> Destroy All
+  subroutine destroy(this)
+    class(ElPhonDephD) :: this
+    call destroy_Sigma_r(this)
+    call destroy_Sigma_n(this)
+    if (allocated(this%coupling)) call log_deallocate(this%coupling)
+  end subroutine destroy
+
 
 end module elphdd

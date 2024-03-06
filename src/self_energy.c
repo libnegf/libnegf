@@ -155,12 +155,13 @@ int self_energy(
       // checks if iE-iEhbaromega is on the same processor => no communication
       // if iEglo<iEhbaromega => the processor is on the lower end of the energy grid
       //                      => communication is local or forced to be by truncation of G
-      //                         such that G(E<0) = G(E), e.g., G(E-hw) = G(E)
+      //                         such that G(E<0) = G(0), e.g., G(E-hw) = G(Elow)
       iEminus=iE-iEhbaromega;
-      if ( ( iEminus >=0 && iEminus < NEloc ) || iEglo < iEhbaromega )
+      if (  iEminus >=0 || iEglo < iEhbaromega )
       {
-        if (iEminus<=0) {iEminus = iE;}
+        if (iEglo < iEhbaromega) {iEminus = 0;}
         pbuff1 = (double complex *) GG(iEminus, iQ);
+        //printf("G(%d)=%g %g \n",iEminus+1,creal(pbuff1(0,0)),cimag(pbuff1(0,0)));
         mdest=MPI_PROC_NULL;
         msource=MPI_PROC_NULL;
       }
@@ -176,7 +177,7 @@ int self_energy(
           ndiff = 1;
 
         MPI_Cart_shift( comm2d, 1, ndiff, &msource, &mdest );
-        // iE < iEhbaromega ensuhre MPI communication.
+        // iE < iEhbaromega ensure MPI communication.
         if(mdest != MPI_PROC_NULL && iE < iEhbaromega)
         {
           // gets the local point to be sent to current iE such that pbuff1 => G(E-wq)
@@ -204,10 +205,11 @@ int self_energy(
       // checks if iE+iEhbaromega is on the same processor => no communication
       // pbuff2 points to G(k,E+wq)
       iEplus = iE+iEhbaromega;
-      if( ( iEplus >=0 && iEplus < NEloc ) || iEglo >= NE-iEhbaromega )
+      if( iEplus < NEloc || iEglo+iEhbaromega > NE )
       {
-        if(iEglo+iEhbaromega>=NE) {iEplus = iE;}
+        if(iEglo+iEhbaromega>NE) {iEplus = NEloc-1;}
         pbuff2 = (double complex *) GG(iEplus, iQ);
+        //printf("G(%d)=%g %g \n",iEplus+1,creal(pbuff2(0,0)),cimag(pbuff2(0,0)));
         pdest=MPI_PROC_NULL;
         psource=MPI_PROC_NULL;
       }
@@ -275,6 +277,7 @@ int self_energy(
                                  (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu));
           }
         }
+        //printf("Sigma(%d)=%g %g \n",iE+1,creal(pSigma(0,0)),cimag(pSigma(0,0)));
       }
 
       // MPI Communication over the k-grid

@@ -185,7 +185,7 @@ subroutine negf_init_structure(handler, ncont, surfstart, surfend, contend, npl,
 end subroutine negf_init_structure
 
 
-!> Computes the block indices of the contact self-energies 
+!> Computes the block indices of the contact self-energies
 !> The Hamiltonian has to be read/passed before
 subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl, plend, cblk) bind(c)
   use iso_c_binding, only : c_int  ! if:mod:use
@@ -210,7 +210,7 @@ subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl,
   if (.not.associated(LIB%pNEGF%H)) then
     write(*,*) 'Error: H not created before invoking negf_contact_block'
     stop
-  end if      
+  end if
 
   allocate(surfstart_al(ncont))
   allocate(surfend_al(ncont))
@@ -234,7 +234,7 @@ subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl,
 
 end subroutine negf_contact_blocks
 
-      
+
 !> Retrieve the arrays describing the hamiltonina principal layer partitions for the
 !! block iterative algorithm.
 !! @param [in] handler:  handler Number for the LIBNEGF instance
@@ -289,9 +289,9 @@ end subroutine negf_init_contacts
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_output(handler, c_out_path) bind(C)
   use iso_c_binding, only : c_int, c_char  ! if:mod:use
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use  use negf_param
   use globals             ! if:mod:use
-  use libnegf             ! if:mod:use 
+  use libnegf             ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
   character(kind=c_char), intent(in) :: c_out_path(*) ! if:var:in
@@ -299,13 +299,13 @@ subroutine negf_set_output(handler, c_out_path) bind(C)
   character(LST) :: out_path    ! if:var:in
 
   type(NEGFpointers) :: LIB
- 
+
   call convert_c_string(c_out_path, out_path)
 
-  LIB = transfer(handler, LIB) 
+  LIB = transfer(handler, LIB)
 
   call set_outpath(LIB%pNEGF, out_path)
-  !LIB%pNEGF%out_path = trim( out_path(1) ) // '/' 
+  !LIB%pNEGF%out_path = trim( out_path(1) ) // '/'
 
 end subroutine negf_set_output
 
@@ -314,9 +314,9 @@ end subroutine negf_set_output
 !!* @param handler Number for the LIBNEGF instance to destroy.
 subroutine negf_set_scratch(handler, c_scratch_path) bind(C)
   use iso_c_binding, only : c_int, c_char  ! if:mod:use
-  use libnegfAPICommon    ! if:mod:use  use negf_param 
+  use libnegfAPICommon    ! if:mod:use  use negf_param
   use globals             ! if:mod:use
-  use libnegf             ! if:mod:use 
+  use libnegf             ! if:mod:use
   implicit none
   integer(c_int), intent(in) :: handler(DAC_handlerSize)  ! if:var:in
   character(kind=c_char), intent(in) :: c_scratch_path(*) ! if:var:in
@@ -326,11 +326,11 @@ subroutine negf_set_scratch(handler, c_scratch_path) bind(C)
 
   call convert_c_string(c_scratch_path, scratch_path)
 
-  LIB = transfer(handler, LIB) 
-  
+  LIB = transfer(handler, LIB)
+
   call set_scratch(LIB%pNEGF, scratch_path)
 
-  !LIB%pNEGF%scratch_path = trim( scratch_path(1) ) // '/' 
+  !LIB%pNEGF%scratch_path = trim( scratch_path(1) ) // '/'
 
 end subroutine negf_set_scratch
 
@@ -699,21 +699,21 @@ end subroutine negf_calculate_dephasing_transmission
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 !! @param[in]  ndofs: handler Number for the LIBNEGF instance
 subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use  use negf_param
   use ln_precision      !if:mod:use
-  use libnegf           ! if:mod:use 
+  use libnegf           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer :: ndofs                     ! if:var:in 
+  integer :: ndofs                     ! if:var:in
   real(dp) :: density(ndofs)           ! if:var:in
-  integer :: particle                  ! if:var:in 
+  integer :: particle                  ! if:var:in
 
   ! particle = 1 for electrons
   ! particle =-1 for holes
-  
+
   type(NEGFpointers) :: LIB
-  
-  LIB = transfer(handler, LIB) 
+
+  LIB = transfer(handler, LIB)
 
   call compute_density_efa(LIB%pNEGF, density, particle)
 
@@ -722,25 +722,25 @@ end subroutine negf_density_efa
 !>
 !! Compute charge Density for EFA, using quasi-equilibrium approximation
 subroutine negf_density_quasi_equilibrium(handler,ndofs,density,particle, Ec, Ev, mu_n, mu_p) bind(C)
-  use libnegfAPICommon  ! if:mod:use  use negf_param 
+  use libnegfAPICommon  ! if:mod:use  use negf_param
   use ln_precision      !if:mod:use
-  use libnegf           ! if:mod:use 
+  use libnegf           ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)    ! if:var:in
-  integer :: ndofs                       ! if:var:in 
+  integer :: ndofs                       ! if:var:in
   real(dp) :: density(ndofs)             ! if:var:in
   real(dp) :: Ec(ndofs)                  ! if:var:in
   real(dp) :: Ev(ndofs)                  ! if:var:in
   real(dp) :: mu_n(ndofs)                ! if:var:in
   real(dp) :: mu_p(ndofs)                ! if:var:in
-  integer :: particle                    ! if:var:in 
+  integer :: particle                    ! if:var:in
 
   ! particle = 1 for electrons
   ! particle =-1 for holes
 
   type(NEGFpointers) :: LIB
 
-  LIB = transfer(handler, LIB) 
+  LIB = transfer(handler, LIB)
   call compute_density_quasiEq(LIB%pNEGF, density, particle, Ec, Ev, mu_n, mu_p)
 
 end subroutine negf_density_quasi_equilibrium
@@ -1031,7 +1031,7 @@ subroutine negf_set_outer(handler, outer) bind(C)
 
   LIB = transfer(handler, LIB)
 
-  LIB%pNEGF%outer = outer
+  LIB%pNEGF%outer_blocks = outer
 
 end subroutine negf_set_outer
 

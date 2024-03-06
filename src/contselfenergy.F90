@@ -91,7 +91,7 @@ contains
     logical :: lex
     type(TMatLabel) :: label
 
-    pnt = pnegf%iE    ! Step of the energy integration
+    pnt = pnegf%iE_path    ! Step of the energy integration
     ii = pnegf%activecont
     label%kpoint = pnegf%ikpoint
     label%energy_point = pnt
@@ -276,7 +276,7 @@ contains
       call log_deallocate(GoXBo)
 
     end do
-        
+
     ncyc=i1
 
     call compGreen(Go,Ao_s,n)

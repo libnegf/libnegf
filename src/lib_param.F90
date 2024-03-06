@@ -26,7 +26,6 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use input_output
-  !use elph, only : Telph
   use phph
   use energy_mesh, only : mesh
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
@@ -37,6 +36,7 @@ module lib_param
   use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
   use scba
   use ln_cache
+  use ln_enums, only : integration_type
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
 #:endif
@@ -167,7 +167,7 @@ module lib_param
     real(dp) :: Estep             ! Tunneling or dos E step
     real(dp) :: Estep_coarse      ! dos E step for coarse integration (quasiEq integral)
 
-    !Particle info for holes/electrons integration
+    !Particle info for holes/electron
     integer :: particle
 
     !! Emitter and collector for transmission or Meir-Wingreen
@@ -193,7 +193,7 @@ module lib_param
     integer :: activecont         ! contact selfenergy
     integer :: min_or_max         ! in input: 0 take minimum, 1 take maximum mu
     integer :: refcont            ! reference contact (for non equilib)
-    integer :: outer              ! flag switching computation of
+    integer :: outer_blocks       ! flag switching computation of
                                   ! the Device/Contact DM
                                   ! 0 none; 1 upper block; 2 all
 
@@ -204,20 +204,21 @@ module lib_param
 
     !! Note: H,S are partitioned immediately after input, therefore they are
     !! built runtime from input variable
-    type(TMatrixArrayHS), allocatable :: HS(:)
-    type(TMatrixArrayDM), allocatable :: DM(:)
+    class(TMatrixArrayHS), allocatable :: HS(:)
+    class(TMatrixArrayDM), allocatable :: DM(:)
     ! Ponters of current working Hamiltonian
     type(z_CSR), pointer :: H => null()
     type(z_CSR), pointer :: S => null()
-    ! Ponters of current working density matrix 
+    ! Ponters of current working density matrix
     type(z_CSR), pointer :: rho => null()
     type(z_CSR), pointer :: rho_eps => null()
-    logical :: internalDM
+    !logical :: internalDM
 
     type(TStruct_Info) :: str     ! system structure
     type(TBasisCenters) :: basis  ! local basis centers
     type(TNeighbourMap), dimension(:), allocatable :: neighbour_map
     integer :: iE                 ! Currently processed En point (index)
+    integer :: iE_path            ! Currently processed En point (on path)
     complex(dp) :: Epnt           ! Currently processed En point (value)
     real(dp) :: kwght             ! currently processed k-point weight
     integer :: iKpoint            ! currently processed k-point (index)
@@ -236,7 +237,7 @@ module lib_param
     real(dp) :: int_acc           ! adaptive integration accuracy
 
     type(Tphph) :: phph           ! phonon-phonon data
-     
+
     ! Many Body Interactions as array of pointers
     type(TInteractionList)  :: interactList
     type(TScbaDriverElastic) :: scbaDriverElastic
@@ -251,6 +252,9 @@ module lib_param
     real(dp), dimension(:,:), allocatable :: curr_mat
     real(dp), dimension(:,:), allocatable :: ldos_mat
     real(dp), dimension(:), allocatable :: currents
+
+    ! Integration type for layercurrents or meirwingreen
+    integer :: integration = integration_type%trapezoidal
 
     ! These variables need to be done to clean up
     logical :: tOrthonormal = .false.
@@ -383,7 +387,7 @@ contains
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"
-#:endif    
+#:endif
     class default
       stop 'ERROR: error of type downcast to ElPhonInel'
     end select
@@ -412,7 +416,7 @@ contains
             &  wq, Temp, dz, D0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"
-#:endif    
+#:endif
     class default
       stop 'ERROR: error of type downcast to ElPhonInel'
     end select
@@ -485,8 +489,8 @@ contains
      negf%E = 0.0_dp            ! Holding variable
      negf%dos = 0.0_dp          ! Holding variable
      negf%eneconv = 1.0_dp      ! Energy conversion factor
-    
-     negf%internalDM = .true.   ! Internal allocation of D.M.
+
+     !negf%internalDM = .true.   ! Internal allocation of D.M.
 
      negf%delta = 1.d-4      ! delta for G.F.
      negf%dos_delta = 1.d-4  ! delta for DOS
@@ -509,7 +513,7 @@ contains
      negf%nf(1) = 2          !
      negf%min_or_max = 1     ! Set reference cont to max(mu)
      negf%refcont = 1        ! call set_ref_cont()
-     negf%outer = 2          ! Compute full D.M. L,U extra
+     negf%outer_blocks = 2   ! Compute full D.M. L,U extra
      negf%dumpHS = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
@@ -598,11 +602,18 @@ contains
      write(io,*) 'kp= ', negf%ikpoint
      write(io,*) 'wght= ', negf%kwght
      write(io,*) 'E= ',negf%E
-     write(io,*) 'outer= ', negf%outer
+     select case(negf%outer_blocks)
+     case(0)
+        write(io,*) 'outer_blocks= No'
+     case(1)
+        write(io,*) 'outer_blocks= upper diagonal'
+     case(2)
+        write(io,*) 'outer_blocks= upper/lower diagonal'
+     end select
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'activecont= ', negf%activecont
-     write(io,*) 'internalDM= ', negf%internalDM
+     !write(io,*) 'internalDM= ', negf%internalDM
   end subroutine print_all_vars
 
 end module lib_param

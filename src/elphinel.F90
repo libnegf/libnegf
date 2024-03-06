@@ -65,6 +65,9 @@ module elphinel
     real(dp), allocatable :: kpoint(:,:)
     real(dp), allocatable :: kweight(:)
     integer, allocatable :: local_kindex(:)
+    !> Energy grid. indeces of local points
+    integer, allocatable :: local_Eindex(:)
+
     !> Energy grid. global num of energy points
     integer :: nE_global
     !> Energy grid. Local num of energy points
@@ -332,6 +335,9 @@ contains
     zmax = maxval(this%basis%x(3,1:nCentralAtoms))
 
     nDeltaZ = nint(zmax - zmin)/this%dz
+    if (allocated(this%Kmat)) then
+       call log_deallocate(this%Kmat)
+    end if
     call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
 
     this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
@@ -366,6 +372,7 @@ contains
       end do
     end do
 
+    deallocate(kpoint)
     !print*,'debug print Kmat'
     !open(newunit=fu, file='Kmat.dat')
     !do iZ = 0, nDeltaZ
@@ -393,6 +400,9 @@ contains
     zmax = maxval(this%basis%x(3,1:nCentralAtoms))
 
     nDeltaZ = nint(zmax - zmin)/this%dz
+    if (allocated(this%Kmat)) then
+       call log_deallocate(this%Kmat)
+    end if
     call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
 
     !compute the absolute k-points
@@ -434,6 +444,8 @@ contains
         end do
       end do
     end do
+
+    deallocate(kpoint)
     !if (any(isNan(this%Kmat))) then
     !  print*,'Kmat= NaN'
     !  stop

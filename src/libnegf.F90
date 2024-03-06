@@ -37,7 +37,7 @@ module libnegf
  use integrations
  use iso_c_binding
  use system_calls
- use elph, only : interaction_models
+ use ln_enums, only : interaction_models, integration_type
  use interactions, only : get_max_wq
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
@@ -54,7 +54,7 @@ module libnegf
  public :: set_bp_dephasing
  public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
  public :: set_elph_polaroptical, set_elph_nonpolaroptical, destroy_interactions
- public :: interaction_models
+ public :: interaction_models, integration_type
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
  public :: dns2csr, csr2dns, nzdrop
@@ -82,7 +82,6 @@ module libnegf
  public :: negf_version
  public :: destroy_contact_matrices ! cleanup matrices in Tnegf container (H,S)
  public :: destroy_surface_green_cache ! Clean surface green cache (useful for memory cache)
- public :: destroy_DM ! cleanup matrices in Tnegf container (rho,rhoE)
  private :: block_partition ! chop structure into PLs (CAREFUL!!!)
                             ! H need to be already ordered properly
  public :: negf_partition_info  !write down partition info
@@ -90,7 +89,7 @@ module libnegf
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
- public :: get_energies, pass_DM, get_DM, get_currents
+ public :: create_DM, destroy_DM, pass_DM, get_DM, get_energies, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -353,13 +352,34 @@ contains
   !-------------------------------------------------------------------
   !> Create the DM container for k-dependent rho(k) and rhoE(k)
   !
-  !subroutine create_DM(negf, nDM)
-  !  type(Tnegf) :: negf
-  !  integer, intent(in) :: nDM
-  !
-  !  allocate(negf%DM(nDM))
-  !end subroutine create_DM
+  subroutine create_DM(negf, nDM)
+    type(Tnegf) :: negf
+    integer, intent(in) :: nDM
 
+    integer :: ii
+
+    if (.not.allocated(negf%DM)) then
+       allocate(negf%DM(nDM))
+    else
+       if (size(negf%DM) .ne. nDM) then
+         print*, "creating DM container with size",nDM
+         print*, "DM container already present with size",size(negf%DM)
+         error stop 'ERROR: DM container already created with different size'
+       end if
+    end if
+
+    !do ii = 1, nDM
+    !  if (.not.associated(negf%DM(ii)%rho)) then
+    !    allocate(negf%DM(ii)%rho)
+    !  end if
+    !  if (.not.associated(negf%DM(ii)%rho_eps)) then
+    !    allocate(negf%DM(ii)%rho_eps)
+    !  end if
+    !end do
+    !negf%rho => negf%DM(1)%rho
+    !negf%rho_eps => negf%DM(1)%rho_eps
+
+  end subroutine create_DM
 
   !-------------------------------------------------------------------
   !> Pass H from memory in CSR format
@@ -378,17 +398,17 @@ contains
     integer, optional :: iKS
 
     integer :: nnz, i, base, ii
-
+!
     if (present(iKS)) then
       ii = iKS
     else
       ii = 1
     end if
 
-    if (ii > size(negf%HS)) then
+    if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
        stop "Error: set_H with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%H)) then 
+      if (.not.associated(negf%HS(ii)%H)) then
         allocate(negf%HS(ii)%H)
       else
         call destroy(negf%HS(ii)%H)
@@ -410,6 +430,7 @@ contains
       negf%HS(ii)%H%rowpnt(i) = rowpnt(i) + base
     enddo
     negf%HS(ii)%internalHS=.true.
+    ! set the default working pointer in case there is only one H
     negf%H => negf%HS(ii)%H
 
   end subroutine set_H
@@ -438,10 +459,10 @@ contains
       ii = 1
     end if
 
-    if (ii > size(negf%HS)) then
+    if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
        stop "Error: set_S with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%S)) then 
+      if (.not.associated(negf%HS(ii)%S)) then
         allocate(negf%HS(ii)%S)
       else
         call destroy(negf%HS(ii)%S)
@@ -463,6 +484,7 @@ contains
       negf%HS(ii)%S%rowpnt(i) = rowpnt(i) + base
     enddo
     negf%HS(ii)%internalHS=.true.
+    ! set the default working pointer in case there is only one S
     negf%S => negf%HS(ii)%S
 
   end subroutine set_S
@@ -508,15 +530,17 @@ contains
     type(z_CSR), pointer, intent(in), optional :: S
     integer, intent(in), optional :: iKS
 
-    integer :: ii
+    integer :: ii, ss
     if (present(iKS)) then
       ii = iKS
     else
       ii = 1
     end if
 
-    if (ii > size(negf%HS)) then
-      print*,'Passing HS index',ii,' HS container with size',size(negf%HS)
+    ss = merge(size(negf%HS),0,allocated(negf%HS))
+
+    if (ii > ss) then
+      print*,'Passing HS index',ii,' HS container with size',ss
       stop "Error: pass_HS with index > allocated array. Call create_HS with correct size"
     endif
 
@@ -529,6 +553,7 @@ contains
        call create_id(negf%HS(ii)%S,negf%HS(ii)%H%nrow)
     endif
     negf%HS(ii)%internalHS = .false.
+    ! set the default working pointers in case there is only one H, S
     negf%H => negf%HS(ii)%H
     negf%S => negf%HS(ii)%S
 
@@ -557,25 +582,18 @@ contains
       if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
     end if
 
-    call create(negf%HS(ii)%H,H%nrow,H%ncol,H%nnz)
-    negf%HS(ii)%H%nzval = H%nzval
-    negf%HS(ii)%H%colind = H%colind
-    negf%HS(ii)%H%rowpnt = H%rowpnt
-    negf%HS(ii)%H%sorted = H%sorted
+    negf%HS(ii)%H = H
+    negf%HS(ii)%internalHS = .true.
 
     if (present(S)) then
        negf%HS(ii)%isSid=.false.
-       call create(negf%HS(ii)%S,S%nrow,S%ncol,S%nnz)
-       negf%HS(ii)%S%nzval = S%nzval
-       negf%HS(ii)%S%colind = S%colind
-       negf%HS(ii)%S%rowpnt = S%rowpnt
-       negf%HS(ii)%S%sorted = S%sorted
+       negf%HS(ii)%S = S
     else
        negf%HS(ii)%isSid=.true.
        call create_id(negf%HS(ii)%S,negf%HS(ii)%H%nrow)
     endif
 
-    negf%HS(ii)%internalHS = .true.
+    ! set the default working pointers in case there is only one H, S
     negf%H => negf%HS(ii)%H
     negf%S => negf%HS(ii)%S
 
@@ -721,8 +739,8 @@ contains
   !> subroutine used to setup kpoints
   !  k-point sampling must be expressed in reduced coordinates, i.e.
   !  either [-0.5..+0.5]x[-0.5..+0.5] (Gamma-centered) or [0..1]x[0..1] (I quadrant)
-  !  kpoints(:)  kweights(:)  are global
-  !  local_kindex(:) is a local array storing the local indices
+  !  kpoints(:)  kweights(:)  are the global vectors
+  !  local_kindex(:) is a array of local indices pointing to the global vectors
   !  kSamplingType: 0 = Gamma-centered, no inversion
   !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
   subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType)
@@ -1530,53 +1548,72 @@ contains
   !! @param [out] rowpnt (int array): row pointer indexes
   !! @param [out] colind (int array): column indexes array
   !! @param [out] nzval (complex array): non zero values
-  subroutine get_DM(negf, nnz, nrow, rowpnt, colind, nzval)
+  subroutine get_DM(negf, nnz, nrow, rowpnt, colind, nzval, iKS)
     type(TNegf), intent(in)  :: negf
     integer, intent(out) :: nnz, nrow
     integer, intent(out) :: rowpnt(:), colind(:)
     real(dp), intent(out) :: nzval(:)
+    integer, intent(in), optional :: iKS
 
-    nnz = negf%rho%nnz
-    nrow = negf%rho%nrow
-    rowpnt = negf%rho%rowpnt
-    colind = negf%rho%colind
-    nzval = real(negf%rho%nzval)
-  end subroutine get_DM
-
-  !--------------------------------------------------------------------
-  subroutine create_DM(negf)
-    type(Tnegf) :: negf
-
-    if (negf%internalDM) then
-      if (.not.associated(negf%rho)) allocate(negf%rho)
-      if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
+    if (present(iKS)) then
+      nnz = negf%DM(iKS)%rho%nnz
+      nrow = negf%DM(iKS)%rho%nrow
+      rowpnt = negf%DM(iKS)%rho%rowpnt
+      colind = negf%DM(iKS)%rho%colind
+      nzval = real(negf%DM(iKS)%rho%nzval)
+    else
+      nnz = negf%rho%nnz
+      nrow = negf%rho%nrow
+      rowpnt = negf%rho%rowpnt
+      colind = negf%rho%colind
+      nzval = real(negf%rho%nzval)
     end if
 
-  end subroutine create_DM
+  end subroutine get_DM
 
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
-  subroutine pass_DM(negf,rho, rhoE)
+  subroutine pass_DM(negf, rho, rhoE, iKS)
     type(Tnegf) :: negf
     type(z_CSR), pointer, intent(in), optional :: rho
     type(z_CSR), pointer, intent(in), optional :: rhoE
+    integer, intent(in), optional :: iKS
+
+    integer :: s
+    if (present(iKS)) then
+      s = merge(size(negf%DM),0,allocated(negf%DM))
+      if (iKS > s) then
+        print*,'Passing DM index',iKS,' DM container with size',s
+        stop "Error: pass_DM with index > allocated array. Call create_DM with correct size"
+      endif
+    end if
 
     if (present(rho)) then
-       negf%rho => rho
-       if(allocated(negf%rho%nzval)) then
-          call destroy(negf%rho)
-       endif
+      if (present(iKS)) then
+        negf%DM(iKS)%rho => rho
+        ! This destroy here is needed as the matrix is created later
+        if(allocated(negf%DM(iKS)%rho%nzval)) then
+        call destroy(negf%DM(iKS)%rho)
+        endif
+        negf%DM(iKS)%internalDM = .false.
+      else
+        negf%rho => rho
+      endif
     endif
 
     if (present(rhoE)) then
-       negf%rho_eps => rhoE
-       if (allocated(negf%rho_eps%nzval)) then
-          call destroy(negf%rho_eps)
-       endif
+      if (present(iKS)) then
+        negf%DM(iKS)%rho_eps => rhoE
+        ! This destroy here is needed as the matrix is created later
+        if (allocated(negf%DM(iKS)%rho_eps%nzval)) then
+           call destroy(negf%DM(iKS)%rho_eps)
+        endif
+        negf%DM(iKS)%internalDM = .false.
+      else
+        negf%rho_eps => rhoE
+      end if
     end if
-
-    negf%internalDM = .false.
 
   end subroutine pass_DM
 
@@ -1619,55 +1656,55 @@ contains
 
     integer :: ii
 
-    if (.not.negf%internalDM) return
+    !if (.not.negf%internalDM) return
 
-    if (associated(negf%rho)) then
-      if (allocated(negf%rho%nzval)) then
-         call destroy(negf%rho)
-      end if
-      deallocate(negf%rho)
-      nullify(negf%rho)
-    end if
+    !if (associated(negf%rho)) then
+    !  if (allocated(negf%rho%nzval)) then
+    !     call destroy(negf%rho)
+    !  end if
+    !  deallocate(negf%rho)
+    !  nullify(negf%rho)
+    !end if
 
-    if (associated(negf%rho_eps)) then
-      if (allocated(negf%rho_eps%nzval)) then
-         call destroy(negf%rho_eps)
-      end if
-      deallocate(negf%rho_eps)
-      nullify(negf%rho_eps)
-    endif
+    !if (associated(negf%rho_eps)) then
+    !  if (allocated(negf%rho_eps%nzval)) then
+    !     call destroy(negf%rho_eps)
+    !  end if
+    !  deallocate(negf%rho_eps)
+    !  nullify(negf%rho_eps)
+    !endif
 
-   ! if (.not.allocated(negf%DM)) return
+    if (.not.allocated(negf%DM)) return
 
-   ! do ii = 1, size(negf%DM)
-   !   if (negf%DM(ii)%internalDM) then
-   !     if (associated(negf%DM(ii)%rho)) then
-   !       if (allocated(negf%DM(ii)%rho%nzval)) then
-   !          !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
-   !          call destroy(negf%DM(ii)%rho)
-   !       end if
-   !       deallocate(negf%DM(ii)%rho)
-   !       nullify(negf%DM(ii)%rho)
-   !     endif
+    do ii = 1, size(negf%DM)
+      if (negf%DM(ii)%internalDM) then
+        if (associated(negf%DM(ii)%rho)) then
+          if (allocated(negf%DM(ii)%rho%nzval)) then
+             !print*,'(destroy) deallocate negf%rho',%LOC(negf%rho%nzval)
+             call destroy(negf%DM(ii)%rho)
+          end if
+          deallocate(negf%DM(ii)%rho)
+          nullify(negf%DM(ii)%rho)
+        endif
 
-   !     if (associated(negf%DM(ii)%rho_eps)) then
-   !       if (allocated(negf%DM(ii)%rho_eps%nzval)) then
-   !          !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
-   !          call destroy(negf%DM(ii)%rho_eps)
-   !       end if
-   !       deallocate(negf%DM(ii)%rho_eps)
-   !       nullify(negf%DM(ii)%rho_eps)
-   !     endif
-   !   endif
-   ! end do
-   ! deallocate(negf%DM)
+        if (associated(negf%DM(ii)%rho_eps)) then
+          if (allocated(negf%DM(ii)%rho_eps%nzval)) then
+             !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
+             call destroy(negf%DM(ii)%rho_eps)
+          end if
+          deallocate(negf%DM(ii)%rho_eps)
+          nullify(negf%DM(ii)%rho_eps)
+        endif
+      endif
+    end do
+    deallocate(negf%DM)
 
   end subroutine destroy_DM
 
   !-------------------------------------------------------------------------------
   ! Compact collection of calls to extract device/contact H and S
   ! and compute density matrix using contour + real axis integration
-  ! Should be used for dftt calculations
+  ! Should be used for DFT calculations
   !
   ! NOTE: the returned DensMat and EnMat are masked with S
   ! Matrix Structure:  CSR
@@ -1688,26 +1725,29 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
-    !Temporary hack
-    negf%H => negf%HS(1)%H
-    negf%S => negf%HS(1)%S
-
     call extract_cont(negf)
 
     !! Did anyone passed externally allocated DM? If not, create it
-    call create_DM(negf)
+    if (.not.associated(negf%rho)) allocate(negf%rho)
+    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
 
-    ! Reference contact for contour/real axis separation
+    ! Reference contact for contour/real axis separation (depends on min_or_max)
     call set_ref_cont(negf)
 
+    ! Contour integration + poles
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
       call contour_int_def(negf)
       call contour_int(negf)
     endif
 
+    ! Real axis integration
     if (negf%Np_real.gt.0) then
       call real_axis_int_def(negf)
-      call real_axis_int(negf)
+      if (get_max_wq(negf%interactList) == 0.0_dp) then
+        call real_axis_int(negf)
+      else
+        call real_axis_int_inel(negf)
+      end if
     endif
 
     call destroy_contact_matrices(negf)
@@ -1717,7 +1757,8 @@ contains
 
   !-------------------------------------------------------------------------------
   ! Compact collection of calls to extract device/contact H and S
-  ! and compute density matrix
+  ! and compute nodal charges in a effective medium formulation (eff mass, k.p)
+  ! This routine also works in the case of orthogonal TB
   !
   ! It has been used to interface libnegf to TiberCAD
   ! Computes density for CB or VB semiconductor
@@ -1738,7 +1779,10 @@ contains
 
     call extract_cont(negf)
 
-    call create_DM(negf)
+    if (.not.associated(negf%rho)) then
+       allocate(negf%rho)
+    end if
+
     ! it is not zeroed out at end of integration, so we have to do it here
     ! (otherwise k-integration from tibercad will not work)
     if (allocated(negf%rho%nzval)) then
@@ -1816,6 +1860,14 @@ contains
 
   end subroutine compute_density_efa
 
+  !-------------------------------------------------------------------------------
+  ! Compact collection of calls to extract device/contact H and S
+  ! and compute charges in a quasi-equilibrium approximation where the
+  ! quasi-Fermi levels are defined everywhere
+  !
+  ! It has been used to interface libnegf to TiberCAD
+  ! Computes density for CB or VB semiconductor
+  !-------------------------------------------------------------------------------
   subroutine compute_density_quasiEq(negf, q, particle, &
                                      Ec, Ev, mu_n, mu_p)
     !In/Out
@@ -1837,10 +1889,13 @@ contains
     else ! particle == -1
       call quasiEq_int_p(negf, mu_p, Ev, q)
     endif
-   
+
     call destroy_contact_matrices(negf)
 
   end subroutine compute_density_quasiEq
+
+
+
   !-------------------------------------------------------------------------------
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
@@ -1857,9 +1912,9 @@ contains
     type(Tnegf) :: negf
 
     integer :: fu
-    open(newunit=fu, file='H.dat')
-    call zprint_csrcoo(fu,negf%HS(1)%H,'r')
-    close(fu)
+    !open(newunit=fu, file='H.dat')
+    !call zprint_csrcoo(fu,negf%HS(1)%H,'r')
+    !close(fu)
 
     if ( negf%interactList%counter > 0 ) then
        if (get_max_wq(negf%interactList) == 0.0_dp) then
@@ -1868,6 +1923,10 @@ contains
     else
        call compute_landauer(negf);
     endif
+
+    call electron_current(negf)
+
+    call destroy_contact_matrices(negf)
 
   end subroutine compute_current
 
@@ -1881,12 +1940,8 @@ contains
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
-    
+
     call tunneling_and_dos(negf)
-
-    call electron_current(negf)
-
-    call destroy_contact_matrices(negf)
 
   end subroutine compute_landauer
 
@@ -1914,8 +1969,6 @@ contains
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
     negf%tunn_mat = negf%curr_mat
-
-    call electron_current(negf)
 
   end subroutine compute_dephasing_transmission
 
@@ -2086,7 +2139,7 @@ contains
   !
   ! min_or_max = 0 : refcont is chosen at the minimum   mu
   ! min_or_max = 1 : refcont is chosen at the maximum   mu
-  ! min_or_max = * : refcont is set to 0 (no referece)
+  ! min_or_max = * : refcont is set to ncont+1 or 0 (no referece)
   !
   subroutine set_ref_cont(negf)
 
@@ -2496,7 +2549,7 @@ contains
     el = getelement(i,j,mat)
 
   end function getel
-  
+
   subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
       real(dp), dimension(:), intent(in) :: v_in
       real(dp), intent(in) :: thres

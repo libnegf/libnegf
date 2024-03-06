@@ -5,7 +5,7 @@ set(sources-fpp
   input_output.F90
   ln_cache.F90
   lib_param.F90
-  elph.F90
+  ln_enums.F90
   phph.F90
   ln_precision.F90
   mpi_globals.F90

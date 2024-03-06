@@ -48,7 +48,6 @@ interface create
    module procedure zcreate_DNS
    module procedure rcreate_DNS
    module procedure ccreate_DNS
-   !module procedure screate_CSR
    module procedure rcreate_DNS3
    module procedure zcreate_DNS3
    module procedure ccreate_DNS3
@@ -349,7 +348,7 @@ subroutine zinit_CSR(mat)
   if(mat%nnz.ne.mat%nrow) STOP 'cannot initialize matrix (nnz != nrow)'
 
   do k=1,Mat%nrow
-     Mat%nzval(k)=0.0_dp
+     Mat%nzval(k)=(0.0_dp, 0.0_dp)
      Mat%colind(k)=k
      Mat%rowpnt(k)=k
   enddo
@@ -1880,6 +1879,7 @@ subroutine rassign_CSR(M_lhs, M_rhs)
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
+  M_lhs%sorted = M_rhs%sorted
 end subroutine rassign_CSR
 
 !> Override assignment operation in order to keep track of memory
@@ -1891,6 +1891,7 @@ subroutine zassign_CSR(M_lhs, M_rhs)
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
+  M_lhs%sorted = M_rhs%sorted
 end subroutine zassign_CSR
 
 
@@ -1900,7 +1901,7 @@ subroutine rassign_DNS(M_lhs, M_rhs)
   type(r_DNS), intent(in) :: M_rhs
 
   call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  M_lhs%val = M_rhs%val 
+  M_lhs%val = M_rhs%val
 end subroutine rassign_DNS
 
 !> Override assignment operation in order to keep track of memory
@@ -1909,7 +1910,7 @@ subroutine zassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  M_lhs%val = M_rhs%val 
+  M_lhs%val = M_rhs%val
 end subroutine zassign_DNS
 
 !> Override assignment operation in order to keep track of memory

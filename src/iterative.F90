@@ -27,7 +27,6 @@ module iterative
   use mat_def
   use sparsekit_drv
   use inversions
-  use elph
   use ln_structure, only : TStruct_Info
   use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList
   use mpi_globals, only : id, numprocs, id0
@@ -48,9 +47,7 @@ module iterative
   public :: calculate_Gn_neq_components
   public :: calculate_elastic_scba
   public :: calculate_gsmr_blocks
-  !public :: calculate_gsml_blocks
   public :: calculate_Gr_tridiag_blocks
-  !public :: calculate_Gr_column_blocks
   public :: calculate_Gn_tridiag_blocks
   public :: calculate_Gr_outer
   public :: calculate_Gn_outer
@@ -131,7 +128,9 @@ CONTAINS
     end associate
 
     !! Add interaction self energy contribution, if any
-    call add_sigma_r(negf, ESH)
+    ! Alex: temporarily commented out because of the big problem of
+    !       S.E. E-point offsets between contour and real-axis
+    !call add_sigma_r(negf, ESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(ESH,nbl,2)
@@ -148,17 +147,13 @@ CONTAINS
     call deallocate_gsm(gsmr)
 
     !! Deliver Gr to interaction models if any
-    call set_Gr(negf, Gr)
+    ! Alex: temporarily commented out because of the big problem of
+    !       S.E. E-point offsets between contour and real-axis
+    !call set_Gr(negf, Gr)
 
     call blk2csr(Gr,negf%str,negf%S,Grout)
 
-    SELECT CASE (outer)
-    CASE(0)
-    CASE(1)
-      call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.FALSE.,Grout)
-    CASE(2)
-      call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.TRUE.,Grout)
-    end SELECT
+    call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
 
     call destroy_blk(Gr)
     DEALLOCATE(Gr)
@@ -280,23 +275,11 @@ CONTAINS
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
     if (present(Glout)) then
-      SELECT CASE (outblocks)
-      CASE(0)
-      CASE(1)
-        call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,.false.,Glout)
-      CASE(2)
-        call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,.true.,Glout)
-      end SELECT
+      call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,outblocks,Glout)
     end if
 
     if (present(Grout)) then
-      SELECT CASE (outblocks)
-      CASE(0)
-      CASE(1)
-        call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.false.,Grout)
-      CASE(2)
-        call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,.true.,Grout)
-      end SELECT
+      call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outblocks,Grout)
     end if
 
     call destroy_all_blk(negf)
@@ -304,11 +287,15 @@ CONTAINS
   end subroutine calculate_Gn_neq_components
 
 
-  !---------------------------------------------------------------------
-  !---------------------------------------------------------------------
-  !---------------------------------------------------------------------
+  !-------------------------------------------------------------------------------------
+  ! Compute elastic scba loop and optionally exit with csrGn or csrGr
+  !
+  ! Note: setting flags negf%tDestroy[Gn, Gr, ESH]=.false. is used to keep block-dense
+  !       matrices for later use
+  !
+  !-------------------------------------------------------------------------------------
   subroutine calculate_elastic_scba(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,scba_niter, &
-            &  scba_tol, scba_iter, scba_error)
+            &  scba_tol, scba_iter, scba_error, outer_blocks, outGn, outGr)
     type(Tnegf), intent(inout) :: negf
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
@@ -317,11 +304,17 @@ CONTAINS
     real(dp), intent(in) :: scba_tol
     integer, intent(inout) :: scba_iter
     real(dp), intent(inout) :: scba_error
+    integer, intent(in), optional :: outer_blocks
+    type(z_CSR), intent(out), optional :: outGn
+    type(z_CSR), intent(out), optional :: outGr
 
     logical :: tDestroyGn, tDestroyESH, tDestroyGr
-    Type(z_CSR) :: csrGn
     integer :: outer = 0
+    type(z_CSR) :: csrGn
 
+    if (present(outer_blocks)) outer = outer_blocks
+
+    ! Backup cleanup flags
     tDestroyGn = negf%tDestroyGn
     tDestroyGr = negf%tDestroyGr
     tDestroyESH = negf%tDestroyESH
@@ -330,22 +323,34 @@ CONTAINS
     scba_iter = 0
 
     do while (.not.negf%scbaDriverElastic%is_converged() .and. scba_iter <= scba_niter)
+
       call negf%scbaDriverElastic%set_scba_iter(scba_iter, negf%interactList)
 
+      ! Initially all containers must be cleaned
       negf%tDestroyGn = .true.
       negf%tDestroyGr = .true.
       negf%tDestroyESH = .true.
-
       call destroy_all_blk(negf)
+
+      if (present(outGn)) then
+        if (allocated(outGn%nzval)) call destroy(outGn)
+      end if
+      if (present(outGr)) then
+        if (allocated(outGr%nzval)) call destroy(outGr)
+      end if
 
       if (.not.tDestroyGn) negf%tDestroyGn = .false.
       if (.not.tDestroyGr) negf%tDestroyGr = .false.
       if (.not.tDestroyESH) negf%tDestroyESH = .false.
 
-      call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,csrGn,outer)
-
-      call negf%scbaDriverElastic%check_Mat_convergence(csrGn)
-      call destroy(csrGn)
+      if (present(outGn)) then
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outGn,outer,outGr)
+        call negf%scbaDriverElastic%check_Mat_convergence(outGn)
+      else
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,csrGn,outer,outGr)
+        call negf%scbaDriverElastic%check_Mat_convergence(csrGn)
+        call destroy(csrGn)
+      end if
 
       scba_iter = scba_iter + 1
 
@@ -1651,7 +1656,7 @@ CONTAINS
   !
   !****************************************************************************
 
-  subroutine calculate_Gr_outer(Tlc,Tcl,gsurfR,struct,lower,Aout)
+  subroutine calculate_Gr_outer(Tlc,Tcl,gsurfR,struct,outblocks,Aout)
 
     !****************************************************************************
     !Input:
@@ -1675,16 +1680,21 @@ CONTAINS
 
     !In/Out
     type(z_DNS), dimension(:), intent(in) :: Tlc,Tcl,gsurfR
-    logical, intent(in) :: lower
+    integer, intent(in) :: outblocks
     type(Tstruct_info), intent(in) :: struct
     type(z_CSR), intent(inout) :: Aout
 
 
     !Work
+    logical :: lower
     type(z_DNS) :: work1, Grcl, Grlc
     type(z_CSR) :: GrCSR, TCSR
     integer :: i,cb,nrow_tot,i1,j1
     integer :: ncont, nbl
+
+    if (outblocks == 0) return
+    lower = .false.
+    if (outblocks == 2) lower = .true.
 
     ncont = struct%num_conts
     nbl = struct%num_PLs
@@ -1759,20 +1769,25 @@ CONTAINS
   end subroutine calculate_Gr_outer
 
 
-  subroutine calculate_Gn_outer(Tlc,gsurfR,struct,frm,ref,lower,Gn_out)
+  subroutine calculate_Gn_outer(Tlc,gsurfR,struct,frm,ref,outblocks,Gn_out)
     type(z_DNS), dimension(:), intent(in) :: Tlc, gsurfR
     real(dp), dimension(:), intent(in) :: frm
     type(Tstruct_info), intent(in) :: struct
     integer, intent(in) :: ref
-    logical, intent(in) :: lower
+    integer, intent(in) :: outblocks
     type(z_CSR) :: Gn_out
 
     !Work
+    logical :: lower
     type(z_DNS) :: gsurfA, work1, work2, work3, Gn_lc
     type(z_CSR) :: GnCSR, TCSR
     integer :: k,cbk,i1,j1,nrow_tot
     integer :: ncont, nbl
     complex(dp) :: frmdiff
+
+    if (outblocks == 0) return
+    lower = .false.
+    if (outblocks == 2) lower = .true.
 
     ncont = struct%num_conts
     nbl = struct%num_PLs

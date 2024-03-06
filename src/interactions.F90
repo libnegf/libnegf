@@ -19,7 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 !> The module implements an abstract class to interface different
-!! many body interactions. 
+!! many body interactions.
 
 module interactions
 
@@ -27,7 +27,7 @@ module interactions
   use ln_precision, only : dp
   use mat_def, only : z_dns
   use ln_structure, only : TStruct_info
-  
+
   implicit none
   private
 
@@ -64,24 +64,25 @@ module interactions
     procedure(abst_comp_Sigma_n), deferred :: compute_Sigma_n
     procedure(abst_destroy_Sigma_r), deferred :: destroy_Sigma_r
     procedure(abst_destroy_Sigma_n), deferred :: destroy_Sigma_n
+    procedure(abst_destroy), deferred :: destroy
 
   end type TInteraction
 
   !-----------------------------------------------------------------------------
   ! derived type to create list of interaction objects
   type TInteractionList
-    integer :: counter = 0   
+    integer :: counter = 0
     type(TInteractionNode), pointer :: first => null()
     type(TInteractionNode), pointer :: curr => null()
     contains
     procedure :: add => add
     procedure :: destroy => destroy
   end type TInteractionList
-        
+
   type TInteractionNode
     class(TInteraction), allocatable :: inter
     type(TInteractionNode), pointer :: next => null()
-  end type TInteractionNode      
+  end type TInteractionNode
 
   abstract interface
 
@@ -137,7 +138,7 @@ module interactions
       class(TInteraction) :: this
       type(z_dns), intent(inout) :: sigma_n
       integer, intent(in) :: ii
-      integer, intent(in) :: jj 
+      integer, intent(in) :: jj
       integer, intent(in), optional :: en_index
       integer, intent(in), optional :: k_index
       integer, intent(in), optional :: spin
@@ -189,12 +190,18 @@ module interactions
       import :: TInteraction
       class(TInteraction) :: this
     end subroutine abst_destroy_Sigma_r
-    
+
     !>  Destroy Sigma_n : cleanup memory
     subroutine abst_destroy_Sigma_n(this)
       import :: TInteraction
       class(TInteraction) :: this
     end subroutine abst_destroy_Sigma_n
+
+    !>  Destroy object : cleanup memory
+    subroutine abst_destroy(this)
+      import :: TInteraction
+      class(TInteraction) :: this
+    end subroutine abst_destroy
 
   end interface
 
@@ -209,7 +216,7 @@ module interactions
   function get_max_wq(list) result(maxwq)
     type(TInteractionList), intent(in) :: list
     real(dp) :: maxwq
-    
+
     type(TInteractionNode), pointer :: it
     it => list%first
     maxwq = 0.0_dp
@@ -245,26 +252,29 @@ module interactions
        this%first => node
        this%curr => node
        this%counter = 1
-    else    
+    else
        this%curr%next => node
-       this%curr => node    
+       this%curr => node
        this%counter = this%counter + 1
     end if
   end subroutine add
 
   subroutine destroy(this)
     class(TInteractionList) :: this
-    
+
     type(TInteractionNode), pointer :: it
 
     if (.not.associated(this%first)) then
        return
-    else   
+    else
        this%curr => this%first
-       do while (associated(this%curr))   
+       do while (associated(this%curr))
           it => this%curr
           this%curr => this%curr%next
-          if (allocated(it%inter)) deallocate(it%inter)
+          if (allocated(it%inter)) then
+             call it%inter%destroy()
+             deallocate(it%inter)
+          end if
           deallocate(it)
        end do
     end if

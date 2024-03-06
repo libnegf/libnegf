@@ -69,6 +69,7 @@ module elphds
     procedure :: compute_Sigma_n
     procedure :: destroy_Sigma_r
     procedure :: destroy_Sigma_n
+    procedure :: destroy => destroy_all
 
   end type ElPhonDephS
 
@@ -398,7 +399,8 @@ contains
       if (allocated(this%sigma_r(ii)%rowpnt)) then
         call destroy(this%sigma_r(ii))
       end if
-    end do  
+    end do
+    deallocate(this%sigma_r)
   end subroutine destroy_Sigma_r
 
   !> Destroy Sigma_n
@@ -409,7 +411,22 @@ contains
       if (allocated(this%sigma_n(ii)%rowpnt)) then
         call destroy(this%sigma_n(ii))
       end if
-    end do  
+    end do
+    deallocate(this%sigma_n)
   end subroutine destroy_Sigma_n
+
+  !> Destroy All
+  subroutine destroy_all(this)
+    class(ElPhonDephS) :: this
+    integer :: ii
+    do ii=1,this%nummodes
+      if (allocated(this%couplings(ii)%rowpnt)) then
+        call destroy(this%couplings(ii))
+      end if
+    end do
+    deallocate(this%couplings)
+    call destroy_Sigma_r(this)
+    call destroy_Sigma_n(this)
+  end subroutine destroy_all
 
 end module elphds
