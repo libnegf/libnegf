@@ -54,12 +54,10 @@ int self_energy(
   // array of pointers to Sigma (double complex *)
   void **Sigma,
   // a series of buffers size Np*Np (can they be reused ?)
-  double complex *sbuff1,
-  double complex *sbuff2,
   double complex *rbuff1,
   double complex *rbuff2,
-  double complex *rbuffH,
   double complex *sbuffH,
+  double complex *rbuffH,
   // fac_minus * G(E-wq)
   double complex fac_minus,
   // fac_plus * G(E+wq)
@@ -77,9 +75,8 @@ int self_energy(
   int myid, size;
   int iK,iE, iQ;
   int iKglo,iEglo,iQglo, iQglo2;
-  int mu, nu, im, in;
+  int mu, nu, im, im0, im1, im2, im3, im4, im5, im6, im7, in;
   int coords[2], coordsH[2], dims[2];
-  int coordsS[2], coordsD[2];
   int iEminus, iEplus;
 
   int msource, mdest;
@@ -263,6 +260,7 @@ int self_energy(
       // KK(im, iK, iQ) ( KK[ im + Ndz * iK + Ndz * NK * iQ ] )
       // Sigma_ij(iQ, iE) = Sum_iK   KK(|z_i-z_j|, iK, iQ) *
       //                        * (fac_minus * GG_ij(iK, E-wq) + fac_plus * GG_ij(iK, E+wq))
+
       for( iK=0; iK<NKloc; iK++ )
       {
         iKglo=iK+coords[0]*NKloc;
@@ -272,12 +270,11 @@ int self_energy(
         {
           for( mu=0; mu<Np; mu++ )
           {
-            im = abs(izr[mu]-izc[nu]);
-            pSigma(mu,nu) += KK(im, iKglo, iQglo) *
-                                 (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu));
+            im0 = abs(izr[mu]-izc[nu]);
+            pSigma(mu,nu) += KK(im0, iKglo, iQglo) *
+                             (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu);
           }
-        }
-        //printf("Sigma(%d)=%g %g \n",iE+1,creal(pSigma(0,0)),cimag(pSigma(0,0)));
+        }  
       }
 
       // MPI Communication over the k-grid

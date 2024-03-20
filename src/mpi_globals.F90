@@ -23,6 +23,7 @@ module mpi_globals
 
 #:if defined("MPI")
   use mpi
+  use omp_lib, only : omp_get_max_threads, omp_get_num_threads
   use libmpifx_module, only : mpifx_comm
   private
 #:endif
@@ -41,16 +42,16 @@ module mpi_globals
     subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
       logical, optional :: ioProc
-    
+
       id =energyComm%rank
       numprocs = energyComm%size
-    
+
       if (present(ioProc)) then
         id0 = ioProc
       else
         id0 = (id == 0)
       end if
-    
+
     end subroutine negf_mpi_init
 
     ! Initialize a 2D cartesian grid
@@ -90,6 +91,8 @@ module mpi_globals
         stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
       end if
 
+      !call check_omp_mpi(inComm, mpierr)
+
       nE = inComm%size/nk
       dims(1)=nk; dims(2)=nE
       periods(1) = .true.
@@ -127,6 +130,32 @@ module mpi_globals
       call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror)
 
     end subroutine check_cart_comm
+
+   ! subroutine check_omp_mpi(comm, mpierror)
+   !   type(mpifx_comm), intent(in) :: comm
+   !   integer, intent(out) :: mpierror
+
+   !   integer :: newcomm, info, nprocs_shared, phys_cores, num_threads
+
+   !   call MPI_COMM_SPLIT_TYPE(comm%id, MPI_COMM_TYPE_SHARED, 1, info, newcomm, mpierror)
+   !   if (mpierror /= 0) then
+   !      stop "ERROR in MPI_COMM_SPLIT_TYPE"
+   !   end if
+   !   call MPI_COMM_SIZE(newcomm, nprocs_shared, mpierror)
+
+   !   phys_cores = get_num_cores()
+   !   num_threads = omp_get_max_threads()
+
+   !   if (comm%rank==0) then
+   !     print*, "Number of physical cores:", phys_cores
+   !     print*, "Number of processors on same shared memory:",nprocs_shared
+   !     print*, "Maximum number of OMP threads:",num_threads
+   !   end if
+   !   if (num_threads*nprocs_shared > phys_cores) then
+   !     call omp_set_max_threads(phys_cores/nprocs_shared)
+   !   end if
+
+   ! end subroutine check_omp_mpi
 
 #:endif
 

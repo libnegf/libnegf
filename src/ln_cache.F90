@@ -119,17 +119,28 @@ module ln_cache
   end interface
 
   !> Linked list to store matrix in memory
+  !type :: TMatrixCacheEntry
+  !  type(TMatrixCacheEntry), pointer :: next => null()
+  !  type(z_DNS),  pointer :: matrix => null()
+  !  type(TMatLabel) :: mat_label
+  !end type
+  
+  !> element to store matrix in memory
   type :: TMatrixCacheEntry
-    type(TMatrixCacheEntry), pointer :: next => null()
-    type(z_DNS), allocatable :: matrix
-    type(TMatLabel) :: mat_label
+    type(z_DNS),  pointer :: matrix => null()
   end type
 
   !> Mem derived class
+  !> Internal storage within an array. Blocks stored per diagonals.
+  !> Diagonal, Superdiagonal, Subdiagonal. 
   type, extends(TMatrixCache) :: TMatrixCacheMem
-    type(TMatrixCacheEntry), pointer :: first => null()
+    type(TMatrixCacheEntry), allocatable :: MatArray(:,:,:,:)
+    integer :: Nblocks = 0
+    logical :: isInitialized = .false.
     character(len=LST) :: tagname
   contains
+    procedure :: init
+    procedure :: checks
     procedure :: add => mem_add
     procedure :: retrieve => mem_retrieve
     procedure :: retrieve_pointer => mem_retrieve_pointer
@@ -188,170 +199,174 @@ contains
   end subroutine print_label
 
   !! Definitions for TMatrixCacheMem
+  subroutine init(this, NE, Nk, NPL, Ndiag, Nspin)
+    class(TMatrixCacheMem) :: this
+    integer, intent(in) :: Nk, NE, NPL, Ndiag, Nspin
+
+    integer :: ierr
+
+    !print*,"Init "//trim(this%tagname), allocated(this%MatArray)
+    if (allocated(this%MatArray)) then
+      if (size(this%MatArray) /= NE*Nk*NPL*Ndiag*Nspin) then   
+        call mem_destroy(this)
+      end if  
+    end if  
+    if (.not.allocated(this%MatArray)) then
+      allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr)
+      if (ierr /= 0) then    
+        ERROR STOP "Allocation error"
+      end if   
+    end if  
+    this%Nblocks = NPL    
+    this%isInitialized = .true.
+  end subroutine init
+
+  subroutine checks(this, label, bl)
+    class(TMatrixCacheMem) :: this
+    type(TMatLabel), intent(in) :: label
+    integer, intent(out) :: bl
+
+    integer :: r, c
+    
+    if (.not.allocated(this%MatArray)) then
+      error stop "MatArray not allocated for "//trim(this%tagname)
+    end if
+    if (label%energy_point < 1 .or. label%energy_point > size(this%MatArray,1)) then
+       print*,trim(this%tagname)   
+       call print_label(label)
+       error stop "energy_point out of range"
+    end if
+    if (label%kpoint < 1 .or. label%kpoint > size(this%MatArray,2)) then
+       print*,trim(this%tagname)   
+       call print_label(label)
+       error stop "k_point out of range"
+    end if
+    if (label%spin < 1 .or. label%spin > size(this%MatArray,4)) then
+       print*,trim(this%tagname)   
+       call print_label(label)
+       error stop "spin out of range"
+    end if
+        
+    r = label%row_block
+    c = label%col_block
+    if (c >= r) then
+       bl = (c-r)*this%Nblocks + c
+    else
+       bl = 2*(r-c)*this%Nblocks + r   
+    end if
+    if (bl < 1 .or. bl > size(this%MatArray,3)) then
+       print*,trim(this%tagname)   
+       call print_label(label)
+       print*, "bl=",bl
+       error stop "block out of range"
+    end if
+  end subroutine checks
 
   subroutine mem_add(this, matrix, label)
     class(TMatrixCacheMem) :: this
     type(z_DNS):: matrix
     type(TMatLabel) :: label
 
-    type(TMatrixCacheEntry), pointer :: p
+    integer :: b
 
-    if (.not. associated(this%first)) then
-      allocate (this%first)
-      p => this%first
-    else
-      ! check if a label is already present.
-      do while (associated(p))
-        if (p%mat_label .eq. label) then
-          call destroy(p%matrix)
-          p%matrix = matrix
-          return
-        end if
-        p => p%next
-      end do
-      ! If the matrix is not found, add the new matrix
-      ! Always add at the beginning, because it is faster.
-      allocate(p)
-      p%next => this%first
-      this%first => p
-    end if
-    allocate(p%matrix)
-    p%matrix = matrix
-    p%mat_label = label
-  end subroutine
+    ! blocks r,r first. r,r+1 after. r+1,r 
+    ! 11, 22, 33, 44, 12, 23, 34, 21, 32, 43
+    !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12  
+    call checks(this, label, b) 
+    associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
+      if (associated(p%matrix)) then
+         call destroy(p%matrix)
+      else
+         allocate(p%matrix)
+      end if   
+      p%matrix = matrix
+    end associate
+
+  end subroutine mem_add
 
   subroutine mem_retrieve(this, matrix, label)
     class(TMatrixCacheMem) :: this
     type(z_DNS) :: matrix
     type(TMatLabel) :: label
 
-    type(TMatrixCacheEntry), pointer :: p
-
-    if (.not. associated(this%first)) then
-      print*, 'Retrieve matrix for '//trim(this%tagname)
-      call print_label(label)
-      error stop "Internal error: no entry in matrix cache"
-    else
-      p => this%first
-    end if
-    do while (associated(p))
-      if (p%mat_label .eq. label) then
-        call destroy(matrix)
-        matrix = p%matrix
-        return
+    integer :: b
+    
+    call checks(this, label, b) 
+    associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
+      if (associated(p%matrix)) then
+        call destroy(matrix)    
+        matrix = p%matrix 
+      else      
+        print*, 'Retrieve matrix for '//trim(this%tagname)
+        call print_label(label)
+        error stop "Cannot retrieve matrix"
       end if
-      p => p%next
-    end do
-
-    print*, 'Retrieve matrix for '//trim(this%tagname)
-    call print_label(label)
-    error stop "Cannot retrieve matrix"
-
-  end subroutine
+    end associate
+    
+  end subroutine mem_retrieve
 
   function mem_retrieve_pointer(this, label) result(pmatrix)
     class(TMatrixCacheMem) :: this
     type(TMatLabel) :: label
     type(z_DNS), pointer :: pmatrix
 
-    type(TMatrixCacheEntry), pointer :: p
-
-    if (.not. associated(this%first)) then
-      print*, 'Matrix cache for: '//trim(this%tagname)
-      error stop "(mem_retrieve_pointer) No entry in matrix cache"
-    else
-      p => this%first
-    end if
-    do while (associated(p))
-      if (p%mat_label .eq. label) then
-        pmatrix => p%matrix
-        return
+    integer :: b
+    
+    call checks(this, label, b) 
+    associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
+      if (associated(p%matrix)) then
+        pmatrix => p%matrix 
+      else      
+        print*, 'Retrieve matrix for '//trim(this%tagname)
+        call print_label(label)
+        error stop "Cannot retrieve matrix"
       end if
-      p => p%next
-    end do
+    end associate
 
-    print*, 'Retrieve pointer for '//trim(this%tagname)
-    call print_label(label)
-    error stop "Cannot retrieve matrix in cache"
-
-  end function
+  end function mem_retrieve_pointer
 
   function mem_retrieve_loc(this, label) result(pmatrix)
     class(TMatrixCacheMem) :: this
     type(TMatLabel) :: label
     type(C_PTR) :: pmatrix
 
-    type(TMatrixCacheEntry), pointer :: p
-
-    if (.not. associated(this%first)) then
-      print*, 'Matrix cache for: '//trim(this%tagname)
-      error stop "(mem_retrieve_loc) No entry in matrix cache"
-    else
-      p => this%first
-    end if
-
-    do while (associated(p))
-      if (p%mat_label .eq. label) then
-        pmatrix = c_loc(p%matrix%val)
-        return
+    integer :: b
+    
+    call checks(this, label, b) 
+    associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
+      if (associated(p%matrix)) then
+        pmatrix = c_loc(p%matrix%val) 
+      else      
+        print*, 'Retrieve matrix for '//trim(this%tagname)
+        call print_label(label)
+        error stop "Cannot retrieve matrix"
       end if
-      p => p%next
-    end do
+    end associate
 
-    print*, 'Retrieve loc for '//trim(this%tagname)
-    call print_label(label)
-    error stop "Cannot retrieve matrix in cache"
-
-  end function
+  end function mem_retrieve_loc
 
   function mem_is_cached(this, label) result(val)
     class(TMatrixCacheMem) :: this
     type(TMatLabel) :: label
     logical :: val
 
-    type(TMatrixCacheEntry), pointer :: p
-
-    if (.not. associated(this%first)) then
-      val = .false.
-      return
-    else
-      p => this%first
-    end if
-
-    do while (associated(p))
-      if (p%mat_label .eq. label) then
-        val = .true.
-        return
+    integer :: b
+    
+    call checks(this, label, b) 
+    associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
+      if (associated(p%matrix)) then
+         val = .true. 
+      else      
+         val = .false. 
       end if
-      p => p%next
-    end do
-
-    val = .false.
-
-  end function
+    end associate
+  
+  end function mem_is_cached
 
   subroutine mem_list_cache(this)
     class(TMatrixCacheMem) :: this
 
-    type(TMatLabel) :: label
-    type(TMatrixCacheEntry), pointer :: p
-    type(z_DNS), pointer :: pmatrix
-
-    if (.not. associated(this%first)) then
-      return
-    end if
-    print*,'-------------------------------------'
-    print*,'List cache:'
-    p => this%first
-    do while (associated(p))
-      call print_label(p%mat_label)
-      pmatrix => p%matrix
-      print*,'matrix size:',size(pmatrix%val)
-      p => p%next
-    end do
-    print*,'-------------------------------------'
-
-  end subroutine
+  end subroutine mem_list_cache
 
   ! this%first => p%matrix     p%matrix      p%matrix
   !               p%label      p%label       p%label
@@ -359,23 +374,25 @@ contains
   subroutine mem_destroy(this)
     class(TMatrixCacheMem) :: this
 
-    type(TMatrixCacheEntry), pointer :: p, previous
-    if (.not. associated(this%first)) then
-      return
+    integer :: ii, jj, kk, ll
+    
+    if (allocated(this%MatArray)) then
+      do ii = 1, size(this%MatArray,1)
+        do jj = 1, size(this%MatArray,2)
+          do kk = 1, size(this%MatArray,3)
+            do ll = 1, size(this%MatArray,4)
+               if (associated(this%MatArray(ii,jj,kk,ll)%matrix)) then
+                  call destroy(this%MatArray(ii,jj,kk,ll)%matrix)
+               end if
+            end do
+          end do 
+        end do
+      end do
+      deallocate(this%MatArray)
+      this%isInitialized = .false.
     end if
-
-    p => this%first
-    do while (associated(p))
-      call destroy(p%matrix)
-      deallocate(p%matrix)
-      previous => p
-      p => p%next
-      deallocate(previous)
-    end do
-    this%first => null()
-
-  end subroutine
-
+  end subroutine mem_destroy
+   
 
   !! Definitions for TMatrixCacheDisk
 

@@ -149,7 +149,7 @@ CONTAINS
     !! Deliver Gr to interaction models if any
     ! Alex: temporarily commented out because of the big problem of
     !       S.E. E-point offsets between contour and real-axis
-    !call set_Gr(negf, Gr)
+    !call set_Gr_ela(negf, Gr)
 
     call blk2csr(Gr,negf%str,negf%S,Grout)
 
@@ -247,8 +247,8 @@ CONTAINS
     ! compute Gr(n,n), Gr(n-1,n), Gr(n, n-1);  n = 2 .. nbl
     call calculate_Gr_tridiag_blocks(ESH,2,nbl)
 
-    !Passing Gr to interactions
-    call set_Gr(negf, Gr)
+    !Passing Gr to elastic interactions
+    call set_Gr_ela(negf, Gr)
 
     !Computing device G_n
     call allocate_blk_dns(Gn,nbl)
@@ -260,7 +260,7 @@ CONTAINS
     call deallocate_gsm(gsmr)
 
     !Passing G^n to interactions
-    call set_Gn(negf, Gn)
+    call set_Gn_ela(negf, Gn)
 
     if (present(Glout)) then
       call blk2csr(Gn,negf%str,negf%S,Glout)
@@ -339,9 +339,9 @@ CONTAINS
         if (allocated(outGr%nzval)) call destroy(outGr)
       end if
 
-      if (.not.tDestroyGn) negf%tDestroyGn = .false.
-      if (.not.tDestroyGr) negf%tDestroyGr = .false.
-      if (.not.tDestroyESH) negf%tDestroyESH = .false.
+      negf%tDestroyGn = .false.
+      negf%tDestroyGr = .false.
+      negf%tDestroyESH = .false.
 
       if (present(outGn)) then
         call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outGn,outer,outGr)
@@ -355,6 +355,17 @@ CONTAINS
       scba_iter = scba_iter + 1
 
     enddo
+
+    call set_Gr_inel(negf, Gr)
+    call set_Gn_inel(negf, Gn)
+
+    negf%tDestroyGn = .true.
+    if (.not.tDestroyGn) negf%tDestroyGn = .false.
+    negf%tDestroyGr = .true.
+    if (.not.tDestroyGr) negf%tDestroyGr = .false.
+    negf%tDestroyESH = .true.
+    if (.not.tDestroyESH) negf%tDestroyESH = .false.
+    call destroy_all_blk(negf)
 
     scba_error = negf%scbaDriverElastic%scba_error()
 
@@ -470,7 +481,7 @@ CONTAINS
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
     do while (associated(it))
-      call it%inter%add_sigma_r(ESH, negf%iE, negf%iKpoint, negf%spin)
+      call it%inter%add_sigma_r(ESH, negf%iEloc, negf%iKloc, negf%spin)
       it => it%next
     end do
 
@@ -486,7 +497,7 @@ CONTAINS
     it => negf%interactList%first
 
     do while (associated(it))
-      call it%inter%add_sigma_n(sigma_n, negf%iE, negf%iKpoint, negf%spin)
+      call it%inter%add_sigma_n(sigma_n, negf%iEloc, negf%iKloc, negf%spin)
       it => it%next
     end do
   end subroutine add_sigma_n
@@ -504,16 +515,23 @@ CONTAINS
     logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
-    integer :: ii, jj, nbl
+    integer :: ii, jj, nbl, nKloc, nEloc
     logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
+       print*,"Allocate negf%G_r"
        allocate(TMatrixCacheMem::negf%G_r)
-       select type(p => negf%G_r)
-       type is(TMatrixCacheMem)
-          p%tagname='G_r'
-       end select
     end if
+    select type(p => negf%G_r)
+    type is(TMatrixCacheMem)
+       p%tagname='G_r'
+       if (.not.p%isInitialized) then
+          nbl = negf%str%num_PLs
+          nKloc = size(negf%local_k_index)
+          nEloc = size(negf%en_grid)/numprocs
+          call p%init(nEloc, nKloc, nbl, 3, 1)
+       end if
+    end select
 
     label%kpoint = 0
     label%energy_point = 0
@@ -529,9 +547,9 @@ CONTAINS
     if (present(spin)) then
       label%spin = spin
     end if
-    if (present(tridiagonal)) then
-      tTridiag = tridiagonal
-    end if
+    !if (present(tridiagonal)) then
+    !  tTridiag = tridiagonal
+    !end if
 
     ! store tri- diagonal blocks
     do ii = 1, size(Gr,1)
@@ -561,16 +579,23 @@ CONTAINS
     logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
-    integer :: ii, jj, nbl
+    integer :: ii, jj, nbl, nKloc, nEloc
     logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
+       print*,"Allocate negf%G_n"
        allocate(TMatrixCacheMem::negf%G_n)
-       select type(p => negf%G_n)
-       type is(TMatrixCacheMem)
-          p%tagname='G_n'
-       end select
     end if
+    select type(p => negf%G_n)
+    type is(TMatrixCacheMem)
+       p%tagname = 'G_n'
+       if (.not.p%isInitialized) then
+          nbl = negf%str%num_PLs
+          nKloc = size(negf%local_k_index)
+          nEloc = size(negf%en_grid)/numprocs
+          call p%init(nEloc, nKloc, nbl, 3, 1)
+       end if
+    end select
 
     label%kpoint = 0
     label%energy_point = 0
@@ -586,10 +611,9 @@ CONTAINS
     if (present(spin)) then
       label%spin = spin
     end if
-    if (present(tridiagonal)) then
-      tTridiag = tridiagonal
-    end if
-
+    !if (present(tridiagonal)) then
+    !  tTridiag = tridiagonal
+    !end if
     ! Store diagonal and upper diagonal
     do ii = 1, size(Gn,1)
       label%row_block = ii
@@ -608,57 +632,106 @@ CONTAINS
 
   ! Provides Gr to the interaction models.
   ! In some case the self/energies are computed
-  subroutine set_Gr(negf, Gr)
+  subroutine set_Gr_ela(negf, Gr)
     type(TNegf) :: negf
     type(z_DNS), intent(in) :: Gr(:,:)
 
     integer :: iE, iK, iSpin
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
-    iE=negf%iE
-    iK=negf%iKpoint
+    iE=negf%iEloc
+    iK=negf%iKloc
     iSpin=negf%spin
 
     do while (associated(it))
       select type(pInter => it%inter)
       class is (Telastic)
         call it%inter%set_Gr(Gr, iE, iK, iSpin)
+      end select
+      it => it%next
+    end do
+
+  end subroutine set_Gr_ela
+
+
+  subroutine set_Gr_inel(negf, Gr)
+    type(TNegf) :: negf
+    type(z_DNS), intent(in) :: Gr(:,:)
+
+    integer :: iE, iK, iSpin
+    type(TInteractionNode), pointer :: it
+    logical :: doCacheGr
+
+    it => negf%interactList%first
+    iE=negf%iEloc
+    iK=negf%iKloc
+    iSpin=negf%spin
+    doCacheGr = .true.
+
+    do while (associated(it))
+      select type(pInter => it%inter)
       class is (TInelastic)
-        ! cache Gr in negf container and pass the pointer
-        call cache_Gr(negf, Gr, iE, iK, iSpin, pInter%tTridiagonal)
+        if (doCacheGr) then
+          ! cache Gr inside negf container only on first pass
+          call cache_Gr(negf, Gr, iE, iK, iSpin)
+          doCacheGr = .false.
+        end if
         call pInter%set_Gr_pointer(negf%G_r)
       end select
       it => it%next
     end do
 
-  end subroutine set_Gr
+  end subroutine set_Gr_inel
 
   ! Provides Gn to the interaction models.
   ! In some case the self/energies are computed
-  subroutine set_Gn(negf, Gn)
+  subroutine set_Gn_ela(negf, Gn)
     type(TNegf) :: negf
     type(z_DNS), intent(in) :: Gn(:,:)
 
     integer :: iE, iK, iSpin
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
-    iE=negf%iE
-    iK=negf%iKpoint
+    iE=negf%iEloc
+    iK=negf%iKloc
     iSpin=negf%spin
 
     do while (associated(it))
       select type(pInter => it%inter)
       class is (Telastic)
         call it%inter%set_Gn(Gn, iE, iK, iSpin)
-      class is (TInelastic)
-        ! cache Gn in negf container and pass the pointer
-        call cache_Gn(negf, Gn, iE, iK, iSpin, pInter%tTridiagonal)
-        call pInter%set_Gn_pointer(negf%G_n)
       end select
       it => it%next
     end do
 
-  end subroutine set_Gn
+  end subroutine set_Gn_ela
+
+  subroutine set_Gn_inel(negf, Gn)
+    type(TNegf) :: negf
+    type(z_DNS), intent(in) :: Gn(:,:)
+
+    integer :: iE, iK, iSpin
+    type(TInteractionNode), pointer :: it
+    logical :: doCacheGn
+    it => negf%interactList%first
+    iE=negf%iEloc
+    iK=negf%iKloc
+    iSpin=negf%spin
+    doCacheGn = .true.
+
+    do while (associated(it))
+      select type(pInter => it%inter)
+      class is (TInelastic)
+        if (doCacheGn) then
+          ! cache Gn inside negf container only on first pass
+          call cache_Gn(negf, Gn, iE, iK, iSpin)
+          doCacheGn = .false.
+        end if
+        call pInter%set_Gn_pointer(negf%G_n)
+      end select
+      it => it%next
+    end do
+  end subroutine set_Gn_inel
 
   !------------------------------------------------------------------------------!
   ! Transmission_BP_corrected

@@ -89,6 +89,7 @@ module lib_param
      integer :: path
      integer :: pt_path
      integer :: pt
+     integer :: pt_cpu
      integer :: cpu
      complex(dp) :: Ec
      complex(dp) :: wght
@@ -217,11 +218,13 @@ module lib_param
     type(TStruct_Info) :: str     ! system structure
     type(TBasisCenters) :: basis  ! local basis centers
     type(TNeighbourMap), dimension(:), allocatable :: neighbour_map
-    integer :: iE                 ! Currently processed En point (index)
+    integer :: iE                 ! Currently processed En point (global index)
     integer :: iE_path            ! Currently processed En point (on path)
+    integer :: iEloc              ! Currently processed En point (local index)
     complex(dp) :: Epnt           ! Currently processed En point (value)
     real(dp) :: kwght             ! currently processed k-point weight
-    integer :: iKpoint            ! currently processed k-point (index)
+    integer :: iKpoint            ! currently processed k-point (global index)
+    integer :: iKloc              ! currently processed k-point (local index)
 
     ! Energy grid information
     type(TEnGrid), dimension(:), allocatable :: en_grid

@@ -1656,24 +1656,6 @@ contains
 
     integer :: ii
 
-    !if (.not.negf%internalDM) return
-
-    !if (associated(negf%rho)) then
-    !  if (allocated(negf%rho%nzval)) then
-    !     call destroy(negf%rho)
-    !  end if
-    !  deallocate(negf%rho)
-    !  nullify(negf%rho)
-    !end if
-
-    !if (associated(negf%rho_eps)) then
-    !  if (allocated(negf%rho_eps%nzval)) then
-    !     call destroy(negf%rho_eps)
-    !  end if
-    !  deallocate(negf%rho_eps)
-    !  nullify(negf%rho_eps)
-    !endif
-
     if (.not.allocated(negf%DM)) return
 
     do ii = 1, size(negf%DM)
@@ -1960,15 +1942,15 @@ contains
     end if
 
     call tunneling_int_def(negf)
-    ! Dirty trick. Set the contact population to 1 on the final contact and
-    ! 1 on the initial one.
+    ! Dirty trick. Set the contact population to 1 and 0
     allocate(occupations(2))
     occupations(negf%ni(1)) = 1.0_dp
     occupations(negf%nf(1)) = 0.0_dp
 
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
-    negf%tunn_mat = negf%curr_mat
+    call log_allocate(negf%tunn_mat, size(negf%curr_mat,1), 1)
+    negf%tunn_mat(:,1) = negf%curr_mat(:,1)
 
   end subroutine compute_dephasing_transmission
 

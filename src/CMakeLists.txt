@@ -33,6 +33,7 @@ set(sources-fpp
   elphdb.F90
   elphds.F90
   elphinel.F90
+  self_energy.F90
   scba.F90
   sparskit/skit_blassm.F90
   sparskit/skit_formats.F90
@@ -43,9 +44,9 @@ if(WITH_INELASTIC)
   list(APPEND sources-fpp transform.F90)
 endif()
 
-if(WITH_MPI)
-  set(sources-c self_energy.c)
-endif()
+#if(WITH_MPI)
+#  set(sources-c self_energy.c)
+#endif()
 
 set(sources-f90
   api/libnegfAPICommon.f90

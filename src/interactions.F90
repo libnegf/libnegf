@@ -55,8 +55,8 @@ module interactions
     procedure, non_overridable :: set_scba_iter
     procedure(abst_add_sigma_r), deferred :: add_sigma_r
     procedure(abst_add_sigma_n), deferred :: add_sigma_n
-    procedure(abst_get_sigma_n_blk), deferred, private :: get_sigma_n_blk
-    procedure(abst_get_sigma_n_mat), deferred, private :: get_sigma_n_mat
+    procedure(abst_get_sigma_n_blk), deferred :: get_sigma_n_blk
+    procedure(abst_get_sigma_n_mat), deferred :: get_sigma_n_mat
     generic :: get_sigma_n => get_sigma_n_blk, get_sigma_n_mat
     procedure(abst_set_Gr), deferred :: set_Gr
     procedure(abst_set_Gn), deferred :: set_Gn

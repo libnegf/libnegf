@@ -39,6 +39,7 @@ module elphinel
 #:if defined("MPI")
   use libmpifx_module
 #:endif
+  use self_energy, only: TMatPointer, selfenergy
   use clock
   implicit none
   private
@@ -136,52 +137,52 @@ module elphinel
 
   !> Interface of C function that perform all the MPI communications in order to compute
   !  sigma_r and sigma_n
-  interface
-   integer (c_int) function self_energy(cart_comm, Nrow, Ncol, NK, NE, NKloc, NEloc, iEshift, &
-        & GG, Sigma, sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, &
-        & KK, Ndz) bind(C, name='self_energy')
-     use iso_c_binding
-     !> Cartesian MPI_communicator (negf%cartgrid%id)
-     integer(c_int) :: cart_comm
-     !> matrix size Nrow x Ncol
-     integer(c_int), value :: Nrow
-     !> matrix size Nrow x Ncol
-     integer(c_int), value :: Ncol
-     !> Total Number of K-points
-     integer(c_int), value :: NK
-     !> Total Number of E-points
-     integer(c_int), value :: NE
-     !> Total Number of local K-points
-     integer(c_int), value :: NKloc
-     !> Total Number of local E-points
-     integer(c_int), value :: NEloc
-     !> grid shift of hwq  iEshif
-     integer(c_int), value :: iEshift
-     !> Green Function
-     type(c_ptr) :: GG
-     !> self energy
-     type(c_ptr) :: Sigma
-     !> 6 Buffers of size Np x Np
-     complex(c_double_complex) :: sbuff1(*)
-     complex(c_double_complex) :: sbuff2(*)
-     complex(c_double_complex) :: rbuff1(*)
-     complex(c_double_complex) :: rbuff2(*)
-     complex(c_double_complex) :: sbuffH(*)
-     complex(c_double_complex) :: rbuffH(*)
-     !> prefactor of GG(E-wq) (e.g. nq+1, nq, i/2)
-     complex(c_double_complex), value :: fac_min
-     !> prefactor of GG(E+wq)
-     complex(c_double_complex), value :: fac_plus
-     !> index of z coordinates on the coarse grid corresponding to the block rows
-     integer(c_int) :: izr(*)
-     !> index of z coordinates on the coarse grid corresponding to the block cols
-     integer(c_int) :: izc(*)
-     !> look-up array to store KK(iQ, iK, |zi - zj|)
-     real(c_double) :: KK(*)
-     !> leading dimension of KK
-     integer(c_int), value :: Ndz
-   end function self_energy
-  end interface
+!  interface
+!   integer (c_int) function self_energy(cart_comm, Nrow, Ncol, NK, NE, NKloc, NEloc, iEshift, &
+!        & GG, Sigma, sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, &
+!        & KK, Ndz) bind(C, name='self_energy')
+!     use iso_c_binding
+!     !> Cartesian MPI_communicator (negf%cartgrid%id)
+!     integer(c_int) :: cart_comm
+!     !> matrix size Nrow x Ncol
+!     integer(c_int), value :: Nrow
+!     !> matrix size Nrow x Ncol
+!     integer(c_int), value :: Ncol
+!     !> Total Number of K-points
+!     integer(c_int), value :: NK
+!     !> Total Number of E-points
+!     integer(c_int), value :: NE
+!     !> Total Number of local K-points
+!     integer(c_int), value :: NKloc
+!     !> Total Number of local E-points
+!     integer(c_int), value :: NEloc
+!     !> grid shift of hwq  iEshif
+!     integer(c_int), value :: iEshift
+!     !> Green Function
+!     type(c_ptr) :: GG
+!     !> self energy
+!     type(c_ptr) :: Sigma
+!     !> 6 Buffers of size Np x Np
+!     complex(c_double_complex) :: sbuff1(*)
+!     complex(c_double_complex) :: sbuff2(*)
+!     complex(c_double_complex) :: rbuff1(*)
+!     complex(c_double_complex) :: rbuff2(*)
+!     complex(c_double_complex) :: sbuffH(*)
+!     complex(c_double_complex) :: rbuffH(*)
+!     !> prefactor of GG(E-wq) (e.g. nq+1, nq, i/2)
+!     complex(c_double_complex), value :: fac_min
+!     !> prefactor of GG(E+wq)
+!     complex(c_double_complex), value :: fac_plus
+!     !> index of z coordinates on the coarse grid corresponding to the block rows
+!     integer(c_int) :: izr(*)
+!     !> index of z coordinates on the coarse grid corresponding to the block cols
+!     integer(c_int) :: izc(*)
+!     !> look-up array to store KK(iQ, iK, |zi - zj|)
+!     real(c_double) :: KK(*)
+!     !> leading dimension of KK
+!     integer(c_int), value :: Ndz
+!   end function self_energy
+!  end interface
 
 contains
 
@@ -282,10 +283,15 @@ contains
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
-    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
-    this%sigma_r = TMatrixCacheMem(tagname='Sigma_r')
-    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
-    this%sigma_n = TMatrixCacheMem(tagname='Sigma_n')
+    if (allocated(this%sigma_r)) then
+       call this%sigma_r%destroy()
+    end if
+    allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
+    if (allocated(this%sigma_n)) then
+       call this%sigma_n%destroy()
+    end if
+
+    allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
 
   end subroutine ElPhonNonPO_init
   !--------------------------------------------------------------------------
@@ -324,6 +330,7 @@ contains
     class(ElPhonPolarOptical) :: this
 
     integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
+    integer :: nbl, nEloc, NKloc
     real(dp) :: kq(3), kk(3), QQ(3), Q2, bb, z_mn, Kf
     real(dp) :: zmin, zmax, recVecs2p(3,3)
     real(dp), allocatable :: kpoint(:,:)
@@ -496,7 +503,6 @@ contains
     do jj = 1, npl
       label%row_block = jj
       label%col_block = jj
-      !call print_label(label)
       tmp_blk => this%sigma_r%retrieve_pointer(label)
       ESH(jj, jj)%val = ESH(jj, jj)%val - tmp_blk%val
       ! 3-diagonal blocks
@@ -528,7 +534,6 @@ contains
     integer :: n, npl, ii, ierr, jj
     type(z_dns), pointer :: tmp_blk
     type(TMatLabel) :: label
-    !print*,'inel%add_sigma_n'
     npl = this%struct%num_PLs
 
     if (this%scba_iter .eq. 0) return
@@ -540,7 +545,6 @@ contains
     do jj = 1, npl
       label%row_block = jj
       label%col_block = jj
-      !call print_label(label)
       tmp_blk => this%sigma_n%retrieve_pointer(label)
       sigma(jj, jj)%val = sigma(jj, jj)%val + tmp_blk%val
       ! 3-diagonal blocks
@@ -664,12 +668,8 @@ contains
 #:if defined("MPI")
     integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift, err
     integer :: iK, iE, Ndz, PL_start
-    complex(c_double_complex) :: fac_min, fac_plus
-    complex(c_double_complex), allocatable :: sbuff1(:,:), rbuff1(:,:)
-    complex(c_double_complex), allocatable :: sbuff2(:,:), rbuff2(:,:)
-    complex(c_double_complex), allocatable :: sbuffH(:,:), rbuffH(:,:)
-
-    type(C_PTR), allocatable :: pGG(:,:), pSigma(:,:)
+    complex(dp) :: fac_min, fac_plus
+    type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
     type(z_DNS), target :: Sigma_r
     type(z_DNS), pointer :: pMat
     integer, allocatable :: izr(:), izc(:)
@@ -695,6 +695,13 @@ contains
     allocate(pGG(NEloc,NKloc))
     allocate(pSigma(NEloc,NKloc))
 
+    select type(p => this%sigma_r)
+    type is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          call p%init(nEloc, nKloc, nbl, 3, 1)
+       end if
+    end select
+
     ! Compute the diagonal blocks
     do ibl = 1, nbl
       ! ==================================================================================================
@@ -703,8 +710,6 @@ contains
       ! block dimension
       PL_start = this%struct%mat_PL_start(ibl)
       Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-      ! create buffers
-      call allocate_buff(Np,Np)
 
       ! Project atom position on the coarser grid
       call log_allocate(izr,Np)
@@ -721,18 +726,16 @@ contains
       fac_min = cmplx(this%Nq + 1, 0.0, dp)
       fac_plus = cmplx(this%Nq, 0.0, dp)
 
-      err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-            & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
+      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
       call setup_pointers_Gn()
       ! Compute the Gn part to Sigma_r
       fac_min = (0.0_dp, 0.5_dp)
       fac_plus = (0.0_dp, -0.5_dp)
 
-      err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-            & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
-
-      call deallocate_buff()
+      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
       ! ==================================================================================================
       !  UPPER/LOWER TRI-DIAGONAL BLOCKS
@@ -750,8 +753,6 @@ contains
         label%row_block = ibl
         label%col_block = ibl + 1
 
-        call allocate_buff(Np,Mp)
-
         call setup_pointers_Gr()
         call setup_pointers_Sigma_r(Np,Mp)
 
@@ -759,24 +760,22 @@ contains
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
-        err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-              & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
 
-        err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-              & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
-        call deallocate_buff()
+        !call deallocate_buff()
 
         ! -------------------- subdiagonal blocks -----------------------------------------------------
         label%row_block = ibl + 1
         label%col_block = ibl
-
-        call allocate_buff(Mp,Np)
 
         call setup_pointers_Gr()
         call setup_pointers_Sigma_r(Mp,Np)
@@ -785,18 +784,17 @@ contains
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
-        err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-              & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
 
-        err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-              & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
-        call deallocate_buff()
         call log_deallocate(izc)
       end if
       ! ==================================================================================================
@@ -811,35 +809,14 @@ contains
 #:endif
     contains
 
-    subroutine allocate_buff(Nr,Nc)
-      integer, intent(in) :: Nr, Nc
-
-      call log_allocate(sbuff1, Nr, Nc)
-      call log_allocate(rbuff1, Nr, Nc)
-      call log_allocate(sbuff2, Nr, Nc)
-      call log_allocate(rbuff2, Nr, Nc)
-      call log_allocate(sbuffH, Nr, Nc)
-      call log_allocate(rbuffH, Nr, Nc)
-    end subroutine allocate_buff
-
-    subroutine deallocate_buff()
-      call log_deallocate(sbuff1)
-      call log_deallocate(rbuff1)
-      call log_deallocate(sbuff2)
-      call log_deallocate(rbuff2)
-      call log_deallocate(sbuffH)
-      call log_deallocate(rbuffH)
-    end subroutine deallocate_buff
-
     ! setup the array of pointers to G_r and sigma_r
     subroutine setup_pointers_Gr()
 
       do iK = 1, NKloc
         do iE = 1, NEloc
-          ! map local to global index for label
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
-          pGG(iE,iK) = this%G_r%retrieve_loc(label)
+          label%kpoint = iK
+          label%energy_point = iE
+          pGG(iE,iK)%pMat => this%G_r%retrieve_pointer(label)
         end do
       end do
     end subroutine setup_pointers_Gr
@@ -848,9 +825,9 @@ contains
     subroutine setup_pointers_Gn()
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
-          pGG(iE,iK) = this%G_n%retrieve_loc(label)
+          label%kpoint = iK        !this%local_kindex(iK)
+          label%energy_point = iE  !+ id*NEloc
+          pGG(iE,iK)%pMat => this%G_n%retrieve_pointer(label)
         end do
       end do
     end subroutine setup_pointers_Gn
@@ -861,8 +838,8 @@ contains
 
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
+          label%kpoint = iK        !this%local_kindex(iK)
+          label%energy_point = iE  !+ id*NEloc
           if (.not.this%Sigma_r%is_cached(label)) then
             !print*,'create Sigma_r', label%kpoint, label%energy_point
             call create(Sigma_r,Nr,Nc)
@@ -870,7 +847,8 @@ contains
             call this%Sigma_r%add(Sigma_r, label)
             call destroy(Sigma_r)
           end if
-          pSigma(iE,iK) = this%Sigma_r%retrieve_loc(label)
+          !pSigma(iE,iK) = this%Sigma_r%retrieve_loc(label)
+          pSigma(iE,iK)%pMat => this%Sigma_r%retrieve_pointer(label)
         end do
       end do
 
@@ -881,8 +859,8 @@ contains
        character(*) :: arg
        do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
+          label%kpoint = iK        !this%local_kindex(iK)
+          label%energy_point = iE  !+ id*NEloc
           pMat => Mat%retrieve_pointer(label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
@@ -904,19 +882,14 @@ contains
 #:if defined("MPI")
     integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift, err
     integer :: iK, iE, Ndz, PL_start
-    complex(c_double_complex) :: fac_min, fac_plus
-    complex(c_double_complex), allocatable :: sbuff1(:,:), rbuff1(:,:)
-    complex(c_double_complex), allocatable :: sbuff2(:,:), rbuff2(:,:)
-    complex(c_double_complex), allocatable :: sbuffH(:,:), rbuffH(:,:)
-
-    type(C_PTR), allocatable :: pGG(:,:), pSigma(:,:)
+    complex(dp) :: fac_min, fac_plus
+    type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
     type(z_DNS), pointer :: pMat
     type(z_DNS) :: Sigma_n
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
 
     real(dp) :: maxvalue
-    !print*,'....Compute Sigma_n diagonal blocks'
 
     nbl = this%struct%num_PLs
     NK = size(this%kpoint,2)
@@ -935,6 +908,13 @@ contains
     allocate(pGG(NEloc,NKloc))
     allocate(pSigma(NEloc,NKloc))
 
+    select type(p => this%sigma_n)
+    type is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          call p%init(nEloc, nKloc, nbl, 3, 1)
+       end if
+    end select
+
     do ibl = 1, nbl
       ! ==================================================================================================
       !  Compute the diagonal blocks
@@ -942,8 +922,6 @@ contains
       ! block dimension
       PL_start = this%struct%mat_PL_start(ibl)
       Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-      ! create buffers
-      call allocate_buff(Np,Np)
 
       ! Project atom position on the coarser grid
       call log_allocate(izr,Np)
@@ -960,10 +938,10 @@ contains
       fac_min = cmplx(this%Nq, 0.0, dp)
       fac_plus = cmplx(this%Nq + 1, 0.0, dp)
 
-      err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-            & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
+      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
 
-      call deallocate_buff()
+      !call deallocate_buff()
 
       ! ==================================================================================================
       !   UPPER TRI- DIAGONAL BLOCKS
@@ -980,23 +958,16 @@ contains
         ! -------------------- supradiagonal blocks -----------------------------------------------------
         label%row_block = ibl
         label%col_block = ibl + 1
-        ! create buffers
-        call allocate_buff(Np,Mp)
 
         call setup_pointers_Gn()
         call setup_pointers_Sigma_n(Np,Mp)
-        !call check_elements(this%G_n,"G_n")
 
         ! Compute the retarded part
         fac_min = cmplx(this%Nq, 0.0, dp)
         fac_plus = cmplx(this%Nq + 1, 0.0, dp)
 
-        err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
-              & sbuff1, sbuff2, rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
-
-       ! call check_elements(this%Sigma_n,"Sigma_n")
-
-        call deallocate_buff()
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+                                                      & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
         call log_deallocate(izc)
       end if
       ! ==================================================================================================
@@ -1012,53 +983,31 @@ contains
 
     contains
 
-    subroutine allocate_buff(Nr,Nc)
-      integer, intent(in) :: Nr, Nc
-
-      call log_allocate(sbuff1, Nr, Nc)
-      call log_allocate(rbuff1, Nr, Nc)
-      call log_allocate(sbuff2, Nr, Nc)
-      call log_allocate(rbuff2, Nr, Nc)
-      call log_allocate(sbuffH, Nr, Nc)
-      call log_allocate(rbuffH, Nr, Nc)
-    end subroutine allocate_buff
-
-    subroutine deallocate_buff()
-      call log_deallocate(sbuff1)
-      call log_deallocate(rbuff1)
-      call log_deallocate(sbuff2)
-      call log_deallocate(rbuff2)
-      call log_deallocate(sbuffH)
-      call log_deallocate(rbuffH)
-    end subroutine deallocate_buff
-
-    ! setup the array of pointers to G_n and sigma_n
     subroutine setup_pointers_Gn()
-
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
-          pGG(iE,iK) = this%G_n%retrieve_loc(label)
+          label%kpoint = iK        !this%local_kindex(iK)
+          label%energy_point = iE  !+ id*NEloc
+          !pGG(iE,iK) = this%G_n%retrieve_loc(label)
+          pGG(iE,iK)%pMat => this%G_n%retrieve_pointer(label)
         end do
       end do
     end subroutine setup_pointers_Gn
 
     subroutine setup_pointers_Sigma_n(Nr,Nc)
       integer, intent(in) :: Nr, Nc
-
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
+          label%kpoint = iK        !this%local_kindex(iK)
+          label%energy_point = iE  ! + id*NEloc
           if (.not.this%Sigma_n%is_cached(label)) then
-            !print*,'create Sigma_r', label%kpoint, label%energy_point
             call create(Sigma_n,Nr,Nc)
             Sigma_n%val = (0.0_dp, 0.0_dp)
             call this%Sigma_n%add(Sigma_n, label)
             call destroy(Sigma_n)
           end if
-          pSigma(iE,iK) = this%Sigma_n%retrieve_loc(label)
+          !pSigma(iE,iK) = this%Sigma_n%retrieve_loc(label)
+          pSigma(iE,iK)%pMat => this%Sigma_n%retrieve_pointer(label)
         end do
       end do
 
@@ -1069,8 +1018,8 @@ contains
       character(*) :: arg
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = this%local_kindex(iK)
-          label%energy_point = iE + id*NEloc
+          label%kpoint = iK       !this%local_kindex(iK)
+          label%energy_point = iE !+ id*NEloc
           pMat => Mat%retrieve_pointer(label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
@@ -1084,13 +1033,17 @@ contains
   !> Destroy Sigma_r
   subroutine destroy_Sigma_r(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
+    if (allocated(this%sigma_r)) then
+      call this%sigma_r%destroy()
+    end if
   end subroutine destroy_Sigma_r
 
   !> Destroy Sigma_n
   subroutine destroy_Sigma_n(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
+    if (allocated(this%sigma_n)) then
+      call this%sigma_n%destroy()
+    end if
   end subroutine destroy_Sigma_n
 
   !> Integral over qz of the electron-phonon polar optical couping.
