@@ -77,6 +77,9 @@ interface assignment (=)
    module procedure zassign_CSR
    module procedure rassign_DNS
    module procedure zassign_DNS
+   module procedure cassign_DNS
+   module procedure czassign_DNS !mixed precision
+   module procedure zcassign_DNS !mixed precision
    module procedure rassign_COO
    module procedure zassign_COO
 end interface
@@ -1900,8 +1903,13 @@ subroutine rassign_DNS(M_lhs, M_rhs)
   type(r_DNS), intent(inout) :: M_lhs
   type(r_DNS), intent(in) :: M_rhs
 
+  integer :: cc
   call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  M_lhs%val = M_rhs%val
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
 end subroutine rassign_DNS
 
 !> Override assignment operation in order to keep track of memory
@@ -1909,9 +1917,56 @@ subroutine zassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(inout) :: M_lhs
   type(z_DNS), intent(in) :: M_rhs
 
+  integer :: cc
   call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  M_lhs%val = M_rhs%val
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
 end subroutine zassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine cassign_DNS(M_lhs, M_rhs)
+  type(c_DNS), intent(inout) :: M_lhs
+  type(c_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine cassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine zcassign_DNS(M_lhs, M_rhs)
+  type(z_DNS), intent(inout) :: M_lhs
+  type(c_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine zcassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine czassign_DNS(M_lhs, M_rhs)
+  type(c_DNS), intent(inout) :: M_lhs
+  type(z_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine czassign_DNS
 
 !> Override assignment operation in order to keep track of memory
 subroutine rassign_COO(M_lhs, M_rhs)

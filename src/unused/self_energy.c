@@ -265,6 +265,9 @@ int self_energy(
       {
         iKglo=iK+coords[0]*NKloc;
         pSigma = (double complex *) Sigma(iE, iK);
+        if (iE==0){
+          printf("id %d: KK(0, %d, %d)= %g \n",myid, iKglo+1, iQglo+1, KK(0,iKglo,iQglo) );
+        }
         #pragma omp parallel for private(mu,nu,im)
         for( nu=0; nu<Mp; nu++ )
         {
@@ -272,7 +275,7 @@ int self_energy(
           {
             im0 = abs(izr[mu]-izc[nu]);
             pSigma(mu,nu) += KK(im0, iKglo, iQglo) *
-                             (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu);
+                             (fac_minus * pbuff1(mu,nu) + fac_plus * pbuff2(mu,nu));
           }
         }  
       }

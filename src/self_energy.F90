@@ -181,6 +181,7 @@ module self_energy
           !$OMP DO
           do nu = 1, Mp
             KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo)
+            !if (any(isnan(KKbuf))) stop "KKbuf=NaN"
             pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * sbuffH%val(:,nu)
           end do
           !$OMP END DO
@@ -191,7 +192,7 @@ module self_energy
 
         !// MPI Communication over the k-grid
         if (dims(1) > 1) then
-          do iin = 1, dims(1)
+          do iin = 1, dims(1)-1
             call MPI_Cart_shift(comm2d, 0, iin, hsource, hdest, ierr)
             call MPI_Cart_coords(comm2d, hsource, ndims, coordsH, ierr)
 

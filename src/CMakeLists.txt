@@ -45,7 +45,7 @@ if(WITH_INELASTIC)
 endif()
 
 #if(WITH_MPI)
-#  set(sources-c self_energy.c)
+#  set(sources-c unused/self_energy.c)
 #endif()
 
 set(sources-f90

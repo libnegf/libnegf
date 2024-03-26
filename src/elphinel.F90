@@ -36,9 +36,6 @@ module elphinel
   use iso_c_binding
   use mpi_globals
   use inversions, only : inverse
-#:if defined("MPI")
-  use libmpifx_module
-#:endif
   use self_energy, only: TMatPointer, selfenergy
   use clock
   implicit none
@@ -503,18 +500,18 @@ contains
     do jj = 1, npl
       label%row_block = jj
       label%col_block = jj
-      tmp_blk => this%sigma_r%retrieve_pointer(label)
+      call this%sigma_r%retrieve_pointer(tmp_blk, label)
       ESH(jj, jj)%val = ESH(jj, jj)%val - tmp_blk%val
       ! 3-diagonal blocks
       if (this%tTridiagonal) then
         if (jj .lt. npl) then
           label%row_block = jj
           label%col_block = jj + 1
-          tmp_blk => this%sigma_r%retrieve_pointer(label)
+          call this%sigma_r%retrieve_pointer(tmp_blk, label)
           ESH(jj, jj + 1)%val = ESH(jj, jj + 1)%val - tmp_blk%val
           label%row_block = jj + 1
           label%col_block = jj
-          tmp_blk => this%sigma_r%retrieve_pointer(label)
+          call this%sigma_r%retrieve_pointer(tmp_blk, label)
           ESH(jj + 1, jj)%val = ESH(jj + 1, jj)%val - tmp_blk%val
         end if
       end if
@@ -545,7 +542,7 @@ contains
     do jj = 1, npl
       label%row_block = jj
       label%col_block = jj
-      tmp_blk => this%sigma_n%retrieve_pointer(label)
+      call this%sigma_n%retrieve_pointer(tmp_blk, label)
       sigma(jj, jj)%val = sigma(jj, jj)%val + tmp_blk%val
       ! 3-diagonal blocks
       ! Gn^dag = Gn => Sigma_n(i,j) = Sigma_n(j,i)^dag
@@ -553,7 +550,7 @@ contains
         if (jj .lt. npl) then
           label%row_block = jj
           label%col_block = jj + 1
-          tmp_blk => this%sigma_n%retrieve_pointer(label)
+          call this%sigma_n%retrieve_pointer(tmp_blk, label)
           sigma(jj, jj + 1)%val = sigma(jj, jj + 1)%val + tmp_blk%val
           sigma(jj + 1, jj)%val = sigma(jj + 1, jj)%val + conjg(transpose(tmp_blk%val))
         end if
@@ -727,7 +724,9 @@ contains
       fac_plus = cmplx(this%Nq, 0.0, dp)
 
       call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                         & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+      !err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+      !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
 
       call setup_pointers_Gn()
       ! Compute the Gn part to Sigma_r
@@ -735,7 +734,10 @@ contains
       fac_plus = (0.0_dp, -0.5_dp)
 
       call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                         & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+      !err = self_energy(this%cart_comm, Np, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+      !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izr, this%Kmat, Ndz)
+      !call deallocate_buff()
 
       ! ==================================================================================================
       !  UPPER/LOWER TRI-DIAGONAL BLOCKS
@@ -761,7 +763,9 @@ contains
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
         call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                            & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+        !err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+        !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
 
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
@@ -769,7 +773,9 @@ contains
         fac_plus = (0.0_dp, -0.5_dp)
 
         call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                            & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+        !err = self_energy(this%cart_comm, Np, Mp, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+        !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izr, izc, this%Kmat, Ndz)
 
         !call deallocate_buff()
 
@@ -785,7 +791,9 @@ contains
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
         call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                             & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+        !err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+        !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
 
         call setup_pointers_Gn()
         ! Compute the Gn part to Sigma_r
@@ -793,7 +801,9 @@ contains
         fac_plus = (0.0_dp, -0.5_dp)
 
         call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
-                                                      & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+                                             & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, pSigma)
+        !err = self_energy(this%cart_comm, Mp, Np, NK, NE, NKloc, NEloc, iEshift, pGG, pSigma, &
+        !      & rbuff1, rbuff2, rbuffH, sbuffH, fac_min, fac_plus, izc, izr, this%Kmat, Ndz)
 
         call log_deallocate(izc)
       end if
@@ -816,7 +826,7 @@ contains
         do iE = 1, NEloc
           label%kpoint = iK
           label%energy_point = iE
-          pGG(iE,iK)%pMat => this%G_r%retrieve_pointer(label)
+          call this%G_r%retrieve_pointer(pGG(iE,iK)%pMat, label)
         end do
       end do
     end subroutine setup_pointers_Gr
@@ -825,9 +835,10 @@ contains
     subroutine setup_pointers_Gn()
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = iK        !this%local_kindex(iK)
-          label%energy_point = iE  !+ id*NEloc
-          pGG(iE,iK)%pMat => this%G_n%retrieve_pointer(label)
+          label%kpoint = iK
+          label%energy_point = iE
+          call this%G_n%retrieve_pointer(pGG(iE,iK)%pMat, label)
+          !pGG(iE,iK) = this%G_n%retrieve_loc(label)
         end do
       end do
     end subroutine setup_pointers_Gn
@@ -847,8 +858,8 @@ contains
             call this%Sigma_r%add(Sigma_r, label)
             call destroy(Sigma_r)
           end if
+          call this%Sigma_r%retrieve_pointer(pSigma(iE,iK)%pMat, label)
           !pSigma(iE,iK) = this%Sigma_r%retrieve_loc(label)
-          pSigma(iE,iK)%pMat => this%Sigma_r%retrieve_pointer(label)
         end do
       end do
 
@@ -859,9 +870,9 @@ contains
        character(*) :: arg
        do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = iK        !this%local_kindex(iK)
-          label%energy_point = iE  !+ id*NEloc
-          pMat => Mat%retrieve_pointer(label)
+          label%kpoint = iK
+          label%energy_point = iE
+          call Mat%retrieve_pointer(pMat, label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
           end if
@@ -988,8 +999,8 @@ contains
         do iE = 1, NEloc
           label%kpoint = iK        !this%local_kindex(iK)
           label%energy_point = iE  !+ id*NEloc
+          call this%G_n%retrieve_pointer(pGG(iE,iK)%pMat, label)
           !pGG(iE,iK) = this%G_n%retrieve_loc(label)
-          pGG(iE,iK)%pMat => this%G_n%retrieve_pointer(label)
         end do
       end do
     end subroutine setup_pointers_Gn
@@ -1006,8 +1017,8 @@ contains
             call this%Sigma_n%add(Sigma_n, label)
             call destroy(Sigma_n)
           end if
+          call this%Sigma_n%retrieve_pointer(pSigma(iE,iK)%pMat, label)
           !pSigma(iE,iK) = this%Sigma_n%retrieve_loc(label)
-          pSigma(iE,iK)%pMat => this%Sigma_n%retrieve_pointer(label)
         end do
       end do
 
@@ -1016,11 +1027,13 @@ contains
     subroutine check_elements(Mat,arg)
       class(TMatrixCache) :: Mat
       character(*) :: arg
+       
+      type(z_DNS), pointer :: pMat
       do iK = 1, NKloc
         do iE = 1, NEloc
-          label%kpoint = iK       !this%local_kindex(iK)
-          label%energy_point = iE !+ id*NEloc
-          pMat => Mat%retrieve_pointer(label)
+          label%kpoint = iK
+          label%energy_point = iE
+          call Mat%retrieve_pointer(pMat, label)
           if (any(isNaN(abs(pMat%val)))) then
              print*,arg//'=NaN',iE,iK
           end if

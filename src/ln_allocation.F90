@@ -41,13 +41,14 @@ module ln_allocation
   end interface
 
   interface log_allocate
-     module procedure allocate_l
-     module procedure allocate_d, allocate_i, allocate_z
-     module procedure allocate_d2, allocate_i2, allocate_z2
-     module procedure allocate_d3, allocate_i3, allocate_z3
+     module procedure allocate_l1
+     module procedure allocate_i1, allocate_d1, allocate_z1
+     module procedure allocate_i2, allocate_d2, allocate_z2
+     module procedure allocate_i3, allocate_d3, allocate_z3
      module procedure allocate_d4
-     module procedure allocate_c2
-     module procedure allocate_c3
+     module procedure allocate_s1, allocate_c1
+     module procedure allocate_s2, allocate_c2
+     module procedure allocate_s3, allocate_c3
   end interface
 
   interface log_deallocatep
@@ -56,13 +57,14 @@ module ln_allocation
   end interface
 
   interface log_deallocate
-     module procedure deallocate_l
-     module procedure deallocate_d, deallocate_i, deallocate_z
-     module procedure deallocate_d2, deallocate_i2, deallocate_z2
-     module procedure deallocate_d3, deallocate_i3, deallocate_z3
+     module procedure deallocate_l1
+     module procedure deallocate_i1, deallocate_d1, deallocate_z1
+     module procedure deallocate_i2, deallocate_d2, deallocate_z2
+     module procedure deallocate_i3, deallocate_d3, deallocate_z3
      module procedure deallocate_d4
-     module procedure deallocate_c2
-     module procedure deallocate_c3
+     module procedure deallocate_s1, deallocate_c1
+     module procedure deallocate_s2, deallocate_c2
+     module procedure deallocate_s3, deallocate_c3
   end interface
 
 
@@ -173,7 +175,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -198,7 +200,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -225,7 +227,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*dp
+          alloc_mem= alloc_mem + size(array)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -237,7 +239,7 @@ contains
   end subroutine allocate_pz
   !---------------------------------------------------------------
   !---------------------------------------------------------------
-  subroutine allocate_i(array,length)
+  subroutine allocate_i1(array,length)
     integer, DIMENSION(:), ALLOCATABLE :: array
     integer :: length,ierr
 
@@ -260,9 +262,9 @@ contains
 #:endif
        endif
     endif
-  end subroutine allocate_i
+  end subroutine allocate_i1
 
-  subroutine allocate_d(array,length)
+  subroutine allocate_d1(array,length)
     real(kind=dp), DIMENSION(:), ALLOCATABLE :: array
     integer :: length,ierr
 
@@ -276,7 +278,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -285,9 +287,59 @@ contains
 #:endif
        endif
     endif
-  end subroutine allocate_d
+  end subroutine allocate_d1
+  
+  subroutine allocate_s1(array,length)
+    real(kind=sp), DIMENSION(:), ALLOCATABLE :: array
+    integer :: length,ierr
 
-  subroutine allocate_z(array,length)
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (ALLOCATED(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not.ALLOCATED(array)) then
+       allocate(array(length),stat=ierr)
+       if (ierr.ne.0) then
+          call allocError()
+       else
+          alloc_mem= alloc_mem + size(array)*4
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem
+          endif
+#:if defined("MEMLOG")
+          call writeMemLog
+#:endif
+       endif
+    endif
+  end subroutine allocate_s1
+
+  subroutine allocate_c1(array,length)
+    complex(kind=sp), DIMENSION(:), ALLOCATABLE :: array
+    integer :: length,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (ALLOCATED(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not.ALLOCATED(array)) then
+       allocate(array(length),stat=ierr)
+       if (ierr.ne.0) then
+          call allocError()
+       else
+          alloc_mem= alloc_mem + size(array)*2*4
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem
+          endif
+#:if defined("MEMLOG")
+          call writeMemLog
+#:endif
+       endif
+    endif
+  end subroutine allocate_c1
+
+  subroutine allocate_z1(array,length)
     complex(kind=dp), DIMENSION(:), ALLOCATABLE :: array
     integer :: length,ierr
 
@@ -301,7 +353,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*dp
+          alloc_mem= alloc_mem + size(array)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -310,7 +362,7 @@ contains
 #:endif
        endif
     endif
-  end subroutine allocate_z
+  end subroutine allocate_z1
   !---------------------------------------------------------------
 
   subroutine allocate_i2(array,row,col)
@@ -352,7 +404,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -362,6 +414,31 @@ contains
        endif
     endif
   end subroutine allocate_d2
+
+  subroutine allocate_s2(array,row,col)
+    real(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
+    integer :: row,col,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (allocated(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not. allocated(array)) then
+       allocate(array(row,col),stat=ierr)
+       if (ierr.ne.0) then
+          call allocError()
+       else
+          alloc_mem= alloc_mem + size(array)*4
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem
+          endif
+#:if defined("MEMLOG")
+          call writeMemLog
+#:endif
+       endif
+    endif
+  end subroutine allocate_s2
 
   subroutine allocate_z2(array,row,col)
     complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: array
@@ -377,7 +454,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*dp
+          alloc_mem= alloc_mem + size(array)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -402,7 +479,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*sp
+          alloc_mem= alloc_mem + size(array)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -412,6 +489,31 @@ contains
        endif
     endif
   end subroutine allocate_c2
+
+  subroutine allocate_s3(array,row,col,np)
+    real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
+    integer :: row,col,np,ierr
+
+    !Allocation control: if array is already allocated STOP and write error statement
+    if (allocated(array)) then
+       STOP 'ALLOCATION ERROR: array is already allocated'
+    endif
+
+    if(.not. allocated(array)) then
+       allocate(array(row,col,np),stat=ierr)
+       if (ierr.ne.0) then
+          call allocError()
+       else
+          alloc_mem= alloc_mem + size(array)*4
+          if (alloc_mem.gt.peak_mem) then
+             peak_mem = alloc_mem
+          endif
+#:if defined("MEMLOG")
+          call writeMemLog
+#:endif
+       endif
+    endif
+  end subroutine allocate_s3
 
   subroutine allocate_c3(array,row,col,np)
     complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
@@ -427,7 +529,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*sp
+          alloc_mem= alloc_mem + size(array)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -480,7 +582,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -505,7 +607,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*dp
+          alloc_mem= alloc_mem + size(array)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -530,7 +632,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*dp
+          alloc_mem= alloc_mem + size(array)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -543,7 +645,7 @@ contains
 
   !---------------------------------------------------------------
   !---------------------------------------------------------------
-  subroutine allocate_l(array,length)
+  subroutine allocate_l1(array,length)
     logical, DIMENSION(:), ALLOCATABLE :: array
     integer :: length,ierr
 
@@ -566,7 +668,7 @@ contains
 #:endif
        endif
     endif
-  end subroutine allocate_l
+  end subroutine allocate_l1
 
   !---------------------------------------------------------------
   !---------------------------------------------------------------
@@ -619,7 +721,7 @@ contains
     real(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -634,7 +736,7 @@ contains
     real(dp), DIMENSION(:,:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -648,7 +750,7 @@ contains
     complex(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*dp
+       alloc_mem= alloc_mem - size(array)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -658,7 +760,7 @@ contains
     endif
   end subroutine deallocate_pz
   !---------------------------------------------------------------
-  subroutine deallocate_l(array)
+  subroutine deallocate_l1(array)
     logical, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
@@ -670,9 +772,9 @@ contains
     else
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
-  end subroutine deallocate_l
+  end subroutine deallocate_l1
 
-  subroutine deallocate_i(array)
+  subroutine deallocate_i1(array)
     integer, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
@@ -684,13 +786,13 @@ contains
     else
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
-  end subroutine deallocate_i
+  end subroutine deallocate_i1
 
-  subroutine deallocate_d(array)
+  subroutine deallocate_d1(array)
     real(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -699,13 +801,43 @@ contains
     else
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
-  end subroutine deallocate_d
+  end subroutine deallocate_d1
 
-  subroutine deallocate_z(array)
+  subroutine deallocate_s1(array)
+    real(kind=sp), DIMENSION(:), allocatable :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*4
+       deallocate(array)
+#:if defined("MEMLOG")
+       call writeMemLog
+#:endif
+
+    else
+       write(*,*) 'Warning in deallocation: array is not allocated'
+    endif
+  end subroutine deallocate_s1
+
+  subroutine deallocate_c1(array)
+    complex(kind=sp), DIMENSION(:), allocatable :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*4
+       deallocate(array)
+#:if defined("MEMLOG")
+       call writeMemLog
+#:endif
+
+    else
+       write(*,*) 'Warning in deallocation: array is not allocated'
+    endif
+  end subroutine deallocate_c1
+
+  subroutine deallocate_z1(array)
     complex(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*dp
+       alloc_mem= alloc_mem - size(array)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -713,7 +845,7 @@ contains
     else
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
-  end subroutine deallocate_z
+  end subroutine deallocate_z1
 
   ! ------------------------------------------------------------
   subroutine deallocate_i2(array)
@@ -734,7 +866,7 @@ contains
     real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -744,11 +876,25 @@ contains
     endif
   end subroutine deallocate_d2
 
+  subroutine deallocate_s2(array)
+    real(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*4
+       deallocate(array)
+#:if defined("MEMLOG")
+       call writeMemLog
+#:endif
+    else
+       write(*,*) 'Warning in deallocation: array is not allocated'
+    endif
+  end subroutine deallocate_s2
+
   subroutine deallocate_z2(array)
     complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*dp
+       alloc_mem= alloc_mem - size(array)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -762,7 +908,7 @@ contains
     complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*sp
+       alloc_mem= alloc_mem - size(array)*2*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -776,7 +922,7 @@ contains
     complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*sp
+       alloc_mem= alloc_mem - size(array)*2*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -805,7 +951,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -814,12 +960,27 @@ contains
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
   end subroutine deallocate_d3
+  
+  subroutine deallocate_s3(array)
+    real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
+
+    if (allocated(array)) then
+       alloc_mem= alloc_mem - size(array)*4
+       deallocate(array)
+#:if defined("MEMLOG")
+       call writeMemLog
+#:endif
+    else
+       write(*,*) 'Warning in deallocation: array is not allocated'
+    endif
+  end subroutine deallocate_s3
+
 
   subroutine deallocate_z3(array)
     complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*dp
+       alloc_mem= alloc_mem - size(array)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -833,7 +994,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*dp
+       alloc_mem= alloc_mem - size(array)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
