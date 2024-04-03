@@ -89,7 +89,7 @@ module libnegf
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
- public :: create_DM, destroy_DM, pass_DM, get_DM, get_energies, get_currents
+ public :: create_DM, destroy_DM, pass_DM, copy_DM, get_DM, get_energies, get_currents
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM
@@ -356,8 +356,6 @@ contains
     type(Tnegf) :: negf
     integer, intent(in) :: nDM
 
-    integer :: ii
-
     if (.not.allocated(negf%DM)) then
        allocate(negf%DM(nDM))
     else
@@ -367,17 +365,6 @@ contains
          error stop 'ERROR: DM container already created with different size'
        end if
     end if
-
-    !do ii = 1, nDM
-    !  if (.not.associated(negf%DM(ii)%rho)) then
-    !    allocate(negf%DM(ii)%rho)
-    !  end if
-    !  if (.not.associated(negf%DM(ii)%rho_eps)) then
-    !    allocate(negf%DM(ii)%rho_eps)
-    !  end if
-    !end do
-    !negf%rho => negf%DM(1)%rho
-    !negf%rho_eps => negf%DM(1)%rho_eps
 
   end subroutine create_DM
 
@@ -791,8 +778,8 @@ contains
 
     if (id0) then
       write(*,*) 'k-points used in NEGF:'
-      do ii = 1, size(kweights)
-        write(*,*) negf%kpoints(:,ii), negf%kweights(ii)
+      do ii = 1, size(local_kindex)
+        write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
       end do
     end if
   end subroutine set_kpoints
@@ -1543,33 +1530,85 @@ contains
 
   !> Get density matrix CSR sparse arrays by copy
   !! @param [in] negf: negf container
-  !! @param [out] nzval: number of non zero values
-  !! @param [out] nrow: number of rows
-  !! @param [out] rowpnt (int array): row pointer indexes
-  !! @param [out] colind (int array): column indexes array
-  !! @param [out] nzval (complex array): non zero values
-  subroutine get_DM(negf, nnz, nrow, rowpnt, colind, nzval, iKS)
+  subroutine get_DM(negf, csrDens, iKS)
     type(TNegf), intent(in)  :: negf
-    integer, intent(out) :: nnz, nrow
-    integer, intent(out) :: rowpnt(:), colind(:)
-    real(dp), intent(out) :: nzval(:)
+    type(z_CSR), intent(inout) :: csrDens
     integer, intent(in), optional :: iKS
 
     if (present(iKS)) then
-      nnz = negf%DM(iKS)%rho%nnz
-      nrow = negf%DM(iKS)%rho%nrow
-      rowpnt = negf%DM(iKS)%rho%rowpnt
-      colind = negf%DM(iKS)%rho%colind
-      nzval = real(negf%DM(iKS)%rho%nzval)
+      if (allocated(csrDens%nzval)) then
+          if (csrDens%nnz /= negf%DM(iKS)%rho%nnz) then
+             error stop 'DM size mismatch'
+          end if
+      else
+        call create(csrDens, negf%DM(iKS)%rho%nrow, negf%DM(iKS)%rho%ncol, negf%DM(iKS)%rho%nnz)
+      end if
+      csrDens%nnz = negf%DM(iKS)%rho%nnz
+      csrDens%nrow = negf%DM(iKS)%rho%nrow
+      csrDens%ncol = negf%DM(iKS)%rho%ncol
+      csrDens%nzval = negf%DM(iKS)%rho%nzval
+      csrDens%sorted = negf%DM(iKS)%rho%sorted
     else
-      nnz = negf%rho%nnz
-      nrow = negf%rho%nrow
-      rowpnt = negf%rho%rowpnt
-      colind = negf%rho%colind
-      nzval = real(negf%rho%nzval)
+      if (allocated(csrDens%nzval)) then
+         if (csrDens%nnz /= negf%rho%nnz) then
+            error stop 'DM size mismatch'
+         end if
+      else
+        call create(csrDens, negf%rho%nrow, negf%rho%ncol, negf%rho%nnz)
+      end if
+      csrDens%nnz = negf%rho%nnz
+      csrDens%nrow = negf%rho%nrow
+      csrDens%ncol = negf%rho%ncol
+      csrDens%nzval = negf%rho%nzval
+      csrDens%sorted = negf%rho%sorted
     end if
 
   end subroutine get_DM
+
+  ! -----------------------------------------------------
+  !  Allocate and copy Density Matrix or E-weighted DM
+  ! -----------------------------------------------------
+  subroutine copy_DM(negf, rho, rhoE, iKS)
+    type(Tnegf) :: negf
+    type(z_CSR), intent(in), optional :: rho
+    type(z_CSR), intent(in), optional :: rhoE
+    integer, intent(in), optional :: iKS
+
+    integer :: s, ii
+
+    if (present(iKS)) then
+      ii = iKS
+    else
+      ii = 1
+    end if
+
+    if (ii > 1) then
+      s = merge(size(negf%DM),0,allocated(negf%DM))
+      if (ii > s) then
+        print*,'Passing DM index',iKS,' DM container with size',s
+        stop "Error: pass_DM with index > allocated array. Call create_DM with correct size"
+      endif
+    else
+      if (.not. allocated(negf%DM)) then
+        allocate(negf%DM(1))
+      end if
+    end if
+
+    if (present(rho)) then
+      if (.not.associated(negf%DM(ii)%rho)) allocate(negf%DM(ii)%rho)
+      negf%DM(ii)%rho = rho
+      negf%DM(ii)%internalDM = .true.
+      negf%rho => negf%DM(ii)%rho
+    end if
+
+    if (present(rhoE)) then
+      if (.not.associated(negf%DM(ii)%rho_eps)) allocate(negf%DM(ii)%rho_eps)
+      negf%DM(ii)%rho_eps = rhoE
+      negf%DM(ii)%internalDM = .true.
+      negf%rho_eps => negf%DM(ii)%rho_eps
+    end if
+
+  end subroutine copy_DM
 
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
@@ -1581,6 +1620,7 @@ contains
     integer, intent(in), optional :: iKS
 
     integer :: s
+
     if (present(iKS)) then
       s = merge(size(negf%DM),0,allocated(negf%DM))
       if (iKS > s) then
@@ -1593,8 +1633,8 @@ contains
       if (present(iKS)) then
         negf%DM(iKS)%rho => rho
         ! This destroy here is needed as the matrix is created later
-        if(allocated(negf%DM(iKS)%rho%nzval)) then
-        call destroy(negf%DM(iKS)%rho)
+        if (allocated(negf%DM(iKS)%rho%nzval)) then
+           call destroy(negf%DM(iKS)%rho)
         endif
         negf%DM(iKS)%internalDM = .false.
       else

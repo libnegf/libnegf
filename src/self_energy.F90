@@ -1,50 +1,53 @@
 module self_energy
-  use ln_precision
-  use mpi
+  use ln_precision, only: lp => dp
+  use mat_def, only : x_DNS => z_DNS, create, destroy, assignment(=)
+  use mpi, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
+  !use ln_precision, only: lp => sp
+  !use mat_def, only : x_DNS => c_DNS, create, destroy, assignment(=)
+  !use mpi, MPI_XX_COMPLEX => MPI_COMPLEX
   use mpi_globals
-  use mat_def
   implicit none
   private
 
   public :: selfenergy
 
   type, public :: TMatPointer
-    type(z_DNS), pointer :: pMat    
-  end type TMatPointer      
+    type(x_DNS), pointer :: pMat
+  end type TMatPointer
 
   contains
 
   subroutine selfenergy(comm2d, GG, fac_minus, fac_plus, iEhbaromega, &
-            &  izr, izc, KK, NK, NKloc, NE, NEloc, Sigma)
+                               &  izr, izc, KK, NK, NKloc, NE, NEloc, kindices_map, Sigma)
     integer, intent(in) :: comm2d
-    type(TMatPointer), target, intent(in) :: GG(0:,0:)  
-    complex(dp), intent(in) :: fac_minus
-    complex(dp), intent(in) :: fac_plus
+    type(TMatPointer), intent(in) :: GG(0:,0:)
+    complex(lp), intent(in) :: fac_minus
+    complex(lp), intent(in) :: fac_plus
     integer, intent(in) :: izr(:), izc(:)
-    real(dp), intent(in) :: KK(0:,0:,0:)
+    real(lp), intent(in) :: KK(0:,0:,0:)
     integer, intent(in) :: iEhbaromega
-    integer, intent(in) :: NK 
+    integer, intent(in) :: NK
     integer, intent(in) :: NKloc
     integer, intent(in) :: NE
     integer, intent(in) :: NEloc
-    type(TMatPointer), target, intent(in) :: Sigma(0:,0:)
+    integer, intent(in) :: kindices_map(0:,0:)
+    type(TMatPointer), intent(in) :: Sigma(0:,0:)
 
     ! locals
     integer :: Np, Mp, iQ, iK, iQ2, iQglo, iQglo2, iKglo, mu, nu
     integer :: iEminus, iEplus, iE, iEglo, iin
     integer :: myid, commsize, ndims = 2
     integer :: dims(2), coords(2), coordsH(2)
-    type(z_DNS), target :: rbuff1, rbuff2, sbuffH, rbuffH
-    type(z_DNS), pointer :: pbuff1, pbuff2, pGG, pSigma
-    real(dp), allocatable :: KKbuf(:)
-    complex(dp), allocatable :: buffC(:)
+    type(x_DNS), target :: rbuff1, rbuff2, sbuffH, rbuffH
+    type(x_DNS), pointer :: pbuff1, pbuff2, pGG, pSigma
+    real(lp), allocatable :: KKbuf(:)
     integer :: ierr
     integer :: rqE1,rqE2,rqE3,rqE4, rqH1, rqH2
     integer :: statusE(MPI_STATUS_SIZE,4), statusH(MPI_STATUS_SIZE,2)
 
     integer :: msource, mdest, psource, pdest
     integer :: hsource, hdest
-    integer :: ndiff 
+    integer :: ndiff
 
     dims(1) = NK/NKloc
     dims(2) = NE/NEloc
@@ -56,15 +59,15 @@ module self_energy
 
     Np = size(GG(0,0)%pMat%val,1)
     Mp = size(GG(0,0)%pMat%val,2)
-    call create(rbuff1, Np, Mp)   
-    call create(rbuff2, Np, Mp)   
+    call create(rbuff1, Np, Mp)
+    call create(rbuff2, Np, Mp)
     call create(sbuffH, Np, Mp)
     call create(rbuffH, Np, Mp)
 
     ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) *
     !               * (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
     qloop:do iQ = 0, NKloc-1
-      iQglo = iQ + coords(1)*NKloc
+      iQglo = kindices_map(iQ,coords(1))-1
       eloop:do iE = 0, NEloc-1
         iEglo = iE + coords(2)*NEloc
         !////////////////////////////////////////////////////////////////////////////////////
@@ -99,21 +102,21 @@ module self_energy
           else
             ndiff = 1
           end if
-     
+
           call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
-        
+
           if (mdest /= MPI_PROC_NULL .and. iE < iEhbaromega) then
-             iEminus = mod(iE + (ndiff+1)*NEloc - iEhbaromega, NEloc)   
+             iEminus = mod(iE + (ndiff+1)*NEloc - iEhbaromega, NEloc)
              pGG => GG(iEminus, iQ)%pMat
-             call MPI_Isend(pGG%val, Mp*Np, MPI_DOUBLE_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
+             call MPI_Isend(pGG%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
           end if
-       
+
           if (msource /= MPI_PROC_NULL .and. iE < iEhbaromega) then
-             call MPI_Irecv(rbuff1%val, Mp*Np, MPI_DOUBLE_COMPLEX, msource, 41, comm2d, rqE2, ierr)
+             call MPI_Irecv(rbuff1%val, Mp*Np, MPI_XX_COMPLEX, msource, 41, comm2d, rqE2, ierr)
              pbuff1 => rbuff1
-          end if   
+          end if
         end if
-      
+
         !////////////////////////////////////////////////////////////////////////////////////
         !// Communications of G(k, E+hwq)
         !////////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +128,7 @@ module self_energy
           pbuff2 => GG(iEplus, iQ)%pMat
           pdest = MPI_PROC_NULL
           psource = MPI_PROC_NULL
-        end if 
+        end if
 
         if (dims(2) > 1) then
           if ( iEhbaromega >= NEloc ) then
@@ -135,19 +138,19 @@ module self_energy
           end if
 
           call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
-        
+
           if (pdest /= MPI_PROC_NULL .and. iE >= NEloc - iEhbaromega) then
-             iEplus = mod(iEglo + iEhbaromega, NEloc)   
+             iEplus = mod(iEglo + iEhbaromega, NEloc)
              pGG => GG(iEplus, iQ)%pMat
-             call MPI_Isend(pGG%val, Mp*Np, MPI_DOUBLE_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
+             call MPI_Isend(pGG%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
           end if
-       
+
           if (psource /= MPI_PROC_NULL .and. iE >= NEloc - iEhbaromega) then
-             call MPI_Irecv(rbuff2%val, Mp*Np, MPI_DOUBLE_COMPLEX, psource, 42, comm2d, rqE4, ierr)
+             call MPI_Irecv(rbuff2%val, Mp*Np, MPI_XX_COMPLEX, psource, 42, comm2d, rqE4, ierr)
              pbuff2 => rbuff2
-          end if   
+          end if
         end if
-        
+
         ! Wait for complete communications
         if (dims(2) > 1) then
           if(mdest /= MPI_PROC_NULL .and. iE<iEhbaromega) call MPI_Wait(rqE1, statusE(:,1), ierr);
@@ -157,23 +160,19 @@ module self_energy
           if(psource /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE4, statusE(:,4), ierr);
         end if
 
-        !////////////////////////////////////////////////////////////////////////////////////
-        !// Communications of k-points
-        !////////////////////////////////////////////////////////////////////////////////////
-        !// Update local iQ
-        !// KK(im, iK, iQ) ( KK[ im + Ndz * iK + Ndz * NK * iQ ] )
-        !// Sigma_ij(iQ, iE) = Sum_iK   KK(|z_i-z_j|, iK, iQ) *
-        !//                        * (fac_minus * GG_ij(iK, E-wq) + fac_plus * GG_ij(iK, E+wq))
-        
+        !//   Compute:
+        !//   sbuffH_ij(iQ) = (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
         !$OMP PARALLEL DO private (nu)
         do nu = 1, Mp
           sbuffH%val(:,nu) = (fac_minus*pbuff1%val(:,nu) + fac_plus*pbuff2%val(:,nu))
         end do
         !$OMP END PARALLEL DO
 
-
+        !// The Outer loop performs the summation over iQ
+        !// This Inner loop updates Sigma(iK):
+        !// Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) * sbuffH_ij(iQ)
         do iK = 0, NKloc-1
-          iKglo = iK + coords(1)*NKloc
+          iKglo = kindices_map(iK,coords(1))-1
           pSigma => Sigma(iE, iK)%pMat
 
           !$OMP PARALLEL private (nu, KKbuf)
@@ -181,7 +180,6 @@ module self_energy
           !$OMP DO
           do nu = 1, Mp
             KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo)
-            !if (any(isnan(KKbuf))) stop "KKbuf=NaN"
             pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * sbuffH%val(:,nu)
           end do
           !$OMP END DO
@@ -190,21 +188,38 @@ module self_energy
         end do
 
 
-        !// MPI Communication over the k-grid
+        !////////////////////////////////////////////////////////////////////////////////////
+        !// Communications over the k-grid (Note k-grid is periodic)
+        !// Suppose iQglo = 0, 1, 2, 3, 4, 5
+        !// dims(1) == 3 =>
+        !// cpu#0: iQ = 0, 1; coords(1)=0 => iQglo = 0, 1
+        !// cpu#1: iQ = 0, 1; coords(1)=1 => iQglo = 2, 3
+        !// cpu#2: iQ = 0, 1; coords(1)=2 => iQglo = 4, 5
+        !//
+        !// ii = 1: #0->#1, #1->#2,  #2->#0
+        !// cpu#0: (recv sbuffH(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#1: (recv sbuffH(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !// cpu#2: (recv sbuffH(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// ii = 2: #0->#2, #1->#0,  #2->#1
+        !// cpu#0: (recv sbuffH(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// cpu#1: (recv sbuffH(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#2: (recv sbuffH(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !////////////////////////////////////////////////////////////////////////////////////
         if (dims(1) > 1) then
           do iin = 1, dims(1)-1
             call MPI_Cart_shift(comm2d, 0, iin, hsource, hdest, ierr)
             call MPI_Cart_coords(comm2d, hsource, ndims, coordsH, ierr)
 
-            iQglo2 = iQ + coordsH(1)*NKloc
+            iQglo2 = kindices_map(iQ,coordsH(1))-1
 
-            call MPI_Isend(sbuffH%val, Mp*Np, MPI_DOUBLE_COMPLEX, hdest, 43, comm2d, rqH1, ierr)
-            call MPI_Irecv(rbuffH%val, Mp*Np, MPI_DOUBLE_COMPLEX, hsource, 43, comm2d, rqH2, ierr)
-       
+            call MPI_Isend(sbuffH%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqH1, ierr)
+            call MPI_Irecv(rbuffH%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqH2, ierr)
+
             call MPI_Wait(rqH2, statusH(:,2), ierr)
 
+            ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffH_ij(iQ2)
             do iK = 0, NKloc-1
-              iKglo = iK + coords(1)*NKloc
+              iKglo = kindices_map(iK,coords(1))-1
               pSigma => Sigma(iE, iK)%pMat
               !$OMP PARALLEL private (nu, KKbuf)
               allocate(KKbuf(Np))
@@ -225,14 +240,14 @@ module self_energy
       end do eloop
     end do qloop
 
-    call destroy(rbuff1)  
-    call destroy(rbuff2)  
+    call destroy(rbuff1)
+    call destroy(rbuff2)
     call destroy(sbuffH)
     call destroy(rbuffH)
 
-        
+
   end subroutine selfenergy
 
-      
+
 end module self_energy
 
