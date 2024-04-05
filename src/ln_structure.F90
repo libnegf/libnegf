@@ -56,6 +56,7 @@ type TBasisCenters
   integer :: nCentralAtoms
   integer, dimension(:), allocatable :: matrixToBasis
   real(dp) :: lattVecs(3,3) = 0.0_dp
+  integer :: transportDirection = 3
 end type TBasisCenters
 
 !> type to store neighbour maps between basis centers
@@ -190,7 +191,7 @@ contains
 
   !--------------------------------------------------------------------
   ! Initialize TBasisCenters
-  subroutine create_TBasis(this, coord, nCentral, lattVecs, basisToMatrix, matrixToBasis)
+  subroutine create_TBasis(this, coord, nCentral, lattVecs, basisToMatrix, matrixToBasis, transportDirection)
     type(TBasisCenters) :: this
     real(dp), intent(in) :: coord(:,:)
     integer, intent(in) :: nCentral
@@ -200,6 +201,8 @@ contains
     integer, intent(in), optional :: basisToMatrix(:)
     ! matrix index to basis index
     integer, intent(in), optional :: matrixToBasis(:)
+    ! transport direction for coordinate systems different from NEGF
+    integer, intent(in), optional :: transportDirection
 
     integer :: ii, jj, nn
 
@@ -229,6 +232,10 @@ contains
       do ii = 1, nn-1
         this%matrixToBasis(basisToMatrix(ii):basisToMatrix(ii+1)-1) = ii
       end do
+    end if
+
+    if (present(transportDirection)) then
+      this%transportDirection = transportDirection
     end if
 
   end subroutine create_TBasis

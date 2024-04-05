@@ -39,6 +39,7 @@ module libnegf
  use system_calls
  use ln_enums, only : interaction_models, integration_type
  use interactions, only : get_max_wq
+ use equiv_kpoints
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_comm
 #:endif
@@ -670,18 +671,20 @@ contains
 
 
   !> Initialize basis
-  subroutine init_basis(negf, coords, nCentral, matrixIndices, latticeVects)
+  subroutine init_basis(negf, coords, nCentral, matrixIndices, latticeVects, transportDirection)
     type(Tnegf) :: negf
     real(dp), intent(in) :: coords(:,:)
     integer, intent(in) :: nCentral
     integer, intent(in) :: matrixIndices(:)
     real(dp), intent(in), optional :: latticeVects(:,:)
+    integer, intent(in), optional :: transportDirection
 
     if (present(latticeVects)) then
        call create_TBasis(negf%basis, coords, nCentral, lattVecs=latticeVects, &
-             & basisToMatrix=matrixIndices)
+             & basisToMatrix=matrixIndices, transportDirection=transportDirection)
     else
-       call create_TBasis(negf%basis, coords, nCentral, basisToMatrix=matrixIndices)
+       call create_TBasis(negf%basis, coords, nCentral, basisToMatrix=matrixIndices, &
+             & transportDirection=transportDirection)
     end if
 
   end subroutine init_basis
@@ -730,19 +733,22 @@ contains
   !  local_kindex(:) is a array of local indices pointing to the global vectors
   !  kSamplingType: 0 = Gamma-centered, no inversion
   !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
-  subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType)
+  subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType, equiv_kpoints, equiv_mult)
     type(Tnegf) :: negf
     real(dp), intent(in) :: kpoints(:,:)
     real(dp), intent(in) :: kweights(:)
     integer, intent(in) :: local_kindex(:)
     integer, intent(in) :: kSamplingType
+    real(dp), intent(in), optional :: equiv_kpoints(:,:)
+    integer, intent(in), optional :: equiv_mult(:)
 
-    integer :: ii
+    integer :: ii, jj
     real(dp) :: shift(3)
 
     if (size(kpoints,2) /= size(kweights)) then
        STOP 'Error: size of kpoints do not match'
     end if
+
     if (allocated(negf%kpoints)) then
        call log_deallocate(negf%kpoints)
     end if
@@ -782,6 +788,26 @@ contains
         write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
       end do
     end if
+
+    if (present(equiv_kpoints)) then
+      if (.not. present(equiv_mult)) then
+        stop "ERROR: equivalent k-points were passed without multiplicity array equiv_mult"
+      endif
+      call set(negf%equivalent_kpoints, equiv_kpoints, size(kweights), equiv_mult)
+   
+      if (id0) then
+        write(*,*) 'Equivalent k-points used in NEGF:'
+        do ii = 1, size(kweights) 
+          write(*,*) "For kpoint: ", negf%kpoints(:, ii), ":"
+          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points)
+            write(*,*) "   ", negf%equivalent_kpoints%EqPoints(ii)%points(:, jj)
+          end do
+        end do
+      end if
+
+    else
+      call destroy(negf%equivalent_kpoints)
+    endif
   end subroutine set_kpoints
 
 
@@ -1417,6 +1443,8 @@ contains
     if (allocated(negf%local_k_index)) then
       call log_deallocate(negf%local_k_index)
     end if
+
+    call destroy(negf%equivalent_kpoints)
 
     call destroy_interactions(negf)
 

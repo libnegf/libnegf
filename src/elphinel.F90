@@ -38,6 +38,7 @@ module elphinel
   use mpi_globals
   use inversions, only : inverse
   use self_energy, only: TMatPointer, selfenergy
+  use equiv_kpoints, only : TEqPoint, TEqPointsArray, create, destroy
   use clock
   implicit none
   private
@@ -64,6 +65,9 @@ module elphinel
     real(dp), allocatable :: kpoint(:,:)
     real(dp), allocatable :: kweight(:)
     integer, allocatable :: local_kindex(:)
+    !> Equivalent Kpoints. For extending the irreducible wedge
+    type(TEqPointsArray), allocatable :: equivalent_kpoints
+    !> Map of (iK, cpuID) -> iKglobal
     integer, allocatable :: kindices(:,:)
     !> Energy grid. indeces of local points
     integer, allocatable :: local_Eindex(:)
@@ -239,13 +243,14 @@ contains
   end subroutine ElPhonNonPO_init
   !--------------------------------------------------------------------------
   ! This function should be called before the SCBA loop
-  subroutine set_kpoints(this, kpoints, kweights, kindex)
+  subroutine set_kpoints(this, kpoints, kweights, kindex, equiv_kpoints)
     class(ElPhonInel) :: this
     real(dp), intent(in) :: kpoints(:,:)
     real(dp), intent(in) :: kweights(:)
     integer, intent(in) :: kindex(:)
+    type(TEqPointsArray), intent(in), optional :: equiv_kpoints
 
-    integer :: nKloc, nKprocs, mpierr, kComm, myid
+    integer :: i, nKloc, nKprocs, mpierr, kComm, myid
     logical :: remain_dims(2) = [.true., .false.]
 
     this%kpoint = kpoints
@@ -253,6 +258,14 @@ contains
     this%local_kindex = kindex
     nKloc = size(kindex)
     nKprocs = size(kweights)/nKloc
+
+    if (present(equiv_kpoints)) then
+      call create(this%equivalent_kpoints, equiv_kpoints)
+    else
+      if (allocated(this%equivalent_kpoints)) then
+         call destroy(this%equivalent_kpoints)
+      end if   
+    endif
 
     if (allocated(this%kindices)) call log_deallocate(this%kindices)
     call log_allocate(this%kindices, nKloc, Nkprocs)
@@ -283,17 +296,20 @@ contains
   subroutine prepare_POKmat(this)
     class(ElPhonPolarOptical) :: this
 
-    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
-    integer :: nbl, nEloc, NKloc
-    real(dp) :: kq(3), kk(3), QQ(3), Q2, bb, z_mn, Kf
+    integer :: iZ, iQ, eQ, iK, fu, nDeltaZ, nCentralAtoms
+    real(dp) :: kq(3), kk(3), ekp(3), QQ(3), Q2, bb, z_mn, Kf
     real(dp) :: zmin, zmax, recVecs2p(3,3)
-    real(dp), allocatable :: kpoint(:,:)
+    real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
+
+    integer :: transDir
+    type(TEqPoint) :: eqv_points_iQ
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
 
-    zmin = minval(this%basis%x(3,1:nCentralAtoms))
-    zmax = maxval(this%basis%x(3,1:nCentralAtoms))
+    transDir = this%basis%transportDirection
+    zmin = minval(this%basis%x(transDir,1:nCentralAtoms))
+    zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
 
     nDeltaZ = nint((zmax - zmin)/this%dz)
     if (allocated(this%Kmat)) then
@@ -316,7 +332,7 @@ contains
        kpoint = matmul(recVecs2p, this%kpoint)
     end if
 
-    do iQ = 1, size(this%kweight)
+    iQloop: do iQ = 1, size(this%kweight)
       kq = kpoint(:, iQ)
       do iK = 1, size(this%kweight)
         kk = kpoint(:, iK)
@@ -331,7 +347,34 @@ contains
           this%Kmat(iZ+1,iK,iQ) = this%Ce * this%kweight(iQ) * Kf
         end do
       end do
-    end do
+
+      ! Add contribution of kpoints equivalent to iQ
+      if (allocated(this%equivalent_kpoints)) then
+        !Select the set of points equivalent to iQ
+        eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+        !Compute the absolute k-points
+        call log_allocate(ekpoints, 3, eqv_points_iQ%n_eq)
+        ekpoints = matmul(recVecs2p, eqv_points_iQ%points)
+
+        do eQ = 1, eqv_points_iQ%n_eq
+          ekp = ekpoints(:,eQ)
+          do iK = 1, size(this%kweight)
+            kk = kpoint(:, iK)
+            QQ = kk - ekp
+            Q2 = dot_product(QQ, QQ)
+            bb = sqrt(this%q0*this%q0 + Q2)
+
+            do iZ = 0, nDeltaZ
+              z_mn = iZ * this%dz
+              Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+              this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + this%Ce * this%kweight(iQ) * Kf
+            end do
+          end do
+        enddo
+        call log_deallocate(ekpoints)
+      endif
+
+    end do iQloop
 
     deallocate(kpoint)
     !print*,'debug print Kmat'
@@ -349,16 +392,20 @@ contains
   subroutine prepare_NonPOKmat(this)
     class(ElPhonNonPolarOptical) :: this
 
-    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms
-    real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf
+    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms, eQ
+    real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf, ekp(3), ekp2
     real(dp) :: zmin, zmax, recVecs2p(3,3)
-    real(dp), allocatable :: kpoint(:,:)
+    real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
+
+    integer :: transDir
+    type(TEqPoint) :: eqv_points_iQ
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
 
-    zmin = minval(this%basis%x(3,1:nCentralAtoms))
-    zmax = maxval(this%basis%x(3,1:nCentralAtoms))
+    transDir = this%basis%transportDirection
+    zmin = minval(this%basis%x(transDir,1:nCentralAtoms))
+    zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
 
     nDeltaZ = nint((zmax - zmin)/this%dz)
     if (allocated(this%Kmat)) then
@@ -378,7 +425,7 @@ contains
        kpoint = matmul(recVecs2p, this%kpoint)
     end if
 
-    do iQ = 1, size(this%kweight)
+    iQloop: do iQ = 1, size(this%kweight)
       kq = kpoint(:, iQ)
       kq2 = dot_product(kq,kq)
       if (kq2==0.0_dp) then
@@ -397,12 +444,61 @@ contains
         do iZ = 0, nDeltaZ
           z_mn = iZ * this%dz
           Kf = this%D0*Q2*exp(-sqrt(kq2)*z_mn)/(2.0_dp*kq2*kk2)
+          !if (isNan(Kf)) then
+          !   print*,kq2,kk2,QQ
+          !   stop
+          !end if
           this%Kmat(iZ+1,iK,iQ) = this%coupling * this%kweight(iQ) * Kf
         end do
       end do
-    end do
 
-    deallocate(kpoint)
+      ! Add contribution of kpoints equivalent to iQ
+      if (allocated(this%equivalent_kpoints)) then
+        !Select the set of points equivalent to iQ
+        eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+        !Compute the absolute k-points
+        call log_allocate(ekpoints, 3, eqv_points_iQ%n_eq)
+        ekpoints = matmul(recVecs2p, eqv_points_iQ%points)
+
+        do eQ = 1, eqv_points_iQ%n_eq
+          ekp = ekpoints(:,eQ)
+          ekp2 = dot_product(ekp,ekp)
+          if (ekp2==0.0_dp) then
+            this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) + 0.0_dp
+            cycle
+         end if
+
+         do iK = 1, size(this%kweight)
+          kk = kpoint(:, iK)
+          kk2 = dot_product(kk,kk)
+          if (kk2==0.0_dp) then
+             this%Kmat(:,iK,iQ) = this%Kmat(:,iK,iQ) + 0.0_dp
+             cycle
+          end if
+          QQ = dot_product(kk, ekp)
+          Q2 = QQ*QQ
+          do iZ = 0, nDeltaZ
+            z_mn = iZ * this%dz
+            Kf = this%D0*Q2*exp(-sqrt(ekp2)*z_mn)/(2.0_dp*ekp2*kk2)
+
+            this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + this%coupling * this%kweight(iQ) * Kf
+          end do
+         end do
+
+        end do
+        call log_deallocate(ekpoints)
+      endif
+
+    end do iQloop
+    !if (any(isNan(this%Kmat))) then
+    !  print*,'Kmat= NaN'
+    !  stop
+    !end if
+    !open(newunit=fu, file='Kmat.dat')
+    !do iZ = 0, nDeltaZ
+    !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
+    !end do
+    !close(fu)
 
   end subroutine prepare_NonPOKmat
 
@@ -418,6 +514,7 @@ contains
     if (allocated(this%Kmat)) call log_deallocate(this%Kmat)
     if (allocated(this%sigma_r)) call this%sigma_r%destroy()
     if (allocated(this%sigma_n)) call this%sigma_n%destroy()
+    call destroy(this%equivalent_kpoints)
 
   end subroutine destroy_elph
 

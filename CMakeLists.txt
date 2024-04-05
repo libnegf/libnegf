@@ -8,7 +8,7 @@ project(libNEGF VERSION 1.1.2 LANGUAGES Fortran C)
 
 # Some setting output 
 message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
-message(STATUS "libNEGF WITH_INELASTIC: " ${WITH_INELASTIC})
+message(STATUS "libNEGF WITH_HILBERT: " ${WITH_HILBERT})
 
 include(externalMpifx)
 include(CMakePackageConfigHelpers)

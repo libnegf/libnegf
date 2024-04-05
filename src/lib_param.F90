@@ -34,6 +34,7 @@ module lib_param
   use elphds, only : ElPhonDephS, ElPhonDephS_create, ElPhonDephS_init
   use elphinel, only : ElPhonPolarOptical, ElPhonPO_create, ElPhonPO_init
   use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
+  use equiv_kpoints, only : TEqPointsArray
   use scba
   use ln_cache
   use ln_enums, only : integration_type
@@ -168,7 +169,7 @@ module lib_param
     real(dp) :: Estep             ! Tunneling or dos E step
     real(dp) :: Estep_coarse      ! dos E step for coarse integration (quasiEq integral)
 
-    !Particle info for holes/electron
+    !Particle info for holes/electrons integration
     integer :: particle
 
     !! Emitter and collector for transmission or Meir-Wingreen
@@ -235,6 +236,9 @@ module lib_param
     real(dp), allocatable, dimension(:) :: kweights
     ! Array of local k-point indices
     integer, allocatable, dimension(:) :: local_k_index
+
+    ! Information about equivalent kpoints
+    type(TEqPointsArray), allocatable :: equivalent_kpoints
 
     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
     real(dp) :: int_acc           ! adaptive integration accuracy
@@ -336,7 +340,7 @@ contains
     type(TInteractionNode), pointer :: node
 
     call negf%interactList%add(node)
-    call elphondephd_create(node%inter)
+    call elphondephb_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonDephB)
       call elphondephb_init(pInter, negf%str, coupling, orbsperatom, niter)
@@ -356,7 +360,7 @@ contains
 
     type(TInteractionNode), pointer :: node
     call negf%interactList%add(node)
-    call elphondephd_create(node%inter)
+    call elphondephs_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonDephS)
       call elphondephs_init(pInter, negf%str, coupling, orbsperatom, negf%S, niter)

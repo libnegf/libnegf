@@ -26,6 +26,7 @@ set(sources-fpp
   mat_def.F90
   population.F90
   energy_mesh.F90
+  equiv_kpoints.F90
   interactions.F90
   ln_elastic.F90
   ln_inelastic.F90
@@ -40,7 +41,7 @@ set(sources-fpp
   sparskit/skit_module.F90
   sparskit/skit_unary.F90)
 
-if(WITH_INELASTIC)
+if(WITH_HILBERT)
   list(APPEND sources-fpp transform.F90)
 endif()
 
