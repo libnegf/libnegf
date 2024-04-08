@@ -61,12 +61,21 @@ module iterative
   logical, parameter :: debug=.false.
   ! These are here temporarily ...
   type(z_DNS), dimension(:), allocatable :: gsmr
-  !type(z_DNS), dimension(:), allocatable :: gsml
-  type(z_DNS), dimension(:,:), allocatable :: Gr
   type(z_DNS), dimension(:,:), allocatable :: ESH
+  type(z_DNS), dimension(:,:), allocatable :: Gr
   type(z_DNS), dimension(:,:), allocatable :: Gn
 
+  !! Introduce a new specific type:
+  !type TBlockDense
+  !  type(z_DNS), dimension(:,:), allocatable :: bl
+  !  contains
+  !  procedure :: create => allocate_blk_dns
+  !  procedure :: destroy
+  !  procedure :: init => init_tridiag_blk
+  !end type TBlockDense
 
+  ! type(TBlockDense) :: Gr
+  ! Gr%bl(i,j)
 CONTAINS
 
   !****************************************************************************

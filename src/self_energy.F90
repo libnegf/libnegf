@@ -207,10 +207,17 @@ module self_energy
         !////////////////////////////////////////////////////////////////////////////////////
         if (dims(1) > 1) then
           do iin = 1, dims(1)-1
+            ! Compute the communication points applying a shift in dimension 0 (k-grid)
+            ! NOTE: this means a communication of 1->2,3,4,5... 2->3,4,5,6...
+            !       maybe a nearest-neighbours communication 1->2->3->4 ... 
+            !       is more efficient ? => sbuff = rbuff and send to neighbour
+            ! First shift used to compute iQglo2:
             call MPI_Cart_shift(comm2d, 0, iin, hsource, hdest, ierr)
             call MPI_Cart_coords(comm2d, hsource, ndims, coordsH, ierr)
-
             iQglo2 = kindices_map(iQ,coordsH(1))-1
+
+            ! Actual shift used in send/recv:
+            call MPI_Cart_shift(comm2d, 0, 1, hsource, hdest, ierr)
 
             call MPI_Isend(sbuffH%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqH1, ierr)
             call MPI_Irecv(rbuffH%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqH2, ierr)
@@ -234,6 +241,13 @@ module self_energy
             end do
 
             call MPI_Wait(rqH1, statusH(:,1), ierr)
+
+            !$OMP PARALLEL DO
+            do nu = 1, Mp
+              sbuffH%val(:,nu) = rbuffH%val(:,nu)
+            end do
+            !$OMP END PARALLEL DO
+
           end do
         end if
 

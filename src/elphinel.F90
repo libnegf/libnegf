@@ -264,7 +264,7 @@ contains
     else
       if (allocated(this%equivalent_kpoints)) then
          call destroy(this%equivalent_kpoints)
-      end if   
+      end if
     endif
 
     if (allocated(this%kindices)) call log_deallocate(this%kindices)
@@ -871,20 +871,23 @@ contains
     subroutine setup_pointers_Sigma_r(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
-      type(x_DNS) :: Sigma_r
+      type(x_DNS) :: tmp
+
+      associate(Sigma_r => this%Sigma_r)
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
           label%energy_point = iE
-          if (.not.this%Sigma_r%is_cached(label)) then
-            call create(Sigma_r,Nr,Nc)
-            Sigma_r%val = (0.0_dp, 0.0_dp)
-            call this%Sigma_r%add(Sigma_r, label)
-            call destroy(Sigma_r)
+          if (.not.Sigma_r%is_cached(label)) then
+            call create(tmp,Nr,Nc)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_r%add(tmp, label)
+            call destroy(tmp)
           end if
-          call this%Sigma_r%retrieve_pointer(pSigma(iE,iK)%pMat, label)
+          call Sigma_r%retrieve_pointer(pSigma(iE,iK)%pMat, label)
         end do
       end do
+      end associate
 
     end subroutine setup_pointers_Sigma_r
 
@@ -1030,21 +1033,23 @@ contains
 
     subroutine setup_pointers_Sigma_n(Nr,Nc)
       integer, intent(in) :: Nr, Nc
-      type(x_DNS) :: Sigma_n
+      type(x_DNS) :: tmp
+
+      associate(Sigma_n => this%Sigma_n)
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
           label%energy_point = iE
-          if (.not.this%Sigma_n%is_cached(label)) then
-            call create(Sigma_n,Nr,Nc)
-            Sigma_n%val = (0.0_dp, 0.0_dp)
-            call this%Sigma_n%add(Sigma_n, label)
-            call destroy(Sigma_n)
+          if (.not.Sigma_n%is_cached(label)) then
+            call create(tmp,Nr,Nc)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_n%add(tmp, label)
+            call destroy(tmp)
           end if
-          call this%Sigma_n%retrieve_pointer(pSigma(iE,iK)%pMat, label)
+          call Sigma_n%retrieve_pointer(pSigma(iE,iK)%pMat, label)
         end do
       end do
-
+      end associate
     end subroutine setup_pointers_Sigma_n
 
     subroutine check_elements(Mat,arg)
