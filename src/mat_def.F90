@@ -1878,7 +1878,9 @@ subroutine rassign_CSR(M_lhs, M_rhs)
   type(r_CSR), intent(inout) :: M_lhs
   type(r_CSR), intent(in) :: M_rhs
 
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1890,7 +1892,9 @@ subroutine zassign_CSR(M_lhs, M_rhs)
   type(z_CSR), intent(inout) :: M_lhs
   type(z_CSR), intent(in) :: M_rhs
 
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1904,7 +1908,10 @@ subroutine rassign_DNS(M_lhs, M_rhs)
   type(r_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
@@ -1918,7 +1925,10 @@ subroutine zassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
@@ -1932,7 +1942,10 @@ subroutine cassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
@@ -1946,7 +1959,10 @@ subroutine zcassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
@@ -1960,7 +1976,10 @@ subroutine czassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
@@ -1973,7 +1992,9 @@ subroutine rassign_COO(M_lhs, M_rhs)
   type(r_COO), intent(inout) :: M_lhs
   type(r_COO), intent(in) :: M_rhs
 
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
@@ -1984,7 +2005,9 @@ subroutine zassign_COO(M_lhs, M_rhs)
   type(z_COO), intent(inout) :: M_lhs
   type(z_COO), intent(in) :: M_rhs
 
-  call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
