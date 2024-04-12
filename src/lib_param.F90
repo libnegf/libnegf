@@ -41,6 +41,9 @@ module lib_param
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
 #:endif
+#:if defined("GPU")
+  use iso_c_binding
+#:endif
   implicit none
   private
 
@@ -75,6 +78,20 @@ module lib_param
     type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
     logical    :: internalDM = .true.          ! tells DM is internally allocated
   end type TMatrixArrayDM
+
+#:if defined("GPU")
+  !Type definition of cublas and cusolver handles (no module defs?)
+  type, bind(C) :: cublasHandle
+    type(c_ptr) :: handle
+  end type cublasHandle
+
+  type, bind(C) :: cusolverDnHandle
+    type(c_ptr) :: handle
+  end type cusolverDnHandle
+
+  public :: cusolverDnHandle
+  public :: cublasHandle
+#:endif
 
   !! Structure used to define energy points for the integration
   !! For every point we define
@@ -136,6 +153,10 @@ module lib_param
     type(mpifx_comm) :: cartComm
     type(mpifx_comm) :: energyComm
     type(mpifx_comm) :: kComm
+#:endif
+#:if defined("GPU")
+   type(cublasHandle) :: hcublas
+   type(cusolverDnHandle) :: hcusolver
 #:endif
     integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
     integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save

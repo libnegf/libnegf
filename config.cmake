@@ -13,9 +13,9 @@ option(WITH_MPI "Whether MPI-parallelised library should be built" FALSE)
 option(WITH_OMP "Whether OMP should be used" TRUE)
 
 # Note, this option does not work yet, so leave it to false
-option(WITH_INELASTIC "Whether to build with inelastic scattering" FALSE)
+option(WITH_HILBERT "Whether enable the Hilbert transform in inelastic scattering" FALSE)
 
-# shared library .so build 
+# shared library .so build
 option(BUILD_SHARED_LIBS "Whether the library should be shared" FALSE)
 
 # Whether include modules should be added to installation
@@ -24,7 +24,7 @@ option(INSTALL_INCLUDE_FILES "Whether module files and headers should be install
 # Whether the tests should be compiled
 option(BUILD_TESTING "Whether the tests should be built" TRUE)
 
-# Whether mpifx should be downloaded 
+# Whether mpifx should be downloaded
 option(FORCE_MPIFX_DOWNLOAD
   "Force mpifx download from repository (do not search for installed package) " FALSE)
 

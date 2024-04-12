@@ -4,11 +4,13 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(LibNegfUtils)
 libnegf_load_build_settings()
 
-project(libNEGF VERSION 1.1.2 LANGUAGES Fortran C)
+project(libNEGF VERSION 1.1.2 LANGUAGES Fortran C CUDA)
 
-# Some setting output 
+# Some setting output
 message(STATUS "libNEGF WITH_MPI: " ${WITH_MPI})
 message(STATUS "libNEGF WITH_HILBERT: " ${WITH_HILBERT})
+message(STATUS "libNEGF WITH_GPU: " ${WITH_TRANSPORT_GPU})
+
 
 include(externalMpifx)
 include(CMakePackageConfigHelpers)

@@ -45,9 +45,13 @@ if(WITH_HILBERT)
   list(APPEND sources-fpp transform.F90)
 endif()
 
-#if(WITH_MPI)
-#  set(sources-c unused/self_energy.c)
-#endif()
+if(WITH_TRANSPORT_GPU)
+  list(APPEND sources-fpp cudautils.F90)
+  list(APPEND sources-fpp iterative_gpu.F90)
+  set(sources-cuda gpuroutines.cu)
+else()
+  list(APPEND sources-fpp iterative_cpu.F90)
+endif()
 
 set(sources-f90
   api/libnegfAPICommon.f90

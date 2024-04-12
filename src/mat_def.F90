@@ -22,12 +22,13 @@
 Module mat_def
   use ln_precision
   use ln_allocation
+  use iso_c_binding
   implicit none
   private
 
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
-public :: c_DNS, s_CSR ! single precision defs
+public :: c_DNS, s_CSR, c_CSR! single precision defs
 public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
 
 public :: create, initialize, recreate, destroy, create_id
@@ -116,6 +117,7 @@ interface print_mat
    module procedure rPrint_MSR
    module procedure zPrint_COO
    module procedure rPrint_COO
+   module procedure zprint_DNS
 end interface
 
 interface read_mat
@@ -195,6 +197,7 @@ Type z_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type z_DNS
 
 Type r_DNS3
@@ -202,6 +205,7 @@ Type r_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type r_DNS3
 
 Type z_DNS3
@@ -209,6 +213,7 @@ Type z_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type z_DNS3
 
 Type c_DNS3
@@ -216,6 +221,7 @@ Type c_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type c_DNS3
 
 
@@ -253,6 +259,17 @@ Type s_CSR
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt
 end Type s_CSR
 
+Type c_CSR
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
+  logical :: sorted = .false.
+  complex(kind=sp), DIMENSION(:), ALLOCATABLE :: nzval
+  integer, DIMENSION(:), ALLOCATABLE :: colind
+  integer, DIMENSION(:), ALLOCATABLE :: rowpnt
+end Type c_CSR
+
+
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
 Type r_CSC
@@ -289,6 +306,7 @@ Type r_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type r_DNS
 
 
@@ -296,6 +314,7 @@ Type c_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type c_DNS
 ! *******************************************************************
 contains
@@ -2013,5 +2032,36 @@ subroutine zassign_COO(M_lhs, M_rhs)
   M_lhs%index_j = M_rhs%index_j
 end subroutine zassign_COO
 
+! For debugging purposes
+subroutine zPrint_DNS(id, A, fmt)
+  type(z_DNS), intent(in) :: A
+  integer, intent(in) :: id
+  logical, intent(in) :: fmt
 
+  integer :: i, j, rdim, cdim
+  rdim = size(A%val, 1)
+  cdim = size(A%val, 2)
+
+  if (fmt) then
+    do j = 1, cdim
+      do i = 1, rdim
+        if (abs(real(A%val(i,j)))<1.d-10 .and. abs(aimag(A%val(i,j)))>1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, abs(real(A%val(i,j))), aimag(A%val(i,j))
+        else if (abs(real(A%val(i,j)))>1.d-10 .and. abs(aimag(A%val(i,j)))<1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, real(A%val(i,j)), abs(aimag(A%val(i,j)))
+        else if (abs(real(A%val(i,j)))<1.d-10 .and. abs(aimag(A%val(i,j)))<1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, abs(real(A%val(i,j))), abs(aimag(A%val(i,j)))
+        else
+          write(id,'(2i8,(F20.10,F20.10))') i, j, real(A%val(i,j)), aimag(A%val(i,j))
+        end if
+      enddo
+    enddo
+  else
+    do j = 1, cdim
+      do i = 1, rdim
+         write(id) i, j, A%val(i,j)
+      enddo
+    enddo
+  endif
+end subroutine zPrint_DNS
 end module mat_def
