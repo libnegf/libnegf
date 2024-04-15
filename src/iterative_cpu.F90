@@ -360,7 +360,7 @@ contains
     it => negf%interactList%first
 
     do while (associated(it))
-      call it%inter%add_sigma_n(sigma_n, negf%iE, negf%iKpoint, negf%spin)
+      call it%inter%add_sigma_n(sigma_n, negf%iEloc, negf%iKloc, negf%spin)
       it => it%next
     end do
   end subroutine add_sigma_n
