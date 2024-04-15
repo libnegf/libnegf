@@ -66,6 +66,11 @@ if(WITH_MPI)
   list(APPEND fyppdefs -DMPI)
 endif()
 
+
+if(WITH_TRANSPORT_GPU)
+  list(APPEND fyppdefs -DGPU)
+endif()
+
 set(sources-fpp-f90)
 foreach(fppsrc IN LISTS sources-fpp)
   string(REGEX REPLACE "\\.F90" ".f90" f90src ${fppsrc})
@@ -78,11 +83,12 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-if(WITH_MPI)
-  add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-c})
-else()
-  add_library(negf ${sources-fpp-f90} ${sources-f90})
-endif()
+
+  if(WITH_TRANSPORT_GPU)
+     add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-cuda})
+  else()
+     add_library(negf ${sources-fpp-f90} ${sources-f90})
+  endif()
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC
@@ -91,18 +97,23 @@ target_include_directories(negf PUBLIC
 set(BUILD_MOD_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
+set_property(TARGET negf PROPERTY CUDA_ARCHITECTURES OFF)
 
-if(WITH_MPI)
-  find_package(MPI REQUIRED)
-  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
-  # MPI_Fortran dependency should be private to avoid the leakage of the '-fallow-argument-mismatch'
-  # option (from MPI_Fortran_COMPILE_OPTONS) when compiling C-code with dependence on negf.
-  target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
-endif()
 if(WITH_OMP)
   find_package(OpenMP REQUIRED)
   target_link_libraries(negf PUBLIC OpenMP::OpenMP_Fortran)
 endif()
+
+if(WITH_MPI)
+  find_package(MPI REQUIRED)
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
+endif()
+
+if(WITH_TRANSPORT_GPU)
+  find_package(CUDAToolkit REQUIRED)
+  target_link_libraries(negf PRIVATE CUDA::cudart CUDA::cusolver CUDA::cublas)
+endif()
+
 target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 target_include_directories(negf PUBLIC

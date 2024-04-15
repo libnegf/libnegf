@@ -1608,16 +1608,15 @@ contains
        if (.not.do_ledos) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, tun_mat)
+          call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           ledos(:) = 0.0_dp
 
-          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, tun_mat, negf%dos_proj, ledos)
+          call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
+                                             &  negf%dos_proj, ledos)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght
@@ -2422,16 +2421,15 @@ contains
        if (.not.do_ledos) then
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
 
-          call calculate_transmissions(negf%H,negf%S,Ec,SelfEneR,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, tun_mat)
+          call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
           ledos(:) = 0.0_dp
 
-          call calculate_transmissions_and_dos(negf%H,negf%S,Ec,SelfEneR,GS,negf%ni,negf%nf, &
-                             & negf%str, negf%tun_proj, tun_mat, negf%dos_proj, ledos)
+          call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
+                                             &  negf%dos_proj, ledos)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght

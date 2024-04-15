@@ -849,7 +849,6 @@ end interface
        call copyToGPU(M(ii,ii))
 
     end do
-    !call createGPU(M(1,1))
     call copyToGPU(M(1,1))
   end subroutine copy_trid_toGPU_dp
 
