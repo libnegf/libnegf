@@ -1095,14 +1095,14 @@ subroutine negf_set_kpoints(handler, kpoints, dims, nK, kweights, local_k_indice
   use ln_precision        ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)               !if:var:in
-  real(c_double), intent(in) :: kpoints(dims,nK)    !if:var:in
   integer(c_int), intent(in), value :: dims         !if:var:in
   integer(c_int), intent(in), value :: nK           !if:var:in
+  real(c_double), intent(in) :: kpoints(dims,nK)    !if:var:in
   real(c_double), intent(in) :: kweights(nK)        !if:var:in
-  integer(c_int), intent(in) :: local_k_indices(n_local) !if:var:in
   integer(c_int), intent(in), value :: n_local           !if:var:in
-  real(c_double), intent(in) :: eqv_points(dims,m_eq)    !if:var:in
+  integer(c_int), intent(in) :: local_k_indices(n_local) !if:var:in
   integer(c_int), intent(in), value :: m_eq              !if:var:in
+  real(c_double), intent(in) :: eqv_points(dims,m_eq)    !if:var:in
   integer(c_int), intent(in) :: equiv_mult(nK)           !if:var:in
 
   type(NEGFpointers) :: LIB
@@ -1133,12 +1133,12 @@ subroutine negf_init_basis(handler, coords, n_atoms, dims, matrix_indices, latti
   use ln_precision        ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)                       !if:var:in
-  real(c_double), intent(in) :: coords(dims,n_atoms)        !if:var:in
   integer(c_int), intent(in), value :: n_atoms              !if:var:in
   integer(c_int), intent(in), value :: dims                 !if:var:in
+  real(c_double), intent(in) :: coords(dims,n_atoms)        !if:var:in
   integer(c_int), intent(in) :: matrix_indices(n_atoms)     !if:var:in
-  real(c_double), intent(in) :: lattice_vecs(dims,n_vecs)   !if:var:in
   integer(c_int), intent(in), value :: n_vecs      !if:var:in
+  real(c_double), intent(in) :: lattice_vecs(dims,n_vecs)   !if:var:in
   integer(c_int), intent(in), value :: trans_dir   !if:var:in
 
   type(NEGFpointers) :: LIB
@@ -1262,8 +1262,8 @@ subroutine negf_set_elph_dephasing(handler, coupling, coupling_size, scba_niter)
   use lib_param      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)  ! if:var:in
-  real(c_double), intent(in) :: coupling(coupling_size)  ! if:var:in
   integer(c_int), intent(in), value :: coupling_size ! if:var:in
+  real(c_double), intent(in) :: coupling(coupling_size)  ! if:var:in
   integer(c_int), intent(in), value :: scba_niter ! if:var:in
 
   type(NEGFpointers) :: LIB
@@ -1292,10 +1292,10 @@ subroutine negf_set_elph_block_dephasing(handler, coupling, coupling_size, orbsp
   use lib_param      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)                  ! if:var:in
-  real(c_double), intent(in) :: coupling(coupling_size)       ! if:var:in
   integer(c_int), intent(in), value :: coupling_size          ! if:var:in
-  integer(c_int), intent(in) :: orbsperatm(orbsperatm_size)   ! if:var:in
+  real(c_double), intent(in) :: coupling(coupling_size)       ! if:var:in
   integer(c_int), intent(in), value :: orbsperatm_size        ! if:var:in
+  integer(c_int), intent(in) :: orbsperatm(orbsperatm_size)   ! if:var:in
   integer(c_int), intent(in), value :: scba_niter             ! if:var:in
 
   type(NEGFpointers) :: LIB
@@ -1328,10 +1328,10 @@ subroutine negf_set_elph_s_dephasing(handler, coupling, coupling_size, orbsperat
   use lib_param      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)                  ! if:var:in
-  real(c_double), intent(in) :: coupling(coupling_size)       ! if:var:in
   integer(c_int), intent(in), value :: coupling_size          ! if:var:in
-  integer(c_int), intent(in) :: orbsperatm(orbsperatm_size)   ! if:var:in
+  real(c_double), intent(in) :: coupling(coupling_size)       ! if:var:in
   integer(c_int), intent(in), value :: orbsperatm_size        ! if:var:in
+  integer(c_int), intent(in) :: orbsperatm(orbsperatm_size)   ! if:var:in
   integer(c_int), intent(in), value :: scba_niter             ! if:var:in
 
   type(NEGFpointers) :: LIB
@@ -1363,18 +1363,18 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
   use ln_precision      ! if:mod:use
   use lib_param      ! if:mod:use
   implicit none
-  integer(c_int) :: handler(DAC_handlerSize)                  ! if:var:in
+  integer(c_int) :: handler(DAC_handlerSize)          ! if:var:in
+  integer(c_int), intent(in), value :: coup_size      ! if:var:in
   real(c_double), intent(in) :: coup(coup_size)       ! if:var:in
-  integer(c_int), intent(in), value :: coup_size          ! if:var:in
-  real(c_double), intent(in), value :: wq                     ! if:var:in
-  real(c_double), intent(in), value :: kbT                    ! if:var:in
-  real(c_double), intent(in), value :: deltaz                 ! if:var:in
-  real(c_double), intent(in), value :: eps_r                  ! if:var:in
-  real(c_double), intent(in), value :: eps_inf                ! if:var:in
-  real(c_double), intent(in), value :: q0                     ! if:var:in
-  real(c_double), intent(in), value :: cell_area              ! if:var:in
-  integer(c_int), intent(in), value :: scba_niter             ! if:var:in
-  logical(c_bool), intent(in) :: trid                         ! if:var:in
+  real(c_double), intent(in), value :: wq             ! if:var:in
+  real(c_double), intent(in), value :: kbT            ! if:var:in
+  real(c_double), intent(in), value :: deltaz         ! if:var:in
+  real(c_double), intent(in), value :: eps_r          ! if:var:in
+  real(c_double), intent(in), value :: eps_inf        ! if:var:in
+  real(c_double), intent(in), value :: q0             ! if:var:in
+  real(c_double), intent(in), value :: cell_area      ! if:var:in
+  integer(c_int), intent(in), value :: scba_niter     ! if:var:in
+  logical(c_bool), intent(in) :: trid                 ! if:var:in
 
   type(NEGFpointers) :: LIB
   real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine

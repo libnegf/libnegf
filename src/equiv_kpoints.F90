@@ -36,7 +36,6 @@ module equiv_kpoints
   !> For each kpoint, one set of equivalent points consists of a 3 x n_eq matrix
   type TEqPoint
     real(dp), dimension(:,:), allocatable :: points
-    integer :: n_eq = 0
   end type  TEqPoint
 
   !> Structure containing information about symmetrically equivalent points, 
@@ -76,7 +75,7 @@ module equiv_kpoints
     allocate(mycontainer%EqPoints(nk))
 
     do ii = 1, nk
-      n_eq = size(equiv_kpoints%EqPoints(ii)%points)
+      n_eq = size(equiv_kpoints%EqPoints(ii)%points, 2)
       call log_allocate(mycontainer%EqPoints(ii)%points, 3, n_eq)
       mycontainer%EqPoints(ii)%points = equiv_kpoints%EqPoints(ii)%points
     end do

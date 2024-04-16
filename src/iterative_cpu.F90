@@ -5,7 +5,7 @@ module iterative_cpu
   use mat_def
   use sparsekit_drv
   use inversions
-  use elph
+  use ln_enums 
   use ln_structure, only : TStruct_Info
   use lib_param, only : MAXNCONT, Tnegf, intarray
   use interactions, only : TInteraction, TInteractionList, TInteractionNode

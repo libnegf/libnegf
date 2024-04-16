@@ -799,7 +799,7 @@ contains
         write(*,*) 'Equivalent k-points used in NEGF:'
         do ii = 1, size(kweights) 
           write(*,*) "For kpoint: ", negf%kpoints(:, ii), ":"
-          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points)
+          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
             write(*,*) "   ", negf%equivalent_kpoints%EqPoints(ii)%points(:, jj)
           end do
         end do
