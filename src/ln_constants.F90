@@ -1,37 +1,21 @@
 !!--------------------------------------------------------------------------!
-!! libNEGF: a general library for Non-Equilibrium Green's functions.        !
-!! Copyright (C) 2012                                                       !
-!!                                                                          ! 
-!! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! libNEGF: a general library for Non-Equilibrium Greens functions.         !
+!! Copyright (C) 2012 - 2026                                                !
 !!                                                                          !
-!! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
-!! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
-  !!                                                                          !
-!! libNEGF is free software: you can redistribute it and/or modify          !
-!! it under the terms of the GNU Lesse General Public License as published  !
+!! This file is part of libNEGF: a library for                              !
+!! Non Equilibrium Green's Functions calculations                           !
+!!                                                                          !
+!! Developers: Alessandro Pecchia, Daniele Soccodato                        !
+!! Former Contributors: Gabriele Penazzi, Luca Latessa, Aldo Di Carlo       !
+!!                                                                          !
+!! libNEGF is free software: you can redistribute and/or modify it          !
+!! under the terms of the GNU Lesser General Public License as published    !
 !! by the Free Software Foundation, either version 3 of the License, or     !
 !! (at your option) any later version.                                      !
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
-!!--------------------------------------------------------------------------!
-
-!!--------------------------------------------------------------------------!
-!! Conversion utility for length and energy units.
-!! Example:
-!! unitsin%name = "eV"
-!! unitsout%name = "H"
-!! unitsin%value = val
-!! call convertUnits(unitin, unitout)
-!! unitsout%value  contains converted value
-
-!! Current conversion utility:
-!! Define your energy units and desired current units ("A", "mA", ...)
-!! I = value * convertCurrent(unitsOfEnergy, currUnits)
-!! For Heat current, define desired output units ("W", "mW", ...)
-!! IF unitsofEnergy is "unknown" (default), then convert returns 1.0
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 module ln_constants

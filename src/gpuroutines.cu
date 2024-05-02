@@ -1,3 +1,24 @@
+/*!!--------------------------------------------------------------------------!
+ *!! libNEGF: a general library for Non-Equilibrium Greens functions.         !
+ *!! Copyright (C) 2012 - 2026                                                !
+ *!!                                                                          !
+ *!! This file is part of libNEGF: a library for                              !
+ *!! Non Equilibrium Green's Function calculation                             !
+ *!!                                                                          !
+ *!! Developers: Alessandro Pecchia, Daniele Soccodato                        !
+ *!! Former Contributors: Gabriele Penazzi, Luca Latessa, Aldo Di Carlo       !
+ *!!                                                                          !
+ *!! libNEGF is free software: you can redistribute it and/or modify          !
+ *!! it under the terms of the GNU Lesse General Public License as published  !
+ *!! by the Free Software Foundation, either version 3 of the License, or     !
+ *!! (at your option) any later version.                                      !
+ *!!                                                                          !
+ *!!  You should have received a copy of the GNU Lesser General Public        !
+ *!!  License along with libNEGF.  If not, see                                !
+ *!!  <http://www.gnu.org/licenses/>.                                         !
+ *!!--------------------------------------------------------------------------!
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda.h>
@@ -251,7 +272,11 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver)
 }
 
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ MATRIX ROUTINES -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
-
+/* C = alpha op(A) op(B) + beta C
+ * m: #rows of op(A)
+ * n: #cols of op(B)
+ * k: #cols of op(A) = #rows of op(B)
+ */
 extern "C" int cu_CmultMat(cublasHandle_t hcublas, int m, int n, int k, cuComplex *alpha, void *d_A, void *d_B, cuComplex *beta, void *d_C, int dagger)
 {
   cuComplex *pdA, *pdB, *pdC;
