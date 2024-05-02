@@ -40,6 +40,9 @@ module ContSelfEnergy
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
 #:endif
+#:if defined("GPU")
+ use iso_c_binding
+#:endif
  implicit none
  private
 
@@ -66,6 +69,56 @@ module ContSelfEnergy
      module procedure compute_contacts_dns
   end interface
 
+#:if defined("GPU")
+  interface
+     integer(c_int) function cu_Cdecimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
+                     & n, tf32, ncyc, one, mone, zero, SGFACC) bind(C, name='cu_Cdecimation')
+        use iso_c_binding
+        import cublasHandle
+        import cusolverDnHandle
+
+        type(cublasHandle), value :: hcublas
+        type(cusolverDnHandle), value :: hcusolver
+        type(c_ptr), value :: h_Go_out
+        type(c_ptr), value :: h_Ao_in
+        type(c_ptr), value :: h_Bo_in
+        type(c_ptr), value :: h_Co_in
+        integer(c_int), value :: n
+        integer(c_int), value :: ncyc
+        integer(c_int), value :: tf32
+        complex(c_float_complex) :: one
+        complex(c_float_complex) :: mone
+        complex(c_float_complex) :: zero
+        real(c_float) :: SGFACC
+     end function
+
+     integer(c_int) function cu_Zdecimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
+                     & n, tf32, ncyc, one, mone, zero, SGFACC) bind(C, name='cu_Zdecimation')
+        use iso_c_binding
+        import cublasHandle
+        import cusolverDnHandle
+
+         type(cublasHandle), value :: hcublas
+        type(cusolverDnHandle), value :: hcusolver
+        type(c_ptr), value :: h_Go_out
+        type(c_ptr), value :: h_Ao_in
+        type(c_ptr), value :: h_Bo_in
+        type(c_ptr), value :: h_Co_in
+        integer(c_int), value :: n
+        integer(c_int), value :: ncyc
+        integer(c_int), value :: tf32
+        complex(c_double_complex) :: one
+        complex(c_double_complex) :: mone
+        complex(c_double_complex) :: zero
+        real(c_double) :: SGFACC
+     end function
+  end interface
+
+  interface decimation_gpu
+     module procedure decimation_gpu_sp
+     module procedure decimation_gpu_dp
+  end interface
+#:endif
 contains
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
@@ -161,10 +214,13 @@ contains
 
           Ao=E*SC%val(n1:n2,n1:n2)-HC%val(n1:n2,n1:n2)
           Bo=E*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
-          Co=E*conjg(transpose(SC%val(n1:n2,n3:n4)))-conjg(transpose(HC%val(n1:n2,n3:n4)))
-
+          Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
+          Co=conjg(transpose(Co))
+#:if defined("GPU")
+          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,.false.,ncyc)
+#:else
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
-
+#:endif
           call log_deallocate(Ao)
           call log_deallocate(Bo)
           call log_deallocate(Co)
@@ -284,93 +340,72 @@ contains
 
   end subroutine decimation
 
-  ! --------------------------------------------------------------------
-  subroutine decimation_sp(Go_out,Ao_in,Bo_in,Co_in,n,ncyc)
+!-------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------
+#:if defined("GPU")
+  subroutine decimation_gpu_sp(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
+     implicit none
+     type(Tnegf), intent(in) :: negf
+     integer, intent(in) :: n
+    complex(sp), dimension(n,n), intent(out), target :: Go_out
+    complex(sp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
+     logical, intent(in) :: tf32
+     integer, intent(out) :: ncyc
+
+    complex(sp) :: one = (1.0_sp, 0.0_sp)
+    complex(sp) :: mone = (-1.0_sp, 0.0_sp)
+    complex(sp) :: zero = (0.0_sp, 0.0_sp)
+    integer :: istat, tf
+    type(cublasHandle) :: hh
+    type(cusolverDnHandle) :: hhsol
+
+    if (tf32) then
+       tf = 1
+    else
+       tf = 0
+    endif
+    hh = negf%hcublas
+    hhsol = negf%hcusolver
+
+    istat = cu_Cdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, ncyc, one, mone,&
+    & zero, real(SGFACC,sp)*n*n)
+
+  end subroutine decimation_gpu_sp
+
+  subroutine decimation_gpu_dp(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
+    implicit none
+    type(Tnegf), intent(in) :: negf
     integer, intent(in) :: n
-    complex(dp), DIMENSION(n,n), intent(out) :: Go_out
-    complex(dp), DIMENSION(n,n), intent(in) :: Ao_in,Bo_in,Co_in
+    complex(dp), dimension(n,n), intent(out), target :: Go_out
+    complex(dp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
+    logical, intent(in) :: tf32
     integer, intent(out) :: ncyc
 
-    complex(sp), parameter :: one_sp = (1.0,0.0)  ! For LAPACK
-    complex(sp), parameter :: zero_sp = (0.0,0.0) ! MATRIX MULT.
-    complex(sp), ALLOCATABLE, DIMENSION(:,:) :: Go, Ao, Bo, Co
-    complex(sp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, A1, B1, C1
-    complex(sp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
-    complex(sp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
-    integer :: i1, err
-    logical :: okCo = .false.
+    complex(dp) :: one = (1.0_dp, 0.0_dp)
+    complex(dp) :: mone = (-1.0_dp, 0.0_dp)
+    complex(dp) :: zero = (0.0_dp, 0.0_dp)
+    integer :: istat, tf
+    type(cublasHandle) :: hh
+    type(cusolverDnHandle) :: hhsol
 
-    call log_allocate(Ao, n, n)
-    call log_allocate(Ao_s, n, n)
-    call log_allocate(Bo, n, n)
-    call log_allocate(Co, n, n)
-    call log_allocate(Go, n, n)
+    if (tf32) then
+       tf = 1
+    else
+       tf = 0
+    endif
 
-    ! conversion to single precision
-    Ao = cmplx(Ao_in, kind=sp)
-    Bo = cmplx(Bo_in, kind=sp)
-    Co = cmplx(Co_in, kind=sp)
+    hh = negf%hcublas
+    hhsol = negf%hcusolver
 
-    Ao_s=Ao;
+    istat = cu_Zdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, ncyc, one, mone,&
+    & zero, real(SGFACC,dp)*n*n)
 
+  end subroutine decimation_gpu_dp
 
-    do i1 = 1, 300
-      ncyc=i1
+#:endif
 
-      call inverse(Go,Ao,n)
+!-------------------------------------------------------------------------------
 
-      call log_allocate(GoXCo, n, n)
-      call CGEMM('N','N',n,n,n, one_sp, Go, n, Co, n,  zero_sp, GoXCo, n)
-
-      call log_allocate(C1, n, n)
-      call CGEMM('N','N',n,n,n,  one_sp, Co, n, GoXCo, n, zero_sp, C1, n)
-
-      if (maxval(abs(C1)).le.SGFACC) then
-         if (okCo) then
-            call log_deallocate(GoXCo)
-            call log_deallocate(C1)
-            exit;
-         else
-            okCo = .true.
-         endif
-      else
-         okCo = .false.
-      endif
-
-      call log_allocate(Self, n, n)
-      call CGEMM('N','N',n,n,n, one_sp, Bo, n, GoXCo, n, zero_sp, Self, n)
-      call log_deallocate(GoXCo)
-      Ao_s  = Ao_s - Self
-      Ao    = Ao - Self
-      call log_deallocate(Self)
-
-      call log_allocate(GoXBo, n, n)
-      call CGEMM('N','N',n,n,n, one_sp, Go, n, Bo, n,  zero_sp, GoXBo, n)
-
-      call log_allocate(B1, n, n)
-      call CGEMM('N','N',n,n,n,  one_sp, Bo, n, GoXBo, n, zero_sp, B1, n)
-      Bo = B1
-      call log_deallocate(B1)
-
-      call CGEMM('N','N',n,n,n, -one_sp, Co, n, GoXBo, n, one_sp, Ao, n)
-
-      Co = C1
-      call log_deallocate(C1)
-      call log_deallocate(GoXBo)
-
-    end do
-
-    call inverse(Go,Ao_s,n)
-    call log_deallocate(Ao_s)
-    call log_deallocate(Ao)
-    call log_deallocate(Bo)
-    call log_deallocate(Co)
-    Go_out = cmplx(Go, kind=dp)
-    call log_deallocate(Go)
-
-  end subroutine decimation_sp
-
-  !-------------------------------------------------------------------------------
   subroutine compute_contacts_csr(Ec,pnegf,avncyc,Tlc,Tcl,SelfEneR,GS)
     complex(dp), intent(in) :: Ec
     Type(Tnegf), intent(inout) :: pnegf
@@ -385,6 +420,7 @@ contains
     Integer :: ncyc, ncont, i, l
 
     ncont = pnegf%str%num_conts
+    avncyc = 0.0_dp
 
     STOP 'Internal error: HMC has been changed to dns format'
     ! -----------------------------------------------------------------------
@@ -393,7 +429,6 @@ contains
     ! For the time HC and SC are dense, GS is sparse (already allocated)
     ! TM and ST are sparse, SelfEneR is allocated inside SelfEnergy
     ! -----------------------------------------------------------------------
-    avncyc = 0.0_dp
 
     do i= 1,ncont
        pnegf%activecont=i
