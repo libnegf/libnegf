@@ -428,6 +428,7 @@ subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm) bind(C)
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
   use ln_precision      ! if:mod:use
+  use mpi_globals, only: MPI_Comm ! if:mod:use
   implicit none
   integer :: handler(DAC_handlerSize)            ! if:var:in
   integer(c_int), intent(in), value :: nk      ! if:var:in
@@ -436,9 +437,11 @@ subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm) bind(C)
   integer, intent(out) :: k_comm         ! if:var:out
 
   type(NEGFpointers) :: LIB
+  type(MPI_Comm) :: in_comm_f08
 
   LIB = transfer(handler, LIB)
-  call set_cartesian_bare_comms(LIB%pNEGF, in_comm, nk, cart_comm, k_comm)
+  in_comm_f08 = transfer(in_comm, in_comm_f08)
+  call set_cartesian_bare_comms(LIB%pNEGF, in_comm_f08, nk, cart_comm, k_comm)
 
 end subroutine negf_cartesian_init
 

@@ -27,7 +27,7 @@ module libnegf
  use lib_param
  use ln_cache
  use globals, only : LST
- use mpi_globals, only : id, id0, numprocs, negf_cart_init, check_cart_comm, &
+ use mpi_globals, only : id, id0, numprocs, negf_cart_init, check_cart_comm, MPI_Comm, &
       & globals_mpi_init => negf_mpi_init
  use input_output
  use ln_structure
@@ -1265,15 +1265,20 @@ contains
 
   subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm)
     type(Tnegf), intent(inout) :: negf
-    integer, intent(in) :: mpicomm
+    type(MPI_Comm), intent(in) :: mpicomm
     integer, intent(in) :: nk
     integer, intent(out) :: cartComm
     integer, intent(out) :: kComm
+
+    type(MPI_Comm) :: cartComm_f08, kComm_f08
 
     call negf%globalComm%init(mpicomm)
 
     call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, cartComm, kComm)
     call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
+
+    cartComm = transfer(cartComm_f08, cartComm)
+    kComm = transfer(kComm_f08, kComm)
 
   end subroutine set_cartesian_bare_comms
 #:else
