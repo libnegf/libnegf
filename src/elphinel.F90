@@ -34,7 +34,7 @@ module elphinel
   use distributions, only : bose
   use ln_cache
   use iso_c_binding
-  use mpi
+  use mpi_f08
   use mpi_globals
   use inversions, only : inverse
   use self_energy, only: TMatPointer, selfenergy
@@ -50,7 +50,7 @@ module elphinel
   type, abstract, extends(TInelastic) :: ElPhonInel
     private
     !> communicator of the cartesian grid
-    integer(c_int) :: cart_comm
+    type(MPI_Comm) :: cart_comm
 
     !> holds atomic structure: Only the scattering region
     type(TBasisCenters) :: basis
@@ -152,7 +152,7 @@ contains
   subroutine ElPhonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
              & dz, eps0, eps_inf, q0, cell_area, niter, tridiag)
     type(ElPhonPolarOptical) :: this
-    integer, intent(in) :: comm
+    type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
     type(TBasisCenters), intent(in) :: basis
     real(dp), dimension(:), intent(in) :: coupling
@@ -185,10 +185,14 @@ contains
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
-    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
-    this%sigma_r = TMatrixCacheMem(tagname='Sigma_r')
-    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
-    this%sigma_n = TMatrixCacheMem(tagname='Sigma_n')
+    if (allocated(this%sigma_r)) then
+      call this%sigma_r%destroy()
+    end if
+    allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
+    if (allocated(this%sigma_n)) then
+      call this%sigma_n%destroy()
+    end if
+    allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
 
   end subroutine ElPhonPO_init
 
@@ -201,7 +205,7 @@ contains
   subroutine ElPhonNonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
              & dz, D0, cell_area, niter, tridiag)
     type(ElPhonNonPolarOptical) :: this
-    integer, intent(in) :: comm
+    type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
     type(TBasisCenters), intent(in) :: basis
     real(dp), dimension(:), intent(in) :: coupling
@@ -250,7 +254,9 @@ contains
     integer, intent(in) :: kindex(:)
     type(TEqPointsArray), intent(in), optional :: equiv_kpoints
 
-    integer :: i, nKloc, nKprocs, mpierr, kComm, myid
+    type(MPI_Comm) :: kComm
+
+    integer :: i, nKloc, nKprocs, mpierr, myid
     logical :: remain_dims(2) = [.true., .false.]
 
     this%kpoint = kpoints

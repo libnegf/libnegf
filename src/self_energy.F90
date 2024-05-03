@@ -22,7 +22,7 @@
 module self_energy
   use ln_precision, only: lp => dp
   use mat_def, only : x_DNS => z_DNS, create, destroy, assignment(=)
-  use mpi, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
+  use mpi_f08, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
   !use ln_precision, only: lp => sp
   !use mat_def, only : x_DNS => c_DNS, create, destroy, assignment(=)
   !use mpi, MPI_XX_COMPLEX => MPI_COMPLEX
@@ -40,7 +40,7 @@ module self_energy
 
   subroutine selfenergy(comm2d, GG, fac_minus, fac_plus, iEhbaromega, &
                                &  izr, izc, KK, NK, NKloc, NE, NEloc, kindices_map, Sigma)
-    integer, intent(in) :: comm2d
+    type(MPI_Comm), intent(in) :: comm2d
     type(TMatPointer), intent(in) :: GG(0:,0:)
     complex(lp), intent(in) :: fac_minus
     complex(lp), intent(in) :: fac_plus
@@ -63,8 +63,8 @@ module self_energy
     type(x_DNS), pointer :: pbuff1, pbuff2, pGG, pSigma
     real(lp), allocatable :: KKbuf(:)
     integer :: ierr
-    integer :: rqE1,rqE2,rqE3,rqE4, rqH1, rqH2
-    integer :: statusE(MPI_STATUS_SIZE,4), statusH(MPI_STATUS_SIZE,2)
+    type(MPI_Request) :: rqE1,rqE2,rqE3,rqE4, rqH1, rqH2
+    type(MPI_Status) :: statusE(4), statusH(2)
 
     integer :: msource, mdest, psource, pdest
     integer :: hsource, hdest
@@ -174,11 +174,11 @@ module self_energy
 
         ! Wait for complete communications
         if (dims(2) > 1) then
-          if(mdest /= MPI_PROC_NULL .and. iE<iEhbaromega) call MPI_Wait(rqE1, statusE(:,1), ierr);
-          if(msource /= MPI_PROC_NULL  .and. iE<iEhbaromega) call MPI_Wait(rqE2, statusE(:,2), ierr);
+          if(mdest /= MPI_PROC_NULL .and. iE<iEhbaromega) call MPI_Wait(rqE1, statusE(1), ierr);
+          if(msource /= MPI_PROC_NULL  .and. iE<iEhbaromega) call MPI_Wait(rqE2, statusE(2), ierr);
 
-          if(pdest /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE3, statusE(:,3), ierr);
-          if(psource /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE4, statusE(:,4), ierr);
+          if(pdest /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE3, statusE(3), ierr);
+          if(psource /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE4, statusE(4), ierr);
         end if
 
         !//   Compute:
@@ -243,7 +243,7 @@ module self_energy
             call MPI_Isend(sbuffH%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqH1, ierr)
             call MPI_Irecv(rbuffH%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqH2, ierr)
 
-            call MPI_Wait(rqH2, statusH(:,2), ierr)
+            call MPI_Wait(rqH2, statusH(2), ierr)
 
             ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffH_ij(iQ2)
             do iK = 0, NKloc-1
@@ -261,7 +261,7 @@ module self_energy
               !$OMP END PARALLEL
             end do
 
-            call MPI_Wait(rqH1, statusH(:,1), ierr)
+            call MPI_Wait(rqH1, statusH(1), ierr)
 
             !$OMP PARALLEL DO
             do nu = 1, Mp

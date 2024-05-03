@@ -22,7 +22,7 @@
 module mpi_globals
 
 #:if defined("MPI")
-  use mpi
+  use mpi_f08
   use omp_lib, only : omp_get_max_threads, omp_get_num_threads
   use libmpifx_module, only : mpifx_comm
   private
@@ -36,6 +36,7 @@ module mpi_globals
   public :: negf_mpi_init
   public :: negf_cart_init
   public :: check_cart_comm
+  public :: MPI_Comm
 
   contains
 
@@ -76,9 +77,9 @@ module mpi_globals
       type(mpifx_comm), intent(out) :: kComm
 
       !> Output communicators of type int for TiberCAD
-      integer, intent(out), optional :: bareCartComm, barekComm
+      type(MPI_Comm), intent(out), optional :: bareCartComm, barekComm
 
-      integer :: outComm
+      type(MPI_Comm) :: outComm
       integer :: ndims = 2
       integer :: dims(2)
       logical :: periods(2) = .false.
@@ -97,7 +98,7 @@ module mpi_globals
       dims(1)=nk; dims(2)=nE
       periods(1) = .true.
 
-      call MPI_CART_CREATE(inComm%id, ndims, dims, periods, reorder, outComm, mpierr)
+      call MPI_CART_CREATE(inComm%comm, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
       ! Global master id=0 node as writing node
       id0 = (cartComm%rank == 0)
@@ -105,13 +106,13 @@ module mpi_globals
 
       ! Extract sub-communicators
       remain_dims(:) = [.false., .true.]
-      call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
+      call MPI_CART_SUB(cartComm%comm, remain_dims, outComm, mpierr)
       call energyComm%init(outComm, mpierr)
       id = energyComm%rank
       numprocs = energyComm%size
 
       remain_dims(:) = [.true., .false.]
-      call MPI_CART_SUB(cartComm%id, remain_dims, outComm, mpierr)
+      call MPI_CART_SUB(cartComm%comm, remain_dims, outComm, mpierr)
       call kComm%init(outComm, mpierr)
       if (present(barekComm)) barekComm = outComm
 
@@ -127,7 +128,7 @@ module mpi_globals
 
       mpierror = 0
 
-      call MPI_Cart_coords(cartComm%id, 0, 2, coords, mpierror)
+      call MPI_Cart_coords(cartComm%comm, 0, 2, coords, mpierror)
 
     end subroutine check_cart_comm
 
