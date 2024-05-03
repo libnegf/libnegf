@@ -51,6 +51,7 @@ module integrations
  private
 
  public :: contour_int       ! generalized contour integrator
+ public :: contour_int_inel  ! generalized contour integrator with inelasti scatt.
  public :: real_axis_int     ! real-axis integrator
  public :: real_axis_int_inel! real-axis integrator with inelastic scattering
  public :: quasiEq_int_p     ! real-axis integration - quasi-equilibrium - holes
@@ -771,7 +772,13 @@ contains
 
   end subroutine contour_int_def
 
-  !-----------------------------------------------------------------------
+  !----------------------------------------------------------------------------------
+  ! Performs a generic contour integration + eventual poles.
+  ! Must be called after contour_int_def (see)
+  !
+  ! NOTE: For the moment it is implicitly assumed that contour_int is called BEFORE
+  !       real-axis integration (any existing matrix is overwritten)
+  !----------------------------------------------------------------------------------
   subroutine contour_int(negf)
      type(Tnegf) :: negf
 
@@ -808,6 +815,8 @@ contains
 
      enddo
 
+     ! NOTE: The following assumes contour_int is called BEFORE any
+     !       real-axis integration.
      if(negf%DorE.eq.'D') then
         call zspectral(TmpMt,TmpMt,0,negf%rho)
      endif
@@ -818,6 +827,94 @@ contains
      call destroy(TmpMt)
 
   end subroutine contour_int
+
+  !----------------------------------------------------------------------------------
+  ! Performs a generic contour integration. Must be called after contour_int_def
+  ! Currently it is similar to contour_int, with the k-sum performed internally
+  ! in order to be consistent with real_axis_int_inel()
+  ! Therefore at the moment the inelastic Sigma^r are not computed
+  !
+  ! NOTE: For the moment it is implicitly assumed that contour_int is called BEFORE
+  !       real-axis integration (any existing matrix is overwritten)
+  !----------------------------------------------------------------------------------
+  subroutine contour_int_inel(negf)
+     type(Tnegf) :: negf
+
+     type(z_CSR) :: GreenR, TmpMt
+     integer :: i, i1, ncont, Npoints, outer
+     real(dp) :: ncyc, scba_error
+     complex(dp) :: Ec, zt
+
+     ncont = negf%str%num_conts
+     outer = negf%outer_blocks
+     Npoints = size(negf%en_grid)
+     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+     call initialize(TmpMt)
+
+     call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL',Npoints)
+
+     ! Loop over local k-points
+     kloop: do iK = 1, size(negf%local_k_index)
+
+       negf%iKloc = iK
+       negf%iKpoint = negf%local_k_index(iK) ! global k index
+       negf%kwght = negf%kweights(negf%iKpoint)
+       call write_kpoint(negf%verbose, iK, negf%iKpoint)
+
+       ! Set the working pointers
+       negf%H => negf%HS(iK)%H
+       negf%S => negf%HS(iK)%S
+       call destroy_contact_matrices(negf)
+       call extract_cont(negf)
+
+
+       enloop:do i = 1, Npoints
+
+         call write_Epoint(negf%verbose,negf%en_grid(i), Npoints)
+         if (negf%en_grid(i)%cpu .ne. id) cycle
+
+         Ec = negf%en_grid(i)%Ec
+         zt = negf%en_grid(i)%wght
+         negf%iE = negf%en_grid(i)%pt
+         negf%iE_path = negf%en_grid(i)%pt_path
+
+         call compute_Gr(negf, outer, ncont, Ec, scba_error, GreenR)
+
+         if(negf%DorE.eq.'E') zt = zt * Ec
+
+         call concat(TmpMt,zt,GreenR,1,1)
+
+         call destroy(GreenR)
+
+       enddo enloop
+
+     enddo kloop
+
+     ! NOTE: The following assumes contour_int is called BEFORE any
+     !       real-axis integration.
+     if(negf%DorE.eq.'D') then
+        call zspectral(TmpMt,TmpMt,0,negf%rho)
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
+      call mpifx_allreduceip(negf%kComm, negf%rho%nzval, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+     endif
+
+     if(negf%DorE.eq.'E') then
+        call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
+#:if defined("MPI")
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+      call mpifx_allreduceip(negf%energyComm, negf%rho_eps%nzval, MPI_SUM)
+      call mpifx_allreduceip(negf%kComm, negf%rho_eps%nzval, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+     endif
+
+     call destroy(TmpMt)
+
+  end subroutine contour_int_inel
 
   !--------------------------------------------!
   !--------------------------------------------!

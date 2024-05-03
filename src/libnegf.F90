@@ -852,10 +852,10 @@ contains
         stop "ERROR: equivalent k-points were passed without multiplicity array equiv_mult"
       endif
       call set(negf%equivalent_kpoints, equiv_kpoints, size(kweights), equiv_mult)
-   
+
       if (id0) then
         write(*,*) 'Equivalent k-points used in NEGF:'
-        do ii = 1, size(kweights) 
+        do ii = 1, size(kweights)
           write(*,*) "For kpoint: ", negf%kpoints(:, ii), ":"
           do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
             write(*,*) "   ", negf%equivalent_kpoints%EqPoints(ii)%points(:, jj)
@@ -1837,6 +1837,8 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
+    logical :: contour, realaxis
+
     call extract_cont(negf)
 
     !! Did anyone passed externally allocated DM? If not, create it
@@ -1846,20 +1848,34 @@ contains
     ! Reference contact for contour/real axis separation (depends on min_or_max)
     call set_ref_cont(negf)
 
-    ! Contour integration + poles
+    contour = .false.
     if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
-      call contour_int_def(negf)
-      call contour_int(negf)
-    endif
-
-    ! Real axis integration
+       contour = .true.
+    end if
+    realaxis = .false.
     if (negf%Np_real.gt.0) then
-      call real_axis_int_def(negf)
-      if (get_max_wq(negf%interactList) == 0.0_dp) then
-        call real_axis_int(negf)
-      else
-        call real_axis_int_inel(negf)
-      end if
+       realaxis = .true.
+    end if
+
+    ! Whether inelastic scattering is present
+    if (get_max_wq(negf%interactList) == 0.0_dp) then
+       if (contour) then
+          call contour_int_def(negf)
+          call contour_int(negf)
+       end if
+       if (realaxis) then
+          call real_axis_int_def(negf)
+          call real_axis_int(negf)
+       end if
+    else
+       if (contour) then
+          call contour_int_def(negf)
+          call contour_int_inel(negf)
+       end if
+       if (realaxis) then
+          call real_axis_int_def(negf)
+          call real_axis_int_inel(negf)
+       end if
     endif
 
     call destroy_contact_matrices(negf)

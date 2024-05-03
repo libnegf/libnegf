@@ -548,7 +548,10 @@ contains
      negf%scba_elastic_tol = 1.d-7
      negf%scba_inelastic_tol = 1.d-7
      negf%ndos_proj = 0
-     negf%particle = 1       ! Used for setting correct fermi function in real_axis_int. Can become -1 only in compute_density_efa
+     negf%particle = 1       ! Used for setting correct fermi function in real_axis_int.
+                             ! 1: electrons
+                             !-1: holes
+                             ! Can be -1 only in compute_density_efa
 
      negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
 
