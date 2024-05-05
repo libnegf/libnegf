@@ -185,14 +185,23 @@ contains
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
-    if (allocated(this%sigma_r)) then
-      call this%sigma_r%destroy()
+    if (associated(this%sigma_r)) then
+      error stop 'Initialization of PO Phonon called twice' 
     end if
-    allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
-    if (allocated(this%sigma_n)) then
-      call this%sigma_n%destroy()
+    allocate(TMatrixCacheMem::this%sigma_r)
+    select type(p => this%sigma_r)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_r'
+    end select   
+
+    if (associated(this%sigma_n)) then
+      error stop 'Initialization of PO Phonon called twice' 
     end if
-    allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
+    allocate(TMatrixCacheMem::this%sigma_n)
+    select type(p => this%sigma_n)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_n'
+    end select   
 
   end subroutine ElPhonPO_init
 
@@ -234,14 +243,14 @@ contains
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
-    if (allocated(this%sigma_r)) then
-       call this%sigma_r%destroy()
+    if (associated(this%sigma_r)) then
+      error stop 'Initialization of non-PO Phonon called twice' 
     end if
     allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
-    if (allocated(this%sigma_n)) then
-       call this%sigma_n%destroy()
+    
+    if (associated(this%sigma_n)) then
+      error stop 'Initialization of non-PO Phonon called twice' 
     end if
-
     allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
 
   end subroutine ElPhonNonPO_init
@@ -520,8 +529,8 @@ contains
     if (allocated(this%local_kindex)) deallocate(this%local_kindex)
     if (allocated(this%kindices)) call log_deallocate(this%kindices)
     if (allocated(this%Kmat)) call log_deallocate(this%Kmat)
-    if (allocated(this%sigma_r)) call this%sigma_r%destroy()
-    if (allocated(this%sigma_n)) call this%sigma_n%destroy()
+    call this%destroy_sigma_r()
+    call this%destroy_sigma_n()
     call destroy(this%equivalent_kpoints)
 
   end subroutine destroy_elph
@@ -733,7 +742,7 @@ contains
     !  stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
     !end if
     Ndz = size(this%Kmat,1)
-    label%spin = 0
+    label%spin = 1 
     if (present(spin)) then
        label%spin = spin
     end if
@@ -741,7 +750,7 @@ contains
     allocate(pSigma(NEloc,NKloc))
 
     select type(p => this%sigma_r)
-    type is(TMatrixCacheMem)
+    class is(TMatrixCacheMem)
        if (.not.p%isInitialized) then
           call p%init(nEloc, nKloc, nbl, 3, 1)
        end if
@@ -955,7 +964,7 @@ contains
     allocate(pSigma(NEloc,NKloc))
 
     select type(p => this%sigma_n)
-    type is(TMatrixCacheMem)
+    class is(TMatrixCacheMem)
        if (.not.p%isInitialized) then
           call p%init(nEloc, nKloc, nbl, 3, 1)
        end if
@@ -1082,7 +1091,7 @@ contains
   !> Destroy Sigma_r
   subroutine destroy_Sigma_r(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_r)) then
+    if (associated(this%sigma_r)) then
       call this%sigma_r%destroy()
     end if
   end subroutine destroy_Sigma_r
@@ -1090,7 +1099,7 @@ contains
   !> Destroy Sigma_n
   subroutine destroy_Sigma_n(this)
     class(ElPhonInel) :: this
-    if (allocated(this%sigma_n)) then
+    if (associated(this%sigma_n)) then
       call this%sigma_n%destroy()
     end if
   end subroutine destroy_Sigma_n

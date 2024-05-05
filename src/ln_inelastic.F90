@@ -28,8 +28,8 @@ module ln_inelastic
   type, abstract, extends(TInteraction) :: TInelastic
 
     !> sigma_r and sigma_n
-    class(TMatrixCache), allocatable :: sigma_r
-    class(TMatrixCache), allocatable :: sigma_n
+    class(TMatrixCache), pointer :: sigma_r => null()
+    class(TMatrixCache), pointer :: sigma_n => null()
     !> Gr and Gn are pointer alias stored in negf.
     class(TMatrixCache), pointer :: G_r => null()
     class(TMatrixCache), pointer :: G_n => null()

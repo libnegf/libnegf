@@ -1414,8 +1414,8 @@ subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, 
   use lib_param      ! if:mod:use
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)                  ! if:var:in
-  real(c_double), intent(in) :: coupling(coup_size)       ! if:var:in
   integer(c_int), intent(in), value :: coup_size          ! if:var:in
+  real(c_double), intent(in) :: coupling(coup_size)       ! if:var:in
   real(c_double), intent(in), value :: wq                     ! if:var:in
   real(c_double), intent(in), value :: kbT                    ! if:var:in
   real(c_double), intent(in), value :: deltaz                 ! if:var:in

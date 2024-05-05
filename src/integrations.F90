@@ -841,7 +841,7 @@ contains
      type(Tnegf) :: negf
 
      type(z_CSR) :: GreenR, TmpMt
-     integer :: i, i1, ncont, Npoints, outer
+     integer :: i, i1, iK, ncont, Npoints, outer
      real(dp) :: ncyc, scba_error
      complex(dp) :: Ec, zt
 
@@ -851,7 +851,7 @@ contains
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
      call initialize(TmpMt)
 
-     call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL',Npoints)
+     call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL (inel)',Npoints)
 
      ! Loop over local k-points
      kloop: do iK = 1, size(negf%local_k_index)
@@ -866,7 +866,6 @@ contains
        negf%S => negf%HS(iK)%S
        call destroy_contact_matrices(negf)
        call extract_cont(negf)
-
 
        enloop:do i = 1, Npoints
 
@@ -2164,10 +2163,10 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (TInelastic)
-        call it%inter%destroy_Sigma_n()
-        call it%inter%compute_Sigma_n(spin=negf%spin)
-        call it%inter%destroy_Sigma_r()
-        call it%inter%compute_Sigma_r(spin=negf%spin)
+        call pInter%destroy_Sigma_n()
+        call pInter%compute_Sigma_n(spin=negf%spin)
+        call pInter%destroy_Sigma_r()
+        call pInter%compute_Sigma_r(spin=negf%spin)
       end select
       it => it%next
     end do
@@ -2183,8 +2182,8 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (TElastic)
-        call it%inter%compute_Sigma_r(spin=negf%spin)
-        call it%inter%compute_Sigma_n(spin=negf%spin)
+        call pInter%compute_Sigma_r(spin=negf%spin)
+        call pInter%compute_Sigma_n(spin=negf%spin)
       end select
       it => it%next
     end do

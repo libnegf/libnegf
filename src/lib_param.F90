@@ -411,7 +411,7 @@ contains
     select type(pInter => node%inter)
     type is(ElPhonPolarOptical)
 #:if defined("MPI")
-      call ElPhonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+      call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"
@@ -440,7 +440,7 @@ contains
     select type(pInter => node%inter)
     type is(ElPhonNonPolarOptical)
 #:if defined("MPI")
-    call ElPhonNonPO_init(pInter, negf%cartComm%id, negf%str, negf%basis, coupling, &
+    call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
             &  wq, Temp, dz, D0, area, niter, tridiag)
 #:else
       stop "Inelastic scattering requires MPI"

@@ -1274,7 +1274,8 @@ contains
 
     call negf%globalComm%init(mpicomm)
 
-    call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, cartComm, kComm)
+    call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, &
+          & cartComm_f08, kComm_f08)
     call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
 
     cartComm = transfer(cartComm_f08, cartComm)
@@ -1842,7 +1843,7 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
-    logical :: contour, realaxis
+    logical :: contour, realaxis, inelastic
 
     call extract_cont(negf)
 
@@ -1861,27 +1862,28 @@ contains
     if (negf%Np_real.gt.0) then
        realaxis = .true.
     end if
+    inelastic = .false.
+    if (get_max_wq(negf%interactList) == 0.0_dp) then
+       inelastic = .true.
+    end if
 
     ! Whether inelastic scattering is present
-    if (get_max_wq(negf%interactList) == 0.0_dp) then
-       if (contour) then
-          call contour_int_def(negf)
+    if (contour) then
+       call contour_int_def(negf)
+       if (inelastic) then
           call contour_int(negf)
-       end if
-       if (realaxis) then
-          call real_axis_int_def(negf)
-          call real_axis_int(negf)
-       end if
-    else
-       if (contour) then
-          call contour_int_def(negf)
+       else   
           call contour_int_inel(negf)
        end if
-       if (realaxis) then
-          call real_axis_int_def(negf)
+    end if
+    if (realaxis) then
+       call real_axis_int_def(negf)
+       if (inelastic) then
+          call real_axis_int(negf)
+       else  
           call real_axis_int_inel(negf)
        end if
-    endif
+    end if
 
     call destroy_contact_matrices(negf)
 
