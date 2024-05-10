@@ -42,7 +42,7 @@ module libnegf
  use interactions, only : get_max_wq
  use equiv_kpoints
 #:if defined("MPI")
- use libmpifx_module, only : mpifx_comm
+ use libmpifx_module
 #:endif
  use clock
  implicit none
@@ -84,10 +84,6 @@ module libnegf
  public :: negf_version
  public :: destroy_contact_matrices ! cleanup matrices in Tnegf container (H,S)
  public :: destroy_surface_green_cache ! Clean surface green cache (useful for memory cache)
- private :: block_partition ! chop structure into PLs (CAREFUL!!!)
-                            ! H need to be already ordered properly
- public :: negf_partition_info  !write down partition info
- public :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
@@ -121,7 +117,6 @@ module libnegf
                                     ! and heat currents
  public :: thermal_conductance
 
- public :: reorder, sort, swap            ! not used
  public :: printcsr   ! debugging routines
  public :: printcsrij   ! debugging routines
  public :: getel   ! debugging routines
@@ -131,100 +126,10 @@ module libnegf
  integer, parameter, public :: READ_SGF = 0
  integer, parameter, public :: COMP_SGF = 1
  integer, parameter, public :: COMPSAVE_SGF = 2
-  !-----------------------------------------------------------------------------
-  !> Contains all the general parameters to be passed as input to library
-  !! which are compatible with iso_c_binding representations
-  !! 1-1 correspondance to input parameter in type Tnegf
-  type, bind(c) :: lnparams
-   !! General
-   !> verbosity, > 100 is maximum
-   integer(c_int) :: verbose
-   !> Managing SGF readwrite for DM: 0: Read 1: compute 2: comp & save
-   integer(c_int)  :: readOldDM_SGFs
-   !> Managing SGF readwrite for Tunn: 0: Read 1: compute 2: comp & save
-   integer(c_int)  :: readOldT_SGFs
-   !> SGF cache destination: 0 for disk, 1 for memory, 2 for a dummy cache (no save performed)
-   integer(c_int) :: SGFcache
-   !> Spin component (for io)
-   integer(c_int)  :: spin
-   !> k-point index (for io)
-   integer(c_int) :: ikpoint
-   !> Spin degeneracy
-   real(c_double) :: g_spin
-   !> Imaginary delta
-   real(c_double) :: delta
-   !> delta model for phonon GF
-   integer(c_int) :: deltaModel
-   !> Maximal energy in Mingo delta model
-   real(c_double) :: wmax
-   !> Additional delta to force more broadening in the DOS
-   real(c_double) :: dos_delta
-   !> Energy conversion factor
-   real(c_double) :: eneconv
-   !> Weight for k-point integration, output integrals are scaled accordingly
-   real(c_double) :: kwght
-   !> Conduction band edge
-   real(c_double) :: ec
-   !> Valence band edge
-   real(c_double) :: ev
-   !> Safe guard energy below Ec
-   real(c_double) :: deltaec
-   !> Safe guard energy above Ev
-   real(c_double) :: deltaev
-   !! Real axis integral
-   !> Minimum energy for real axis (current integration, DOS, tunneling)
-   real(c_double) :: emin
-   !> Maximum energy for real axis
-   real(c_double) :: emax
-   !> Energy step for real axis
-   real(c_double) :: estep
-   !> Energy step for coarse integrations
-   real(c_double) :: estep_coarse
-   !! Contacts info
-   !> Electron electrochemical potential
-   real(c_double) :: mu_n(MAXNCONT)
-   !> Hole electrochemical potential
-   real(c_double) :: mu_p(MAXNCONT)
-   !> Electron electrochemical Potential (for dft)
-   real(c_double) :: mu(MAXNCONT)
-   !> Contact DOS for WBA
-   real(c_double) :: contact_dos(MAXNCONT)
-   !> Logical value: is the contact WB?
-   logical(c_bool)  :: fictcont(MAXNCONT)
-   !> Electronic temperature for each contact (Density Matrix)
-   real(c_double) :: kbT_dm(MAXNCONT)
-   !> Electronic temperature for each contact (Transmission)
-   real(c_double) :: kbT_t(MAXNCONT)
-   !> SCBA tolerance for inelastic loop
-   real(c_double) :: scba_inelastic_tol
-   !> SCBA tolerance for elastic loop
-   real(c_double) :: scba_elastic_tol
-   !! Contour integral
-   !> Number of points for n
-   integer(c_int) :: np_n(2)
-   !> Number of points for p
-   integer(c_int) :: np_p(2)
-   !> Number of real axis points
-   integer(c_int) :: np_real
-   !> ! Number of kT extending integrations
-   integer(c_int) :: n_kt
-   !> Number of poles
-   integer(c_int) :: n_poles
-   !! Emitter and collector for transmission or Meir-Wingreen
-   !! (only emitter in this case)
-   !> Emitter contact list (or lead for integration in MW)
-   integer(c_int) :: ni(MAXNCONT)
-   !> Collector contact list
-   integer(c_int) :: nf(MAXNCONT)
-   !> Should I calculate the density ("D") or the energy weighted density ("E")?
-   character(kind=c_char, len=1) :: dore  ! Density or En.Density
-   !> Reference contact is set to maximum or minimum Fermi level
-   integer(c_int) :: min_or_max
- end type lnparams
-  !-----------------------------------------------------------------------------
+  
+ !-----------------------------------------------------------------------------
 #:if defined("GPU")
   interface
-
      integer(c_int) function cu_cublasInit(hcublas) bind(C, name='cu_cublasInit')
        use iso_c_binding
        import cublasHandle
@@ -253,15 +158,6 @@ module libnegf
 
 contains
 
-  !--------------------------------------------------------------------
-  !>  Init libNEGF
-  !!  General initializations of libNEGF are currently done via files.
-  !!  "negf.in" contains all parameters information
-  !!  all needed info about the structure and matrix format.
-  !!  H and S are also read-in from files
-  !!  Some parameters are still hard-coded and need to be set from api
-  !--------------------------------------------------------------------
-
 #:if defined("GPU")
    subroutine cublasInitialize(hcublas)
      type(cublasHandle), intent(inout) :: hcublas
@@ -288,6 +184,15 @@ contains
    end subroutine cusolverFinalize
 #:endif
 
+
+  !--------------------------------------------------------------------
+  !>  Init libNEGF
+  !!  General initializations of libNEGF are currently done via files.
+  !!  "negf.in" contains all parameters information
+  !!  all needed info about the structure and matrix format.
+  !!  H and S are also read-in from files
+  !!  Some parameters are still hard-coded and need to be set from api
+  !--------------------------------------------------------------------
   subroutine init_negf(negf)
     type(Tnegf) :: negf
 
@@ -573,8 +478,8 @@ contains
   !! @param[in] iKS: k-index of H and S
   subroutine pass_HS(negf,H,S,iKS)
     type(Tnegf) :: negf
-    type(z_CSR), pointer, intent(in) :: H
-    type(z_CSR), pointer, intent(in), optional :: S
+    type(z_CSR), target, intent(in) :: H
+    type(z_CSR), target, intent(in), optional :: S
     integer, intent(in), optional :: iKS
 
     integer :: ii, ss
@@ -654,14 +559,13 @@ contains
   !! @param [in] negf: libnegf container instance
   !! @param [in] ncont: number of contacts
   !! @param [in] contend: on which hamiltonian index where are contacts
-  !!               ending? Array with size ncont
+  !!                      ending? Array with size ncont
   !! @param [in] surfend: on which index is Device surface ending before
   !!              the corresponding contact (would be beginning contact-1)
   !! @param [in] npl: number of principal layers
   !! @param [in] plend: indexes where each principal layer ends
   !! @param [in] cblk: array with index of interacting blocks for each
-  !!               contact(fortran indexing. If cblk is not known, use
-  !!               find_cblocks
+  !!                   contact
   !!
   !! If nbl = 0 the code will try to guess an automatic partitioning and
   !! plend, cblk will be ignored.
@@ -707,22 +611,7 @@ contains
        stop "Error in set_structure: plend and npl mismatch"
      end if
 
-     if (npl .eq. 0) then
-       if (.not.allocated(negf%HS)) then
-         stop "Error in init_structure: invoking block_partition but H not created"
-         if (.not.associated(negf%HS(1)%H)) then
-           stop "Error in init_structure: invoking block_partition but H not created"
-         end if
-       end if
-       ! supposedly performs an internal block partitioning but it is not reliable.
-       call log_allocate(plend_tmp, MAXNUMPLs)
-       call block_partition(negf%HS(1)%H, surfend(1), contend, surfend, ncont, npl_tmp, plend_tmp)
-       call find_cblocks(negf%HS(1)%H, ncont, npl_tmp, plend_tmp, surfstart, contend, cblk)
-       call create_Tstruct(ncont, npl_tmp, plend_tmp, surfstart, surfend, contend, cblk, negf%str)
-       call log_deallocate(plend_tmp)
-     else
-       call create_Tstruct(ncont, npl, plend, surfstart, surfend, contend, cblk, negf%str)
-     end if
+     call create_Tstruct(ncont, npl, plend, surfstart, surfend, contend, cblk, negf%str)
 
   end subroutine init_structure
 
@@ -840,12 +729,12 @@ contains
     call log_allocate(negf%local_k_index,size(local_kindex))
     negf%local_k_index = local_kindex
 
-    if (id0) then
-      write(*,*) 'k-points used in NEGF:'
-      do ii = 1, size(local_kindex)
-        write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
-      end do
-    end if
+    !if (id0) then
+    !  write(*,*) 'k-points used in NEGF:'
+    !  do ii = 1, size(local_kindex)
+    !    write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
+    !  end do
+    !end if
 
     if (present(equiv_kpoints)) then
       if (.not. present(equiv_mult)) then
@@ -1385,7 +1274,7 @@ contains
     read(101,*) tmp, surf_end(1:ncont)
     read(101,*) tmp, cont_end(1:ncont)
 
-    call find_cblocks(negf%HS(1)%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
+    !call find_cblocks(negf%HS(1)%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
     call init_structure(negf, ncont, surf_start, surf_end, cont_end, nbl, PL_end, cblk)
 
     call log_deallocate(PL_end)
@@ -1448,26 +1337,6 @@ contains
 
   end subroutine negf_version
 
-!--------------------------------------------------------------------
-  subroutine negf_partition_info(negf)
-      type(Tnegf) :: negf
-
-      integer :: i
-
-      write(*,*) "(LibNEGF) Partitioning:"
-      write(*,*) "Number of blocks: ",negf%str%num_Pls
-      !write(*,*) negf%str%mat_PL_end(:)
-      write(*,*) "Contact interactions:",negf%str%cblk(:)
-
-      open(1001,file='blocks.dat')
-        write(1001,*) 1
-        do i = 1, negf%str%num_Pls
-           write(1001,*)  negf%str%mat_PL_end(i)
-        enddo
-      close(1001)
-
-  end subroutine negf_partition_info
-
   !--------------------------------------------------------------------
   !> Destroy all the info defined in initialization.
   !! To run at the very end of libnegf usage
@@ -1511,11 +1380,11 @@ contains
     call destroy(negf%equivalent_kpoints)
 
     call destroy_interactions(negf)
+    call destroy_cache_space(negf)
 
     call destroy_DM(negf)
     call destroy_contact_matrices(negf)
     call destroy_surface_green_cache(negf)
-    call WriteMemInfo(6)
  #:if defined("GPU")
     call cublasFinalize(negf%hcublas)
     call cusolverFinalize(negf%hcusolver)
@@ -1664,10 +1533,9 @@ contains
   ! -----------------------------------------------------
   !  Allocate and copy Density Matrix or E-weighted DM
   ! -----------------------------------------------------
-  subroutine copy_DM(negf, rho, rhoE, iKS)
+  subroutine copy_DM(negf, rho, iKS)
     type(Tnegf) :: negf
-    type(z_CSR), intent(in), optional :: rho
-    type(z_CSR), intent(in), optional :: rhoE
+    type(z_CSR), intent(in) :: rho
     integer, intent(in), optional :: iKS
 
     integer :: s, ii
@@ -1690,29 +1558,19 @@ contains
       end if
     end if
 
-    if (present(rho)) then
-      if (.not.associated(negf%DM(ii)%rho)) allocate(negf%DM(ii)%rho)
-      negf%DM(ii)%rho = rho
-      negf%DM(ii)%internalDM = .true.
-      negf%rho => negf%DM(ii)%rho
-    end if
-
-    if (present(rhoE)) then
-      if (.not.associated(negf%DM(ii)%rho_eps)) allocate(negf%DM(ii)%rho_eps)
-      negf%DM(ii)%rho_eps = rhoE
-      negf%DM(ii)%internalDM = .true.
-      negf%rho_eps => negf%DM(ii)%rho_eps
-    end if
+    if (.not.associated(negf%DM(ii)%rho)) allocate(negf%DM(ii)%rho)
+    negf%DM(ii)%rho = rho
+    negf%DM(ii)%internalDM = .true.
+    negf%rho => negf%DM(ii)%rho
 
   end subroutine copy_DM
 
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
-  subroutine pass_DM(negf, rho, rhoE, iKS)
+  subroutine pass_DM(negf, rho, iKS)
     type(Tnegf) :: negf
-    type(z_CSR), pointer, intent(in), optional :: rho
-    type(z_CSR), pointer, intent(in), optional :: rhoE
+    type(z_CSR), target, intent(in) :: rho
     integer, intent(in), optional :: iKS
 
     integer :: s
@@ -1725,31 +1583,16 @@ contains
       endif
     end if
 
-    if (present(rho)) then
-      if (present(iKS)) then
-        negf%DM(iKS)%rho => rho
-        ! This destroy here is needed as the matrix is created later
-        if (allocated(negf%DM(iKS)%rho%nzval)) then
-           call destroy(negf%DM(iKS)%rho)
-        endif
-        negf%DM(iKS)%internalDM = .false.
-      else
-        negf%rho => rho
+    if (present(iKS)) then
+      negf%DM(iKS)%rho => rho
+      ! This destroy here is needed as the matrix is created later
+      if (allocated(negf%DM(iKS)%rho%nzval)) then
+         call destroy(negf%DM(iKS)%rho)
       endif
+      negf%DM(iKS)%internalDM = .false.
+    else
+      negf%rho => rho
     endif
-
-    if (present(rhoE)) then
-      if (present(iKS)) then
-        negf%DM(iKS)%rho_eps => rhoE
-        ! This destroy here is needed as the matrix is created later
-        if (allocated(negf%DM(iKS)%rho_eps%nzval)) then
-           call destroy(negf%DM(iKS)%rho_eps)
-        endif
-        negf%DM(iKS)%internalDM = .false.
-      else
-        negf%rho_eps => rhoE
-      end if
-    end if
 
   end subroutine pass_DM
 
@@ -1804,15 +1647,6 @@ contains
           deallocate(negf%DM(ii)%rho)
           nullify(negf%DM(ii)%rho)
         endif
-
-        if (associated(negf%DM(ii)%rho_eps)) then
-          if (allocated(negf%DM(ii)%rho_eps%nzval)) then
-             !print*,'(destroy) deallocate negf%rho_eps',%LOC(negf%rho_eps%nzval)
-             call destroy(negf%DM(ii)%rho_eps)
-          end if
-          deallocate(negf%DM(ii)%rho_eps)
-          nullify(negf%DM(ii)%rho_eps)
-        endif
       endif
     end do
     deallocate(negf%DM)
@@ -1843,47 +1677,15 @@ contains
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
-    logical :: contour, realaxis, inelastic
-
     call extract_cont(negf)
 
     !! Did anyone passed externally allocated DM? If not, create it
     if (.not.associated(negf%rho)) allocate(negf%rho)
-    if (.not.associated(negf%rho_eps)) allocate(negf%rho_eps)
 
     ! Reference contact for contour/real axis separation (depends on min_or_max)
     call set_ref_cont(negf)
 
-    contour = .false.
-    if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
-       contour = .true.
-    end if
-    realaxis = .false.
-    if (negf%Np_real.gt.0) then
-       realaxis = .true.
-    end if
-    inelastic = .false.
-    if (get_max_wq(negf%interactList) == 0.0_dp) then
-       inelastic = .true.
-    end if
-
-    ! Whether inelastic scattering is present
-    if (contour) then
-       call contour_int_def(negf)
-       if (inelastic) then
-          call contour_int(negf)
-       else   
-          call contour_int_inel(negf)
-       end if
-    end if
-    if (realaxis) then
-       call real_axis_int_def(negf)
-       if (inelastic) then
-          call real_axis_int(negf)
-       else  
-          call real_axis_int_inel(negf)
-       end if
-    end if
+    call contour_driver(negf)
 
     call destroy_contact_matrices(negf)
 
@@ -2303,6 +2105,9 @@ contains
 
   end subroutine set_ref_cont
 
+  !------------------------------------------
+  ! Useful debugging routines
+  !------------------------------------------
   !> Print TNegf state, for debug
   subroutine print_tnegf(negf)
     type(TNegf) :: negf
@@ -2310,356 +2115,6 @@ contains
     call print_all_vars(negf,6)
   end subroutine print_tnegf
 
-  !////////////////////////////////////////////////////////////////////////
-  ! RCM algorithm for reordering.
-  !
-  ! Actually not used because it is not suitable for contacted structures
-  !////////////////////////////////////////////////////////////////////////
-  subroutine reorder(mat)
-    type(z_CSR) :: mat
-
-
-    type(z_CSR) :: P, Tmp
-
-    integer, dimension(:), allocatable :: perm
-    integer :: i, nrow
-
-    nrow=mat%nrow
-
-    call log_allocate(perm,nrow)
-
-    call genrcm(nrow, mat%nnz, mat%rowpnt, mat%colind, perm)
-
-    call create(P,nrow,nrow,nrow)
-
-    do i=1,nrow
-       P%nzval(i)=1
-       P%colind(i)=perm(i)
-       P%rowpnt(i)=i
-    enddo
-    P%rowpnt(nrow+1)=nrow+1
-
-
-    call create(Tmp,nrow,nrow,mat%nnz)
-
-    call zamub_st(P,mat,Tmp)
-
-    call ztransp_st(P)
-
-    call zamub_st(Tmp,P,mat)
-
-    call destroy(P,Tmp)
-
-    call log_deallocate(perm)
-
-  end subroutine reorder
-
-  !>  Authomatic Block partitioning. The matrix must be already sorted.
-  subroutine block_partition(mat,nrow,cont_end,surf_end,ncont,nbl,blks)
-
-    !> The matrix to be partitioned.
-    type(z_CSR), intent(in) :: mat
-    !> The number of row to partition.
-    integer, intent(in) :: nrow
-    !> The indices indicating the end of the contact.
-    integer, dimension(:), intent(in) :: cont_end
-    !> The indices indicating the end of the scattering region surface
-    !> (last orbitals before corresponding contact.)
-    integer, dimension(:), intent(in) :: surf_end
-    !> The number of contacts.
-    integer, intent(in) :: ncont
-    !> The number of blocks.
-    integer, intent(out) :: nbl
-    !> The array with the end index for each block.
-    integer, dimension(:), intent(inout) :: blks
-
-    integer :: j, k, i
-    integer :: i1, i2
-
-    integer :: rn, rnold, tmax, rmax, maxmax
-    integer :: dbuff, minsize, minv, maxv
-
-    minsize = 0
-     do i1 = 1, ncont
-        maxv = 0
-        minv = 400000000
-        do k = surf_end(i1)+1, cont_end(i1)
-           do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
-            if (mat%colind(i).le.nrow .and.  mat%colind(i).lt.minv) minv = mat%colind(i)
-            if (mat%colind(i).le.nrow .and.  mat%colind(i).gt.maxv) maxv = mat%colind(i)
-           end do
-        end do
-        if (maxv-minv+1 .gt. minsize) minsize = maxv - minv + 1
-    end do
-
-    ! The current algorithm does not work when the minimum block
-    ! size is 1. We fix the minimum possible size to 2 as temporary fix.
-    minsize = max(minsize, 2)
-
-    ! Find maximal stancil of the matrix and on which row
-    !  ( Xx     )
-    !  ( xXxx   )
-    !  (  xXxxx )  <- maxmax = 3 ; rmax = 3
-    !  (   xXx  )
-    maxmax = 0
-    do j=1,nrow
-       tmax = 0
-       do i = mat%rowpnt(j), mat%rowpnt(j+1) - 1
-           if ( mat%colind(i).le.nrow .and. (mat%colind(i)-j) .gt. tmax) then
-                tmax = mat%colind(i)-j
-           endif
-       enddo
-
-       if(tmax .gt. maxmax) then
-          maxmax = tmax
-          rmax = j
-       endif
-
-       dbuff = maxmax        ! dbuff should be linked to maxmax
-       minsize = max((dbuff+1)/2,minsize)
-    enddo
-
-    ! Define central block
-    rn = rmax - maxmax/2 - dbuff
-
-    if(rn-dbuff.ge.0) then
-
-       blks(1) = rn-1  ! fine del blocco precedente
-
-       nbl = 1
-
-       do
-
-          do j = rn, minsize, -1
-
-             rnold = rn
-             i1 = mat%rowpnt(j-minsize+1)
-             i2 = mat%rowpnt(j+1) - 1
-
-             !k = maxval(mat%colind(i1:i2))
-             k = 0
-             do i = i1, i2
-                if ( mat%colind(i).le.nrow .and. (mat%colind(i)) .gt. k) then
-                   k = mat%colind(i)
-                endif
-             enddo
-
-             if(k.lt.rn) then
-                rn = j
-                nbl = nbl + 1
-                if (nbl.gt.MAXNUMPLs) call errormsg()
-                blks(nbl) = j-1 ! fine del blocco precedente
-                exit
-             endif
-          enddo
-
-          if(rn.le.minsize .or. rnold.eq.rn) then
-             exit
-          endif
-
-       enddo
-
-       rn = rmax - maxmax/2 - dbuff
-
-    else
-       nbl= 0
-       rn = 1
-
-    endif
-
-    do
-
-       do j = rn, nrow-minsize+1, 1
-
-          rnold = rn
-          i1 = mat%rowpnt(j)
-          i2 = mat%rowpnt(j+minsize) - 1
-
-          !k = minval(mat%colind(i1:i2))
-          k = nrow
-          do i = i1, i2
-             if ( mat%colind(i).le.nrow .and. (mat%colind(i)) .lt. k) then
-                k = mat%colind(i)
-             endif
-          enddo
-
-
-          if(k.gt.rn) then
-             rn = j
-             nbl = nbl + 1
-             if (nbl.gt.MAXNUMPLs) call errormsg()
-             blks(nbl) = j-1 ! fine del blocco
-             exit
-          endif
-       enddo
-
-       if(nrow-rn.le.minsize .or. rnold.eq.rn) then
-          exit
-       endif
-    enddo
-
-    nbl = nbl + 1
-    if (nbl.gt.MAXNUMPLs) call errormsg()
-    blks(nbl) = nrow
-
-    ! Sorting blocks
-
-    do i = 1, nbl
-       do j = i+1, nbl
-          if(blks(j).lt.blks(i)) then
-             k = blks(i)
-             blks(i) = blks(j)
-             blks(j) = k
-          endif
-       enddo
-    enddo
-
-
-  end subroutine block_partition
-
-!----------------------------------------------------------------------------
-  subroutine errormsg()
-
-     write(*,*) "ERROR: Maximum number of PLs exceeded"
-     write(*,*) "increase the value of MAXNUMPLS in libnegf.F90"
-     write(*,*) "and recompile the library"
-
-     STOP !should rise an exception
-
-  end subroutine errormsg
-
-!----------------------------------------------------------------------------
-  subroutine find_cblocks(mat ,ncont, nbl, PL_end, surf_start, cont_end, cblk)
-    type(z_CSR), intent(in) :: mat
-    integer, intent(in) :: ncont
-    integer, intent(in) :: nbl
-    integer, dimension(:), intent(in) :: PL_end
-    integer, dimension(:), intent(in) :: surf_start
-    integer, dimension(:), intent(in) :: cont_end
-    integer, dimension(:), allocatable, intent(out) :: cblk
-
-    integer :: j1,k,i,min,max
-    integer, dimension(:), allocatable :: PL_start
-
-    call log_allocate(PL_start,nbl)
-    call log_allocate(cblk,ncont)
-
-    PL_start(1) = 1
-
-    do i = 2, nbl
-       PL_start(i) = PL_end(i-1) + 1
-    enddo
-
-
-    do j1 = 1, ncont
-
-       max = 0
-       min = 400000000
-
-       do k = surf_start(j1), cont_end(j1)
-
-          do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
-
-             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).lt.min) min = mat%colind(i)
-             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).gt.max) max = mat%colind(i)
-
-          end do
-
-       end do
-
-       do k = 1, nbl
-
-          if( max .le. PL_end(k) ) then
-             cblk(j1) = k
-
-             if( min .ge. PL_start(k) ) then
-                exit
-             else
-                write(*,*) "(LibNEGF) Partitioning:"
-                write(*,*) "Number of blocks: ",nbl
-                write(*,*) "PL_end: ",PL_end(1:nbl)
-                write(*,*) "Contact interaction: ",cblk(j1)
-                write(*,'(a,i3,a)') " ERROR: contact",j1," interacting with more than one block"
-                write(*,*) "min ",min,"max ",max
-                stop
-             end if
-
-          end if
-
-       end do
-
-    end do
-
-    call log_deallocate(PL_start)
-
-  end subroutine find_cblocks
-
-!----------------------------------------------------------------------------
-
-  Subroutine sort(blks, Ipt)
-    ! *
-    ! ***********************************
-    ! * Sort Array X(:) in ascendent order.
-    ! * If present Ipt, a pointer with the
-    ! * changes is returned in Ipt.
-    ! ***********************************
-
-    Integer, Intent (inout) :: blks(:)
-    Integer, Intent (out), Optional :: Ipt(:)
-
-    Integer :: Rtmp
-    Integer :: i, j
-
-    If (Present(Ipt)) Then
-       Forall (i=1:Size(blks)) Ipt(i) = i
-
-       Do i = 2, Size(blks)
-          Rtmp = blks(i)
-          Do j = i-1, 1, -1
-             If (Rtmp < blks(j)) Then
-                blks(j+1) = blks(j)
-                call Swap(blks, j, j+1)
-             Else
-                Exit
-             End If
-          End Do
-          blks(j+1) = Rtmp
-       End Do
-    Else
-       Do i = 2, Size(blks)
-          Rtmp = blks(i)
-          Do j = i-1, 1, -1
-             If (Rtmp < blks(j)) Then
-                blks(j+1) = blks(j)
-             Else
-                Exit
-             End If
-          End Do
-          blks(j+1) = Rtmp
-       End Do
-    End If
-
-    Return
-  End Subroutine sort
-
-  ! ***********************************
-  ! * Swaps elements I and J of array X(:).
-  ! ***********************************
-  Subroutine Swap(X, i, j)
-
-    Integer, Intent (inout) :: X(:)
-    Integer, Intent (in) :: i, j
-
-    Integer :: Itmp
-
-    Itmp = X(I)
-    X(I) = X(J)
-    X(J) = Itmp
-
-    Return
-  End Subroutine Swap
-
-  !------------------------------------------
   subroutine printcsr(id, mat)
     integer :: id
     type(z_csr) :: mat
@@ -2673,7 +2128,6 @@ contains
     integer :: i, j
 
     write(id,*) i,j,getelement(i,j,mat)
-
   end subroutine printcsrij
 
   function getel(mat,i,j) result(el)
@@ -2682,43 +2136,7 @@ contains
     complex(dp) :: el
 
     el = getelement(i,j,mat)
-
   end function getel
-
-  subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
-      real(dp), dimension(:), intent(in) :: v_in
-      real(dp), intent(in) :: thres
-      real(dp), dimension(:), allocatable, intent(out) :: v_out
-      integer, dimension(:), allocatable, intent(out) :: start_idx, end_idx
-
-      real(dp) :: avg
-      integer :: i, rs, re
-
-      allocate(start_idx(0))
-      allocate(end_idx(0))
-      allocate(v_out(0))
-
-      start_idx = [start_idx, 1]
-      do i = 1, size(v_in)-1
-         if (abs(v_in(i+1) - v_in(i)) > thres) then
-            start_idx = [start_idx, i+1]
-         endif
-      end do
-
-      do i = 1, size(v_in)-1
-         if (abs(v_in(i+1) - v_in(i)) > thres) then
-                 end_idx = [end_idx, i]
-         endif
-      end do
-      end_idx = [end_idx, size(v_in)]
-
-      do i = 1, size(start_idx)
-         rs = start_idx(i)
-         re = end_idx(i)
-         avg = sum(v_in(rs:re))/real(size(v_in(rs:re)), dp)
-         v_out = [v_out, avg]
-      end do
-
-   end subroutine aggregate_vec
+  !------------------------------------------
 
 end module libnegf
