@@ -50,6 +50,7 @@ module integrations
 
  private
 
+ public :: contour_driver    ! driver for the density matrix integration
  public :: contour_int       ! generalized contour integrator
  public :: contour_int_inel  ! generalized contour integrator with inelasti scatt.
  public :: real_axis_int     ! real-axis integrator
@@ -592,6 +593,60 @@ contains
 
   end subroutine contour_int_p_def
 
+  !---------------------------------------------------------------------------------
+  ! Driver soubroutine for the contour and real-axis integration
+  !---------------------------------------------------------------------------------
+  subroutine contour_driver(negf)
+    type(TNegf), intent(inout) :: negf
+
+    ! array used for the partial DM from the contour integration
+    type(TMatrixArrayDM), allocatable :: dm_c(:)
+    logical :: contour, realaxis, inelastic
+    integer :: iK
+
+    contour = .false.
+    if (negf%Np_n(1)+negf%Np_n(2)+negf%n_poles.gt.0) then
+       contour = .true.
+    end if
+    realaxis = .false.
+    if (negf%Np_real.gt.0) then
+       realaxis = .true.
+    end if
+    inelastic = .false.
+    if (get_max_wq(negf%interactList) > 0.0_dp) then
+       inelastic = .true.
+    end if
+
+    ! Whether inelastic scattering is present
+    if (contour) then
+       call contour_int_def(negf)
+       if (inelastic) then
+          allocate(dm_c(size(negf%DM)))
+          do iK = 1, size(negf%local_k_index)
+            allocate(dm_c(iK)%rho)
+          end do
+          call contour_int_inel(negf, dm_c)
+       else
+          call contour_int(negf)
+       end if
+    end if
+    if (realaxis) then
+       call real_axis_int_def(negf)
+       if (inelastic) then
+          call real_axis_int_inel(negf, dm_c)
+          do iK = 1, size(negf%local_k_index)
+            call concat(negf%DM(iK)%rho, dm_c(iK)%rho, 1, 1)
+            call destroy(dm_c(iK)%rho)
+            deallocate(dm_c(iK)%rho)
+          end do
+          deallocate(dm_c)
+       else
+          call real_axis_int(negf)
+       end if
+    end if
+
+  end subroutine contour_driver
+  !---------------------------------------------------------------------------------
   !-----------------------------------------------------------------------
   ! Contour integration for density matrix
   ! DOES INCLUDE FACTOR 2 FOR SPIN !!
@@ -817,12 +872,7 @@ contains
 
      ! NOTE: The following assumes contour_int is called BEFORE any
      !       real-axis integration.
-     if(negf%DorE.eq.'D') then
-        call zspectral(TmpMt,TmpMt,0,negf%rho)
-     endif
-     if(negf%DorE.eq.'E') then
-        call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
-     endif
+     call zspectral(TmpMt,TmpMt,0,negf%rho)
 
      call destroy(TmpMt)
 
@@ -837,8 +887,9 @@ contains
   ! NOTE: For the moment it is implicitly assumed that contour_int is called BEFORE
   !       real-axis integration (any existing matrix is overwritten)
   !----------------------------------------------------------------------------------
-  subroutine contour_int_inel(negf)
+  subroutine contour_int_inel(negf, dm_c)
      type(Tnegf) :: negf
+     type(TMatrixArrayDM) :: dm_c(:)
 
      type(z_CSR) :: GreenR, TmpMt
      integer :: i, i1, iK, ncont, Npoints, outer
@@ -848,10 +899,11 @@ contains
      ncont = negf%str%num_conts
      outer = negf%outer_blocks
      Npoints = size(negf%en_grid)
-     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
-     call initialize(TmpMt)
 
      call write_info_parallel(negf%verbose,30,'CONTOUR INTEGRAL (inel)',Npoints)
+
+     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
+     call initialize(TmpMt)
 
      ! Loop over local k-points
      kloop: do iK = 1, size(negf%local_k_index)
@@ -867,13 +919,15 @@ contains
        call destroy_contact_matrices(negf)
        call extract_cont(negf)
 
+       TmpMt%nzval = (0.0_dp, 0.0_dp)
+
        enloop:do i = 1, Npoints
 
          call write_Epoint(negf%verbose,negf%en_grid(i), Npoints)
          if (negf%en_grid(i)%cpu .ne. id) cycle
 
          Ec = negf%en_grid(i)%Ec
-         zt = negf%en_grid(i)%wght
+         zt = negf%en_grid(i)%wght !* negf%kwght (kwghts in calling code)
          negf%iE = negf%en_grid(i)%pt
          negf%iE_path = negf%en_grid(i)%pt_path
 
@@ -881,35 +935,15 @@ contains
 
          if(negf%DorE.eq.'E') zt = zt * Ec
 
-         call concat(TmpMt,zt,GreenR,1,1)
+         call concat(TmpMt,zt,GreenR,1,1) !partial sums on local E
 
          call destroy(GreenR)
 
        enddo enloop
 
+       call zspectral(TmpMt,TmpMt,0,dm_c(iK)%rho)
+
      enddo kloop
-
-     ! NOTE: The following assumes contour_int is called BEFORE any
-     !       real-axis integration.
-     if(negf%DorE.eq.'D') then
-        call zspectral(TmpMt,TmpMt,0,negf%rho)
-#:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
-      call mpifx_allreduceip(negf%kComm, negf%rho%nzval, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-#:endif
-     endif
-
-     if(negf%DorE.eq.'E') then
-        call zspectral(TmpMt,TmpMt,0,negf%rho_eps)
-#:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_allreduceip(negf%energyComm, negf%rho_eps%nzval, MPI_SUM)
-      call mpifx_allreduceip(negf%kComm, negf%rho_eps%nzval, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-#:endif
-     endif
 
      call destroy(TmpMt)
 
@@ -1084,9 +1118,7 @@ contains
       endif
 
       zt = negf%en_grid(iE)%wght !!* negf%kwght
-      if (negf%DorE.eq.'E') then
-         zt = zt * Er
-      end if
+      if (negf%DorE.eq.'E') zt = zt * Er
 
       call concat(TmpMt,zt,G,1,1)
 
@@ -1094,19 +1126,10 @@ contains
 
     enddo enloop
 
-    if(negf%DorE.eq.'D') then
-       if(allocated(negf%rho%nzval)) then
-          call concat(negf%rho,TmpMt,1,1)
-       else
-          call clone(TmpMt,negf%rho)
-       endif
-    endif
-    if(negf%DorE.eq.'E') then
-       if(allocated(negf%rho_eps%nzval)) then
-          call concat(negf%rho_eps,TmpMt,1,1)
-       else
-          call clone(TmpMt,negf%rho_eps)
-       endif
+    if (allocated(negf%rho%nzval)) then
+       call concat(negf%rho,TmpMt,1,1)
+    else
+       call clone(TmpMt,negf%rho)
     endif
 
     call destroy(TmpMt)
@@ -1122,8 +1145,9 @@ contains
   ! ------   | Gn(E) dE
   ! 2*pi*j   /
   !-----------------------------------------------------------------------
-  subroutine real_axis_int_inel(negf)
+  subroutine real_axis_int_inel(negf, dm_c)
     type(Tnegf) :: negf
+     type(TMatrixArrayDM) :: dm_c(:)
 
     integer :: ref, Npoints
     integer :: scba_iter, scba_elastic_iter, scba_niter_ela, scba_niter_inela
@@ -1173,9 +1197,6 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
-      ! Density matrix initialization
-      TmpMt%nzval = (0.0_dp, 0.0_dp)
-
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -1189,6 +1210,9 @@ contains
         negf%S => negf%HS(iK)%S
         call destroy_contact_matrices(negf)
         call extract_cont(negf)
+
+        ! Density matrix initialization
+        TmpMt%nzval = (0.0_dp, 0.0_dp)
 
         !! Loop over energy points
         enloop: do iE = 1, Npoints
@@ -1212,16 +1236,23 @@ contains
             call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
           endif
 
-          zt = negf%en_grid(iE)%wght * negf%kwght
-          if (negf%DorE.eq.'E') then
-             zt = zt * Er
-          end if
+          zt = negf%en_grid(iE)%wght !* negf%kwght
+          if (negf%DorE.eq.'E') zt = zt * Er
 
           call concat(TmpMt,zt,G,1,1)
 
           call destroy(G)
 
         enddo enloop
+
+        associate(rho => negf%DM(iK)%rho)
+          if (allocated(rho%nzval)) then
+            rho%nzval = (0.0_dp, 0.0_dp)
+            call concat(rho,TmpMt,1,1)
+          else
+            call clone(TmpMt,rho)
+          endif
+        end associate
 
       enddo kloop
 
@@ -1249,36 +1280,7 @@ contains
 
     end do scba
 
-    if(negf%DorE.eq.'D') then
-       if(allocated(negf%rho%nzval)) then
-          call concat(negf%rho,TmpMt,1,1)
-       else
-          call clone(TmpMt,negf%rho)
-       endif
-       call destroy(TmpMt)
-#:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
-      call mpifx_allreduceip(negf%kComm, negf%rho%nzval, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-#:endif
-    endif
-
-    if(negf%DorE.eq.'E') then
-       if(allocated(negf%rho_eps%nzval)) then
-          call concat(negf%rho_eps,TmpMt,1,1)
-       else
-          call clone(TmpMt,negf%rho_eps)
-       endif
-       call destroy(TmpMt)
-#:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_allreduceip(negf%energyComm, negf%rho_eps%nzval, MPI_SUM)
-      call mpifx_allreduceip(negf%kComm, negf%rho_eps%nzval, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-#:endif
-    endif
-
+    call destroy(TmpMt)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(frm_f)
 
@@ -1938,7 +1940,6 @@ contains
     integer :: scba_inelastic_iter, scba_niter_inela
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
-    !real(dp) :: scba_elastic_error, scba_inelastic_error, scba_elastic_tol
     real(dp) :: scba_inelastic_error
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
     complex(dp), DIMENSION(:), allocatable :: diag
@@ -2100,7 +2101,7 @@ contains
 
     end do scba
 
-    !call interaction_cleanup(negf)
+    call destroy(TmpMt)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(curr_mat)
     call log_deallocate(ldos_mat)
@@ -2135,23 +2136,6 @@ contains
     end do
 
   end subroutine interaction_prepare
-
-  !---------------------------------------------------------------------------
-  !subroutine interaction_cleanup(negf)
-  !  type(TNegf) :: negf
-  !
-  !  type(TInteractionNode), pointer :: it
-  !  it => negf%interactList%first
-  !
-  !  do while (associated(it))
-  !    select type(pInter => it%inter)
-  !    class is(ElPhonInel)
-  !       call pInter%destroy()
-  !    end select
-   !   it => it%next
-  !  end do
-
-  !end subroutine interaction_cleanup
 
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_inelastic(negf)

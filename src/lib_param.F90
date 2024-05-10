@@ -21,6 +21,7 @@
 
 module lib_param
 
+  use iso_c_binding
   use ln_precision, only : dp
   use globals
   use mat_def
@@ -41,13 +42,11 @@ module lib_param
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
 #:endif
-#:if defined("GPU")
-  use iso_c_binding
-#:endif
   implicit none
   private
 
-  public :: Tnegf, intArray, TEnGrid, TInteractionList
+  public :: Tnegf, lnParams, intArray, TEnGrid, TInteractionList
+  public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
   public :: destroy_interactions
   public :: init_cache_space, destroy_cache_space
@@ -75,7 +74,6 @@ module lib_param
   ! Array used to store the k-dependent matrices
   type TMatrixArrayDM
     type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-    type(z_CSR), pointer :: rho_eps => null()  ! Holding output Matrix
     logical    :: internalDM = .true.          ! tells DM is internally allocated
   end type TMatrixArrayDM
 
@@ -234,7 +232,6 @@ module lib_param
     type(z_CSR), pointer :: S => null()
     ! Ponters of current working density matrix
     type(z_CSR), pointer :: rho => null()
-    type(z_CSR), pointer :: rho_eps => null()
     !logical :: internalDM
 
     type(TStruct_Info) :: str     ! system structure
@@ -315,6 +312,97 @@ module lib_param
     !procedure :: destroy_cache_space => destroy_cache_space
 
   end type Tnegf
+ 
+  !-----------------------------------------------------------------------------
+  !> Contains all the general parameters to be passed as input to library
+  !! which are compatible with iso_c_binding representations
+  !! 1-1 correspondance to input parameter in type Tnegf
+  type, bind(c) :: lnparams
+    !! General
+    !> verbosity, > 100 is maximum
+    integer(c_int) :: verbose
+    !> Managing SGF readwrite for DM: 0: Read 1: compute 2: comp & save
+    integer(c_int)  :: readOldDM_SGFs
+    !> Managing SGF readwrite for Tunn: 0: Read 1: compute 2: comp & save
+    integer(c_int)  :: readOldT_SGFs
+    !> SGF cache destination: 0 for disk, 1 for memory, 2 for a dummy cache (no save performed)
+    integer(c_int) :: SGFcache
+    !> Spin component (for io)
+    integer(c_int)  :: spin
+    !> k-point index (for io)
+    integer(c_int) :: ikpoint
+    !> Spin degeneracy
+    real(c_double) :: g_spin
+    !> Imaginary delta
+    real(c_double) :: delta
+    !> delta model for phonon GF
+    integer(c_int) :: deltaModel
+    !> Maximal energy in Mingo delta model
+    real(c_double) :: wmax
+    !> Additional delta to force more broadening in the DOS
+    real(c_double) :: dos_delta
+    !> Energy conversion factor
+    real(c_double) :: eneconv
+    !> Weight for k-point integration, output integrals are scaled accordingly
+    real(c_double) :: kwght
+    !> Conduction band edge
+    real(c_double) :: ec
+    !> Valence band edge
+    real(c_double) :: ev
+    !> Safe guard energy below Ec
+    real(c_double) :: deltaec
+    !> Safe guard energy above Ev
+    real(c_double) :: deltaev
+    !! Real axis integral
+    !> Minimum energy for real axis (current integration, DOS, tunneling)
+    real(c_double) :: emin
+    !> Maximum energy for real axis
+    real(c_double) :: emax
+    !> Energy step for real axis
+    real(c_double) :: estep
+    !> Energy step for coarse integrations
+    real(c_double) :: estep_coarse
+    !! Contacts info
+    !> Electron electrochemical potential
+    real(c_double) :: mu_n(MAXNCONT)
+    !> Hole electrochemical potential
+    real(c_double) :: mu_p(MAXNCONT)
+    !> Electron electrochemical Potential (for dft)
+    real(c_double) :: mu(MAXNCONT)
+    !> Contact DOS for WBA
+    real(c_double) :: contact_dos(MAXNCONT)
+    !> Logical value: is the contact WB?
+    logical(c_bool)  :: fictcont(MAXNCONT)
+    !> Electronic temperature for each contact (Density Matrix)
+    real(c_double) :: kbT_dm(MAXNCONT)
+    !> Electronic temperature for each contact (Transmission)
+    real(c_double) :: kbT_t(MAXNCONT)
+    !> SCBA tolerance for inelastic loop
+    real(c_double) :: scba_inelastic_tol
+    !> SCBA tolerance for elastic loop
+    real(c_double) :: scba_elastic_tol
+    !! Contour integral
+    !> Number of points for n
+    integer(c_int) :: np_n(2)
+    !> Number of points for p
+    integer(c_int) :: np_p(2)
+    !> Number of real axis points
+    integer(c_int) :: np_real
+    !> ! Number of kT extending integrations
+    integer(c_int) :: n_kt
+    !> Number of poles
+    integer(c_int) :: n_poles
+    !! Emitter and collector for transmission or Meir-Wingreen
+    !! (only emitter in this case)
+    !> Emitter contact list (or lead for integration in MW)
+    integer(c_int) :: ni(MAXNCONT)
+    !> Collector contact list
+    integer(c_int) :: nf(MAXNCONT)
+    !> Should I calculate the density ("D") or the energy weighted density ("E")?
+    character(kind=c_char, len=1) :: dore  ! Density or En.Density
+    !> Reference contact is set to maximum or minimum Fermi level
+    integer(c_int) :: min_or_max
+  end type lnparams
 
 contains
 
