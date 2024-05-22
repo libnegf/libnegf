@@ -17,7 +17,7 @@ int main()
   int contend[2] = {80,100};
   int plend[6] = {10, 20, 30, 40, 50, 60};
   int cblk[2] = {6, 1};
-  double currents[1];
+  double currents[2] = { NAN, NAN };
   double coupling[60];
   int leadpairs;
   int i;
