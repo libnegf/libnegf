@@ -1,0 +1,16 @@
+build:
+  tags:
+    - public-docker
+  stage: build
+  script:
+    - mkdir build
+    - cmake -DBUILD_SHARED_LIBS=ON -B build .
+    - make -C build
+
+test:
+  tags:
+    - public-docker
+  stage: test
+  script:
+    - cd build
+    - ctest
