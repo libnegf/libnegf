@@ -6,6 +6,9 @@ build:
     - mkdir build
     - cmake -DBUILD_SHARED_LIBS=ON -B build .
     - make -C build
+  artifacts:
+    paths:
+      - build/
 
 test:
   tags:
