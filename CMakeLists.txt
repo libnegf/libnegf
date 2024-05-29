@@ -18,6 +18,12 @@ endif()
 include(externalMpifx)
 include(CMakePackageConfigHelpers)
 
+
+# find a Python3 interpreter for FYPP
+include(FindPython3)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+
 set(CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/ext_fypp/;${CMAKE_PREFIX_PATH}")
 find_program(FYPP "fypp")
 

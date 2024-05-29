@@ -1,5 +1,5 @@
-foo HR.dat               !  filename for real part of H
-foo HI.dat               !  filename for imaginary part of H
+foo H_real.dat           !  filename for real part of H
+foo H_imm.dat            !  filename for imaginary part of H
 foo identity             !  Real part of S: if S == Id  set 'identity' 
 foo                      !  Imaginary part of S: not used is S is idenity 
 foo 2                    !  number of contacts. 

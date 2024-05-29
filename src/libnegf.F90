@@ -272,7 +272,7 @@ contains
      inquire(file=trim(imag_path), exist= doesexist)
      if (.not.doesexist) then
        write(*,*) "libNEGF error. Matrix files not found"
-       stop
+       error stop
      endif
 
      open(401, file=real_path, form=trim(fmtstring))
