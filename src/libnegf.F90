@@ -84,6 +84,8 @@ module libnegf
  public :: negf_version
  public :: destroy_contact_matrices ! cleanup matrices in Tnegf container (H,S)
  public :: destroy_surface_green_cache ! Clean surface green cache (useful for memory cache)
+ public :: negf_partition_info  !write down partition info
+ public :: find_cblocks        ! Find interacting contact block
  public :: set_ref_cont, print_tnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
@@ -566,6 +568,7 @@ contains
   !! @param [in] plend: indexes where each principal layer ends
   !! @param [in] cblk: array with index of interacting blocks for each
   !!                   contact
+  !!               find_cblocks
   !!
   !! If nbl = 0 the code will try to guess an automatic partitioning and
   !! plend, cblk will be ignored.
@@ -1274,7 +1277,7 @@ contains
     read(101,*) tmp, surf_end(1:ncont)
     read(101,*) tmp, cont_end(1:ncont)
 
-    !call find_cblocks(negf%HS(1)%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
+    call find_cblocks(negf%HS(1)%H, ncont, nbl, PL_end, surf_start, cont_end, cblk)
     call init_structure(negf, ncont, surf_start, surf_end, cont_end, nbl, PL_end, cblk)
 
     call log_deallocate(PL_end)
@@ -1336,6 +1339,26 @@ contains
                                          TRIM(DATE)
 
   end subroutine negf_version
+
+!--------------------------------------------------------------------
+  subroutine negf_partition_info(negf)
+      type(Tnegf) :: negf
+
+      integer :: i
+
+      write(*,*) "(LibNEGF) Partitioning:"
+      write(*,*) "Number of blocks: ",negf%str%num_Pls
+      !write(*,*) negf%str%mat_PL_end(:)
+      write(*,*) "Contact interactions:",negf%str%cblk(:)
+
+      !open(1001,file='blocks.dat')
+      !  write(1001,*) 1
+      !  do i = 1, negf%str%num_Pls
+      !     write(1001,*)  negf%str%mat_PL_end(i)
+      !  enddo
+      !close(1001)
+
+  end subroutine negf_partition_info
 
   !--------------------------------------------------------------------
   !> Destroy all the info defined in initialization.
@@ -2114,6 +2137,75 @@ contains
 
     call print_all_vars(negf,6)
   end subroutine print_tnegf
+
+  !----------------------------------------------------------------------------
+  ! Routine checking that each contact is interacting with only one block
+  !----------------------------------------------------------------------------
+  subroutine find_cblocks(mat ,ncont, nbl, PL_end, surf_start, cont_end, cblk)
+    type(z_CSR), intent(in) :: mat
+    integer, intent(in) :: ncont
+    integer, intent(in) :: nbl
+    integer, dimension(:), intent(in) :: PL_end
+    integer, dimension(:), intent(in) :: surf_start
+    integer, dimension(:), intent(in) :: cont_end
+    integer, dimension(:), allocatable, intent(out) :: cblk
+
+    integer :: j1,k,i,min,max
+    integer, dimension(:), allocatable :: PL_start
+
+    call log_allocate(PL_start,nbl)
+    call log_allocate(cblk,ncont)
+
+    PL_start(1) = 1
+
+    do i = 2, nbl
+       PL_start(i) = PL_end(i-1) + 1
+    enddo
+
+
+    do j1 = 1, ncont
+
+       max = 0
+       min = 400000000
+
+       do k = surf_start(j1), cont_end(j1)
+
+          do i = mat%rowpnt(k), mat%rowpnt(k+1)-1
+
+             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).lt.min) min = mat%colind(i)
+             if (mat%colind(i).le.PL_end(nbl) .and.  mat%colind(i).gt.max) max = mat%colind(i)
+
+          end do
+
+       end do
+
+       do k = 1, nbl
+
+          if( max .le. PL_end(k) ) then
+             cblk(j1) = k
+
+             if( min .ge. PL_start(k) ) then
+                exit
+             else
+                write(*,*) "(LibNEGF) Partitioning:"
+                write(*,*) "Number of blocks: ",nbl
+                write(*,*) "PL_end: ",PL_end(1:nbl)
+                write(*,*) "Contact interaction: ",cblk(j1)
+                write(*,'(a,i3,a)') " ERROR: contact",j1," interacting with more than one block"
+                write(*,*) "min ",min,"max ",max
+                stop
+             end if
+
+          end if
+
+       end do
+
+    end do
+
+    call log_deallocate(PL_start)
+
+  end subroutine find_cblocks
+
 
   subroutine printcsr(id, mat)
     integer :: id

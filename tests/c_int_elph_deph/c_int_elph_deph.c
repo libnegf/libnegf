@@ -4,12 +4,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <mpi.h>
 
 int main()
 {
   struct lnparams params;
   int handler[NEGF_HSIZE];
   int *hand = &handler[0];
+  int global_comm, cart_comm, k_comm, ierr;
   char realmat[7] = "HR.dat";
   char imagmat[7] = "HI.dat";
   int surfstart[2] = {61,81};
@@ -17,15 +19,22 @@ int main()
   int contend[2] = {80,100};
   int plend[6] = {10, 20, 30, 40, 50, 60};
   int cblk[2] = {6, 1};
-  double currents[1];
+  double currents[2]= {0.0, 0.0};
   double coupling[60];
   int leadpairs;
   int i;
   int foo[1] = {0};
 
+  ierr = MPI_Init(NULL, NULL);
+  global_comm = MPI_COMM_WORLD;
   printf("Initializing libNEGF \n");
   negf_init_session(hand);
   negf_init(hand);
+  
+  printf("Initializing NEGF mpi and cartesian grid\n");
+  negf_set_mpi_fcomm(hand, global_comm);
+  negf_cartesian_init(hand, global_comm, 1, &cart_comm, &k_comm);
+
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
   negf_set_s_id(hand, 100, 1);
   negf_init_contacts(hand, 2);
@@ -38,8 +47,8 @@ int main()
   params.estep = 0.1;
   params.kbt_t[0] = 0.001;
   params.kbt_t[1] = 0.001;
-  params.mu[0] = 0.5;
-  params.mu[1] = -0.5;
+  params.mu[0] = -0.5;
+  params.mu[1] = 0.5;
   params.verbose = 100;
   negf_set_params(hand, &params);
 
@@ -54,7 +63,7 @@ int main()
   negf_solve_landauer(hand);
   negf_get_currents(hand, &leadpairs, &currents[0], 1);
 
-  printf("Current: %f\n",currents[0]);
+  printf("Current: %f \n",currents[0]);
   //Release library
   negf_destruct_libnegf(handler);
   negf_destruct_session(handler);
@@ -63,10 +72,13 @@ int main()
 
   if (currents[0] > 1.95 || currents[0] < 1.90) {
     printf("Error in current value not between 1.90 and 1.95 \n");
+    MPI_Finalize(); 
     return 1;
   }
   else
   {
+    MPI_Finalize(); 
     return 0;
-  }  
+  } 
+
 }

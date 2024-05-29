@@ -7,10 +7,13 @@
 # module load should do this if properly set
 
 # MPI option
-option(WITH_MPI "Whether MPI-parallelised library should be built" FALSE)
+option(WITH_MPI "Whether MPI-parallelised library should be built" TRUE)
 
 # OPEN MP option
 option(WITH_OMP "Whether OMP should be used" TRUE)
+
+# GPU support 
+option(WITH_TRANSPORT_GPU "Whether CUDA should be used" FALSE)
 
 # Note, this option does not work yet, so leave it to false
 option(WITH_HILBERT "Whether enable the Hilbert transform in inelastic scattering" FALSE)
