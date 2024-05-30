@@ -21,7 +21,6 @@
 program hello
 
   use libnegf
-  use lib_param
 
   implicit none
 

@@ -18,56 +18,25 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-
-module population
-  use ln_precision
-  use mat_def
-
+module cublas_interface
+  use iso_c_binding
   implicit none
   private
-  public :: mulliken
 
-  ! -------------------------------------------------------------
-contains
+  public :: cublasSetMathMode
 
-  subroutine mulliken(DensMat,S,qmulli)
-    type(z_CSR) :: S, DensMat
-    real(dp), dimension(:) :: qmulli
+  integer, parameter, public ::  CUBLAS_TENSOR_OP_MATH = 1  ! DEPRECATED
+  integer, parameter, public ::  CUBLAS_PEDANTIC_MATH = 2
+  integer, parameter, public ::  CUBLAS_TF32_TENSOR_OP_MATH = 3
+  integer, parameter, public ::  CUBLAS_DEFAULT_MATH = 0
 
 
-    integer :: ii, ka, jj, kb, jcol, nrow
-    real(dp) :: qtot
-    complex(dp) :: dd
-
-    qmulli=0.0_dp
-    nrow = size(qmulli)
-
-    do ii=1, DensMat%nrow
-       do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
-          dd = DensMat%nzval(ka)
-          jj = DensMat%colind(ka)
-          
-          do kb=S%rowpnt(jj),S%rowpnt(jj+1)-1
-             jcol = S%colind(kb)
-             if (jcol .eq. ii .and. jcol.le.nrow) then
-                qmulli(jcol) = qmulli(jcol) + real(dd*S%nzval(kb))
-             endif
-          enddo
-       enddo
-    enddo
-    
-    open(11,file='qmulli.dat')
-    qtot = 0.0_dp
-    do ii = 1, nrow
-       write(11,*) ii,qmulli(ii)
-       qtot = qtot+qmulli(ii)
-    enddo
-    close(11)
-    
-    write(*,*) 'qtot=',qtot
-  
-  end subroutine mulliken
-
-  ! -------------------------------------------------------------
-
-end module population
+  interface
+  integer(4) function cublasSetMathMode(handle, mode) &
+        & bind(c, name='cublasSetMathMode')
+    use cublas_v2
+    type(cublasHandle), value :: handle
+    integer, intent(in), value :: mode
+  end function cublasSetMathMode
+  end interface
+end module cublas_interface

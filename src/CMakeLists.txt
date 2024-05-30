@@ -5,7 +5,7 @@ set(sources-fpp
   input_output.F90
   ln_cache.F90
   lib_param.F90
-  elph.F90
+  ln_enums.F90
   phph.F90
   ln_precision.F90
   mpi_globals.F90
@@ -26,17 +26,31 @@ set(sources-fpp
   mat_def.F90
   population.F90
   energy_mesh.F90
+  equiv_kpoints.F90
   interactions.F90
+  ln_elastic.F90
+  ln_inelastic.F90
   elphdd.F90
   elphdb.F90
   elphds.F90
+  elphinel.F90
+  self_energy.F90
+  scba.F90
   sparskit/skit_blassm.F90
   sparskit/skit_formats.F90
   sparskit/skit_module.F90
   sparskit/skit_unary.F90)
 
-if(WITH_INELASTIC)
+if(WITH_HILBERT)
   list(APPEND sources-fpp transform.F90)
+endif()
+
+if(WITH_TRANSPORT_GPU)
+  list(APPEND sources-fpp cudautils.F90)
+  list(APPEND sources-fpp iterative_gpu.F90)
+  set(sources-cuda gpuroutines.cu)
+else()
+  list(APPEND sources-fpp iterative_cpu.F90)
 endif()
 
 set(sources-f90
@@ -52,6 +66,11 @@ if(WITH_MPI)
   list(APPEND fyppdefs -DMPI)
 endif()
 
+
+if(WITH_TRANSPORT_GPU)
+  list(APPEND fyppdefs -DGPU)
+endif()
+
 set(sources-fpp-f90)
 foreach(fppsrc IN LISTS sources-fpp)
   string(REGEX REPLACE "\\.F90" ".f90" f90src ${fppsrc})
@@ -64,8 +83,12 @@ foreach(fppsrc IN LISTS sources-fpp)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
 
-#add_library(negf ${sources-fpp-f90} ${sources-f90} $<TARGET_OBJECTS:sparskit_objlib>)
-add_library(negf ${sources-fpp-f90} ${sources-f90})
+
+  if(WITH_TRANSPORT_GPU)
+     add_library(negf ${sources-fpp-f90} ${sources-f90} ${sources-cuda})
+  else()
+     add_library(negf ${sources-fpp-f90} ${sources-f90})
+  endif()
 
 target_sources(negf PRIVATE $<TARGET_OBJECTS:syscalls_objlib>)
 target_include_directories(negf PUBLIC
@@ -74,14 +97,23 @@ target_include_directories(negf PUBLIC
 set(BUILD_MOD_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 set_target_properties(negf PROPERTIES Fortran_MODULE_DIRECTORY ${BUILD_MOD_DIR})
+set_property(TARGET negf PROPERTY CUDA_ARCHITECTURES OFF)
+
+if(WITH_OMP)
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(negf PUBLIC OpenMP::OpenMP_Fortran)
+endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
-  # MPI_Fortran dependency should be private to avoid the leakage of the '-fallow-argument-mismatch'
-  # option (from MPI_Fortran_COMPILE_OPTONS) when compiling C-code with dependence on negf.
-  target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
 endif()
+
+if(WITH_TRANSPORT_GPU)
+  find_package(CUDAToolkit REQUIRED)
+  target_link_libraries(negf PRIVATE CUDA::cudart CUDA::cusolver CUDA::cublas)
+endif()
+
 target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 target_include_directories(negf PUBLIC

@@ -18,56 +18,17 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-
-module population
-  use ln_precision
-  use mat_def
-
+module ln_elastic
+  use interactions
   implicit none
   private
-  public :: mulliken
 
-  ! -------------------------------------------------------------
-contains
+  public :: TElastic
 
-  subroutine mulliken(DensMat,S,qmulli)
-    type(z_CSR) :: S, DensMat
-    real(dp), dimension(:) :: qmulli
+  type, abstract, extends(TInteraction) :: TElastic
+
+  end type TElastic
 
 
-    integer :: ii, ka, jj, kb, jcol, nrow
-    real(dp) :: qtot
-    complex(dp) :: dd
+end module ln_elastic
 
-    qmulli=0.0_dp
-    nrow = size(qmulli)
-
-    do ii=1, DensMat%nrow
-       do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
-          dd = DensMat%nzval(ka)
-          jj = DensMat%colind(ka)
-          
-          do kb=S%rowpnt(jj),S%rowpnt(jj+1)-1
-             jcol = S%colind(kb)
-             if (jcol .eq. ii .and. jcol.le.nrow) then
-                qmulli(jcol) = qmulli(jcol) + real(dd*S%nzval(kb))
-             endif
-          enddo
-       enddo
-    enddo
-    
-    open(11,file='qmulli.dat')
-    qtot = 0.0_dp
-    do ii = 1, nrow
-       write(11,*) ii,qmulli(ii)
-       qtot = qtot+qmulli(ii)
-    enddo
-    close(11)
-    
-    write(*,*) 'qtot=',qtot
-  
-  end subroutine mulliken
-
-  ! -------------------------------------------------------------
-
-end module population

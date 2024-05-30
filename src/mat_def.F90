@@ -1,15 +1,15 @@
 !!--------------------------------------------------------------------------!
-!! libNEGF: a general library for Non-Equilibrium Green's functions.        !
-!! Copyright (C) 2012                                                       !
+!! libNEGF: a general library for Non-Equilibrium Greens functions.         !
+!! Copyright (C) 2012 - 2026                                                !
 !!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             !
+!! Non Equilibrium Green's Functions calculations                           !
 !!                                                                          !
-!! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
-!! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
+!! Developers: Alessandro Pecchia, Daniele Soccodato                        !
+!! Former Contributors: Gabriele Penazzi, Luca Latessa, Aldo Di Carlo       !
 !!                                                                          !
-!! libNEGF is free software: you can redistribute it and/or modify          !
-!! it under the terms of the GNU Lesse General Public License as published  !
+!! libNEGF is free software: you can redistribute and/or modify it          !
+!! under the terms of the GNU Lesser General Public License as published    !
 !! by the Free Software Foundation, either version 3 of the License, or     !
 !! (at your option) any later version.                                      !
 !!                                                                          !
@@ -22,17 +22,19 @@
 Module mat_def
   use ln_precision
   use ln_allocation
+  use iso_c_binding
   implicit none
   private
 
 public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
-public :: c_DNS, s_CSR ! single precision defs
+public :: c_DNS, s_CSR, c_CSR! single precision defs
 public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 public :: createp, destroyp
+public :: assignment(=)
 
 interface create
    module procedure zcreate_CSR
@@ -47,7 +49,6 @@ interface create
    module procedure zcreate_DNS
    module procedure rcreate_DNS
    module procedure ccreate_DNS
-   !module procedure screate_CSR
    module procedure rcreate_DNS3
    module procedure zcreate_DNS3
    module procedure ccreate_DNS3
@@ -72,6 +73,17 @@ interface initialize
    module procedure zinit_CSR
 end interface
 
+interface assignment (=)
+   module procedure rassign_CSR
+   module procedure zassign_CSR
+   module procedure rassign_DNS
+   module procedure zassign_DNS
+   module procedure cassign_DNS
+   module procedure czassign_DNS !mixed precision
+   module procedure zcassign_DNS !mixed precision
+   module procedure rassign_COO
+   module procedure zassign_COO
+end interface
 
 interface destroy
    module procedure zdestroy_CSR
@@ -105,6 +117,7 @@ interface print_mat
    module procedure rPrint_MSR
    module procedure zPrint_COO
    module procedure rPrint_COO
+   module procedure zprint_DNS
 end interface
 
 interface read_mat
@@ -184,6 +197,7 @@ Type z_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type z_DNS
 
 Type r_DNS3
@@ -191,6 +205,7 @@ Type r_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type r_DNS3
 
 Type z_DNS3
@@ -198,6 +213,7 @@ Type z_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type z_DNS3
 
 Type c_DNS3
@@ -205,6 +221,7 @@ Type c_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type c_DNS3
 
 
@@ -242,6 +259,17 @@ Type s_CSR
   integer, DIMENSION(:), ALLOCATABLE :: rowpnt
 end Type s_CSR
 
+Type c_CSR
+  integer :: nnz = 0
+  integer :: nrow = 0
+  integer :: ncol = 0
+  logical :: sorted = .false.
+  complex(kind=sp), DIMENSION(:), ALLOCATABLE :: nzval
+  integer, DIMENSION(:), ALLOCATABLE :: colind
+  integer, DIMENSION(:), ALLOCATABLE :: rowpnt
+end Type c_CSR
+
+
 !CSC Complex Structure definition (Compressed Sparse Column format)
 
 Type r_CSC
@@ -278,6 +306,7 @@ Type r_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type r_DNS
 
 
@@ -285,6 +314,7 @@ Type c_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: val
+  type(c_ptr) :: d_addr
 end Type c_DNS
 ! *******************************************************************
 contains
@@ -340,7 +370,7 @@ subroutine zinit_CSR(mat)
   if(mat%nnz.ne.mat%nrow) STOP 'cannot initialize matrix (nnz != nrow)'
 
   do k=1,Mat%nrow
-     Mat%nzval(k)=0.d0
+     Mat%nzval(k)=(0.0_dp, 0.0_dp)
      Mat%colind(k)=k
      Mat%rowpnt(k)=k
   enddo
@@ -354,7 +384,7 @@ subroutine zcreate_id_CSR(mat,nrow)
 
   call zcreate_CSR(mat,nrow,nrow,nrow)
   do i=1,nrow
-     mat%nzval(i)=(1.d0, 0.d0)
+     mat%nzval(i)=(1.0_dp, 0.0_dp)
      mat%rowpnt(i)=i
      mat%colind(i)=i
   enddo
@@ -385,9 +415,9 @@ subroutine zclone_id_CSR(mat, matH)
   do i=1,nrow
     do j =mat%rowpnt(i), mat%rowpnt(i+1)-1
       if (mat%colind(j) .eq. i) then
-         mat%nzval(j)=(1.d0,0.d0)
+         mat%nzval(j)=(1.0_dp,0.0_dp)
       else
-         mat%nzval(j)=(0.d0,0.d0)
+         mat%nzval(j)=(0.0_dp,0.0_dp)
       end if
     enddo
   enddo
@@ -402,7 +432,7 @@ subroutine zcreate_id_DNS(mat,nrow,alpha)
 
   call zcreate_DNS(mat,nrow,nrow)
 
-  mat%val = (0.d0,0.d0)
+  mat%val = (0.0_dp,0.0_dp)
 
   if (present(alpha)) then
      do i=1,nrow
@@ -429,7 +459,7 @@ subroutine zrecreate_CSR(mat)
   call zcreate_CSR(mat,ncol,ncol,ncol)
 
    do k=1,ncol
-     mat%nzval(k)=0.d0
+     mat%nzval(k)=0.0_dp
      mat%colind(k)=k
      mat%rowpnt(k)=k
   enddo
@@ -1371,7 +1401,7 @@ subroutine rrecreate_CSR(mat)
   call rcreate_CSR(mat,ncol,ncol,ncol)
 
    do k=1,ncol
-     mat%nzval(k)=0.d0
+     mat%nzval(k)=0.0_dp
      mat%colind(k)=k
      mat%rowpnt(k)=k
   enddo
@@ -1862,4 +1892,176 @@ subroutine zwriteMem_CSR(id,mat)
 end subroutine zwriteMem_CSR
 
 
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_CSR(M_lhs, M_rhs)
+  type(r_CSR), intent(inout) :: M_lhs
+  type(r_CSR), intent(in) :: M_rhs
+
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%colind = M_rhs%colind
+  M_lhs%rowpnt = M_rhs%rowpnt
+  M_lhs%sorted = M_rhs%sorted
+end subroutine rassign_CSR
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_CSR(M_lhs, M_rhs)
+  type(z_CSR), intent(inout) :: M_lhs
+  type(z_CSR), intent(in) :: M_rhs
+
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%colind = M_rhs%colind
+  M_lhs%rowpnt = M_rhs%rowpnt
+  M_lhs%sorted = M_rhs%sorted
+end subroutine zassign_CSR
+
+
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_DNS(M_lhs, M_rhs)
+  type(r_DNS), intent(inout) :: M_lhs
+  type(r_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine rassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_DNS(M_lhs, M_rhs)
+  type(z_DNS), intent(inout) :: M_lhs
+  type(z_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine zassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine cassign_DNS(M_lhs, M_rhs)
+  type(c_DNS), intent(inout) :: M_lhs
+  type(c_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine cassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine zcassign_DNS(M_lhs, M_rhs)
+  type(z_DNS), intent(inout) :: M_lhs
+  type(c_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine zcassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine czassign_DNS(M_lhs, M_rhs)
+  type(c_DNS), intent(inout) :: M_lhs
+  type(z_DNS), intent(in) :: M_rhs
+
+  integer :: cc
+  
+  if (.not.allocated(M_lhs%val)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+  end if  
+  !$OMP PARALLEL DO 
+  do cc = 1, M_lhs%ncol
+    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+  end do
+  !$OMP END PARALLEL DO
+end subroutine czassign_DNS
+
+!> Override assignment operation in order to keep track of memory
+subroutine rassign_COO(M_lhs, M_rhs)
+  type(r_COO), intent(inout) :: M_lhs
+  type(r_COO), intent(in) :: M_rhs
+
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%index_i = M_rhs%index_i
+  M_lhs%index_j = M_rhs%index_j
+end subroutine rassign_COO
+
+!> Override assignment operation in order to keep track of memory
+subroutine zassign_COO(M_lhs, M_rhs)
+  type(z_COO), intent(inout) :: M_lhs
+  type(z_COO), intent(in) :: M_rhs
+
+  if (.not.allocated(M_lhs%nzval)) then
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if  
+  M_lhs%nzval = M_rhs%nzval
+  M_lhs%index_i = M_rhs%index_i
+  M_lhs%index_j = M_rhs%index_j
+end subroutine zassign_COO
+
+! For debugging purposes
+subroutine zPrint_DNS(id, A, fmt)
+  type(z_DNS), intent(in) :: A
+  integer, intent(in) :: id
+  logical, intent(in) :: fmt
+
+  integer :: i, j, rdim, cdim
+  rdim = size(A%val, 1)
+  cdim = size(A%val, 2)
+
+  if (fmt) then
+    do j = 1, cdim
+      do i = 1, rdim
+        if (abs(real(A%val(i,j)))<1.d-10 .and. abs(aimag(A%val(i,j)))>1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, abs(real(A%val(i,j))), aimag(A%val(i,j))
+        else if (abs(real(A%val(i,j)))>1.d-10 .and. abs(aimag(A%val(i,j)))<1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, real(A%val(i,j)), abs(aimag(A%val(i,j)))
+        else if (abs(real(A%val(i,j)))<1.d-10 .and. abs(aimag(A%val(i,j)))<1.d-10 ) then
+          write(id,'(2i8,(F20.10,F20.10))') i, j, abs(real(A%val(i,j))), abs(aimag(A%val(i,j)))
+        else
+          write(id,'(2i8,(F20.10,F20.10))') i, j, real(A%val(i,j)), aimag(A%val(i,j))
+        end if
+      enddo
+    enddo
+  else
+    do j = 1, cdim
+      do i = 1, rdim
+         write(id) i, j, A%val(i,j)
+      enddo
+    enddo
+  endif
+end subroutine zPrint_DNS
 end module mat_def

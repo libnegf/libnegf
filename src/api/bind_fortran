@@ -288,6 +288,7 @@ class FormatterC(Formatter):
               "real" : ("double", True),
               "complex(c_double_complex)" : ("double _Complex", True),
               "complex" : ("double _Complex", True),
+              "logical(c_bool)" : ("bool", True), # is bool native type in C? If not, this must change
               "type(lnparams)" : ("struct lnparams", True),
               "type(c_ptr)" : ("double *", False)
               }
@@ -436,6 +437,7 @@ class FormatterCpp(FormatterC):
               "real" : ("double", True),
               "complex(c_double_complex)" : ("std::complex<double>", True),
               "complex" : ("std::complex<double>", True),
+              "logical(c_bool)" : ("bool", True),
               "type(lnparams)" : ("struct lnparams", True),
               "type(c_ptr)" : ("double *", False)
               }

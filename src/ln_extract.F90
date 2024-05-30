@@ -1,26 +1,26 @@
 !!--------------------------------------------------------------------------!
-!! libNEGF: a general library for Non-Equilibrium Green's functions.        !
-!! Copyright (C) 2012                                                       !
-!!                                                                          ! 
+!! libNEGF: a general library for Non-Equilibrium Greens functions.         !
+!! Copyright (C) 2012 - 2026                                                !
+!!                                                                          !
 !! This file is part of libNEGF: a library for                              !
-!! Non Equilibrium Green's Function calculation                             ! 
+!! Non Equilibrium Green's Functions calculations                           !
 !!                                                                          !
-!! Developers: Alessandro Pecchia, Gabriele Penazzi                         !
-!! Former Conctributors: Luca Latessa, Aldo Di Carlo                        !
+!! Developers: Alessandro Pecchia, Daniele Soccodato                        !
+!! Former Contributors: Gabriele Penazzi, Luca Latessa, Aldo Di Carlo       !
 !!                                                                          !
-!! libNEGF is free software: you can redistribute it and/or modify          !
-!! it under the terms of the GNU Lesse General Public License as published  !
+!! libNEGF is free software: you can redistribute and/or modify it          !
+!! under the terms of the GNU Lesser General Public License as published    !
 !! by the Free Software Foundation, either version 3 of the License, or     !
 !! (at your option) any later version.                                      !
 !!                                                                          !
 !!  You should have received a copy of the GNU Lesser General Public        !
 !!  License along with libNEGF.  If not, see                                !
-!!  <http://www.gnu.org/licenses/>.                                         !  
+!!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
 
 module ln_extract
-  
+
   use ln_precision
   use ln_allocation
   use ln_constants
@@ -33,7 +33,8 @@ module ln_extract
 
   private
 
-  public :: extract_cont 
+  public :: extract_cont
+  public :: destroy_contact_matrices
 
 contains
 
@@ -58,7 +59,7 @@ contains
 
     do i=1,ncont
        !print*, '(ext_HC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
-       call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%cont(i)%HC)       
+       call extract(negf%H,cstart(i),cend(i),cstart(i),cend(i),negf%cont(i)%HC)
        !print*, '(ext_SC)',i,cstart(i),cend(i),surfdim(i),ncdim(i)
        call extract(negf%S,cstart(i),cend(i),cstart(i),cend(i),negf%cont(i)%SC)
     enddo
@@ -66,15 +67,32 @@ contains
     do i=1,ncont
        !print*, '(int) extract central-contact',i
        i1 = negf%str%mat_PL_start( negf%str%cblk(i) )
-       i2 = negf%str%mat_PL_end( negf%str%cblk(i) ) 
-       j1 = cstart(i); 
+       i2 = negf%str%mat_PL_end( negf%str%cblk(i) )
+       j1 = cstart(i);
        j2 = j1+(ncdim(i)+surfdim(i))/2-1 !Note this is Surf+1PL
        !print*, 'block HMC:',i1,i2,j1,j2
-       call extract(negf%H,i1,i2,j1,j2,negf%cont(i)%HMC)         
+       call extract(negf%H,i1,i2,j1,j2,negf%cont(i)%HMC)
        !print*, 'block SMC:',i1,i2,j1,j2
-       call extract(negf%S,i1,i2,j1,j2,negf%cont(i)%SMC) 
+       call extract(negf%S,i1,i2,j1,j2,negf%cont(i)%SMC)
     enddo
 
   end subroutine extract_cont
+
+  !--------------------------------------------------------------------
+  !> Destroy matrices created runtime in libnegf
+  subroutine destroy_contact_matrices(negf)
+    type(Tnegf) :: negf
+    integer :: i
+
+    if (allocated(negf%cont)) then
+       do i = 1, size(negf%cont)
+          if (allocated(negf%cont(i)%HC%val)) call destroy(negf%cont(i)%HC)
+          if (allocated(negf%cont(i)%SC%val)) call destroy(negf%cont(i)%SC)
+          if (allocated(negf%cont(i)%HMC%val)) call destroy(negf%cont(i)%HMC)
+          if (allocated(negf%cont(i)%SMC%val)) call destroy(negf%cont(i)%SMC)
+       enddo
+    end if
+
+  end subroutine destroy_contact_matrices
 
 end module ln_extract

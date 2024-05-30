@@ -18,56 +18,47 @@
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
 
-
-module population
-  use ln_precision
-  use mat_def
-
+module ln_inelastic
+  use interactions
+  use ln_cache
   implicit none
-  private
-  public :: mulliken
 
-  ! -------------------------------------------------------------
-contains
+  public :: TInelastic
 
-  subroutine mulliken(DensMat,S,qmulli)
-    type(z_CSR) :: S, DensMat
-    real(dp), dimension(:) :: qmulli
+  type, abstract, extends(TInteraction) :: TInelastic
+
+    !> sigma_r and sigma_n
+    class(TMatrixCache), pointer :: sigma_r => null()
+    class(TMatrixCache), pointer :: sigma_n => null()
+    !> Gr and Gn are pointer alias stored in negf.
+    class(TMatrixCache), pointer :: G_r => null()
+    class(TMatrixCache), pointer :: G_n => null()
+
+    !> Compute tri-diagonal block matrices
+    logical :: tTridiagonal = .false.
+
+    contains
+
+    procedure, non_overridable :: set_Gr_pointer
+    procedure, non_overridable :: set_Gn_pointer
+
+  end type TInelastic
+
+  contains
 
 
-    integer :: ii, ka, jj, kb, jcol, nrow
-    real(dp) :: qtot
-    complex(dp) :: dd
+  !> Set the Gr pointe
+  subroutine set_Gr_pointer(this, Gr)
+    class(TInelastic), intent(inout) :: this
+    class(TMatrixCache), pointer :: Gr
+    this%G_r => Gr
+  end subroutine set_Gr_pointer
 
-    qmulli=0.0_dp
-    nrow = size(qmulli)
+  !> Set the Gn pointer
+  subroutine set_Gn_pointer(this, Gn)
+    class(TInelastic), intent(inout) :: this
+    class(TMatrixCache), pointer :: Gn
+    this%G_n => Gn
+  end subroutine set_Gn_pointer
 
-    do ii=1, DensMat%nrow
-       do ka=DensMat%rowpnt(ii), DensMat%rowpnt(ii+1)-1 
-          dd = DensMat%nzval(ka)
-          jj = DensMat%colind(ka)
-          
-          do kb=S%rowpnt(jj),S%rowpnt(jj+1)-1
-             jcol = S%colind(kb)
-             if (jcol .eq. ii .and. jcol.le.nrow) then
-                qmulli(jcol) = qmulli(jcol) + real(dd*S%nzval(kb))
-             endif
-          enddo
-       enddo
-    enddo
-    
-    open(11,file='qmulli.dat')
-    qtot = 0.0_dp
-    do ii = 1, nrow
-       write(11,*) ii,qmulli(ii)
-       qtot = qtot+qmulli(ii)
-    enddo
-    close(11)
-    
-    write(*,*) 'qtot=',qtot
-  
-  end subroutine mulliken
-
-  ! -------------------------------------------------------------
-
-end module population
+end module ln_inelastic
