@@ -79,7 +79,7 @@ contains
        phph%cubic = .true.
        nbl = size(PL_end,1)
        allocate(phph%T3(nbl,nbl,total_dim),stat=error)
-       if (error .ne. 0) STOP 'ALLOCATION ERROR of T3'
+       if (error .ne. 0) error stop 'ALLOCATION ERROR of T3'
        do i = 1, nbl
          size_i = PL_end(i)-PL_start(i)+1
          do j = max(1,i-1), i
@@ -97,7 +97,7 @@ contains
        phph%quartic = .true.
        allocate(phph%T4(nbl,nbl,total_dim), stat=error)
        if (error /= 0) then
-         write(*,*) "ALLOCATION ERROR"; STOP 
+         error stop "ALLOCATION ERROR"
        end if
        do i = 1, nbl
          size_i = PL_end(i)-PL_start(i)
@@ -265,8 +265,7 @@ contains
                         !vtmp  = IMatrix(jj,kk,ii)
                         vtmp  = IMatrix(1,1,ii)%val(jj,kk)
                         if  (dabs(vtmp).le.1.0d-50)  then
-                            print*,'NO value'
-                            stop
+                            error stop 'NO value'
                         else
                             continue
                         end if

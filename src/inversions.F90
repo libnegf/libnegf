@@ -678,8 +678,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
           A_csr%colind, PERM, NRHS, IPARM, MSGLVL, B, X, info)
 
      IF(info.NE.0) THEN
-         WRITE(*,*) 'Error in solve'
-         STOP
+         error stop 'Error in solve'
      ENDIF  
      ! counts all non-zero elements in this column 
      cnt = 0
@@ -754,8 +753,7 @@ subroutine zINV_LAPACK(A_csr, INV)
   call csr2dns(A_csr,A_dns)
 
   if(A_dns%nrow.ne.A_dns%ncol) then
-     write(*,*) 'ERROR: nrow != ncol'
-     stop
+     error stop 'ERROR: nrow != ncol'
   endif
 
   ndim=A_dns%nrow
@@ -786,7 +784,7 @@ subroutine cinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in LU factorization (cgetrf)',info
-     stop
+     error stop
   end if
   
   inA = (0.0_sp, 0.0_sp)
@@ -799,7 +797,7 @@ subroutine cinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in INVERSION (cgetrs)',info
-     stop
+     error stop
   end if
 
   call log_deallocate(LU)
@@ -825,7 +823,7 @@ subroutine zinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in LU factorization (zgetrf)',info
-     stop
+     error stop
   end if
 
   inA = (0.0_dp, 0.0_dp)
@@ -837,7 +835,7 @@ subroutine zinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in INVERSION (zgetrs)',info
-     stop
+     error stop
   end if
 
   call log_deallocate(LU)
@@ -863,7 +861,7 @@ subroutine rinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in LU factorization (dgetrf)',info
-     stop
+     error stop
   end if
   
   inA = 0.0_dp
@@ -875,7 +873,7 @@ subroutine rinv(inA,A,n)
   if (info.ne.0)  then
      write(*,*)
      write(*,*) 'ERROR in INVERSION (dgetrs)',info
-     stop
+     error stop
   end if
 
   call log_deallocate(LU)
@@ -1128,7 +1126,7 @@ end subroutine rinv
     if (info.ne.0)  then
        write(*,*)
        write(*,*) 'ERROR in INVERSION part 1',info
-       stop
+       error stop
     end if
   
     nrhs = size(T,2)
@@ -1140,7 +1138,7 @@ end subroutine rinv
     if (info.ne.0)  then
        write(*,*)
        write(*,*) 'ERROR in INVERSION part 2',info
-       stop
+       error stop
     end if
   
     call log_deallocate(work)

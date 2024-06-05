@@ -464,7 +464,7 @@ CONTAINS
      nbl = pnegf%str%num_PLs
     
      ALLOCATE(Sigma_ph_r(nbl,nbl),stat=ierr)
-     IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
+     IF (ierr.NE.0) error stop 'ALLOCATION ERROR: could not allocate Sigma_ph_r'
 
 
      DO n = 1, nbl
@@ -801,7 +801,7 @@ CONTAINS
     nbl = size(ESH,1)
 
     IF (n.GT.nbl) THEN
-       STOP 'Error in Make_Grcol_mem : n is greater than nbl'
+       error stop 'Error in Make_Grcol_mem : n is greater than nbl'
     ENDIF
 
     !***************************************
@@ -950,7 +950,7 @@ CONTAINS
                 write(*,*) 'ERROR in blk2csr: probably wrong PL size',x
                 write(*,*) 'row',i,A%colind(j)
                 write(*,*) 'block indeces:',indblk(1:nbl)
-                stop
+                error stop
              ENDIF
 
              col = A%colind(j) - indblk(y) + 1
@@ -1103,7 +1103,7 @@ CONTAINS
 
     nbl = pnegf%str%num_PLs
     ALLOCATE(Sigma_ph_n(nbl,nbl),stat=ierr)
-    IF (ierr.NE.0) STOP 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
+    IF (ierr.NE.0) error stop 'ALLOCATION ERROR: could not allocate Sigma_ph_n'
 
     DO n = 1, nbl
       nrow = ESH(n,n)%nrow
@@ -1229,7 +1229,7 @@ CONTAINS
              write(*,*) 'ERROR in blk2csr: probably wrong PL size', x
              write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
              write(*,*) 'block indeces:',indblk(1:nbl)
-             STOP
+             error stop
           ENDIF
           
           col = Gcsr%colind(jj) - indblk(y) + 1
@@ -2247,7 +2247,7 @@ CONTAINS
    enddo
    
    if(err.ne.0) then
-      STOP 'ERROR: Cannot allocate GG'
+      error stop 'ERROR: Cannot allocate GG'
    endif     
    print*,'Created memory scratch',nbl,'x',nbl,'x',npoints
 
@@ -2296,7 +2296,7 @@ CONTAINS
    if (allocated(Pip)) DEALLOCATE(Pip,stat=err)
    
    if(err.ne.0) then
-      STOP 'ERROR: Cannot deallocate GG'
+      error stop 'ERROR: Cannot deallocate GG'
    endif
 
  END SUBROUTINE destroy_scratch
@@ -2332,7 +2332,7 @@ CONTAINS
        case('Sigma_ph_p_')          
           Matrix%val = Pip(i,j)%val(:,:,iE)
        case default 
-         stop 'internal error: read_blkmat does not correspond'
+         error stop 'internal error: read_blkmat does not correspond'
        end select
        return
     endif        
@@ -2340,9 +2340,9 @@ CONTAINS
     Matrix%val = (0.d0,0.d0)
 
     if (i.le.9999) write(ofblki,'(i4.4)') i
-    if (i.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (i.gt.9999) error stop 'ERROR: too many blks (> 9999)'
     if (j.le.9999) write(ofblkj,'(i4.4)') j 
-    if (j.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (j.gt.9999) error stop 'ERROR: too many blks (> 9999)'
 
     if (iE.le.99999) write(ofpnt,'(i5.5)') iE
 
@@ -2415,15 +2415,15 @@ CONTAINS
           endif    
           Pip(i,j)%val(:,:,iE) = Matrix%val
        case default 
-         stop 'internal error: write_blkmat does not correspond'
+         error stop 'internal error: write_blkmat does not correspond'
        end select
        return
     endif        
 
     if (i.le.9999) write(ofblki,'(i4.4)') i
-    if (i.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (i.gt.9999) error stop 'ERROR: too many blks (> 9999)'
     if (j.le.9999) write(ofblkj,'(i4.4)') j
-    if (j.gt.9999) stop 'ERROR: too many blks (> 9999)'
+    if (j.gt.9999) error stop 'ERROR: too many blks (> 9999)'
 
     if (iE.le.99999) write(ofpnt,'(i5.5)') iE
 
@@ -2450,7 +2450,7 @@ CONTAINS
     integer :: nbl, ierr
 
     allocate(gsm(nbl),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate gsm'
     
   end subroutine allocate_gsm
   
@@ -2461,7 +2461,7 @@ CONTAINS
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
 
   end subroutine allocate_blk_dns
 
@@ -2472,7 +2472,7 @@ CONTAINS
     integer :: ierr
 
     deallocate(gsm,stat=ierr)
-    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
 
   end subroutine deallocate_gsm
 
@@ -2483,7 +2483,7 @@ CONTAINS
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
+    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
 
   end subroutine deallocate_blk_dns
 

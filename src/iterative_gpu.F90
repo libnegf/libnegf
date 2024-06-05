@@ -276,7 +276,7 @@ contains
              call destroyAll(work3)
           end if
           if (sbl-1.ge.1) then
-             stop "Error: Gr_tridiag requires gsml"
+             error stop "Error: Gr_tridiag requires gsml"
           end if
 
           call createAll(Gr(sbl,sbl), work1%nrow, work1%ncol)
@@ -316,7 +316,7 @@ contains
           call destroyAll(work1)
        end do
     else
-       stop "Error: Gr_tridiag requires gsml"
+       error stop "Error: Gr_tridiag requires gsml"
     endif
 
   end subroutine calculate_Gr_tridiag_blocks_sp
@@ -378,7 +378,7 @@ contains
              call destroyAll(work3)
           end if
           if (sbl-1.ge.1) then
-             stop "Error: Gr_tridiag requires gsml"
+             error stop "Error: Gr_tridiag requires gsml"
           end if
 
           call createAll(Gr(sbl,sbl), work1%nrow, work1%ncol)
@@ -417,7 +417,7 @@ contains
           call destroyAll(work1)
        end do
     else
-       stop "Error: Gr_tridiag requires gsml"
+       error stop "Error: Gr_tridiag requires gsml"
     endif
 
   end subroutine calculate_Gr_tridiag_blocks_dp
@@ -1185,7 +1185,7 @@ contains
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
 
   end subroutine allocate_blk_dns
 
@@ -1196,7 +1196,7 @@ contains
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
+    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
 
   end subroutine deallocate_blk_dns
 

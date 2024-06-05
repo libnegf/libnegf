@@ -1509,7 +1509,7 @@ contains
     real(dp) :: d
     integer :: i
 
-    if (mod(n-1,2).ne.0) STOP 'ERROR: N is not multiple of 2'
+    if (mod(n-1,2).ne.0) error stop 'ERROR: N is not multiple of 2'
 
     d = (x2-x1)/((n-1)*1.0_dp)
 
@@ -1537,7 +1537,7 @@ contains
     real(dp) :: d
     integer :: i
 
-    if (mod(n-1,3).ne.0) STOP 'ERROR: N-1 is not multiple of 3'
+    if (mod(n-1,3).ne.0) error stop 'ERROR: N-1 is not multiple of 3'
 
     d = (x2-x1)/((n-1)*1.0_dp)
 
@@ -2405,7 +2405,7 @@ contains
     if (.not.allocated(negf%curr_mat)) then
       write(*,*) 'Internal error: electron_current_meir_wingreen must be invoked'
       write(*,*) 'after tunneling calculation'
-      stop
+      error stop
     end if
 
     size_ni = size(negf%curr_mat,2)

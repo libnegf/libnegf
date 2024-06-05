@@ -857,7 +857,7 @@ contains
     deallocate(pGG)
     deallocate(pSigma)
 #:else
-    stop "inelastic scattering requires MPI compilation"
+    error stop "inelastic scattering requires MPI compilation"
 #:endif
     contains
 
@@ -1033,7 +1033,7 @@ contains
     deallocate(pGG)
     deallocate(pSigma)
 #:else
-    stop "inelastic scattering requires MPI compilation"
+    error stop "inelastic scattering requires MPI compilation"
 #:endif
 
     contains

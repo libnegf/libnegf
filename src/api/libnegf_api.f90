@@ -83,7 +83,7 @@ subroutine negf_init_session(handler) bind(C)
 
   IF( size(transfer(LIB, handler)) > size(handler) ) then
      write(*,*) size(transfer(LIB, handler)), size(handler)
-     stop 'Handler size mismatch'
+     error stop 'Handler size mismatch'
   ENDIF
 
   NULLIFY(LIB%pNEGF)
@@ -208,8 +208,7 @@ subroutine negf_contact_blocks(handler, ncont, surfstart, surfend, contend, npl,
   LIB = transfer(handler, LIB)
 
   if (.not.associated(LIB%pNEGF%H)) then
-    write(*,*) 'Error: H not created before invoking negf_contact_block'
-    stop
+    error stop 'Error: H not created before invoking negf_contact_block'
   end if
 
   allocate(surfstart_al(ncont))

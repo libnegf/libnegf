@@ -2128,8 +2128,8 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2193,8 +2193,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2267,8 +2267,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2426,7 +2426,7 @@ CONTAINS
        print*, 'ERROR (zextract_csr): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       STOP
+       error stop
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
@@ -2455,7 +2455,7 @@ CONTAINS
        print*, 'ERROR (zextract_dns): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       STOP
+       error stop
     ENDIF
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
@@ -3006,7 +3006,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       STOP 'Error in getdiag. D_vec has dimension lower than nrow'
+       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3038,7 +3038,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       STOP 'Error in getdiag. D_vec has dimension lower than nrow'
+       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3060,7 +3060,7 @@ CONTAINS
 
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
     end if
 
@@ -3090,7 +3090,7 @@ CONTAINS
     trace = (0.0_dp,0.0_dp)
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
        do i = 1,mat%nrow
           if (mask(i)) then
@@ -3116,7 +3116,7 @@ CONTAINS
     tr = (0.0_dp, 0.0_dp)
     if (present(mask)) then
        if (size(mask) /= size(mat,1)) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
        do ii = 1, size(mat,1)
          if (mask(ii)) then

@@ -87,10 +87,10 @@ contains
     emesh%maxreflev = reflevel
 
     allocate(emesh%el0(nelem), stat=ierr)
-    if(ierr.ne.0) stop 'ERROR: Cannot allocate mesh'
+    if(ierr.ne.0) error stop 'ERROR: Cannot allocate mesh'
 
     allocate(emesh%pactive(2**(emesh%maxreflev-1)*nelem), stat=ierr)
-    if(ierr.ne.0) stop 'ERROR: Cannot allocate mesh'
+    if(ierr.ne.0) error stop 'ERROR: Cannot allocate mesh'
 
     do i=1,nelem
       emesh%pactive(i)%pelem => emesh%el0(i)
@@ -232,7 +232,7 @@ contains
     integer :: ierr
 
     allocate(el, stat=ierr)
-    if(ierr.ne.0) stop 'ERROR: Cannot allocate el1'
+    if(ierr.ne.0) error stop 'ERROR: Cannot allocate el1'
 
     meshmem = meshmem + 10
 

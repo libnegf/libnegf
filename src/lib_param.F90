@@ -433,7 +433,7 @@ contains
     type is(ElPhonDephD)
       call elphondephd_init(pInter, negf%str, coupling, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephD'
+      error stop 'ERROR: error of type downcast to ElPhonDephD'
     end select
 
   end subroutine set_elph_dephasing
@@ -454,7 +454,7 @@ contains
     type is(ElPhonDephB)
       call elphondephb_init(pInter, negf%str, coupling, orbsperatom, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephB'
+      error stop 'ERROR: error of type downcast to ElPhonDephB'
     end select
 
   end subroutine set_elph_block_dephasing
@@ -474,7 +474,7 @@ contains
     type is(ElPhonDephS)
       call elphondephs_init(pInter, negf%str, coupling, orbsperatom, negf%S, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephS'
+      error stop 'ERROR: error of type downcast to ElPhonDephS'
     end select
 
   end subroutine set_elph_s_dephasing
@@ -502,10 +502,10 @@ contains
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
-      stop "Inelastic scattering requires MPI"
+      error stop "Inelastic scattering requires MPI"
 #:endif
     class default
-      stop 'ERROR: error of type downcast to ElPhonInel'
+      error stop 'ERROR: error of type downcast to ElPhonInel'
     end select
 
   end subroutine set_elph_polaroptical
@@ -531,10 +531,10 @@ contains
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
             &  wq, Temp, dz, D0, area, niter, tridiag)
 #:else
-      stop "Inelastic scattering requires MPI"
+      error stop "Inelastic scattering requires MPI"
 #:endif
     class default
-      stop 'ERROR: error of type downcast to ElPhonInel'
+      error stop 'ERROR: error of type downcast to ElPhonInel'
     end select
 
   end subroutine set_elph_nonpolaroptical

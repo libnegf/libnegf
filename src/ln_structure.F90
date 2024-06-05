@@ -207,7 +207,7 @@ contains
     integer :: ii, jj, nn
 
     if (present(basisToMatrix) .and. present(matrixToBasis)) then
-      stop 'Internal error in create_TBasis: two exclusive optional arrays'
+      error stop 'Internal error in create_TBasis: two exclusive optional arrays'
     end if
 
     allocate(this%x(size(coord,1), size(coord,2)))

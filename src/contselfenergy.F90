@@ -420,7 +420,7 @@ contains
     ncont = pnegf%str%num_conts
     avncyc = 0.0_dp
 
-    STOP 'Internal error: HMC has been changed to dns format'
+    error stop 'Internal error: HMC has been changed to dns format'
     ! -----------------------------------------------------------------------
     !  Calculation of contact self-energies
     ! -----------------------------------------------------------------------

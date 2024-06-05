@@ -325,7 +325,7 @@ subroutine adj_insert_ij ( node_num, adj_max, adj_num, adj_row, adj, i, j )
     write ( *, '(a)' ) '  This error occurred for '
     write ( *, '(a,i6)' ) '  Row I = ', i
     write ( *, '(a,i6)' ) '  Column J = ', j
-    stop
+    error stop
   end if
 !
 !  The action is going to occur between ADJ_ROW(I) and ADJ_ROW(I+1)-1:
@@ -502,7 +502,7 @@ subroutine adj_perm_show ( node_num, adj_num, adj_row, adj, perm, perm_inv )
     write ( *, '(a)' ) '  NODE_NUM is too large!'
     write ( *, '(a,i6)' ) '  Maximum legal value is ', n_max
     write ( *, '(a,i6)' ) '  Your input value was ', node_num
-    stop
+    error stop
   end if
 
   write ( *, '(a)' ) ' '
@@ -787,26 +787,26 @@ subroutine adj_set ( node_num, adj_max, adj_num, adj_row, adj, irow, jcol )
     write ( *, '(a)' ) '  NODE_NUM < IROW.'
     write ( *, '(a,i6)' ) '  IROW = ', irow
     write ( *, '(a,i6)' ) '  NODE_NUM = ', node_num
-    stop
+    error stop
   else if ( irow < 1 ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'ADJ_SET - Fatal error!'
     write ( *, '(a)' ) '  IROW < 1.'
     write ( *, '(a,i6)' ) '  IROW = ', irow
-    stop
+    error stop
   else if ( node_num < jcol ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'ADJ_SET - Fatal error!'
     write ( *, '(a)' ) '  NODE_NUM < JCOL.'
     write ( *, '(a,i6)' ) '  JCOL = ', jcol
     write ( *, '(a,i6)' ) '  NODE_NUM = ', node_num
-    stop
+    error stop
   else if ( jcol < 1 ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'ADJ_SET - Fatal error!'
     write ( *, '(a)' ) '  JCOL < 1.'
     write ( *, '(a,i6)' ) '  JCOL = ', jcol
-    stop
+    error stop
   end if
 
   if ( .not. &
@@ -886,7 +886,7 @@ subroutine adj_show ( node_num, adj_num, adj_row, adj )
     write ( *, '(a)' ) '  NODE_NUM is too large!'
     write ( *, '(a,i6)' ) '  Maximum legal value is ', n_max
     write ( *, '(a,i6)' ) '  Your input value was ', node_num
-    stop
+    error stop
   end if
 
   write ( *, '(a)' ) ' '
@@ -1094,7 +1094,7 @@ subroutine d2vec_permute ( n, a, p )
     write ( *, '(a)' ) '  The input array does not represent'
     write ( *, '(a)' ) '  a proper permutation.  In particular, the'
     write ( *, '(a,i6)' ) '  array is missing the value ', ierror
-    stop
+    error stop
   end if
 !
 !  Search for the next element of the permutation that has not been used.
@@ -1129,7 +1129,7 @@ subroutine d2vec_permute ( n, a, p )
           write ( *, '(a)' ) 'D2VEC_PERMUTE - Fatal error!'
           write ( *, '(a)' ) '  A permutation index is out of range.'
           write ( *, '(a,i6,a,i6)' ) '  P(', iput, ') = ', iget
-          stop
+          error stop
         end if
 
         if ( iget == istart ) then
@@ -1546,7 +1546,7 @@ subroutine genrcm ( node_num, adj_num, adj_row, adj, perm )
 
   allocate(mask(node_num),stat=err)
   allocate(level_row(node_num+1),stat=err)
-  if (err.ne.0) STOP 'ERROR: RCM allocation error'
+  if (err.ne.0) error stop 'ERROR: RCM allocation error'
 
   mask(1:node_num) = 1
 
@@ -2087,14 +2087,14 @@ subroutine irow_compare ( m, n, a, i, j, isgn )
     write ( *, '(a)' ) 'IROW_COMPARE - Fatal error!'
     write ( *, '(a)' ) '  Row index I is less than 1.'
     write ( *, '(a,i6)' ) '  I = ', i
-    stop
+    error stop
   else if ( m < i ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'IROW_COMPARE - Fatal error!'
     write ( *, '(a)' ) '  Row index I is out of bounds.'
     write ( *, '(a,i6)' ) '  I = ', i
     write ( *, '(a,i6)' ) '  Maximum legal value is M = ', m
-    stop
+    error stop
   end if
 
   if ( j < 1 ) then
@@ -2102,14 +2102,14 @@ subroutine irow_compare ( m, n, a, i, j, isgn )
     write ( *, '(a)' ) 'IROW_COMPARE - Fatal error!'
     write ( *, '(a)' ) '  Row index J is less than 1.'
     write ( *, '(a,i6)' ) '  J = ', j
-    stop
+    error stop
   else if ( m < j ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'IROW_COMPARE - Fatal error!'
     write ( *, '(a)' ) '  Row index J is out of bounds.'
     write ( *, '(a,i6)' ) '  J = ', j
     write ( *, '(a,i6)' ) '  Maximum legal value is M = ', m
-    stop
+    error stop
   end if
 
   isgn = 0
@@ -2290,14 +2290,14 @@ subroutine irow_swap ( m, n, a, irow1, irow2 )
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'IROW_SWAP - Fatal error!'
     write ( *, '(a)' ) '  IROW1 is out of range.'
-    stop
+    error stop
   end if
 
   if ( irow2 < 1 .or. m < irow2 ) then
     write ( *, '(a)' ) ' '
     write ( *, '(a)' ) 'IROW_SWAP - Fatal error!'
     write ( *, '(a)' ) '  IROW2 is out of range.'
-    stop
+    error stop
   end if
 
   if ( irow1 == irow2 ) then
@@ -2900,7 +2900,7 @@ subroutine rcm ( root, adj_num, adj_row, adj, mask, perm, iccsze, node_num )
   integer err
 
   allocate(deg(node_num),stat=err)
-  if (err.ne.0) STOP 'ERROR allocation in rcm'
+  if (err.ne.0) error stop 'ERROR allocation in rcm'
 !
 !  Find the degrees of the nodes in the component specified by MASK and ROOT.
 !

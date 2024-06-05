@@ -184,7 +184,7 @@ module transform
     allocate(data1(2*L), stat=err)
     allocate(data2(2*L), stat=err)
     allocate(data3(2*L), stat=err)
-    if (err/=0) stop 'fftw_serial: allocation error'
+    if (err/=0) error stop 'fftw_serial: allocation error'
  
     !   create plan for in-place forward/backward DFT 
     planF = fftw_plan_dft_1d(2*L, data1, data1, FFTW_FORWARD, FFTW_MEASURE)

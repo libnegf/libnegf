@@ -122,7 +122,7 @@ module scba
     type(z_CSR), intent(in) :: Mat
 
     if (.not.allocated(this%Mat_old)) then
-      stop 'ERROR: TScbaDriver must be initialized first'
+      error stop 'ERROR: TScbaDriver must be initialized first'
     end if
     if (.not.allocated(this%Mat_old%nzval)) then
       call clone(Mat, this%Mat_old)
