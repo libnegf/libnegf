@@ -106,7 +106,31 @@ endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
+  # MPI::MPI_Fortran cannot be made PUBLIC because the compile options of this
+  # target may cause errors or warnings when passed to a C compiler.
+  # Consequently, we need to make these compile options conditional on the
+  # language used by a dependee.
+  target_link_libraries(negf PRIVATE MpiFx::MpiFx MPI::MPI_Fortran)
+  target_include_directories(
+    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_INCLUDE_DIRS}>
+  )
+  target_compile_definitions(
+    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_COMPILE_DEFINITIONS}>
+  )
+  target_compile_options(
+    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_COMPILE_OPTIONS}>
+  )
+  target_include_directories(
+    negf INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_INCLUDE_DIRS}>)
+  target_compile_definitions(
+    negf
+    INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_COMPILE_DEFINITIONS}>
+  )
+  target_compile_options(
+    negf INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_COMPILE_OPTIONS}>
+  )
+  target_link_options(negf INTERFACE ${MPI_C_LINK_FLAGS})
+  target_link_libraries(negf INTERFACE ${MPI_C_LIBRARIES})
 endif()
 
 if(WITH_TRANSPORT_GPU)
