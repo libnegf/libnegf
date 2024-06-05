@@ -12,7 +12,6 @@ libNEGF has been contributed by several authors, and a lot of the code
 is not homogeneous in style. Nevertheless, future development should follow
 this guideline in order to increase the readability and homogeneity of the project.
 
-
 Style guide
 ===============
 
@@ -331,6 +330,37 @@ This is to be preferred to the use of additional logical variables if possible.
 Part of the reason for this choice is that from Fortran 2008 onwards, optional
 arguments to subroutines and functions are treated as not-present if not
 allocated.
+
+
+Git History
+===========
+
+The libNEGF chose to preserve development history of a pull request as much as possible. Thus, no linear or semilinear history is enforced but it is _forbidden_ to merge into feature branches. For example, this history is considered acceptable:
+
+     o new master
+    /|
+   / o
+   o |\
+   \ | o
+    \|/
+     o old master
+
+This history is _unacceptable_:
+
+   o new master
+   |\
+   | \
+   |  \
+   |   o
+   o  /|
+   |\/ |
+   | o o
+   | |/
+   | *
+   |/
+   o old master
+
+If you need features from a feature branch that was recently merged into master, then you need to rebase with `git rebase`.
 
 
 Refactoring existing code
