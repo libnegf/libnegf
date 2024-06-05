@@ -25,3 +25,10 @@ libNEGF requires
 Optionally CUDA can be used.
 
 Note that MPICH version 4 may cause build problems due to the mpifx dependency, see [mpifx#48](https://github.com/dftbplus/mpifx/issues/48).
+
+
+== Developer Hints
+
+=== CMake Style Guide
+
+* Indent with two spaces
