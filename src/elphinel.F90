@@ -22,7 +22,7 @@
 ! This is the base class for inelastic interactions
 
 module elphinel
-
+  use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : dp, lp => dp
   use mat_def, only : z_csr, z_dns, x_dns => z_dns, create, destroy
   use ln_constants, only : pi
