@@ -12,8 +12,8 @@ libNEGF has been contributed by several authors, and a lot of the code
 is not homogeneous in style. Nevertheless, future development should follow
 this guideline in order to increase the readability and homogeneity of the project.
 
-Style guide
-===============
+Fortran Style guide
+===================
 
 
 Line length and indentation
@@ -330,6 +330,13 @@ This is to be preferred to the use of additional logical variables if possible.
 Part of the reason for this choice is that from Fortran 2008 onwards, optional
 arguments to subroutines and functions are treated as not-present if not
 allocated.
+
+
+CMake Style Guide
+=================
+
+* Indent with two spaces
+
 
 
 Git History
