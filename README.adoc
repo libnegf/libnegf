@@ -8,9 +8,9 @@ and related quantities, within an efficient sparse iterative scheme.
 
 libNEGF is available under LGPL license.
 
-Have a look at the [contributor's guide](CONTRIBUTING.adoc) if you want to help developing libNEGF.
+Have a look at the link:CONTRIBUTING.adoc[contributor's guide] if you want to help developing libNEGF.
 
-For an example of application, see the use of libNEGF in [dftb+](https://dftbplus.org/)
+For an example of application, see the use of libNEGF in https://dftbplus.org[DFTB+].
 
 *A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo, New Journal of Physics 10, 065022 (2008)
 
@@ -26,4 +26,4 @@ libNEGF requires
 
 Optionally CUDA can be used.
 
-Note that MPICH version 4 may cause build problems due to the mpifx dependency, see [mpifx#48](https://github.com/dftbplus/mpifx/issues/48).
+Note that MPICH version 4 may cause build problems due to the mpifx dependency, see https://github.com/dftbplus/mpifx/issues/48[mpifx#48].
