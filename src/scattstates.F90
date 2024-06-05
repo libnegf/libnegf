@@ -26,7 +26,6 @@ module scattstates
   use mat_def
   use sparsekit_drv
   use contselfenergy, only : surface_green,selfenergy
-  use complexbands
   use inversions, only : inverse
   implicit none
   private

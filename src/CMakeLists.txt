@@ -1,7 +1,6 @@
 set(sources-fpp
   clock.F90
   ln_extract.F90
-  complexbands.F90
   input_output.F90
   ln_cache.F90
   lib_param.F90
