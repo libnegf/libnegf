@@ -73,8 +73,7 @@ Line length and indentation
 Naming
 ------
 
-The naming conventions are similar to those in the [Google Style Guide for
-C++ naming convention](https://google.github.io/styleguide/cppguide.html#Naming) with some modifications.
+The naming conventions are similar to those in the https://google.github.io/styleguide/cppguide.html#Naming[Google Style Guide for C++ naming convention] with some modifications.
 
 * Use **lowercase** for all Fortran constructs and prefer the `end do`, `end if` to `enddo` and `endif`::
 
@@ -151,7 +150,7 @@ White spaces
 Please use white spaces to make the code readable.
 
 **Avoid trailing whitespaces**. They slow down code navigation and most modern editors trim trailing whitespaces by default. Please make sure that your editor does it too.
-If a file comes with trailing whitespaces, feel free to clean it in a separate commit (see [above](#Refactoring-existing-code)).
+If a file comes with trailing whitespaces, feel free to clean it in a separate commit (see <<Refactoring-existing-code>>).
 
 In general, you **must use** white spaces in following situations:
 
