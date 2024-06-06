@@ -27,7 +27,6 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use input_output
-  use phph
   use energy_mesh, only : mesh
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
   use elphdd, only : ElPhonDephD, ElPhonDephD_create, ElPhonDephD_init

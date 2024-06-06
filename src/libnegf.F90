@@ -31,7 +31,6 @@ module libnegf
       & globals_mpi_init => negf_mpi_init
  use input_output
  use ln_structure
- use rcm_module
  use mat_def
  use ln_extract
  use sparsekit_drv
