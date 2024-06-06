@@ -5,6 +5,7 @@ from numpy import dtype
 from scipy.sparse import csr_matrix
 
 MAXCONT = 10
+MAXLAYERS = 10000
 INTTYPE = 'int32'
 REALTYPE = 'float64'
 
@@ -39,8 +40,8 @@ class NEGF:
             ("np_real", c_int * 11),
             ("n_kt", c_int),
             ("n_poles", c_int),
-            ("ni", c_int * MAXCONT),
-            ("nf", c_int * MAXCONT),
+            ("ni", c_int * MAXLAYERS),
+            ("nf", c_int * MAXLAYERS),
             ("dore", c_char)]
 
 
