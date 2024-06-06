@@ -103,11 +103,12 @@ endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
   # MPI::MPI_Fortran cannot be made PUBLIC because the compile options of this
   # target may cause errors or warnings when passed to a C compiler.
   # Consequently, we need to make these compile options conditional on the
   # language used by a dependee.
-  target_link_libraries(negf PRIVATE MpiFx::MpiFx MPI::MPI_Fortran)
+  target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
   target_include_directories(
     negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_INCLUDE_DIRS}>
   )
