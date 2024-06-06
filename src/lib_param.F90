@@ -58,6 +58,7 @@ module lib_param
   public :: set_elph_nonpolaroptical
   public :: set_phph
   integer, public, parameter :: MAXNCONT=10
+  integer, public, parameter :: MAXNLAYERS=10000
 
   type intArray
     integer, dimension(:), allocatable :: indexes
@@ -395,9 +396,9 @@ module lib_param
     !! Emitter and collector for transmission or Meir-Wingreen
     !! (only emitter in this case)
     !> Emitter contact list (or lead for integration in MW)
-    integer(c_int) :: ni(MAXNCONT)
+    integer(c_int) :: ni(MAXNLAYERS)
     !> Collector contact list
-    integer(c_int) :: nf(MAXNCONT)
+    integer(c_int) :: nf(MAXNLAYERS)
     !> Should I calculate the density ("D") or the energy weighted density ("E")?
     character(kind=c_char, len=1) :: dore  ! Density or En.Density
     !> Reference contact is set to maximum or minimum Fermi level

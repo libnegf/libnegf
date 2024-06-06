@@ -8,6 +8,7 @@
 #endif
 
 #define MAXNCONT 10
+#define MAXNLAYERS 10000
 
 
 struct lnparams {
@@ -46,8 +47,8 @@ struct lnparams {
   int np_real;
   int n_kt;
   int n_poles;
-  int ni[MAXNCONT];
-  int nf[MAXNCONT];
+  int ni[MAXNLAYERS];
+  int nf[MAXNLAYERS];
   char dore[1];
   int min_or_max;
   bool is_s_is;
