@@ -56,7 +56,6 @@ module lib_param
   public :: set_elph_s_dephasing
   public :: set_elph_polaroptical
   public :: set_elph_nonpolaroptical
-  public :: set_phph
   integer, public, parameter :: MAXNCONT=10
 
   type intArray
@@ -260,8 +259,6 @@ module lib_param
 
     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
     real(dp) :: int_acc           ! adaptive integration accuracy
-
-    type(Tphph) :: phph           ! phonon-phonon data
 
     ! Many Body Interactions as array of pointers
     type(TInteractionList)  :: interactList
@@ -648,20 +645,6 @@ contains
      call init_cache_space(negf, 'G_n')
 
    end subroutine set_defaults
-
-
-   subroutine set_phph(negf, order, filename)
-      type(Tnegf) :: negf
-      integer, intent(in) :: order
-      character(*), intent(in) :: filename
-
-      print*,'(set_phph) init_phph'
-      call init_phph(negf%phph, negf%str%central_dim, order, negf%str%mat_PL_start, negf%str%mat_PL_end)
-
-      print*,'(set_phph) load_phph_coupl'
-      call load_phph_couplings(negf%phph, filename)
-
-   end subroutine set_phph
 
 
 
