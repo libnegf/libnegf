@@ -127,6 +127,13 @@ if(WITH_MPI)
   target_compile_options(
     negf INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_COMPILE_OPTIONS}>
   )
+
+  # MPI_C_LINK_FLAGS is not a list on JUWELS with RockyLinux 8, ParaStation MPI
+  # 5.9.2-1, and CMake 3.26.3.
+  cmake_host_system_information(RESULT hostname QUERY HOSTNAME)
+  if(${hostname} MATCHES [.]juwels$)
+    separate_arguments(MPI_C_LINK_FLAGS)
+  endif()
   target_link_options(negf INTERFACE ${MPI_C_LINK_FLAGS})
   target_link_libraries(negf INTERFACE ${MPI_C_LIBRARIES})
 endif()
