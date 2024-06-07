@@ -11,7 +11,6 @@ int main()
   struct lnparams params;
   int handler[NEGF_HSIZE];
   int *hand = &handler[0];
-  int global_comm, cart_comm, k_comm, ierr;
   char realmat[7] = "HR.dat";
   char imagmat[7] = "HI.dat";
   int surfstart[2] = {61,81};
@@ -22,17 +21,17 @@ int main()
   double currents[2]= {0.0, 0.0};
   double coupling[60];
   int leadpairs;
-  int i;
   int foo[1] = {0};
 
-  ierr = MPI_Init(NULL, NULL);
-  global_comm = MPI_COMM_WORLD;
+  MPI_Init(NULL, NULL);
   printf("Initializing libNEGF \n");
   negf_init_session(hand);
   negf_init(hand);
   
   printf("Initializing NEGF mpi and cartesian grid\n");
+  MPI_Fint global_comm = MPI_Comm_c2f(MPI_COMM_WORLD);
   negf_set_mpi_fcomm(hand, global_comm);
+  MPI_Fint cart_comm, k_comm;
   negf_cartesian_init(hand, global_comm, 1, &cart_comm, &k_comm);
 
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
@@ -53,7 +52,7 @@ int main()
   negf_set_params(hand, &params);
 
   // Set the dephasing model as simple diagonal dephasing.
-  for (i = 0; i < 60; ++i)
+  for (int i = 0; i < 60; ++i)
   {
     coupling[i] = 0.05;
   }
