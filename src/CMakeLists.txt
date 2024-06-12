@@ -105,37 +105,16 @@ if(WITH_MPI)
   find_package(MPI REQUIRED)
   target_link_libraries(negf PUBLIC MpiFx::MpiFx)
   # MPI::MPI_Fortran cannot be made PUBLIC because the compile options of this
-  # target may cause errors or warnings when passed to a C compiler.
-  # Consequently, we need to make these compile options conditional on the
-  # language used by a dependee.
+  # target may cause errors or warnings when passed to a C compiler (e.g., when
+  # using MPICH 4.0.2 on Debian 12).  Unfortunately we cannot manually add
+  # INTERFACE compile options because this leads to build problems on
+  # * JUWELS with Rocky Linux 8, ParaStationMPI 5.9.2-1, CMake 3.26.3 and
+  # * Debian 11, IntelMPI 2021, Intel Fortran 2021
+  # due to malformed linker flags (the individual flags are passed as a string
+  # instead of a list).
+  # As a consequence of marking this dependency PRIVATE, every dependee of this
+  # target has to manually add an MPI dependency.
   target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
-  target_include_directories(
-    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_INCLUDE_DIRS}>
-  )
-  target_compile_definitions(
-    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_COMPILE_DEFINITIONS}>
-  )
-  target_compile_options(
-    negf INTERFACE $<$<COMPILE_LANGUAGE:C,CXX>:${MPI_C_COMPILE_OPTIONS}>
-  )
-  target_include_directories(
-    negf INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_INCLUDE_DIRS}>)
-  target_compile_definitions(
-    negf
-    INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_COMPILE_DEFINITIONS}>
-  )
-  target_compile_options(
-    negf INTERFACE $<$<COMPILE_LANGUAGE:Fortran>:${MPI_Fortran_COMPILE_OPTIONS}>
-  )
-
-  # MPI_C_LINK_FLAGS is not a list on JUWELS with RockyLinux 8, ParaStation MPI
-  # 5.9.2-1, and CMake 3.26.3.
-  cmake_host_system_information(RESULT hostname QUERY HOSTNAME)
-  if(${hostname} MATCHES [.]juwels$)
-    separate_arguments(MPI_C_LINK_FLAGS)
-  endif()
-  target_link_options(negf INTERFACE ${MPI_C_LINK_FLAGS})
-  target_link_libraries(negf INTERFACE ${MPI_C_LIBRARIES})
 endif()
 
 if(WITH_TRANSPORT_GPU)
