@@ -1129,71 +1129,6 @@ CONTAINS
 
   !---------------------------------------------------------------------------
 
-  subroutine ziluk_st(A_csr, lfil, LU_msr, LU_ju, LU_levs, LU_iwk)
-
-    !Short call for iluk:
-    !LU preconditioning for PGMRES solver
-    !Input:
-    !A_csr: matrix to be preconditioned
-    !lfil: order of factorization (min 0)
-    !Output:
-    !LU_msr: LU matrix stored in MSR format
-    !LU_ju: integer array of lenght n containing pointers to the begining
-    !of each row of U in LU MSR matrix
-    !Work:
-    !LU_levs: integer array (of minimum lenght of LU_msr%nzval) containing
-    !the level of each element in LU_msr
-    !LU_iwk: integer. Minimum lenght of LU_msr
-    !NOTE: work arrays must be external as depend on lfil
-
-    implicit none
-
-    integer :: LU_iwk, lfil
-    type(z_CSR) :: A_csr
-    type(z_MSR) :: LU_msr
-    integer, DIMENSION(LU_iwk) :: LU_levs
-    integer, DIMENSION(A_csr%nrow) :: LU_ju
-    integer, DIMENSION(:), ALLOCATABLE :: jw
-    complex(kind=dp), DIMENSION(:), ALLOCATABLE :: w
-    integer :: ierr
-
-    call log_allocate(jw,3*A_csr%nrow)
-    call log_allocate(w, A_csr%nrow)
-
-    !call ziluk(A_csr%nrow, A_csr%nzval, A_csr%colind, A_csr%rowpnt, lfil, &
-    !     LU_msr%nzval, LU_msr%index, LU_ju, LU_levs, LU_iwk, w, jw, ierr)
-
-    if (ierr.ne.0) then
-       write(*,*)'ERROR: LU FACTORIZATION FAILED'
-       write(*,*)'ERROR NUMBER ',ierr,' IN ILUK SUBROUTINE'
-       if (ierr.gt.0) then
-         write(*,*) 'Zero pivot encountered at step number ',ierr
-       endif
-       if (ierr.eq.(-1)) then
-         write(*,*) 'Input matrix may be wrong'
-       endif
-       if (ierr.eq.(-2)) then
-         write(*,*) 'Matrix L overflows array al'
-       endif
-       if (ierr.eq.(-3)) then
-         write(*,*) 'Matrix U overflows array alu'
-       endif
-       if (ierr.eq.(-4)) then
-         write(*,*) 'Illegal value for lfil'
-       endif
-       if (ierr.eq.(-5)) then
-         write(*,*) 'zero row encounterd in A or U'
-       endif
-       STOP
-    endif
-
-  call log_deallocate(jw)
-  call log_deallocate(w)
-
-  end subroutine ziluk_st
-
-  !----------------------------------------------------------------------------
-
   subroutine ztransp_st(A_csr)
 
     !Short call for transp (matrix in-place transposition)
@@ -2193,8 +2128,8 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2258,8 +2193,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2332,8 +2267,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
 
-    if(A_csr%nrow.ne.B_csr%nrow) STOP 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) STOP 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
+    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2491,7 +2426,7 @@ CONTAINS
        print*, 'ERROR (zextract_csr): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       STOP
+       error stop
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
@@ -2520,7 +2455,7 @@ CONTAINS
        print*, 'ERROR (zextract_dns): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       STOP
+       error stop
     ENDIF
 
     call create(A_dns,(i2-i1+1),(j2-j1+1))
@@ -3071,7 +3006,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       STOP 'Error in getdiag. D_vec has dimension lower than nrow'
+       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3103,7 +3038,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       STOP 'Error in getdiag. D_vec has dimension lower than nrow'
+       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3125,7 +3060,7 @@ CONTAINS
 
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
     end if
 
@@ -3155,7 +3090,7 @@ CONTAINS
     trace = (0.0_dp,0.0_dp)
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
        do i = 1,mat%nrow
           if (mask(i)) then
@@ -3181,7 +3116,7 @@ CONTAINS
     tr = (0.0_dp, 0.0_dp)
     if (present(mask)) then
        if (size(mask) /= size(mat,1)) then
-          stop 'Error in ztrace_csr: size(mask) /= nrow'
+          error stop 'Error in ztrace_csr: size(mask) /= nrow'
        end if
        do ii = 1, size(mat,1)
          if (mask(ii)) then

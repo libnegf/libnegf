@@ -103,7 +103,7 @@ contains
 
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
-      stop 'Error: coupling and orbsperatom not compatible'
+      error stop 'Error: coupling and orbsperatom not compatible'
     end if
 
     this%scba_niter = niter
@@ -118,11 +118,11 @@ contains
       this%atmorbstart(ii) = sum(this%orbsperatm(1:ii-1)) + 1
     enddo
     allocate(this%sigma_r(natm),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate sigma_r'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate sigma_r'
     allocate(this%sigma_n(natm),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate sigma_n'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate sigma_n'
     allocate(this%coupling(natm),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate coupling'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate coupling'
     do ii = 1,natm
       call create(this%sigma_r(ii),orbsperatm(ii),orbsperatm(ii))
       this%sigma_r(ii)%val = (0.0_dp, 0.0_dp)
@@ -158,7 +158,7 @@ contains
     do ii = 1,natm
       if (this%atmpl(ii).eq.0) then
         write(*,*) this%atmpl
-        stop 'atmpl not correctly set'
+        error stop 'atmpl not correctly set'
       end if
     end do
 

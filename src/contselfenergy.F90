@@ -35,7 +35,6 @@ module ContSelfEnergy
  use inversions, only : compGreen, inverse
  use clock
  use mpi_globals
- use complexbands
  use ln_cache, only : TMatLabel, get_string_label
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
@@ -52,7 +51,6 @@ module ContSelfEnergy
   public :: SelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
-  public :: sgf_complx
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
@@ -422,7 +420,7 @@ contains
     ncont = pnegf%str%num_conts
     avncyc = 0.0_dp
 
-    STOP 'Internal error: HMC has been changed to dns format'
+    error stop 'Internal error: HMC has been changed to dns format'
     ! -----------------------------------------------------------------------
     !  Calculation of contact self-energies
     ! -----------------------------------------------------------------------
@@ -577,81 +575,6 @@ contains
 
   end subroutine SelfEnergy_dns
 
-
-  !--------------------------------------------------------------------
-  ! SURFACE GREEN's FUNCTION USING THE COMPLEX BANDSTRUCTURE
-  ! This method is similar to the old Umerski... but it works !!
-  ! It is ok for real E
-  !--------------------------------------------------------------------
-  ! Create Surface G.F. using complex band bloch-vectors
-  ! Only for the first contact PL
-  !    ^-1    a    a   a   a ^-1
-  !   g    = Z  + Z   D   D
-  !    a      11   12  22  12
-  !----------------------------------------------------------------
-  subroutine sgf_complx(Ec,Z0,Z1,Z2,npl,GS)
-    complex(dp), intent(in) :: Ec
-    integer :: npl
-    complex(dp), DIMENSION(:,:) :: Z0,Z1,Z2
-    type(z_DNS) :: GS
-
-    ! Locals: ........................................
-    type(z_DNS) :: Vr, invD12
-    complex(dp), dimension(:,:), allocatable :: TT1, TT2
-    real(dp), dimension(:), allocatable :: vf
-    complex(dp), dimension(:), allocatable :: kzi
-    integer :: i1, i2, j1, j2
-    type(TStatesSummary) :: summ
-
-    !  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! STEP 1: Solve Complex Bands and sort traveling bloch states
-    call create(Vr,2*npl,2*npl)
-    call log_allocate(vf,2*npl)
-    call log_allocate(kzi,2*npl)
-
-    call complex_k(real(Ec),npl,Z0,Z1,kzi,Z21=Z2,Cr=Vr%val,vf=vf)
-
-    call sort_and_normalize(2*npl,kzi,vf,Vr%val,summ)
-
-    !!if(id0) call write_clock
-
-    call log_deallocate(kzi)
-    call log_deallocate(vf)
-
-    if(summ%prop_in.ne.summ%prop_out .or. summ%evan_in.ne.summ%evan_out ) &
-               STOP 'ERROR: Asymmetry found betw. IN/OUT states'
-
-   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    ! Set-up C-Matrix (Bloch vectors ordered in columns)
-
-    ! Extract and invert D12
-    call log_allocate(TT1,npl,npl)
-    call log_allocate(TT2,npl,npl)
-
-    i1 = 1; i2 = npl
-    j1 = npl+1; j2 = 2*npl
-    TT2=Vr%val(i1:i2,j1:j2)  !(D22)
-
-    ! This inverse may not exist.
-    ! Probably one should invert removing the null-subspace (?)
-    call create(invD12,nPL,nPL)
-    call inverse(invD12%val,TT2,nPL)
-
-    ! Compute D22*D12^-1
-    TT2 = matmul(Vr%val(j1:j2,j1:j2),invD12%val)
-
-    call destroy(Vr)
-
-    ! Compute inverse (like G.F.)
-    TT1 = matmul(Z1,TT2) + Z0
-
-    call create(GS,npl,npl)
-
-    call inverse(GS%val,TT1,npl)
-
-    deallocate(TT1,TT2)
-
-  end subroutine sgf_complx
 
 end module ContSelfEnergy
 

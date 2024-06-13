@@ -240,7 +240,7 @@ contains
     if (.not.allocated(this%MatArray)) then
       allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr)
       if (ierr /= 0) then    
-        ERROR STOP "Allocation error of MatArray in init "//trim(this%tagname)
+        error stop "Allocation error of MatArray in init "//trim(this%tagname)
       end if   
     end if  
     this%Nblocks = NPL    
@@ -702,7 +702,7 @@ contains
     if (int_label .gt. 9999) write (str_label, '(i5.5)') int_label
     if (int_label .gt. 99999) write (str_label, '(i6.6)') int_label
     if (int_label .gt. 999999) write (str_label, '(i7.7)') int_label
-    if (int_label .gt. 9999999) stop 'ERROR: label too large (> 9999999)'
+    if (int_label .gt. 9999999) error stop 'ERROR: label too large (> 9999999)'
   end subroutine get_string_label
 
 end module

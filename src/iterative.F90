@@ -448,7 +448,7 @@ CONTAINS
     nbl = negf%str%num_PLs
 
     if (size(curr_mat) .ne. nbl-1) then
-       stop 'ERROR: curr_mat with wrong size in iterative_layer_current'
+       error stop 'ERROR: curr_mat with wrong size in iterative_layer_current'
     end if
 
     Ec=cmplx(E,0.0_dp,dp)
@@ -1281,7 +1281,7 @@ CONTAINS
             write(*,*) 'ERROR in Gr_blk2csr: probably wrong PL size',x
             write(*,*) 'row',i,A%colind(j)
             write(*,*) 'block indeces:',indblk(1:nbl)
-            stop
+            error stop
           endif
 
           col = A%colind(j) - indblk(y) + 1
@@ -1402,7 +1402,7 @@ CONTAINS
           write(*,*) 'ERROR in blk2csr: probably wrong PL size', x
           write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
           write(*,*) 'block indeces:',indblk(1:nbl)
-          STOP
+          error stop
         endif
 
         col = Gcsr%colind(jj) - indblk(y) + 1
@@ -1950,7 +1950,7 @@ CONTAINS
     if (.not.allocated(gsm)) then
       allocate(gsm(nbl),stat=ierr)
     end if
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate gsm'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate gsm'
 
   end subroutine allocate_gsm
 
@@ -1961,7 +1961,7 @@ CONTAINS
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
 
   end subroutine allocate_blk_dns
 
@@ -1972,7 +1972,7 @@ CONTAINS
     integer :: ierr
 
     deallocate(gsm,stat=ierr)
-    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
 
   end subroutine deallocate_gsm
 
@@ -1983,7 +1983,7 @@ CONTAINS
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
+    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
 
   end subroutine deallocate_blk_dns
 

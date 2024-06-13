@@ -1,0 +1,29 @@
+libNEGF
+=======
+
+libNEGF is a general library for Non Equilibrium Green's Functions.
+
+With libNEGF you can calculate Equilibrium and Non Equilibrium Green's Function in open systems
+and related quantities, within an efficient sparse iterative scheme.
+
+libNEGF is available under LGPL license.
+
+Have a look at the link:CONTRIBUTING.adoc[contributor's guide] if you want to help developing libNEGF.
+
+For an example of application, see the use of libNEGF in https://dftbplus.org[DFTB+].
+
+*A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo, New Journal of Physics 10, 065022 (2008)
+
+== Installation
+
+libNEGF requires
+* CMake,
+* a C99 compiler,
+* a Fortran 2018 compiler,
+* BLAS,
+* LAPACK, and
+* MPI 3.
+
+Optionally CUDA can be used.
+
+Note that MPICH version 4 may cause build problems due to the mpifx dependency, see https://github.com/dftbplus/mpifx/issues/48[mpifx#48]. Moreover it is recommended to use recent gfortran releases: gfortran 11 and 12 are known to work, gfortran 10.2.1 (found in Debian 11) and GCC 8.3.0 (found in Debian 10) are known _not_ to work.

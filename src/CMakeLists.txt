@@ -1,12 +1,10 @@
 set(sources-fpp
   clock.F90
   ln_extract.F90
-  complexbands.F90
   input_output.F90
   ln_cache.F90
   lib_param.F90
   ln_enums.F90
-  phph.F90
   ln_precision.F90
   mpi_globals.F90
   contselfenergy.F90
@@ -14,7 +12,6 @@ set(sources-fpp
   libnegf.F90
   ln_structure.F90
   outmatrix.F90
-  rcm_module.F90
   distributions.F90
   ln_allocation.F90
   load.F90
@@ -106,7 +103,18 @@ endif()
 
 if(WITH_MPI)
   find_package(MPI REQUIRED)
-  target_link_libraries(negf PUBLIC MpiFx::MpiFx MPI::MPI_Fortran)
+  target_link_libraries(negf PUBLIC MpiFx::MpiFx)
+  # MPI::MPI_Fortran cannot be made PUBLIC because the compile options of this
+  # target may cause errors or warnings when passed to a C compiler (e.g., when
+  # using MPICH 4.0.2 on Debian 12).  Unfortunately we cannot manually add
+  # INTERFACE compile options because this leads to build problems on
+  # * JUWELS with Rocky Linux 8, ParaStationMPI 5.9.2-1, CMake 3.26.3 and
+  # * Debian 11, IntelMPI 2021, Intel Fortran 2021
+  # due to malformed linker flags (the individual flags are passed as a string
+  # instead of a list).
+  # As a consequence of marking this dependency PRIVATE, every dependee of this
+  # target has to manually add an MPI dependency.
+  target_link_libraries(negf PRIVATE MPI::MPI_Fortran)
 endif()
 
 if(WITH_TRANSPORT_GPU)
@@ -114,7 +122,12 @@ if(WITH_TRANSPORT_GPU)
   target_link_libraries(negf PRIVATE CUDA::cudart CUDA::cusolver CUDA::cublas)
 endif()
 
-target_link_libraries(negf PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+if (NOT "${BLAS_LIBRARY}" STREQUAL "NONE")
+  target_link_libraries(negf PRIVATE ${BLAS_LIBRARY})
+endif()
+if (NOT "${LAPACK_LIBRARY}" STREQUAL "NONE")
+  target_link_libraries(negf PRIVATE ${LAPACK_LIBRARY})
+endif()
 
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:${BUILD_MOD_DIR}>

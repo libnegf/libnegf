@@ -89,7 +89,7 @@ module mpi_globals
       integer :: mpierr
 
       if (mod(inComm%size,nk) /=0 ) then
-        stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
+        error stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
       end if
 
       !call check_omp_mpi(inComm, mpierr)

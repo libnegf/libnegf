@@ -26,7 +26,6 @@ module scattstates
   use mat_def
   use sparsekit_drv
   use contselfenergy, only : surface_green,selfenergy
-  use complexbands
   use inversions, only : inverse
   implicit none
   private
@@ -256,7 +255,7 @@ contains
           
           if(numk1.gt.PLdim1) then
              write(*,*) 'ERROR: more than PLdim1 states',numk1
-             stop
+             error stop
           endif
     
           ! store eigenvales
@@ -332,7 +331,7 @@ contains
           
           if(numk2.gt.PLdim2) then
              write(*,*) 'ERROR: more than PLdim2 states'
-             stop
+             error stop
           endif
           
           ! store eigenvales
@@ -509,7 +508,7 @@ contains
 
           if(summ(i)%prop_in.ne.summ(i)%prop_out .or. &
                summ(i)%evan_in.ne.summ(i)%evan_out ) &
-               STOP 'ERROR: Asymmetry found betw. IN/OUT states'
+               error stop 'ERROR: Asymmetry found betw. IN/OUT states'
 
           n_prop_states(i) = summ(i)%prop_out
 
@@ -656,7 +655,7 @@ contains
        ! Find transmission t = D     C  = - D    g  T  C
        ! -----------------      12    N      12   R  R  M  -----------
        
-       if(TT(nf)%ncol.ne.PLdim(nf)) stop 'Error size!'
+       if(TT(nf)%ncol.ne.PLdim(nf)) error stop 'Error size!'
        
        call create(TT2,PLdim(nf),nrhs)
        TT2%val=matmul(conjg(transpose(TT(nf)%val)), &
@@ -1093,7 +1092,7 @@ contains
 
           if(summ(i)%prop_in.ne.summ(i)%prop_out .or. &
                summ(i)%evan_in.ne.summ(i)%evan_out ) &
-               STOP 'ERROR: Asymmetry found betw. IN/OUT states'
+               error stop 'ERROR: Asymmetry found betw. IN/OUT states'
 
           n_prop_states(i) = summ(i)%prop_out
 
@@ -1201,7 +1200,7 @@ contains
 
        call create(RHS,HM%nrow,nrhs)
 
-       if(TT1%nrow.ne.cinde(ni)-cinds(ni)+1) stop 'wrong size'
+       if(TT1%nrow.ne.cinde(ni)-cinds(ni)+1) error stop 'wrong size'
 
        RHS%val = (0.0_dp,0.0_dp)
 

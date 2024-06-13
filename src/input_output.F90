@@ -190,9 +190,9 @@ subroutine read_H(idR,idI, zmat,fmt)
 
   end if
   
-  if(mati%nrow.ne.matr%nrow) stop 'nrow Error'  
-  if(matr%nnz.ne.mati%nnz) stop 'nnz Error' 
-  if(matr%nnz.eq.0) stop 'nnz Error'   
+  if(mati%nrow.ne.matr%nrow) error stop 'nrow Error'  
+  if(matr%nnz.ne.mati%nnz) error stop 'nnz Error' 
+  if(matr%nnz.eq.0) error stop 'nnz Error'   
 
   k = 0
   do i=1,nnz
@@ -212,8 +212,8 @@ subroutine read_H(idR,idI, zmat,fmt)
         endif
      endif
 
-     if(mati%index_j(k).ne.matr%index_j(k)) stop 'Index Error'
-     if(mati%index_i(k).ne.matr%index_i(k)) stop 'Index Error'
+     if(mati%index_j(k).ne.matr%index_j(k)) error stop 'Index Error'
+     if(mati%index_i(k).ne.matr%index_i(k)) error stop 'Index Error'
 
      select case(fmt%fmt)
      case('U','L') 

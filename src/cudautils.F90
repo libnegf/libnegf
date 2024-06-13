@@ -496,7 +496,7 @@ end interface
          istat = cu_CmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
        case default  
-         stop 'Error in matmul_gpu'    
+         error stop 'Error in matmul_gpu'    
        end select
      endif
 
@@ -655,7 +655,7 @@ end interface
          istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
        case default  
-         stop 'Error in matmul_gpu'    
+         error stop 'Error in matmul_gpu'    
        end select
      endif
 

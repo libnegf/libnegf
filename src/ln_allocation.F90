@@ -75,7 +75,7 @@ contains
   subroutine allocError()
      write(*,*) "ALLOCATION ERROR";
      call writeMemInfo(6)
-     STOP
+     error stop
   end subroutine allocError
 
 
@@ -86,7 +86,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -114,7 +114,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -140,7 +140,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -167,7 +167,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -192,7 +192,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -219,7 +219,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. associated(array)) then
@@ -245,7 +245,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -270,7 +270,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -295,7 +295,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -320,7 +320,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -345,7 +345,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -371,7 +371,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -396,7 +396,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -421,7 +421,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -446,7 +446,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -471,7 +471,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -496,7 +496,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -521,7 +521,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -549,7 +549,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -574,7 +574,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -599,7 +599,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -624,7 +624,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -651,7 +651,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       STOP 'ALLOCATION ERROR: array is already allocated'
+       error stop 'ALLOCATION ERROR: array is already allocated'
     endif
 
     if(.not. allocated(array)) then
@@ -1048,8 +1048,7 @@ contains
     if(iofile.ne.6) then
        open(iofile,file='memory.log',iostat=err)
        if (err.ne.0) then
-          write(*,*) 'Cannot open memory log-file'
-          stop
+          error stop 'Cannot open memory log-file'
        endif
     endif
     iolog=iofile

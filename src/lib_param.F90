@@ -27,7 +27,6 @@ module lib_param
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use input_output
-  use phph
   use energy_mesh, only : mesh
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
   use elphdd, only : ElPhonDephD, ElPhonDephD_create, ElPhonDephD_init
@@ -56,7 +55,6 @@ module lib_param
   public :: set_elph_s_dephasing
   public :: set_elph_polaroptical
   public :: set_elph_nonpolaroptical
-  public :: set_phph
   integer, public, parameter :: MAXNCONT=10
   integer, public, parameter :: MAXNLAYERS=10000
 
@@ -262,8 +260,6 @@ module lib_param
     type(mesh) :: emesh           ! energy mesh for adaptive Simpson
     real(dp) :: int_acc           ! adaptive integration accuracy
 
-    type(Tphph) :: phph           ! phonon-phonon data
-
     ! Many Body Interactions as array of pointers
     type(TInteractionList)  :: interactList
     type(TScbaDriverElastic) :: scbaDriverElastic
@@ -434,7 +430,7 @@ contains
     type is(ElPhonDephD)
       call elphondephd_init(pInter, negf%str, coupling, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephD'
+      error stop 'ERROR: error of type downcast to ElPhonDephD'
     end select
 
   end subroutine set_elph_dephasing
@@ -455,7 +451,7 @@ contains
     type is(ElPhonDephB)
       call elphondephb_init(pInter, negf%str, coupling, orbsperatom, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephB'
+      error stop 'ERROR: error of type downcast to ElPhonDephB'
     end select
 
   end subroutine set_elph_block_dephasing
@@ -475,7 +471,7 @@ contains
     type is(ElPhonDephS)
       call elphondephs_init(pInter, negf%str, coupling, orbsperatom, negf%S, niter)
     class default
-      stop 'ERROR: error of type downcast to ElPhonDephS'
+      error stop 'ERROR: error of type downcast to ElPhonDephS'
     end select
 
   end subroutine set_elph_s_dephasing
@@ -503,10 +499,10 @@ contains
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
-      stop "Inelastic scattering requires MPI"
+      error stop "Inelastic scattering requires MPI"
 #:endif
     class default
-      stop 'ERROR: error of type downcast to ElPhonInel'
+      error stop 'ERROR: error of type downcast to ElPhonInel'
     end select
 
   end subroutine set_elph_polaroptical
@@ -532,10 +528,10 @@ contains
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
             &  wq, Temp, dz, D0, area, niter, tridiag)
 #:else
-      stop "Inelastic scattering requires MPI"
+      error stop "Inelastic scattering requires MPI"
 #:endif
     class default
-      stop 'ERROR: error of type downcast to ElPhonInel'
+      error stop 'ERROR: error of type downcast to ElPhonInel'
     end select
 
   end subroutine set_elph_nonpolaroptical
@@ -649,20 +645,6 @@ contains
      call init_cache_space(negf, 'G_n')
 
    end subroutine set_defaults
-
-
-   subroutine set_phph(negf, order, filename)
-      type(Tnegf) :: negf
-      integer, intent(in) :: order
-      character(*), intent(in) :: filename
-
-      print*,'(set_phph) init_phph'
-      call init_phph(negf%phph, negf%str%central_dim, order, negf%str%mat_PL_start, negf%str%mat_PL_end)
-
-      print*,'(set_phph) load_phph_coupl'
-      call load_phph_couplings(negf%phph, filename)
-
-   end subroutine set_phph
 
 
 

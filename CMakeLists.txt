@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(LibNegfUtils)
@@ -14,6 +14,14 @@ if(WITH_TRANSPORT_GPU)
 else()
  project(libNEGF VERSION 1.2.1 LANGUAGES Fortran C)
 endif()
+
+
+# disable compiler-specific extensions
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# Note: enforcing a standard in Fortran compilers has a different effect that in C compilers, c.f. [cmake#22235](https://gitlab.kitware.com/cmake/cmake/-/issues/22235).
+
 
 include(externalMpifx)
 include(CMakePackageConfigHelpers)
@@ -32,15 +40,12 @@ include(GNUInstallDirs)
 
 if(LAPACK_LIBRARIES AND LAPACK_LIBRARY_DIRS)
   message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIRS})
-  message(STATUS "libNEGF BLAS: " ${BLAS_LIBRARIES})
-  message(STATUS "libNEGF LAPACK: " ${LAPACK_LIBRARIES})
+  message(STATUS "libNEGF BLAS: " ${BLAS_LIBRARY})
+  message(STATUS "libNEGF LAPACK: " ${LAPACK_LIBRARY})
 else()
   message(STATUS "libNEGF MKLROOT: " $ENV{MKLROOT})
   find_package(CustomBlas REQUIRED)
   find_package(CustomLapack REQUIRED)
-  #message(STATUS "libNEGF BLAS found: " ${BLAS_LIBRARIES})
-  #message(STATUS "libNEGF LAPACK found: " ${LAPACK_LIBRARIES})
-  #message(STATUS "libNEGF LAPACK DIR: " ${LAPACK_LIBRARY_DIRS})
 endif()
 
 if(WITH_MPI)
