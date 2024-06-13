@@ -122,7 +122,12 @@ if(WITH_TRANSPORT_GPU)
   target_link_libraries(negf PRIVATE CUDA::cudart CUDA::cusolver CUDA::cublas)
 endif()
 
-target_link_libraries(negf PRIVATE ${BLAS_LIBRARY} ${LAPACK_LIBRARY})
+if (NOT "${BLAS_LIBRARY}" STREQUAL "NONE")
+  target_link_libraries(negf PRIVATE ${BLAS_LIBRARY})
+endif()
+if (NOT "${LAPACK_LIBRARY}" STREQUAL "NONE")
+  target_link_libraries(negf PRIVATE ${LAPACK_LIBRARY})
+endif()
 
 target_include_directories(negf PUBLIC
   $<BUILD_INTERFACE:${BUILD_MOD_DIR}>
