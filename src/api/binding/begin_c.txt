@@ -17,3 +17,5 @@
 #define NEGF_PADCHAR ' '
 
 #include "lnParams.h"
+
+#include <mpi.h>

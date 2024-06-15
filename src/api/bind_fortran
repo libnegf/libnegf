@@ -290,7 +290,8 @@ class FormatterC(Formatter):
               "complex" : ("double _Complex", True),
               "logical(c_bool)" : ("bool", True), # is bool native type in C? If not, this must change
               "type(lnparams)" : ("struct lnparams", True),
-              "type(c_ptr)" : ("double *", False)
+              "type(c_ptr)" : ("double *", False),
+              "type(MPI_Comm)" : ("MPI_Fint", False)
               }
               
 
@@ -439,7 +440,8 @@ class FormatterCpp(FormatterC):
               "complex" : ("std::complex<double>", True),
               "logical(c_bool)" : ("bool", True),
               "type(lnparams)" : ("struct lnparams", True),
-              "type(c_ptr)" : ("double *", False)
+              "type(c_ptr)" : ("double *", False),
+              "type(MPI_Comm)" : ("MPI_Fint", False)
               }
 
   def format(self, tree):

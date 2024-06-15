@@ -1143,8 +1143,9 @@ contains
   !! @param [in] negf: libnegf container instance
   !! @param [in] mpicomm: an mpi communicator
   subroutine set_mpi_bare_comm(negf, mpicomm)
+    use mpi_globals, only: MPI_Comm
     type(Tnegf), intent(inout) :: negf
-    integer, intent(in) :: mpicomm
+    type(MPI_Comm), intent(in) :: mpicomm
 
     call negf%globalComm%init(mpicomm)
     call negf%energyComm%init(mpicomm)
@@ -1156,19 +1157,14 @@ contains
     type(Tnegf), intent(inout) :: negf
     type(MPI_Comm), intent(in) :: mpicomm
     integer, intent(in) :: nk
-    integer, intent(out) :: cartComm
-    integer, intent(out) :: kComm
-
-    type(MPI_Comm) :: cartComm_f08, kComm_f08
+    type(MPI_Comm), intent(out) :: cartComm
+    type(MPI_Comm), intent(out) :: kComm
 
     call negf%globalComm%init(mpicomm)
 
     call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, &
-          & cartComm_f08, kComm_f08)
+          & cartComm, kComm)
     call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
-
-    cartComm = transfer(cartComm_f08, cartComm)
-    kComm = transfer(kComm_f08, kComm)
 
   end subroutine set_cartesian_bare_comms
 #:else
