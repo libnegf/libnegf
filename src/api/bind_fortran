@@ -441,7 +441,7 @@ class FormatterCpp(FormatterC):
               "logical(c_bool)" : ("bool", True),
               "type(lnparams)" : ("struct lnparams", True),
               "type(c_ptr)" : ("double *", False),
-              "type(MPI_Comm)" : ("MPI_Fint", False)
+              "type(MPI_Comm)" : ("MPI_Fint", True)
               }
 
   def format(self, tree):
