@@ -1942,6 +1942,8 @@ contains
     real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
     real(dp) :: scba_inelastic_error
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
+    real(dp), dimension(:), allocatable :: tmp_currents
+    real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
     complex(dp), DIMENSION(:), allocatable :: diag
     complex(dp) :: Ec, zt
     type(z_CSR) :: G, TmpMt
@@ -2077,10 +2079,27 @@ contains
 
 #:if defined("MPI")
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_reduceip(negf%energyComm, negf%currents, MPI_SUM)
-      call mpifx_reduceip(negf%kComm, negf%currents, MPI_SUM)
-      call mpifx_reduceip(negf%energyComm, negf%ldos_mat, MPI_SUM)
-      call mpifx_reduceip(negf%kComm, negf%ldos_mat, MPI_SUM)
+      allocate(tmp_currents, mold=negf%currents)
+      allocate(tmp_ldos_mat, mold=negf%ldos_mat)
+      
+      ! Work around because of MPI error with TiberCAD (MPI_IN_PLACE flag is not recognized)
+      tmp_currents = 0.0_dp
+      call mpifx_reduce(negf%energyComm, negf%currents, tmp_currents, MPI_SUM)
+      negf%currents = tmp_currents
+      tmp_currents = 0.0_dp
+      call mpifx_reduce(negf%kComm, negf%currents, tmp_currents, MPI_SUM)
+      negf%currents = tmp_currents
+      
+      tmp_ldos_mat = 0.0_dp
+      call mpifx_reduce(negf%energyComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
+      negf%ldos_mat = tmp_ldos_mat
+      tmp_ldos_mat = 0.0_dp
+      call mpifx_reduce(negf%kComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      negf%ldos_mat = tmp_ldos_mat
+
+      deallocate(tmp_currents)
+      deallocate(tmp_ldos_mat)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 #:endif
 
@@ -2120,6 +2139,7 @@ contains
     it => negf%interactList%first
 
     do while (associated(it))
+      call it%inter%set_structure(negf%str)
       select type(pInter => it%inter)
       class is(ElPhonInel)
         deltaE = real(negf%en_grid(2)%Ec - negf%en_grid(1)%Ec)
