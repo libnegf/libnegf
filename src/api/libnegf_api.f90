@@ -1229,22 +1229,36 @@ subroutine negf_current(handler, current, c_unitsOfH, c_unitsOfJ) bind(C)
 end subroutine negf_current
 
 
-subroutine negf_layer_current(handler, nlayers, layer_current) bind(C)
-  use libnegfAPICommon  ! if:mod:use  use negf_param
-  use ln_precision      !if:mod:use
-  use libnegf           ! if:mod:use
+subroutine negf_layer_current(handler, nlayers, layer_current, c_unitsOfH, c_unitsOfJ) bind(C)
+  use iso_c_binding, only : c_char                    ! if:mod:use
+  use libnegfAPICommon                                ! if:mod:use
+  use ln_precision                                    ! if:mod:use
+  use libnegf                                         ! if:mod:use
+  use ln_constants                                    ! if:mod:use
+  use globals                                         ! if:mod:use
   implicit none
-  integer :: handler(DAC_handlerSize)  ! if:var:in
-  integer, intent(in) :: nlayers                     ! if:var:in
-  real(dp), intent(out) :: layer_current(nlayers)           ! if:var:in
+  integer :: handler(DAC_handlerSize)                 ! if:var:in
+  integer, intent(in) :: nlayers                      ! if:var:in
+  character(kind=c_char), intent(in) :: c_unitsOfH(*) ! if:var:in
+  character(kind=c_char), intent(in) :: c_unitsOfJ(*) ! if:var:in
+  real(dp), intent(out) :: layer_current(nlayers)     ! if:var:out
 
+  character(SST) :: unitsOfH
+  character(SST) :: unitsOfJ
   type(NEGFpointers) :: LIB
+  type(units) :: unitsH, unitsJ
+
+  call convert_c_string(c_unitsOfH, unitsOfH)
+  call convert_c_string(c_unitsOfJ, unitsOfJ)
+  unitsH%name=trim(unitsOfH)
+  unitsJ%name=trim(unitsOfJ)
 
   LIB = transfer(handler, LIB)
 
   call compute_layer_current(LIB%pNEGF)
 
   layer_current = LIB%pNEGF%currents
+  layer_current = layer_current * convertCurrent(unitsH, unitsJ)
 
 end subroutine negf_layer_current
 

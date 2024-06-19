@@ -2095,7 +2095,6 @@ contains
       negf%ldos_mat = tmp_ldos_mat
       tmp_ldos_mat = 0.0_dp
       call mpifx_reduce(negf%kComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
       negf%ldos_mat = tmp_ldos_mat
 
       deallocate(tmp_currents)
