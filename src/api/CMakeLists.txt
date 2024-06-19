@@ -32,6 +32,15 @@ add_custom_command(
 )
 list(APPEND negf-interface-headers ${CMAKE_CURRENT_BINARY_DIR}/lnParams.h)
 
+add_custom_target(negf-fort-headers ALL DEPENDS negf-cpp-binding ${CMAKE_CURRENT_BINARY_DIR}/fortran.h)
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fortran.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/fortran.h
+    COMMENT "Copying fortran.h"
+    COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/fortran.h ${CMAKE_CURRENT_BINARY_DIR}/fortran.h
+)
+list(APPEND negf-interface-headers ${CMAKE_CURRENT_BINARY_DIR}/fortran.h)
+
 if(INSTALL_INCLUDE_FILES)
     install(FILES ${negf-interface-headers} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
