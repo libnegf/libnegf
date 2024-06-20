@@ -18,17 +18,17 @@ int main()
   }
 
   printf("Initializing libNEGF \n");
-  f77_negf_init_session(hand);
-  f77_negf_init(hand);
+  negf_init_session(hand);
+  negf_init(hand);
 
   MPI_Fint global_comm_f = MPI_Comm_c2f(MPI_COMM_WORLD);
-  f77_negf_set_mpi_fcomm(hand, global_comm_f);
+  negf_set_mpi_fcomm(hand, global_comm_f);
   MPI_Fint cart_comm, k_comm;
-  f77_negf_cartesian_init(hand, global_comm_f, 1, cart_comm, k_comm);
+  negf_cartesian_init(hand, global_comm_f, 1, cart_comm, k_comm);
 
   //Release library
-  f77_negf_destruct_libnegf(hand);
-  f77_negf_destruct_session(hand);
+  negf_destruct_libnegf(hand);
+  negf_destruct_session(hand);
   printf("Done \n");
 
   MPI_Finalize();

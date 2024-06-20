@@ -450,17 +450,12 @@ class FormatterCpp(FormatterC):
     out = [ self.startText, ]
     for sub in tree:
       externDecl = []           # Declaration for the "extern" routine
-      wrapDef = []              # Definition for the wrapper function
       if self.upperCase:
         name = sub.name.upper()
       else:
         name = sub.name
-      externDecl.append("extern \"C\" void %s%s%s ("
-                        % (self.funcPrefix, name, self.funcSuffix))
-      wrapDef.append("inline void f77_%s (" % name)
-      externDeclArgs = []       # Arguments of the external function
-      wrapDefArgs = []          # Arguments of the wrapper function
-      wrapCallArgs = []         # Arguments for calling external from wrapper
+      externDecl.append("extern \"C\"")
+      wrapCallArgs = []         # Arguments of functions
       comments = []
       for argName in sub.argNames:
         argProps = sub.varDefs[argName]
@@ -490,12 +485,7 @@ class FormatterCpp(FormatterC):
           else:
             # intent(out), intent(inout) array variables mapped to *
             strVarType = "%s*" % cVarType
-        wrapDefArgs.append("%s %s" % (strVarType, argName))
-        if self.printVarNames:
-          externDeclArgs.append("%s %s" % (strVarType, argName))
-        else:
-          externDeclArgs.append("%s" % (strVarType,))
-        wrapCallArgs.append(argName)
+        wrapCallArgs.append("%s %s" % (strVarType, argName))
 
         # Creating comment
         if self.printOrigTypes:
@@ -513,25 +503,20 @@ class FormatterCpp(FormatterC):
           strAttrs = varAttrs and ", %s" % ", ".join(varAttrs) or ""
           comments.append("%s%s, %s :: %s%s" % (varType, strAttrs, strIntent,
                                              argName, strArgs))
-      # Printing out the external declaration        
-      externDecl.append(", ".join(externDeclArgs))
-      externDecl.append(");")
-      out.append(self.fold("".join(externDecl), 0))
-      out.append("")
-
+          
       # Printing out the corresponding Fortran 77 types, if needed
       if self.printOrigTypes:
         indent = self.indentInit * " "
-        out.append("%s// Corresponding F77 arguments for f77_%s:"
+        out.append("%s// Corresponding F77 arguments for %s:"
                    % (indent, name))
         out.append("%s// %s" % (indent, ("\n%s// " % indent).join(comments),))
 
-      # Printing out the wrapper functions
-      wrapDef.append(", ".join(wrapDefArgs))
-      wrapDef.append(")")
-      out.append(self.fold("".join(wrapDef), 0));
+      out.append(self.fold("".join(externDecl), 0))
+      out.append("")
+
+      # # Printing out the function arguments line
       out.append("{")
-      line = [ "%s%s%s (" % (self.funcPrefix, name, self.funcSuffix),
+      line = [ "void %s%s%s (" % (self.funcPrefix, name, self.funcSuffix),
                ", ".join(wrapCallArgs), ");" ]
       out.append(self.fold("".join(line),1));
       out.append("}")
