@@ -10,9 +10,9 @@ message(STATUS "libNEGF WITH_GPU: " ${WITH_TRANSPORT_GPU})
 #message(STATUS "libNEGF WITH_HILBERT: " ${WITH_HILBERT})
 
 if(WITH_TRANSPORT_GPU)
- project(libNEGF VERSION 1.2.1 LANGUAGES Fortran C CUDA)
+ project(libNEGF VERSION 1.2.1 LANGUAGES Fortran C CUDA CXX)
 else()
- project(libNEGF VERSION 1.2.1 LANGUAGES Fortran C)
+ project(libNEGF VERSION 1.2.1 LANGUAGES Fortran C CXX)
 endif()
 
 

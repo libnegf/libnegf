@@ -2220,6 +2220,72 @@ contains
 
     el = getelement(i,j,mat)
   end function getel
-  !------------------------------------------
+  
+  subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
+    real(dp), dimension(:), intent(in) :: v_in
+    real(dp), intent(in) :: thres
+    real(dp), dimension(:), allocatable, intent(out) :: v_out
+    integer, dimension(:), allocatable, intent(out) :: start_idx, end_idx
+
+    real(dp) :: avg
+    integer :: i, rs, re
+
+    allocate(start_idx(0))
+    allocate(end_idx(0))
+    allocate(v_out(0))
+
+    start_idx = [start_idx, 1]
+    do i = 1, size(v_in)-1
+       if (abs(v_in(i+1) - v_in(i)) > thres) then
+          start_idx = [start_idx, i+1]
+       endif
+    end do
+
+    do i = 1, size(v_in)-1
+       if (abs(v_in(i+1) - v_in(i)) > thres) then
+               end_idx = [end_idx, i]
+       endif
+    end do
+    end_idx = [end_idx, size(v_in)]
+
+    do i = 1, size(start_idx)
+       rs = start_idx(i)
+       re = end_idx(i)
+       avg = sum(v_in(rs:re))/real(size(v_in(rs:re)), dp)
+       v_out = [v_out, avg]
+    end do
+
+ end subroutine aggregate_vec
+
+!-------------------------------------------------------------------
+!> Pass CSR vectors to create z_CSR type
+!! @param[in] nrow: number of rows
+!! @param[in] nzval: number of non zero values
+!! @param[in] colind: column indexes
+!! @param[in] rowpnt: row pointers
+!! @param[inout] mat: the z_CSR matrix
+ subroutine get_CSR_matrix(nrow, nzval, colind, rowpnt, mat)
+  integer :: nrow
+  complex(dp) :: nzval(*)
+  integer :: colind(*)
+  integer :: rowpnt(*)
+  type(z_CSR) :: mat
+
+  integer :: nnz, i, base, ii
+
+  base = 0
+  if (rowpnt(1) == 0) base = 1
+
+  nnz = rowpnt(nrow+1)-rowpnt(1)
+  call create(mat,nrow,nrow,nnz)
+
+  do i = 1, nnz
+    mat%nzval(i) = nzval(i)
+    mat%colind(i) = colind(i) + base
+  enddo
+  do i = 1,nrow+1
+    mat%rowpnt(i) = rowpnt(i) + base
+  enddo
+end subroutine get_CSR_matrix
 
 end module libnegf

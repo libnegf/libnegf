@@ -53,6 +53,7 @@ module interactions
   contains
 
     procedure, non_overridable :: set_scba_iter
+    procedure, non_overridable :: set_structure
     procedure(abst_add_sigma_r), deferred :: add_sigma_r
     procedure(abst_add_sigma_n), deferred :: add_sigma_n
     procedure(abst_get_sigma_n_blk), deferred :: get_sigma_n_blk
@@ -206,6 +207,14 @@ module interactions
   end interface
 
   contains
+
+  subroutine set_structure(this, struct)
+    class(TInteraction) :: this
+    type(TStruct_Info), intent(in) :: struct
+    
+    this%struct = struct
+
+  end subroutine set_structure
 
   subroutine set_scba_iter(this, scba_iter)
     class(TInteraction) :: this

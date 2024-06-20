@@ -1,7 +1,8 @@
 # List of active tets. Each test indicates a subdirectory.
 set(test-directories
         f90init
-	  c_mpi_init
+	    c_mpi_init
+        cpp_mpi_init
         c_int
         c_int_elph_deph
         c_int_file
@@ -22,6 +23,17 @@ function(transfer_test_data testname)
             COMMAND cp -f ${CMAKE_CURRENT_SOURCE_DIR}/* ${CMAKE_CURRENT_BINARY_DIR}/)
     endif()
     add_dependencies(${testname} ${testname}-data-transfer)
+endfunction()
+
+# A function to setup C++ tests.
+function(setup_cpp_test testname source)
+    add_executable(${testname} ${source})
+    transfer_test_data(${testname})
+    target_link_libraries(${testname} MPI::MPI_CXX)
+    target_link_libraries(${testname} negf)
+    target_link_libraries(${testname} LAPACK::LAPACK)
+    target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
+    add_test(${testname} ${testname})
 endfunction()
 
 # A function to setup C tests.

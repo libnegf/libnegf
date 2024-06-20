@@ -242,7 +242,7 @@ contains
       if (ierr /= 0) then    
         error stop "Allocation error of MatArray in init "//trim(this%tagname)
       end if   
-    end if  
+    end if
     this%Nblocks = NPL    
     this%isInitialized = .true.
   end subroutine init

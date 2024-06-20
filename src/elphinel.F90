@@ -24,7 +24,7 @@
 module elphinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : dp, lp => dp
-  use mat_def, only : z_csr, z_dns, x_dns => z_dns, create, destroy
+  use mat_def, only : z_csr, z_dns, x_dns => z_dns, create, destroy, cross_product, volume
   use ln_constants, only : pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
@@ -62,6 +62,7 @@ module elphinel
     real(dp) :: coupling
 
     !> Kpoints
+    real(dp) :: recVecs2p(3,3)
     real(dp), allocatable :: kpoint(:,:)
     real(dp), allocatable :: kweight(:)
     integer, allocatable :: local_kindex(:)
@@ -183,6 +184,8 @@ contains
     this%cell_area = cell_area
     this%coupling = coupling(1)
     this%tTridiagonal = tridiag
+
+    call set_reciprocal_vectors(basis, this%recVecs2p)
 
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
@@ -313,7 +316,7 @@ contains
 
     integer :: iZ, iQ, eQ, iK, fu, nDeltaZ, nCentralAtoms, n_eq
     real(dp) :: kq(3), kk(3), ekp(3), QQ(3), Q2, bb, z_mn, Kf
-    real(dp) :: zmin, zmax, recVecs2p(3,3)
+    real(dp) :: zmin, zmax
     real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
 
     integer :: transDir
@@ -340,11 +343,7 @@ contains
     if (all(this%basis%lattVecs == 0.0_dp)) then
        kpoint = 0.0_dp
     else
-       recVecs2p = 0.0_dp
-       recVecs2p(1,1) = 2.0_dp*pi/this%basis%lattVecs(1,1)
-       recVecs2p(2,2) = 2.0_dp*pi/this%basis%lattVecs(2,2)
-       recVecs2p(3,3) = 2.0_dp*pi/this%basis%lattVecs(3,3)
-       kpoint = matmul(recVecs2p, this%kpoint)
+       kpoint = matmul(this%recVecs2p, this%kpoint)
     end if
 
     iQloop: do iQ = 1, size(this%kweight)
@@ -370,7 +369,7 @@ contains
         n_eq = size(eqv_points_iQ%points, 2)
         !Compute the absolute k-points
         call log_allocate(ekpoints, 3, n_eq)
-        ekpoints = matmul(recVecs2p, eqv_points_iQ%points)
+        ekpoints = matmul(this%recVecs2p, eqv_points_iQ%points)
 
         do eQ = 1, n_eq
           ekp = ekpoints(:,eQ)
@@ -410,7 +409,7 @@ contains
 
     integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms, eQ, n_eq
     real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf, ekp(3), ekp2
-    real(dp) :: zmin, zmax, recVecs2p(3,3)
+    real(dp) :: zmin, zmax
     real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
 
     integer :: transDir
@@ -434,11 +433,7 @@ contains
     if (all(this%basis%lattVecs == 0.0_dp)) then
        kpoint = 0.0_dp
     else
-       recVecs2p = 0.0_dp
-       recVecs2p(1,1) = 2.0_dp*pi/this%basis%lattVecs(1,1)
-       recVecs2p(2,2) = 2.0_dp*pi/this%basis%lattVecs(2,2)
-       recVecs2p(3,3) = 2.0_dp*pi/this%basis%lattVecs(3,3)
-       kpoint = matmul(recVecs2p, this%kpoint)
+       kpoint = matmul(this%recVecs2p, this%kpoint)
     end if
 
     iQloop: do iQ = 1, size(this%kweight)
@@ -475,7 +470,7 @@ contains
         n_eq = size(eqv_points_iQ%points, 2)
         !Compute the absolute k-points
         call log_allocate(ekpoints, 3, n_eq)
-        ekpoints = matmul(recVecs2p, eqv_points_iQ%points)
+        ekpoints = matmul(this%recVecs2p, eqv_points_iQ%points)
 
         do eQ = 1, n_eq
           ekp = ekpoints(:,eQ)
@@ -729,9 +724,11 @@ contains
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
     logical :: buff
+    integer :: transDir
 
     real(dp) :: maxvalue
 
+    transDir = this%basis%transportDirection
     nbl = this%struct%num_PLs
     NK = size(this%kpoint,2)
     NKloc = size(this%local_kindex)
@@ -742,10 +739,11 @@ contains
     !  stop "ERROR: iEshift>NEloc. More points are needed in the energy grid"
     !end if
     Ndz = size(this%Kmat,1)
-    label%spin = 1 
+    label%spin = 1
     if (present(spin)) then
        label%spin = spin
     end if
+
     allocate(pGG(NEloc,NKloc))
     allocate(pSigma(NEloc,NKloc))
 
@@ -768,7 +766,7 @@ contains
       ! Project atom position on the coarser grid
       call log_allocate(izr,Np)
       do ii = 1, Np
-        izr(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
+        izr(ii) = nint(this%basis%x(transDir, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
       end do
       label%row_block = ibl
       label%col_block = ibl
@@ -800,7 +798,7 @@ contains
         ! Project atom position on the coarser grid (two indep. arrays for rows and cols)
         call log_allocate(izc,Mp)
         do ii = 1, Mp
-          izc(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
+          izc(ii) = nint(this%basis%x(transDir, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
         end do
 
         ! -------------------- supradiagonal blocks -----------------------------------------------------
@@ -943,9 +941,11 @@ contains
     !type(z_DNS) :: Sigma_n
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
+    integer :: transDir
 
     real(dp) :: maxvalue
 
+    transDir = this%basis%transportDirection
     nbl = this%struct%num_PLs
     NK = size(this%kpoint,2)
     NKloc = size(this%local_kindex)
@@ -981,7 +981,7 @@ contains
       ! Project atom position on the coarser grid
       call log_allocate(izr,Np)
       do ii = 1, Np
-        izr(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
+        izr(ii) = nint(this%basis%x(transDir, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
       end do
       label%row_block = ibl
       label%col_block = ibl
@@ -1006,7 +1006,7 @@ contains
         ! Project atom position on the coarser grid (two indep. arrays for rows and cols)
         call log_allocate(izc,Mp)
         do ii = 1, Mp
-          izc(ii) = nint(this%basis%x(3, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
+          izc(ii) = nint(this%basis%x(transDir, this%basis%matrixToBasis(PL_start+ii-1))/this%dz)
         end do
 
         ! -------------------- supradiagonal blocks -----------------------------------------------------
@@ -1103,6 +1103,33 @@ contains
       call this%sigma_n%destroy()
     end if
   end subroutine destroy_Sigma_n
+
+  subroutine set_reciprocal_vectors(basis, reciprocal_mat)
+    type(TBasisCenters), intent(in) :: basis
+    real(dp), intent(inout) :: reciprocal_mat(3,3)
+
+    real(dp), dimension(3) :: latt_vec1, latt_vec2, latt_vec3, rec_vec1, rec_vec2, rec_vec3
+    real(dp), dimension(3) :: cross_prod
+    real(dp) :: vol
+
+    latt_vec1 = basis%lattVecs(:, 1)
+    latt_vec2 = basis%lattVecs(:, 2)
+    latt_vec3 = basis%lattVecs(:, 3)
+
+    vol = volume(latt_vec1, latt_vec2, latt_vec3)
+
+    call cross_product(latt_vec2, latt_vec3, cross_prod)
+    rec_vec1 = (2.0_dp*pi*cross_prod) / vol
+    call cross_product(latt_vec3, latt_vec1, cross_prod)
+    rec_vec2 = (2.0_dp*pi*cross_prod) / vol
+    call cross_product(latt_vec1, latt_vec2, cross_prod)
+    rec_vec3 = (2.0_dp*pi*cross_prod) / vol
+
+    reciprocal_mat(:, 1) = rec_vec1
+    reciprocal_mat(:, 2) = rec_vec2
+    reciprocal_mat(:, 3) = rec_vec3
+
+  end subroutine set_reciprocal_vectors
 
   !> Integral over qz of the electron-phonon polar optical couping.
   !

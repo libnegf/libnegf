@@ -17,6 +17,8 @@
 
 #include "fortran.h"
 
+#include <mpi.h>
+
 // Some defintions for constants used by Uptight
 const int NEGF_SC = 100;
 const int NEGF_MC = 200;

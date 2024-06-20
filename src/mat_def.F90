@@ -36,6 +36,8 @@ public :: print_mat, read_mat, writemem
 public :: createp, destroyp
 public :: assignment(=)
 
+public :: cross_product, volume
+
 interface create
    module procedure zcreate_CSR
    module procedure rcreate_CSR
@@ -2063,4 +2065,28 @@ subroutine zPrint_DNS(id, A, fmt)
     enddo
   endif
 end subroutine zPrint_DNS
+
+subroutine cross_product(vec1, vec2, vec3)
+   real(dp), dimension(3), intent(in) :: vec1, vec2
+   real(dp), dimension(3), intent(out) :: vec3
+
+   vec3 = 0.0_dp
+
+   vec3(1) = vec1(2) * vec2(3) - vec1(3) * vec2(2)
+   vec3(2) = vec1(3) * vec2(1) - vec1(1) * vec2(3)
+   vec3(3) = vec1(1) * vec2(2) - vec1(2) * vec2(1)
+
+end subroutine cross_product
+
+function volume(vec1, vec2, vec3) result (vol)
+   real(dp), dimension(3), intent(in) :: vec1, vec2, vec3
+   real(dp) :: vol
+   
+   real(dp), dimension(3) :: cross_prod
+
+   call cross_product(vec2, vec3, cross_prod)
+   vol = dot_product(vec1, cross_prod)
+   
+end function volume
+
 end module mat_def
