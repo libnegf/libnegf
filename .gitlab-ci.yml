@@ -1,11 +1,12 @@
 build:
   tags:
     - public-docker
+  image: $CI_REGISTRY/conrads2/ci-images/debian/openmpi
   stage: build
   script:
     - mkdir build
     - cmake -DBUILD_SHARED_LIBS=ON -B build .
-    - make -C build
+    - cmake --build build/
   artifacts:
     paths:
       - build/
