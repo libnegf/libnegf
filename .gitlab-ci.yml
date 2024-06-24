@@ -6,7 +6,9 @@ build:
   script:
     - mkdir build
     - cmake -DBUILD_SHARED_LIBS=ON -B build .
-    - cmake --build build/
+    - num_cpus="$(getconf _NPROCESSORS_ONLN)"
+    - echo "Building on $num_cpus CPU cores"
+    - cmake --build build/ --parallel "$num_cpus"
   artifacts:
     paths:
       - build/
