@@ -1,7 +1,14 @@
-build:
+.setup:
+  parallel:
+    matrix:
+      - MPI: [openmpi, mpich]
   tags:
     - public-docker
-  image: $CI_REGISTRY/conrads2/ci-images/debian/openmpi
+  image: $CI_REGISTRY/conrads2/ci-images/debian/$MPI
+
+
+build:
+  extends: .setup
   stage: build
   script:
     - mkdir build
@@ -13,9 +20,9 @@ build:
     paths:
       - build/
 
+
 test:
-  tags:
-    - public-docker
+  extends: .setup
   stage: test
   script:
     - cd build
