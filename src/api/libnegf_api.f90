@@ -1092,7 +1092,8 @@ end subroutine negf_set_kpoint
 !!         set_eq_pts: flag to determine whether the full BZ has been passed, or if eqiuvalent points have to be set together
 !!                     with the reduced BZ
 !!
-subroutine negf_set_kpoints(handler, kpoints, dims, nK, kweights, local_k_indices, n_local, eqv_points, m_eq, equiv_mult, set_eq_pts) bind(C)
+subroutine negf_set_kpoints(handler, kpoints, dims, nK, kweights, local_k_indices, n_local, &
+    & eqv_points, m_eq, equiv_mult, set_eq_pts) bind(C)
   use iso_c_binding, only : c_int, c_double ! if:mod:use
   use libnegfAPICommon    ! if:mod:use
   use libnegf             ! if:mod:use
