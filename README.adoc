@@ -21,6 +21,7 @@ ____
 == Installation
 
 libNEGF requires
+
 * CMake,
 * a C99 compiler,
 * a Fortran 2018 compiler,
