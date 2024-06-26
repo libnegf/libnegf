@@ -1076,7 +1076,7 @@ contains
     integer :: particle
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    complex(dp), DIMENSION(:), allocatable :: diag
+    complex(dp), DIMENSION(:), allocatable :: temp
     real(dp) :: ncyc, Er, scba_error, scba_elastic_tol
 
     complex(dp) :: zt
@@ -1123,6 +1123,30 @@ contains
       call concat(TmpMt,zt,G,1,1)
 
       call destroy(G)
+
+      ! Perform integration of G in the contacts
+      if (negf%bulk_cont_density) then
+        do j1 = 1,ncont
+          print*, "DEBUG: integrating bulk contact density for contact", j1
+          associate(bulkG => negf%cont_bulkG(j1))
+
+          if (.not. allocated(negf%bulk_diags(j1)%array)) then
+            call log_allocate(negf%bulk_diags(j1)%array, bulkG%nrow)
+            negf%bulk_diags(j1)%array = 0.0_dp
+          endif
+
+          associate(b_diag=>negf%bulk_diags(j1)%array)
+          call log_allocate(temp, bulkG%nrow)
+          call getdiag(bulkG, temp)
+
+          b_diag(:) = b_diag(:) + temp(:) * zt * frm_f(j1)
+
+          call log_deallocate(temp)
+          end associate
+          end associate
+          call destroy(negf%cont_bulkG(j1))
+        end do
+      end if
 
     enddo enloop
 
@@ -2320,6 +2344,8 @@ contains
     Er = real(Ec,dp)
     scba_elastic_tol = negf%scba_elastic_tol
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
+
+    negf%readOldSGF = negf%readOldDM_SGFs
 
     ! ---------------------------------------------------------------------
     ! Compute contact GF

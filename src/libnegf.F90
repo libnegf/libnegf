@@ -457,10 +457,14 @@ contains
       ii = 1
     end if
 
-    if (ii > size(negf%HS)) then
-       error stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
+    if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
+      error stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+      if (.not.associated(negf%HS(ii)%S)) then
+        allocate(negf%HS(ii)%S)
+      else
+        call destroy(negf%HS(ii)%S)
+      endif
     end if
 
     call create_id(negf%HS(ii)%S, nrow)
@@ -1498,6 +1502,20 @@ contains
 
 
   !--------------------------------------------------------------------
+  subroutine associate_contact_densities(negf, dens)
+    type(TNegf), pointer, intent(in)  :: negf
+    real(dp), dimension(:,:), pointer, intent(inout) :: dens
+
+    ! if (allocated(negf%currents)) then
+    !   dens => negf%currents
+    ! else
+    !   dens => null()
+    ! end if
+
+  end subroutine associate_contact_densities
+
+
+  !--------------------------------------------------------------------
   !>
   !! Get currents by copy.
   !! @param [in] negf: negf container
@@ -1723,7 +1741,7 @@ contains
     integer :: particle  ! +1 for electrons, -1 for holes
     complex(dp), dimension(:), allocatable :: q_tmp
 
-    integer :: k
+    integer :: k, j1, index, N1, N2, N3
 
     if (particle /= +1 .and. particle /= -1) then
        error stop "libNEGF error. In compute_density_efa, unknown particle"
@@ -1784,9 +1802,7 @@ contains
           negf%particle = -1
           call real_axis_int_p_def(negf)
        endif
-       ! we use contour_int here because it integrates Gr, while
-       ! real_axis_int integrates Gn
-       !call contour_int(negf)
+
        call real_axis_int(negf)
     endif
 
@@ -1806,6 +1822,47 @@ contains
        call log_deallocate(q_tmp)
     else
        q = 0.0_dp
+    endif
+
+    if (negf%bulk_cont_density) then
+      q = 0.0_dp
+      print*, "DEBUG: rearranging density to include contacts"
+
+      do j1 = 1,negf%str%num_conts
+        associate(diag=>negf%bulk_diags(j1)%array)
+          call log_allocate(negf%contact_density(j1)%array, size(diag))
+          negf%contact_density(j1)%array(:) = real(j*(diag(:)-conjg(diag(:))),dp)
+        end associate
+
+        call log_deallocate(negf%bulk_diags(j1)%array)
+      end do
+
+      call destroy(negf%cont_bulkG(j1))
+
+      ! For now we must assume 2 contacts
+      call log_allocate(q_tmp, negf%rho%nrow)
+      call getdiag(negf%rho, q_tmp)
+      N1 = 2 * size(negf%contact_density(1)%array) ! Times 2: the bulk density is computed on 1 PL but
+                                                   ! the contact is made by 2 PLs
+      N2 = N1 + size(q)
+      N3 = N2 + 2 * size(negf%contact_density(2)%array) ! Times 2: same reason as above
+      do k = 1, N1
+          index = mod(k, N1/2)
+          q(k) = negf%contact_density(1)%array(index)
+      end do
+      do k = N1+1, N2
+        q(k) = real(q_tmp(k-N1))
+      end do
+      do k = N2+1, N3
+        index = mod((k-N2),(N3-N2)/2)
+        q(k) = negf%contact_density(2)%array(index)
+      end do
+      call log_deallocate(q_tmp)
+      do j1 = 1,negf%str%num_conts
+        call log_deallocate(negf%contact_density(j1)%array)
+        call destroy(negf%cont_bulkG(j1))
+      end do
+
     endif
 
     call destroy_contact_matrices(negf)
