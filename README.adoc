@@ -12,7 +12,11 @@ Have a look at the link:CONTRIBUTING.adoc[contributor's guide] if you want to he
 
 For an example of application, see the use of libNEGF in https://dftbplus.org[DFTB+].
 
-*A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo, New Journal of Physics 10, 065022 (2008)
+If you used libNEGF, please cite the following publication:
+____
+{empty}A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo: "`Non-equilibrium Green's functions in density functional tight binding: method and applications`". New Journal of Physics 10, 065022 (2008). DOI: 10.1088/1367-2630/10/6/065022.
+____
+
 
 == Installation
 
