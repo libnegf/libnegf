@@ -1,12 +1,13 @@
 .setup:
   parallel:
     matrix:
-      - MPI: [mpich, openmpi]
+      - DISTRO: [debian, rockylinux]
+        MPI: [mpich, openmpi]
   tags:
     - public-docker
-  image: $CI_REGISTRY/conrads2/ci-images/debian/$MPI
+  image: $CI_REGISTRY/conrads2/ci-images/$DISTRO/$MPI
   variables:
-    BUILD_DIR: build-$MPI
+    BUILD_DIR: build-$DISTRO-$MPI
     CFLAGS: -Wextra -Wall -pedantic
     CXXFLAGS: -Wextra -Wall -pedantic
     LDFLAGS: -Wl,-z,defs
