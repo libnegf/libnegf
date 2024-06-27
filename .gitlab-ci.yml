@@ -17,7 +17,11 @@ build:
   stage: build
   script:
     - mkdir "$BUILD_DIR"
-    - cmake -DBUILD_SHARED_LIBS=ON -B "$BUILD_DIR" .
+    - cmake
+       -DBUILD_SHARED_LIBS:BOOL=ON
+       -DCMAKE_RULE_MESSAGES:BOOL=OFF
+       -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
+       -B "$BUILD_DIR" .
     - num_cpus="$(getconf _NPROCESSORS_ONLN)"
     - echo "Building on $num_cpus CPU cores"
     - cmake --build "$BUILD_DIR" --parallel "$num_cpus"
