@@ -7,6 +7,9 @@
   image: $CI_REGISTRY/conrads2/ci-images/debian/$MPI
   variables:
     BUILD_DIR: build-$MPI
+    CFLAGS: -Wextra -Wall -pedantic
+    CXXFLAGS: -Wextra -Wall -pedantic
+    LDFLAGS: -Wl,-z,defs
 
 
 build:
