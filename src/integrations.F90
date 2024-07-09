@@ -704,7 +704,12 @@ contains
      else
        mumin = muref - nkT
        nPoles = negf%n_poles
-       Lambda = 2.0_dp* negf%n_poles * KbT * pi
+       ! Poles of the Fermi function:
+       ! exp[(z-mu)/kbT] = -1 => z = mu + (pi*kbT + 2*pi*n*kbT) i
+       Lambda = 2.0_dp* nPoles * KbT * pi
+       if (nPoles .eq. 0) then
+         Lambda = 0.5_dp * KbT * pi
+       end if
      end if
 
      Npoints=negf%Np_n(1) + negf%Np_n(2) + nPoles
@@ -2081,7 +2086,7 @@ contains
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
       allocate(tmp_currents, mold=negf%currents)
       allocate(tmp_ldos_mat, mold=negf%ldos_mat)
-      
+
       ! Work around because of MPI error with TiberCAD (MPI_IN_PLACE flag is not recognized)
       tmp_currents = 0.0_dp
       call mpifx_reduce(negf%energyComm, negf%currents, tmp_currents, MPI_SUM)
@@ -2089,7 +2094,7 @@ contains
       tmp_currents = 0.0_dp
       call mpifx_reduce(negf%kComm, negf%currents, tmp_currents, MPI_SUM)
       negf%currents = tmp_currents
-      
+
       tmp_ldos_mat = 0.0_dp
       call mpifx_reduce(negf%energyComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
       negf%ldos_mat = tmp_ldos_mat
