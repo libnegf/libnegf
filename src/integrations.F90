@@ -842,6 +842,8 @@ contains
      real(dp) :: ncyc, scba_error
      complex(dp) :: Ec, zt
 
+     logical :: real_axis, contour
+
      ncont = negf%str%num_conts
      outer = negf%outer_blocks
      Npoints = size(negf%en_grid)
@@ -867,6 +869,12 @@ contains
         call concat(TmpMt,zt,GreenR,1,1)
 
         call destroy(GreenR)
+
+        if (negf%bulk_cont_density) then
+          contour = .true.; real_axis = .false.
+          call integrate_contact_density(negf, i, Npoints, zt, &
+               & real_axis, contour)
+        end if
 
      enddo
 
@@ -938,6 +946,13 @@ contains
          call concat(TmpMt,zt,GreenR,1,1) !partial sums on local E
 
          call destroy(GreenR)
+          ! Perform integration of diag(GBulk) in the contacts
+          ! TODO: generalize negf%contact_density(:) with k-dependence
+         !  if (negf%bulk_cont_density) then
+         !    real_axis = .false.; contour = .true.
+         !    call integrate_contact_density(negf, i, Npoints, zt, &
+         !        & real_axis, contour, frm_f)
+         !  end if
 
        enddo enloop
 
@@ -1076,8 +1091,9 @@ contains
     integer :: particle
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    complex(dp), DIMENSION(:), allocatable :: temp
     real(dp) :: ncyc, Er, scba_error, scba_elastic_tol
+
+    logical :: real_axis, contour
 
     complex(dp) :: zt
     complex(dp) :: Ec
@@ -1126,28 +1142,11 @@ contains
 
       call destroy(G)
 
-      ! Perform integration of G in the contacts
+      ! Perform integration of diag(GBulk) in the contacts
       if (negf%bulk_cont_density) then
-        do j1 = 1,ncont
-          print*, "DEBUG: integrating bulk contact density for contact", j1
-          associate(bulkG => negf%cont_bulkG(j1))
-
-          if (.not. allocated(negf%bulk_diags(j1)%array)) then
-            call log_allocate(negf%bulk_diags(j1)%array, bulkG%nrow)
-            negf%bulk_diags(j1)%array = 0.0_dp
-          endif
-
-          associate(b_diag=>negf%bulk_diags(j1)%array)
-          call log_allocate(temp, bulkG%nrow)
-          call getdiag(bulkG, temp)
-
-          b_diag(:) = b_diag(:) + temp(:) * zt * frm_f(j1)
-
-          call log_deallocate(temp)
-          end associate
-          end associate
-          call destroy(negf%cont_bulkG(j1))
-        end do
+        real_axis = .true.; contour = .false.
+        call integrate_contact_density(negf, iE, Npoints, zt, &
+             & real_axis, contour, frm_f)
       end if
 
     enddo enloop
@@ -1270,7 +1269,13 @@ contains
           call concat(TmpMt,zt,G,1,1)
 
           call destroy(G)
-
+          ! Perform integration of diag(GBulk) in the contacts
+          ! TODO: generalize negf%contact_density(:) with k-dependence
+         !  if (negf%bulk_cont_density) then
+         !    real_axis = .true.; contour = .false.
+         !    call integrate_contact_density(negf, iE, Npoints, zt, &
+         !        & real_axis, contour, frm_f)
+         !  end if
         enddo enloop
 
         associate(rho => negf%DM(iK)%rho)
@@ -1334,6 +1339,7 @@ contains
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, mumax, muref, ff, kbT
+    real(dp) :: Emin, Emax
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1353,8 +1359,10 @@ contains
 
     allocate(pnts(Npoints))
     allocate(wght(Npoints))
+    Emin = negf%Ec-negf%DeltaEc
+    Emax = mumax + Omega
 
-    call trapez(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Npoints)
+    call gauleg(Emin, Emax,pnts,wght,Npoints)
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -1395,7 +1403,7 @@ contains
 
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, Emax, muref, ff, kbT
+    real(dp) :: Omega, mumin, Emin, Emax, muref, ff, kbT
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1416,9 +1424,10 @@ contains
     allocate(pnts(Npoints))
     allocate(wght(Npoints))
 
+    Emin = mumin-Omega
     Emax = negf%Ev+negf%DeltaEv
 
-    call trapez(mumin-Omega, Emax, pnts, wght, Npoints)
+    call trapez(Emin, Emax, pnts, wght, Npoints)
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -2468,6 +2477,57 @@ contains
     enddo
 
   end subroutine electron_current_meir_wingreen
+
+
+  subroutine integrate_contact_density(negf, iE, Npoints, weight, real_axis, contour, frm_f)
+    type(Tnegf) :: negf
+    integer, intent(in) :: iE, Npoints
+    complex(dp), intent(in) :: weight
+    logical, intent(in) :: real_axis, contour
+    real(dp), dimension(:), intent(in), optional :: frm_f
+
+    integer :: j1
+    complex(dp), dimension(:), allocatable :: temp
+
+    if (real_axis .and. .not. present(frm_f)) then
+        error stop "Calculation of contact bulk density at non-equilibrium (real-axis) requires fermi functions"
+    endif
+
+    do j1 = 1,negf%str%num_conts
+      associate(bulkG => negf%cont_bulkG(j1))
+
+      if (.not. allocated(negf%bulk_diags(j1)%array)) then
+        call log_allocate(negf%bulk_diags(j1)%array, bulkG%nrow)
+        negf%bulk_diags(j1)%array = 0.0_dp
+      endif
+
+      associate(b_diag=>negf%bulk_diags(j1)%array)
+      call log_allocate(temp, bulkG%nrow)
+      temp = 0.0_dp
+      call getdiag(bulkG, temp)
+
+      if (real_axis) then
+        b_diag(:) = b_diag(:) + temp(:) * frm_f(j1)*weight
+      end if
+      if (contour) then
+        b_diag(:) = b_diag(:) + temp(:) * weight ! Fermi function already present in weight
+      end if 
+
+      call log_deallocate(temp)
+      call destroy(negf%cont_bulkG(j1))
+
+      ! Last en. point: compute the density as D = j * (G^R - G^A) * weight
+      if (iE .eq. Npoints) then
+          call log_allocate(negf%contact_density(j1)%array, size(b_diag))
+          negf%contact_density(j1)%array(:) = real(j*(b_diag(:)-conjg(b_diag(:))),dp)
+          call log_deallocate(negf%bulk_diags(j1)%array)
+      end if
+
+      end associate
+      end associate
+    end do    
+
+  end subroutine integrate_contact_density
 
 
   !-----------------------------------------------------------------------

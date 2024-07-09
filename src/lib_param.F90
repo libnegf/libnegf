@@ -242,11 +242,11 @@ module lib_param
     !logical :: internalDM
 
     !Bulk contact density calculation
-    logical :: bulk_cont_density                 ! Flag to trigger the calculation
-    type(z_DNS) :: cont_bulkG(MAXNCONT)          ! Collection of contact bulk Green's functions
-    type(complArray) :: bulk_diags(MAXNCONT)     ! Diagonals of the bulk Green that contain 
-                                                 !   the result of the energy integration (one for each contact)
-    type(realArray) :: contact_density(MAXNCONT)  ! Final result of the contact density calculation
+    logical :: bulk_cont_density                    ! Flag to trigger the calculation
+    type(z_DNS) :: cont_bulkG(MAXNCONT)             ! Collection of contact bulk Green's functions
+    type(complArray) :: bulk_diags(MAXNCONT)        ! Diagonals of the bulk Green that contain 
+                                                    !   the result of the energy integration (one for each contact)
+    type(realArray) :: contact_density(MAXNCONT)    ! Final result of the contact density calculation
 
     type(TStruct_Info) :: str     ! system structure
     type(TBasisCenters) :: basis  ! local basis centers

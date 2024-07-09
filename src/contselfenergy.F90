@@ -220,8 +220,8 @@ contains
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
 #:endif
           if (pnegf%bulk_cont_density) then
-            print*, "DEBUG: inverting A0 into contact", ii
             call create(pnegf%cont_bulkG(ii), npl, npl)
+            pnegf%cont_bulkG(ii)%val = 0.0_dp
             call compGreen(pnegf%cont_bulkG(ii)%val, Ao, npl)
           endif
           call log_deallocate(Ao)

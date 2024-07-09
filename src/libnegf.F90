@@ -1506,11 +1506,7 @@ contains
     type(TNegf), pointer, intent(in)  :: negf
     real(dp), dimension(:,:), pointer, intent(inout) :: dens
 
-    ! if (allocated(negf%currents)) then
-    !   dens => negf%currents
-    ! else
-    !   dens => null()
-    ! end if
+    ! TODO: think of a way to associate the type(realArray) vectors
 
   end subroutine associate_contact_densities
 
@@ -1741,7 +1737,7 @@ contains
     integer :: particle  ! +1 for electrons, -1 for holes
     complex(dp), dimension(:), allocatable :: q_tmp
 
-    integer :: k, j1, index, N1, N2, N3
+    integer :: k
 
     if (particle /= +1 .and. particle /= -1) then
        error stop "libNEGF error. In compute_density_efa, unknown particle"
@@ -1826,43 +1822,7 @@ contains
 
     if (negf%bulk_cont_density) then
       q = 0.0_dp
-      print*, "DEBUG: rearranging density to include contacts"
-
-      do j1 = 1,negf%str%num_conts
-        associate(diag=>negf%bulk_diags(j1)%array)
-          call log_allocate(negf%contact_density(j1)%array, size(diag))
-          negf%contact_density(j1)%array(:) = real(j*(diag(:)-conjg(diag(:))),dp)
-        end associate
-
-        call log_deallocate(negf%bulk_diags(j1)%array)
-      end do
-
-      call destroy(negf%cont_bulkG(j1))
-
-      ! For now we must assume 2 contacts
-      call log_allocate(q_tmp, negf%rho%nrow)
-      call getdiag(negf%rho, q_tmp)
-      N1 = 2 * size(negf%contact_density(1)%array) ! Times 2: the bulk density is computed on 1 PL but
-                                                   ! the contact is made by 2 PLs
-      N2 = N1 + size(q)
-      N3 = N2 + 2 * size(negf%contact_density(2)%array) ! Times 2: same reason as above
-      do k = 1, N1
-          index = mod(k, N1/2)
-          q(k) = negf%contact_density(1)%array(index)
-      end do
-      do k = N1+1, N2
-        q(k) = real(q_tmp(k-N1))
-      end do
-      do k = N2+1, N3
-        index = mod((k-N2),(N3-N2)/2)
-        q(k) = negf%contact_density(2)%array(index)
-      end do
-      call log_deallocate(q_tmp)
-      do j1 = 1,negf%str%num_conts
-        call log_deallocate(negf%contact_density(j1)%array)
-        call destroy(negf%cont_bulkG(j1))
-      end do
-
+      call include_contact_density(negf, q)
     endif
 
     call destroy_contact_matrices(negf)
@@ -1901,6 +1861,51 @@ contains
     call destroy_contact_matrices(negf)
 
   end subroutine compute_density_quasiEq
+
+  !-------------------------------------------------------------------------------
+  subroutine include_contact_density(negf, q)
+    type(Tnegf), intent(in) :: negf
+    real(dp), dimension(:), intent(inout) :: q
+
+    integer ::  NC1, NC2, ND, k, i, index
+    complex(dp), dimension(:), allocatable :: q_tmp
+
+
+    ! For now we assume 2 contacts
+    ! NOTE: negf%rho%nrow has size: device + contacts
+    call log_allocate(q_tmp, negf%rho%nrow)
+    call getdiag(negf%rho, q_tmp)
+    NC1 = size(negf%contact_density(1)%array)
+    NC2 = size(negf%contact_density(2)%array)
+    ND = size(q_tmp) - 2*NC1 - 2*NC2               ! Times 2: the bulk density is computed on 1 PL but
+                                                   ! the contact is made by 2 PLs
+    ! Device
+    do k = 1, ND
+      q(k) = real(q_tmp(k))
+    end do
+    ! Contact 1
+    ! i = 0 -> PL 1
+    ! i = 1 -> PL 2
+    do i = 0,1
+      do k = 1, NC1
+          index = k + ND + NC1*i
+          q(index) = negf%contact_density(1)%array(k)
+      end do
+    end do
+    ! Contact 2
+    do i = 0,1
+      do k = 1, NC2
+        index = k + ND + 2*NC1 + i*NC2
+        q(index) = negf%contact_density(2)%array(k)
+      end do
+    end do
+
+    call log_deallocate(q_tmp)
+    do i = 1,negf%str%num_conts
+      call log_deallocate(negf%contact_density(i)%array)
+    end do
+
+  end subroutine include_contact_density
 
 
 
