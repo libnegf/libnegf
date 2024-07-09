@@ -1087,6 +1087,8 @@ contains
     Npoints = size(negf%en_grid)
     particle = negf%particle
 
+    negf%readOldSGF = negf%readOldDM_SGFs
+
     call log_allocate(frm_f,ncont)
 
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
@@ -1188,6 +1190,8 @@ contains
     outer = negf%outer_blocks
     Npoints = size(negf%en_grid)
     particle = negf%particle
+
+    negf%readOldSGF = negf%readOldDM_SGFs
 
     ref_bk = negf%refcont
     negf%refcont = ncont + 1
@@ -2344,8 +2348,6 @@ contains
     Er = real(Ec,dp)
     scba_elastic_tol = negf%scba_elastic_tol
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
-
-    negf%readOldSGF = negf%readOldDM_SGFs
 
     ! ---------------------------------------------------------------------
     ! Compute contact GF
