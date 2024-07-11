@@ -1736,6 +1736,7 @@ contains
     real(dp), dimension(:) :: q
     integer :: particle  ! +1 for electrons, -1 for holes
     complex(dp), dimension(:), allocatable :: q_tmp
+    complex(dp), dimension(:), allocatable :: q_reduced
 
     integer :: k
 
@@ -1808,14 +1809,17 @@ contains
     ! rho(rk) = sum_ii Pii ui(rk)^2
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
+       call log_allocate(q_reduced, size(q_tmp))
 
        call getdiag(negf%rho, q_tmp)
+       call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
 
        do k = 1, size(q)
-          q(k) = real(q_tmp(k))
+          q(k) = real(q_reduced(k))
        enddo
 
        call log_deallocate(q_tmp)
+       call log_deallocate(q_reduced)
     else
        q = 0.0_dp
     endif
@@ -1869,19 +1873,23 @@ contains
 
     integer ::  NC1, NC2, ND, k, i, index
     complex(dp), dimension(:), allocatable :: q_tmp
+    complex(dp), dimension(:), allocatable :: q_reduced
 
 
     ! For now we assume 2 contacts
     ! NOTE: negf%rho%nrow has size: device + contacts
     call log_allocate(q_tmp, negf%rho%nrow)
+    call log_allocate(q_reduced, size(q_tmp))
     call getdiag(negf%rho, q_tmp)
+    call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
+
     NC1 = size(negf%contact_density(1)%array)
     NC2 = size(negf%contact_density(2)%array)
-    ND = size(q_tmp) - 2*NC1 - 2*NC2               ! Times 2: the bulk density is computed on 1 PL but
+    ND = size(q_reduced) - 2*NC1 - 2*NC2               ! Times 2: the bulk density is computed on 1 PL but
                                                    ! the contact is made by 2 PLs
     ! Device
     do k = 1, ND
-      q(k) = real(q_tmp(k))
+      q(k) = real(q_reduced(k))
     end do
     ! Contact 1
     ! i = 0 -> PL 1
@@ -1901,6 +1909,7 @@ contains
     end do
 
     call log_deallocate(q_tmp)
+    call log_deallocate(q_reduced)
     do i = 1,negf%str%num_conts
       call log_deallocate(negf%contact_density(i)%array)
     end do
