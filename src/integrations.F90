@@ -872,11 +872,14 @@ contains
 
         if (negf%bulk_cont_density) then
           contour = .true.; real_axis = .false.
-          call integrate_contact_density(negf, i, Npoints, zt, &
-               & real_axis, contour)
+          call integrate_contact_density(negf, zt, real_axis, contour)
         end if
 
      enddo
+
+     if (negf%bulk_cont_density) then
+      call finalize_contact_density(negf)
+     end if
 
      ! NOTE: The following assumes contour_int is called BEFORE any
      !       real-axis integration.
@@ -950,8 +953,7 @@ contains
           ! TODO: generalize negf%contact_density(:) with k-dependence
          !  if (negf%bulk_cont_density) then
          !    real_axis = .false.; contour = .true.
-         !    call integrate_contact_density(negf, i, Npoints, zt, &
-         !        & real_axis, contour, frm_f)
+         !    call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
          !  end if
 
        enddo enloop
@@ -1145,11 +1147,14 @@ contains
       ! Perform integration of diag(GBulk) in the contacts
       if (negf%bulk_cont_density) then
         real_axis = .true.; contour = .false.
-        call integrate_contact_density(negf, iE, Npoints, zt, &
-             & real_axis, contour, frm_f)
+        call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
       end if
 
     enddo enloop
+
+    if (negf%bulk_cont_density) then
+      call finalize_contact_density(negf)
+    end if
 
     if (allocated(negf%rho%nzval)) then
        call concat(negf%rho,TmpMt,1,1)
@@ -1273,8 +1278,7 @@ contains
           ! TODO: generalize negf%contact_density(:) with k-dependence
          !  if (negf%bulk_cont_density) then
          !    real_axis = .true.; contour = .false.
-         !    call integrate_contact_density(negf, iE, Npoints, zt, &
-         !        & real_axis, contour, frm_f)
+         !    call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
          !  end if
         enddo enloop
 
@@ -2479,9 +2483,8 @@ contains
   end subroutine electron_current_meir_wingreen
 
 
-  subroutine integrate_contact_density(negf, iE, Npoints, weight, real_axis, contour, frm_f)
+  subroutine integrate_contact_density(negf, weight, real_axis, contour, frm_f)
     type(Tnegf) :: negf
-    integer, intent(in) :: iE, Npoints
     complex(dp), intent(in) :: weight
     logical, intent(in) :: real_axis, contour
     real(dp), dimension(:), intent(in), optional :: frm_f
@@ -2501,7 +2504,7 @@ contains
         negf%bulk_diags(j1)%array = 0.0_dp
       endif
 
-      associate(b_diag=>negf%bulk_diags(j1)%array)
+      associate(b_diag => negf%bulk_diags(j1)%array)
       call log_allocate(temp, bulkG%nrow)
       temp = 0.0_dp
       call getdiag(bulkG, temp)
@@ -2516,18 +2519,27 @@ contains
       call log_deallocate(temp)
       call destroy(negf%cont_bulkG(j1))
 
-      ! Last en. point: compute the density as D = j * (G^R - G^A) * weight
-      if (iE .eq. Npoints) then
-          call log_allocate(negf%contact_density(j1)%array, size(b_diag))
-          negf%contact_density(j1)%array(:) = real(j*(b_diag(:)-conjg(b_diag(:))),dp)
-          call log_deallocate(negf%bulk_diags(j1)%array)
-      end if
-
       end associate
       end associate
     end do    
 
   end subroutine integrate_contact_density
+
+
+  subroutine finalize_contact_density(negf)
+    type(Tnegf) :: negf
+
+    integer :: j1
+
+    do j1 = 1,negf%str%num_conts
+      associate(b_diag => negf%bulk_diags(j1)%array)
+      call log_allocate(negf%contact_density(j1)%array, size(b_diag))
+      negf%contact_density(j1)%array(:) = real(j*(b_diag(:)-conjg(b_diag(:))),dp)
+      end associate
+      call log_deallocate(negf%bulk_diags(j1)%array)
+    end do
+
+  end subroutine finalize_contact_density
 
 
   !-----------------------------------------------------------------------

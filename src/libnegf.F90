@@ -1874,17 +1874,23 @@ contains
     integer ::  NC1, NC2, ND, k, i, index
     complex(dp), dimension(:), allocatable :: q_tmp
     complex(dp), dimension(:), allocatable :: q_reduced
+    real(dp), dimension(:), allocatable :: cont1_reduced, cont2_reduced
 
 
     ! For now we assume 2 contacts
     ! NOTE: negf%rho%nrow has size: device + contacts
     call log_allocate(q_tmp, negf%rho%nrow)
     call log_allocate(q_reduced, size(q_tmp))
+    call log_allocate(cont1_reduced, size(negf%contact_density(1)%array))
+    call log_allocate(cont2_reduced, size(negf%contact_density(2)%array))
     call getdiag(negf%rho, q_tmp)
-    call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
 
-    NC1 = size(negf%contact_density(1)%array)
-    NC2 = size(negf%contact_density(2)%array)
+    call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
+    call mpifx_reduce(negf%energyComm, negf%contact_density(1)%array, cont1_reduced, MPI_SUM)
+    call mpifx_reduce(negf%energyComm, negf%contact_density(2)%array, cont2_reduced, MPI_SUM)
+
+    NC1 = size(cont1_reduced)
+    NC2 = size(cont2_reduced)
     ND = size(q_reduced) - 2*NC1 - 2*NC2               ! Times 2: the bulk density is computed on 1 PL but
                                                    ! the contact is made by 2 PLs
     ! Device
@@ -1897,19 +1903,21 @@ contains
     do i = 0,1
       do k = 1, NC1
           index = k + ND + NC1*i
-          q(index) = negf%contact_density(1)%array(k)
+          q(index) = cont1_reduced(k)
       end do
     end do
     ! Contact 2
     do i = 0,1
       do k = 1, NC2
         index = k + ND + 2*NC1 + i*NC2
-        q(index) = negf%contact_density(2)%array(k)
+        q(index) = cont2_reduced(k)
       end do
     end do
 
     call log_deallocate(q_tmp)
     call log_deallocate(q_reduced)
+    call log_deallocate(cont1_reduced)
+    call log_deallocate(cont2_reduced)
     do i = 1,negf%str%num_conts
       call log_deallocate(negf%contact_density(i)%array)
     end do
