@@ -1366,7 +1366,7 @@ contains
     Emin = negf%Ec-negf%DeltaEc
     Emax = mumax + Omega
 
-    call gauleg(Emin, Emax,pnts,wght,Npoints)
+    call trapez(Emin, Emax,pnts,wght,Npoints)
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
