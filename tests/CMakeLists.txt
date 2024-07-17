@@ -1,14 +1,22 @@
 # List of active tets. Each test indicates a subdirectory.
 set(test-directories
         f90init
+<<<<<<< Updated upstream
 	    c_mpi_init
         cpp_mpi_init
+=======
+        c_mpi_init
+>>>>>>> Stashed changes
         c_int
         c_int_elph_deph
         c_int_file
         f90int
         f90int_file
         )
+
+if(WITH_TRANSPORT_GPU)
+  list(APPEND test-directories testCUDA_decimation)
+endif()
 
 # Define a function wich copies over the content of the tests.
 # This is used to support out-of-source build, as the test
@@ -38,7 +46,7 @@ endfunction()
 
 # A function to setup C tests.
 function(setup_c_test testname source)
-    add_executable(${testname} ${source})
+    add_executable(${testname} ${source} ${ARGN})
     transfer_test_data(${testname})
     target_link_libraries(${testname} MPI::MPI_C)
     target_link_libraries(${testname} negf)
@@ -49,7 +57,7 @@ endfunction()
 
 # A function to setup F90 tests.
 function(setup_f90_test testname source)
-    add_executable(${testname} ${source})
+    add_executable(${testname} ${source} ${ARGN})
     transfer_test_data(${testname})
     target_link_libraries(${testname} negf)
     target_link_libraries(${testname} LAPACK::LAPACK)

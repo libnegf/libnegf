@@ -789,7 +789,7 @@ extern "C" int cu_Zdecimation(cublasHandle_t hcublas, cusolverDnHandle_t hcusolv
       cublasStatus = cublasZgemm(hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Co, n, d_T, n, zero, d_C1, n);
 
       cublasStatus = cublasDzasum(hcublas, n*n, d_C1, 1, &summ);
-      //printf("loop it= %d , summ= %f \n ", i1, summ);
+      printf("loop it= %d , summ= %f \n ", i1, summ);
 
       if (summ <= SGFACC){
          if (okCo){
@@ -824,21 +824,32 @@ extern "C" int cu_Zdecimation(cublasHandle_t hcublas, cusolverDnHandle_t hcusolv
    cusolverStatus = cusolverDnZgetrf(hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info);
    cusolverStatus = cusolverDnZgetrs(hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info);
 
-   //cublasStatus = cublasCcopy(hcublas, n*n, d_Go, 1, d_Go_out, 1);
-
+   printf("Copy Go to Host\n");
    cudaStatus = cudaMemcpy(phGo_out, d_Go, n*n*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
-   cudaStatus = cudaFree(d_Ao);
-   cudaStatus = cudaFree(d_Bo);
-   cudaStatus = cudaFree(d_Co);
-   cudaStatus = cudaFree(d_Go);
-   cudaStatus = cudaFree(d_Ao_s);
-   cudaStatus = cudaFree(d_C1);
+   printf("Free pivot %p %p\n", (void*)&d_pivot, d_pivot);
    cudaStatus = cudaFree(d_pivot);
-   cudaStatus = cudaFree(d_T);
-   cudaStatus = cudaFree(d_Self);
+   printf("Free info\n");
    cudaStatus = cudaFree(d_info);
+   printf("Free Ao\n");
+   cudaStatus = cudaFree(d_Ao);
+   printf("Free Bo\n");
+   cudaStatus = cudaFree(d_Bo);
+   printf("Free Co\n");
+   cudaStatus = cudaFree(d_Co);
+   printf("Free Go\n");
+   cudaStatus = cudaFree(d_Go);
+   printf("Free As\n");
+   cudaStatus = cudaFree(d_Ao_s);
+   printf("Free C1\n");
+   cudaStatus = cudaFree(d_C1);
+   printf("Free  T\n");
+   cudaStatus = cudaFree(d_T);
+   printf("Free Se\n");
+   cudaStatus = cudaFree(d_Self);
+   printf("Free wk\n");
    cudaStatus = cudaFree(d_work);
+   printf("Return \n");
 
    return cudaStatus;
 

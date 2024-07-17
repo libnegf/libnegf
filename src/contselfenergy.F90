@@ -51,6 +51,9 @@ module ContSelfEnergy
   public :: SelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
+  public :: sgf_complx
+  public :: decimation
+  public :: decimation_gpu
 
   interface SelfEnergy
      module procedure SelfEnergy_csr

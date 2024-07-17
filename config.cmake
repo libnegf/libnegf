@@ -13,7 +13,7 @@ option(WITH_MPI "Whether MPI-parallelised library should be built" TRUE)
 option(WITH_OMP "Whether OMP should be used" TRUE)
 
 # GPU support 
-option(WITH_TRANSPORT_GPU "Whether CUDA should be used" FALSE)
+option(WITH_TRANSPORT_GPU "Whether CUDA should be used" TRUE)
 
 # Note, this option does not work yet, so leave it to false
 option(WITH_HILBERT "Whether enable the Hilbert transform in inelastic scattering" FALSE)
