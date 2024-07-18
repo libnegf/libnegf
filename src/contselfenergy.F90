@@ -52,7 +52,9 @@ module ContSelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
   public :: decimation
+#:if defined("GPU")
   public :: decimation_gpu
+#:endif
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
