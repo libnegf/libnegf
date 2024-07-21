@@ -89,6 +89,7 @@ module libnegf
  public :: associate_transmission, associate_current, associate_ldos
  public :: associate_lead_currents
  public :: create_DM, destroy_DM, pass_DM, copy_DM, get_DM, get_energies, get_currents
+ public :: cublasInitialize, cublasFinalize
 
  public :: compute_density_dft      ! high-level wrapping
                                     ! Extract HM and SM

@@ -11,6 +11,7 @@ set(test-directories
         )
 
 if(WITH_TRANSPORT_GPU)
+  list(APPEND test-directories testCUDA)
   list(APPEND test-directories testCUDA_decimation)
 endif()
 
