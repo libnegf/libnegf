@@ -23,7 +23,7 @@ program test1
   end if
 
   if (readfiles) then
-    open(newunit=fu,file='size.dat',form='formatted')
+    open(newunit=fu,file='size.dat',form='formatted', action='read')
     read(fu,*) N
     read(fu,*) En
     read(fu,*) delta
@@ -38,16 +38,16 @@ program test1
   allocate(S01(N,N))
 
   if (readfiles) then
-    open(newunit=fu,file='HC11.1.dat',access='stream',form='unformatted')
+    open(newunit=fu,file='HC11.1.dat',access='stream',form='unformatted', action='read')
     read(fu) H00
     close(fu)
-    open(newunit=fu,file='HC12.1.dat',access='stream',form='unformatted')
+    open(newunit=fu,file='HC12.1.dat',access='stream',form='unformatted', action='read')
     read(fu) H01
     close(fu)
-    open(newunit=fu,file='SC11.1.dat',access='stream',form='unformatted')
+    open(newunit=fu,file='SC11.1.dat',access='stream',form='unformatted', action='read')
     read(fu) S00
     close(fu)
-    open(newunit=fu,file='SC12.1.dat',access='stream',form='unformatted')
+    open(newunit=fu,file='SC12.1.dat',access='stream',form='unformatted', action='read')
     read(fu) S01
     close(fu)
   else
