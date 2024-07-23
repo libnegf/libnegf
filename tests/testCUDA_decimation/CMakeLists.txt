@@ -1,5 +1,5 @@
-add_executable(testCUDA_decimation main.f90 random.f90)
-target_link_libraries(testCUDA_decimation negf)
-target_link_libraries(testCUDA_decimation LAPACK::LAPACK)
-target_include_directories(testCUDA_decimation PRIVATE ${BUILD_MOD_DIR})
-add_test(testCUDA_decimation testCUDA_decimation)
+set(sources 
+    main.f90
+    random.f90)
+
+setup_f90_test(testCUDA_decimation ${sources})
