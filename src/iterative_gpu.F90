@@ -86,9 +86,8 @@ contains
     complex(sp), parameter :: mone = (-1.0_sp, 0.0_sp)
     complex(sp), parameter :: zero = (0.0_sp, 0.0_sp)
     type(c_DNS) :: work1, work2
-    integer :: nrow, ncol
+    integer :: nrow
     integer :: i, nbl, istat
-    real(sp) :: sum1
     logical :: keep
 
     if (sbl.lt.ebl) return
@@ -160,9 +159,8 @@ contains
     complex(dp), parameter :: mone = (-1.0_dp, 0.0_dp)
     complex(dp), parameter :: zero = (0.0_dp, 0.0_dp)
     type(z_DNS) :: work1, work2
-    integer :: nrow, ncol
+    integer :: nrow
     integer :: i, nbl, istat
-    real(dp) :: sum1
     logical :: keep
 
     if (sbl.lt.ebl) return
@@ -231,7 +229,7 @@ contains
     !Work
     type(CublasHandle) :: hh
     type(CusolverDnHandle) ::hhsol
-    integer :: i,nrow,nbl
+    integer :: i,nbl
     type(c_DNS), target :: work1, work2, work3
     complex(sp), parameter :: one = (1.0_sp, 0.0_sp)
     complex(sp), parameter :: mone = (-1.0_sp, 0.0_sp)
@@ -333,12 +331,11 @@ contains
     !Work
     type(CublasHandle) :: hh
     type(CusolverDnHandle) :: hhsol
-    integer :: i, nrow, nbl, istat
+    integer :: i, nbl, istat
     type(z_DNS), target :: work1, work2, work3
     complex(dp), parameter :: one = (1.0_dp, 0.0_dp)
     complex(dp), parameter :: mone = (-1.0_dp, 0.0_dp)
     complex(dp), parameter :: zero = (0.0_dp, 0.0_dp)
-    real(dp) :: summ
 
     nbl = size(ESH,1)
     hh = negf%hcublas
@@ -696,7 +693,6 @@ contains
     !Work variables
     type(CublasHandle) :: hh
     Integer :: ct1, bl1
-    logical, dimension(:), allocatable :: tun_mask
     Type(c_DNS) :: work1, work2, GAM1_dns, TRS, AA
     complex(sp), parameter :: j = (0.0_sp,1.0_sp)  ! CMPX unity
     complex(sp), parameter :: mj = (0.0_sp,-1.0_sp)
@@ -774,14 +770,12 @@ contains
     !Work variables
     type(CublasHandle) :: hh
     Integer :: ct1, bl1
-    logical, dimension(:), allocatable :: tun_mask
     Type(z_DNS) :: work1, work2, GAM1_dns, TRS, AA
     complex(dp), parameter ::    j = (0.0_dp,1.0_dp)  ! CMPX unity
     complex(dp), parameter ::    mj = (0.0_dp,-1.0_dp)
     complex(dp), parameter :: one = (1.0_dp, 0.0_dp)
     complex(dp), parameter :: mone = (-1.0_dp, 0.0_dp)
     complex(dp), parameter :: zero = (0.0_dp, 0.0_dp)
-    real(dp) :: summ
 
     if (size(cblk).gt.2) then
        write(*,*) "ERROR: calculate_single_transmission_2_contacts is valid only for 2 contacts"
@@ -854,7 +848,6 @@ contains
     !Work variables
     type(CublasHandle) :: hh
     Integer :: ct1, ct2, bl1, bl2, i, nbl
-    logical, dimension(:), allocatable :: tun_mask
     Type(c_DNS) :: work1, work2, GAM1_dns, GAM2_dns, TRS
     Real(sp) :: max
     complex(sp), parameter :: one = (1.0_sp, 0.0_sp)
@@ -885,7 +878,7 @@ contains
           max=maxval(abs(Gr(i-1,bl1)%val))
 
           if (max.lt.EPS) then
-             TUN = EPS*EPS !for log plots
+             TUN = real(EPS*EPS, sp) !for log plots
              !Destroy also the block adjecent to diagonal since
              !this is not deallocated anymore in calling subroutine
              if (i.gt.(bl1+1)) call destroyAll(Gr(i-1,bl1))
@@ -957,7 +950,6 @@ contains
     !Work variables
     type(CublasHandle) :: hh
     Integer :: ct1, ct2, bl1, bl2, i, nbl
-    logical, dimension(:), allocatable :: tun_mask
     Type(z_DNS) :: work1, work2, GAM1_dns, GAM2_dns, TRS
     real(dp) :: max
     complex(dp), parameter :: one = (1.0_dp, 0.0_dp)

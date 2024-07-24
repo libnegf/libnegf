@@ -627,7 +627,7 @@ extern "C" int cu_Cdecimation(cublasHandle_t hcublas, cusolverDnHandle_t hcusolv
 
    cuComplex *d_Ao, *d_Bo, *d_Co, *d_Go, *d_Ao_s, *d_C1, *d_T, *d_Self, *d_work;
    int *d_pivot , *d_info , Lwork ; // pivots , info , worksp . size
-   int i1, istat, NumBlocks;
+   int i1, NumBlocks;
 
    NumBlocks = ((n*n)/BLOCK_SIZE)+1;
 
@@ -743,7 +743,7 @@ extern "C" int cu_Zdecimation(cublasHandle_t hcublas, cusolverDnHandle_t hcusolv
 
    cuDoubleComplex *d_Ao, *d_Bo, *d_Co, *d_Go, *d_Ao_s, *d_C1, *d_T, *d_Self, *d_work;
    int *d_pivot , *d_info , Lwork ; // pivots , info , worksp . size
-   int i1, istat, NumBlocks;
+   int i1, NumBlocks;
 
    NumBlocks = ((n*n)/BLOCK_SIZE)+1;
 

@@ -583,6 +583,7 @@ end interface
       logical, intent(in), optional, target :: tun_mask(:)
 
       type(c_ptr) :: dummy
+      dummy = c_null_ptr
 
       if (.not.present(tun_mask)) then
          trace = cu_Ctrace(hcublas, A%d_addr, A%nrow, dummy, 0)
@@ -742,6 +743,7 @@ end interface
       logical, intent(in), optional, target :: tun_mask(:)
 
       type(c_ptr) :: dummy
+      dummy = c_null_ptr
 
       if (.not.present(tun_mask)) then
          trace = cu_Ztrace(hcublas, A%d_addr, A%nrow, dummy, 0)
