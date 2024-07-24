@@ -675,6 +675,7 @@ contains
   !
   !-----------------------------------------------------------------------
   subroutine contour_int_def(negf)
+     use, intrinsic :: ieee_arithmetic
      type(Tnegf) :: negf
 
      integer :: i, Npoints, ioffs, nPoles
@@ -774,6 +775,8 @@ contains
 
      if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then     ! Circle integration T=0
        call  gauleg(alpha,0.0_dp,pnts,wght,negf%Np_n(2))
+       z_diff = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
+                        ieee_value(1.0_dp, ieee_signaling_nan))
      else                                          ! Segment integration T>0
        z1 = muref + nkT + j*Lambda
        z2 = muref - nkT + j*Lambda
@@ -2519,6 +2522,8 @@ contains
          delta = negf%delta * real(negf%en_grid(i)%Ec)
        case(DELTA_MINGO)
          delta = negf%delta * (1.0_dp - real(negf%en_grid(i)%Ec)/(negf%wmax+1d-12)) * Ec
+       case default
+         error stop "unreachable case libnegf delta"
        end select
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')

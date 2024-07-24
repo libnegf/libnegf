@@ -70,6 +70,9 @@ module self_energy
     integer :: hsource, hdest
     integer :: ndiff
 
+    nullify(pbuff1)
+    nullify(pbuff2)
+
     dims(1) = NK/NKloc
     dims(2) = NE/NEloc
 

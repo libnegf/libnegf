@@ -865,13 +865,13 @@ CONTAINS
        call csrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,dense%val,ierr)
        call destroy(sp_csr)
 
+       if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR)
+
     else
 
        dense%val(:,:)=(0.0_dp, 0.0_dp)
 
     endif
-
-    if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR)
 
   end subroutine zcscdns_st
 
@@ -1396,6 +1396,8 @@ CONTAINS
       end if
     case('*')
       C_nnz = nnz_mult(A_csr, B_csr)
+     case default
+      error stop "unreachable case C_nnz"
     end select
 
   end function nnz
@@ -2972,12 +2974,10 @@ CONTAINS
         do l=iao(i),iao(i+1)-1
           if (jao(l).eq.j) then
             iad=l
+            ao(iad) = ao(iad) + x
             exit
           endif
         enddo
-
-        ao(iad) = ao(iad) + x
-
       endif
     enddo
 

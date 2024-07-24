@@ -108,6 +108,7 @@ module skit_blassm
   !
   !----------------------------------------------------------------------- 
   subroutine ramub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
+    use, intrinsic :: ieee_arithmetic
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
     integer, intent(in) :: ja(:), jb(:), ia(:), ib(:)
@@ -124,6 +125,9 @@ module skit_blassm
     ic(1) = 1 
     ierr = 0
     iw = 0
+
+    if(.not.values) scal = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
+                                   ieee_value(1.0_dp, ieee_signaling_nan))
 
     do ii = 1, nrow 
       do ka = ia(ii), ia(ii+1)-1 
@@ -160,6 +164,7 @@ module skit_blassm
   end subroutine ramub
   
   subroutine zamub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
+    use, intrinsic :: ieee_arithmetic
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:)
     integer, intent(in) :: ja(:), jb(:), ia(:), ib(:)
@@ -176,6 +181,9 @@ module skit_blassm
     ic(1) = 1 
     ierr = 0
     iw = 0
+
+    if(.not.values) scal = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
+                                   ieee_value(1.0_dp, ieee_signaling_nan))
 
     do ii = 1, nrow 
       do ka = ia(ii), ia(ii+1)-1 
@@ -216,6 +224,7 @@ module skit_blassm
   !-----------------------------------------------------------------------
   ! All the rest is like zamub
   subroutine zamubs(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)            !Commento: è identica a zamub
+    use, intrinsic :: ieee_arithmetic
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
@@ -237,6 +246,9 @@ module skit_blassm
       do ka = ia(ii), ia(ii+1)-1 
         if (values) then
            scal = a(ka)*s
+        else
+           scal = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
+                          ieee_value(1.0_dp, ieee_signaling_nan))
         end if   
         jj = ja(ka)
         do kb = ib(jj), ib(jj+1)-1
@@ -771,6 +783,7 @@ module skit_blassm
   !
   !----------------------------------------------------------------------- 
   subroutine zcplsamub(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
+    use, intrinsic :: ieee_arithmetic
     integer, intent(in) :: nrow, ncol, nzmax, job 
     complex(dp), intent(in) :: a(:), b(:), s
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
@@ -787,6 +800,9 @@ module skit_blassm
     ic(1) = 1 
     ierr = 0
     iw = 0
+
+    if(.not.values) scal = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
+                                   ieee_value(1.0_dp, ieee_signaling_nan))
       
     do ii = 1, nrow 
        do ka=ia(ii), ia(ii+1)-1 
