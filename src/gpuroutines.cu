@@ -19,6 +19,7 @@
  *!!--------------------------------------------------------------------------!
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuComplex.h>
@@ -505,29 +506,28 @@ extern "C" int cu_Zinitmat( void *d_A, int nrow)
 
 extern "C" float cu_Ctrace(cublasHandle_t hcublas, void *d_A, int nrow, void *h_mask, int mask_present)
 {
-   cudaError_t cudaStatus;
-   cublasStatus_t err;
-
-   int NumBlocks;
-   float result;
-   int size = nrow*nrow;
-
-   float *d_work, *d_iden;
    cuComplex *pdA = (cuComplex *) d_A;
-   bool *phmask = (bool *) h_mask;
-   bool *d_mask;
-
-   NumBlocks = (size/BLOCK_SIZE)+1;
-
-   cudaStatus = cudaMalloc(( void **)& d_work, nrow*sizeof(float));
+   int size = nrow*nrow;
+   int NumBlocks = (size/BLOCK_SIZE)+1;
+   float *d_work;
+   cudaError_t cudaStatus = cudaMalloc(( void **)& d_work, nrow*sizeof(float));
+   float *d_iden;
    cudaStatus = cudaMalloc(( void **)& d_iden, nrow*sizeof(float));
+   assert(cudaStatus == cudaSuccess);
+   bool *d_mask;
    cudaStatus = cudaMalloc(( void **)& d_mask, nrow*sizeof(bool));
-   cudaStatus = cudaMemcpy(d_mask, phmask, nrow*sizeof(bool), cudaMemcpyHostToDevice);
+   assert(cudaStatus == cudaSuccess);
+   if(h_mask) {
+     cudaStatus = cudaMemcpy(d_mask, h_mask, nrow*sizeof(bool), cudaMemcpyHostToDevice);
+	 assert(cudaStatus == cudaSuccess);
+   }
 
    SinitKernel<<<NumBlocks,BLOCK_SIZE>>>(d_iden, nrow);
    CtraceKernel<<<NumBlocks,BLOCK_SIZE>>>(pdA, nrow, d_work, d_mask, mask_present);
 
-   err =  cublasSdot (hcublas, nrow, d_iden, 1, d_work, 1, &result);
+   float result;
+   cublasStatus_t err = cublasSdot (hcublas, nrow, d_iden, 1, d_work, 1, &result);
+   assert(err == cudaSuccess);
 
    cudaStatus = cudaFree(d_work);
    cudaStatus = cudaFree(d_iden);
@@ -538,29 +538,28 @@ extern "C" float cu_Ctrace(cublasHandle_t hcublas, void *d_A, int nrow, void *h_
 
 extern "C" double cu_Ztrace(cublasHandle_t hcublas, void *d_A, int nrow, void *h_mask, int mask_present)
 {
-   cudaError_t cudaStatus;
-   cublasStatus_t err;
-
-   int NumBlocks;
-   double result;
-   int size = nrow*nrow;
-
-   double *d_work, *d_iden;
    cuDoubleComplex *pdA = (cuDoubleComplex *) d_A;
-   bool *phmask = (bool *) h_mask;
-   bool *d_mask;
-
-   NumBlocks = (size/BLOCK_SIZE)+1;
-
-   cudaStatus = cudaMalloc(( void **)& d_work, nrow*sizeof(double));
+   int size = nrow*nrow;
+   int NumBlocks = (size/BLOCK_SIZE)+1;
+   double *d_work;
+   cudaError_t cudaStatus = cudaMalloc(( void **)& d_work, nrow*sizeof(double));
+   double *d_iden;
    cudaStatus = cudaMalloc(( void **)& d_iden, nrow*sizeof(double));
+   assert(cudaStatus == cudaSuccess);
+   bool *d_mask;
    cudaStatus = cudaMalloc(( void **)& d_mask, nrow*sizeof(bool));
-   cudaStatus = cudaMemcpy(d_mask, phmask, nrow*sizeof(bool), cudaMemcpyHostToDevice);
+   assert(cudaStatus == cudaSuccess);
+   if(h_mask) {
+     cudaStatus = cudaMemcpy(d_mask, h_mask, nrow*sizeof(bool), cudaMemcpyHostToDevice);
+	 assert(cudaStatus == cudaSuccess);
+   }
 
    DinitKernel<<<NumBlocks,BLOCK_SIZE>>>(d_iden, nrow);
    ZtraceKernel<<<NumBlocks,BLOCK_SIZE>>>(pdA, nrow, d_work, d_mask, mask_present);
 
-   err =  cublasDdot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
+   double result;
+   cublasStatus_t err =  cublasDdot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
+   assert(err == cudaSuccess);
 
    cudaStatus = cudaFree(d_work);
    cudaStatus = cudaFree(d_iden);
