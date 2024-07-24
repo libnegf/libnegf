@@ -172,7 +172,7 @@ contains
     integer, intent(in), optional :: spin
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
-    integer :: n, npl, ii, ierr, jj
+    integer :: npl, ii, ierr, jj
 
     if (this%scba_iter .eq. 0) return
     npl = this%struct%num_PLs
@@ -212,7 +212,7 @@ contains
     integer, intent(in), optional :: spin
 
     type(z_dns), dimension(:,:), allocatable :: tmp_blk
-    integer :: n, npl, ii, ierr, jj
+    integer :: npl, ii, ierr, jj
 
     if (this%scba_iter .eq. 0) return
     npl = this%struct%num_PLs
@@ -307,7 +307,7 @@ contains
     integer, intent(in), optional :: spin
 
     type(z_dns) :: work1, work2, work3
-    integer :: n, npl, ii, natm, nnz
+    integer :: npl, ii, nnz
 
     !! Implement sigma = M*G*M, assuming that PL structure is not only
     !! preserved, but that only the corresponding Gr blocks are used
@@ -344,7 +344,7 @@ contains
     integer, intent(in), optional :: spin
 
     type(z_dns) :: work1, work2, work3
-    integer :: n, npl, ii, nnz
+    integer :: npl, ii, nnz
     !! Implement sigma = M*G*M^dagger, assuming that PL structure is not only
     !! preserved, but that only the corresponding Gr blocks are used
     !! Now dirty, only working without PL

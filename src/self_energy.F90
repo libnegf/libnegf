@@ -55,7 +55,7 @@ module self_energy
     type(TMatPointer), intent(in) :: Sigma(0:,0:)
 
     ! locals
-    integer :: Np, Mp, iQ, iK, iQ2, iQglo, iQglo2, iKglo, mu, nu
+    integer :: Np, Mp, iQ, iK, iQglo, iQglo2, iKglo, nu
     integer :: iEminus, iEplus, iE, iEglo, iin
     integer :: myid, commsize, ndims = 2
     integer :: dims(2), coords(2), coordsH(2)

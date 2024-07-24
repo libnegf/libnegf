@@ -588,9 +588,6 @@ contains
      integer, intent(in) :: plend(:)
      integer, intent(inout), allocatable :: cblk(:)
 
-     integer, allocatable :: plend_tmp(:), cblk_tmp(:)
-     integer :: npl_tmp
-
      ! Make sure we called init_contacts in a consistent way.
      if (size(negf%cont) .ne. ncont) then
        write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont
@@ -1022,7 +1019,7 @@ contains
   subroutine destroy_ldos(ldos)
     type(intarray), dimension(:), allocatable :: ldos
 
-    integer :: err, i
+    integer :: i
     do i=1, size(ldos)
       if (allocated(ldos(i)%indexes)) then
         call log_deallocate(ldos(i)%indexes)
@@ -1064,8 +1061,6 @@ contains
     integer, intent(in) :: ildos
     integer, intent(in) :: idx(:)
 
-    integer :: ii, jj
-
     if (.not.allocated(negf%dos_proj(ildos)%indexes)) then
        call log_allocate(negf%dos_proj(ildos)%indexes, size(idx))
     end if
@@ -1077,8 +1072,6 @@ contains
   subroutine set_tun_indexes(negf, idx)
     type(Tnegf) :: negf
     integer, intent(in) :: idx(:)
-
-    integer :: ii, jj
 
     if (.not.allocated(negf%tun_proj%indexes)) then
       call log_allocate(negf%tun_proj%indexes, size(idx))
@@ -1340,19 +1333,9 @@ contains
   subroutine negf_partition_info(negf)
       type(Tnegf) :: negf
 
-      integer :: i
-
       write(*,*) "(LibNEGF) Partitioning:"
       write(*,*) "Number of blocks: ",negf%str%num_Pls
-      !write(*,*) negf%str%mat_PL_end(:)
       write(*,*) "Contact interactions:",negf%str%cblk(:)
-
-      !open(1001,file='blocks.dat')
-      !  write(1001,*) 1
-      !  do i = 1, negf%str%num_Pls
-      !     write(1001,*)  negf%str%mat_PL_end(i)
-      !  enddo
-      !close(1001)
 
   end subroutine negf_partition_info
 
@@ -1865,11 +1848,6 @@ contains
   subroutine compute_current(negf)
     type(Tnegf) :: negf
 
-    integer :: fu
-    !open(newunit=fu, file='H.dat')
-    !call zprint_csrcoo(fu,negf%HS(1)%H,'r')
-    !close(fu)
-
     if ( negf%interactList%counter > 0 ) then
        if (get_max_wq(negf%interactList) == 0.0_dp) then
           call compute_dephasing_transmission(negf)
@@ -1988,8 +1966,6 @@ contains
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: esteps, npoints
     real(dp), dimension(:,:) :: ldos
-
-    integer :: i, j
 
     if (allocated(negf%ldos_mat) .and. &
        & (esteps .eq. size(negf%ldos_mat,1)) .and. &
@@ -2274,7 +2250,7 @@ contains
   integer :: rowpnt(*)
   type(z_CSR) :: mat
 
-  integer :: nnz, i, base, ii
+  integer :: nnz, i, base
 
   base = 0
   if (rowpnt(1) == 0) base = 1

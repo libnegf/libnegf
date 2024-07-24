@@ -126,8 +126,7 @@ module skit_blassm
     ierr = 0
     iw = 0
 
-    if(.not.values) scal = complex(ieee_value(1.0_dp, ieee_signaling_nan), &
-                                   ieee_value(1.0_dp, ieee_signaling_nan))
+    if(.not.values) scal = ieee_value(scal, ieee_signaling_nan)
 
     do ii = 1, nrow 
       do ka = ia(ii), ia(ii+1)-1 
@@ -327,7 +326,7 @@ module skit_blassm
     integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
     
-    integer :: ii, jj, kk, ka, kb, jcol, jpos, len   
+    integer :: ii, kk, ka, kb, jcol, jpos, len   
     logical :: values
     
     values = (job .ne. 0) 
@@ -380,7 +379,7 @@ module skit_blassm
     integer, intent(inout) :: jc(:), ic(:), iw(:)
     integer, intent(out) :: ierr 
     
-    integer :: ii, jj, kk, ka, kb, jcol, jpos, len   
+    integer :: ii, kk, ka, kb, jcol, jpos, len   
     logical :: values
     
     values = (job .ne. 0) 

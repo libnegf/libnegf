@@ -117,8 +117,7 @@ CONTAINS
     integer, intent(in) :: outer
 
     !Work
-    type(z_CSR) :: ESH_tot, Ain
-    integer :: i,ierr, nbl, ncont,ii,n
+    integer :: nbl, ncont
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
@@ -210,9 +209,7 @@ CONTAINS
     !Work
     integer :: ref
     complex(dp) :: Ec
-    integer :: i,ierr,ncont,nbl, lbl, rbl
-    integer, dimension(:), allocatable :: Gr_columns
-    type(z_CSR) :: ESH_tot, Gl
+    integer :: ncont,nbl
     logical :: mask(MAXNCONT)
 
 
@@ -397,7 +394,7 @@ CONTAINS
     real(dp), dimension(:) :: curr_mat
 
     !Work
-    complex(dp) :: Ec, tmp
+    complex(dp) :: tmp
     integer :: ii, ncont, lead, lead_blk
     type(z_DNS) :: work1, Gam, A
 
@@ -462,9 +459,17 @@ CONTAINS
       call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
-      ldos_mat(ii) = trace(Gn(ii,ii))
+      if(aimag(trace(Gn(ii,ii))) == 0) then
+        ldos_mat(ii) = real(trace(Gn(ii,ii)))
+      else
+        error stop "imaginary part of trace(Gn(ii,ii)) is nonzero"
+      end if
     end do
-    ldos_mat(nbl) = trace(Gn(nbl,nbl))
+    if(aimag(trace(Gn(ii,ii))) == 0) then
+      ldos_mat(nbl) = real(trace(Gn(nbl,nbl)))
+    else
+      error stop "imaginary part of trace(Gn(nbl,nbl)) is nonzero"
+    end if
 
     call destroy_all_blk(negf)
 
@@ -514,7 +519,7 @@ CONTAINS
     logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
-    integer :: ii, jj, nbl, nKloc, nEloc
+    integer :: ii, nbl, nKloc, nEloc
     logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
@@ -578,7 +583,7 @@ CONTAINS
     logical, intent(in), optional :: tridiagonal
 
     type(TMatLabel) :: label
-    integer :: ii, jj, nbl, nKloc, nEloc
+    integer :: ii, nbl, nKloc, nEloc
     logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
@@ -943,7 +948,7 @@ CONTAINS
   !**********************************************************************
   subroutine destroy_gsm(gsm)
     type(z_DNS), dimension(:) :: gsm
-    integer :: i, i1, nbl
+    integer :: i, nbl
 
     nbl=size(gsm,1)
 
@@ -1344,7 +1349,7 @@ CONTAINS
     type(z_DNS), dimension(:,:) :: G
     type(Tstruct_info), intent(in) :: struct
     type(z_CSR) :: Gcsr
-    type(z_CSR) :: P, G_sp
+    type(z_CSR) :: P
 
     integer :: nbl, oldx, row, col, iy, ix, x, y, ii, jj, nrows
 
@@ -1644,8 +1649,8 @@ CONTAINS
 
     ! Local variables
     real(dp) :: tun
-    integer :: nbl,ncont,ibl
-    integer :: i, ierr, icpl, nit, nft, nt, nt1
+    integer :: nbl,ncont
+    integer :: icpl, nit, nft, nt, nt1
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
@@ -1789,13 +1794,13 @@ CONTAINS
     real(dp), Dimension(:), intent(inout) :: ledos
 
     ! Local variables
-    type(z_CSR) :: ESH_tot, GrCSR
+    type(z_CSR) :: GrCSR
     type(z_DNS), Dimension(:,:), allocatable :: ESH
     type(r_CSR) :: Grm                          ! Green Retarded nella molecola
     real(dp), dimension(:), allocatable :: diag
     real(dp) :: tun
     complex(dp) :: zc
-    Integer :: nbl,ncont, ierr
+    Integer :: nbl,ncont
     Integer :: nit, nft, icpl
     Integer :: iLDOS, i2, i
     character(1) :: Im

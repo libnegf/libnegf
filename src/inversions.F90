@@ -33,7 +33,6 @@ use mat_def
 use sparsekit_drv
 private
 
-INTEGER :: t1_i,t2_I,cr_i,cm_i,t1_ii,t2_ii,cr_ii,cm_ii
 LOGICAL, PARAMETER :: timing=.FALSE.
 
 ! SPARSKIT iterative solvers removed (Alex)
@@ -1112,7 +1111,7 @@ end subroutine rinv
     complex(dp), dimension(:,:) :: A, T, gT
     integer :: n
   
-    INTEGER :: ipiv(n),info, lwork, NB, nrhs
+    INTEGER :: ipiv(n),info, lwork, nrhs
     integer, external :: ilaenv
     complex(dp), dimension(:), allocatable  :: work
     complex(dp), dimension(:,:), allocatable :: LU

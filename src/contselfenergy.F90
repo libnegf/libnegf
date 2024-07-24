@@ -280,10 +280,10 @@ contains
     complex(dp), DIMENSION(n,n), intent(inout) :: Ao,Bo,Co
     integer, intent(out) :: ncyc
 
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, A1, B1, C1
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, B1, C1
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
-    integer :: i1, err
+    integer :: i1
     logical :: okCo = .false.
 
     call log_allocate(Ao_s, n, n)

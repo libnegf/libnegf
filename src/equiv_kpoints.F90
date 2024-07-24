@@ -110,7 +110,7 @@ module equiv_kpoints
     integer, intent(in) :: nkpoints
     integer, intent(in) :: equiv_mult(:)
 
-    integer :: i, j, n_eq, begin, last
+    integer :: i, n_eq, begin, last
 
     if (allocated(mycontainer)) then
        call destroy(mycontainer)

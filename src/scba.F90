@@ -83,7 +83,6 @@ module scba
   !> Release internal space
   subroutine scba_destroy(this)
     class(TScbaDriver) :: this
-    integer :: ii
     if (allocated(this%Mat_old%nzval)) call destroy(this%Mat_old)
     if (allocated(this%Mat_old)) deallocate(this%Mat_old)
     if (allocated(this%J_old)) deallocate(this%J_old)

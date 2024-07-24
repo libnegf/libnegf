@@ -73,7 +73,7 @@ contains
     !Work
     !type(z_DNS), dimension(:,:), allocatable :: INV
     type(z_DNS) :: work1, work2
-    integer :: nrow, M, N
+    integer :: nrow
     integer :: i, nbl
     logical :: keep
 
@@ -239,7 +239,7 @@ contains
     type(z_DNS), dimension(:,:), allocatable :: Sigma_n
     type(z_DNS) :: work1, Ga, Gam
     complex(dp) :: frmdiff
-    integer :: i, j, fp
+    integer :: i, j
     integer :: nbl, ncont, cb
 
     ncont = struct%num_conts
@@ -623,7 +623,6 @@ contains
     logical, intent(in) :: gpu
 
     integer :: nbl, i
-    real(dp) :: summ
 
     nbl = size(T,1)
 

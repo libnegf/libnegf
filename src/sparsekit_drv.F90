@@ -1585,7 +1585,7 @@ CONTAINS
     !*********************************************************************************
 
     type(z_CSR) :: A_csr
-    integer :: i1,i2,j1,j2,sorted,nnz
+    integer :: i1,i2,j1,j2,nnz
     integer :: i,j
 
     !Check i1, i2, j1, j2 validity
@@ -1682,7 +1682,7 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,nnz
-    integer :: a_bw, b_bw, ml, mu, iband
+    integer :: a_bw, b_bw, ml, mu
     real(dp) :: bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
