@@ -459,17 +459,9 @@ CONTAINS
       call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
-      if(aimag(trace(Gn(ii,ii))) == 0) then
-        ldos_mat(ii) = real(trace(Gn(ii,ii)))
-      else
-        error stop "imaginary part of trace(Gn(ii,ii)) is nonzero"
-      end if
+      ldos_mat(ii) = trace(Gn(ii,ii))
     end do
-    if(aimag(trace(Gn(ii,ii))) == 0) then
-      ldos_mat(nbl) = real(trace(Gn(nbl,nbl)))
-    else
-      error stop "imaginary part of trace(Gn(nbl,nbl)) is nonzero"
-    end if
+    ldos_mat(nbl) = trace(Gn(nbl,nbl))
 
     call destroy_all_blk(negf)
 
