@@ -769,6 +769,7 @@ end subroutine zINV_LAPACK
 ! 
 subroutine cinv(inA,A,n)
   implicit none
+  external cgetrf, cgetrs
   complex(sp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -808,6 +809,7 @@ end subroutine cinv
 subroutine zinv(inA,A,n)
    
   Implicit none
+  external zgetrf, zgetrs
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -846,6 +848,7 @@ end subroutine zinv
 !---------------------------------------------------------------------------
 subroutine rinv(inA,A,n)
   Implicit none
+  external dgetrf, dgetrs
   real(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -889,7 +892,6 @@ end subroutine rinv
   !  (      )|(   G22)
   !
   recursive subroutine block2Green(G,A,n,iter)
-
     complex(dp), dimension(:,:), intent(out) :: G
     complex(dp), dimension(:,:), intent(in) :: A
     integer, intent(in) :: n
@@ -1108,6 +1110,9 @@ end subroutine rinv
   ! A is an n x n complex matrix
   ! 
   subroutine zlin(A,T,gT,n)
+    implicit none
+    external  zgetrf, zgetrs
+
     complex(dp), dimension(:,:) :: A, T, gT
     integer :: n
   

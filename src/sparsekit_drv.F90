@@ -37,7 +37,7 @@ MODULE sparsekit_drv
 
   public :: zsumcsr1
   public :: ramub_st
-  public :: zprint_csrdns, zprint_csrcoo, ziluk_st, ztransp_st, ztransp2_st
+  public :: zprint_csrdns, zprint_csrcoo, ztransp_st, ztransp2_st
   public :: zsubmat_st, zcopymat_st, zamub_st, zaplb_st, zcplsamub_st
   public :: zdagger, zspectral
   public :: zmask_realloc
@@ -1875,6 +1875,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
+    external zgemm
 
     type(z_DNS) :: A_dns,B_dns,C_dns
     integer :: M,N,K
@@ -1919,7 +1920,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
     integer :: M,N,K
@@ -1964,7 +1965,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
     complex(dp) :: s
@@ -2019,7 +2020,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     type(z_DNS) :: A_dns,B_dns,C_dns
     complex(dp) :: s
     integer :: M,N,K

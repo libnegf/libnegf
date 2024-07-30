@@ -126,6 +126,8 @@ contains
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------
   subroutine surface_green(E,HC,SC,pnegf,ncyc,GS)
+    implicit none
+
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
     type(Tnegf) :: pnegf
@@ -275,6 +277,9 @@ contains
   !---------------------------------------------------------------------------------------
   ! --------------------------------------------------------------------
   subroutine decimation(Go,Ao,Bo,Co,n,ncyc)
+    implicit none
+    external zgemm
+
     integer, intent(in) :: n
     complex(dp), DIMENSION(n,n), intent(out) :: Go
     complex(dp), DIMENSION(n,n), intent(inout) :: Ao,Bo,Co
