@@ -58,8 +58,8 @@ program hello
   params%Emin = -2.d0
   params%Emax = 2.d0
   params%Estep = 1.d-1
-  params%mu = mu
-  params%kbT_t = kt
+  params%mu(1:2) = mu
+  params%kbT_t(1:2) = kt
   call set_params(pnegf, params)
 
   ! Check values for 0 and finite coupling.
