@@ -33,8 +33,8 @@
 #define BLOCK_ROWS 8
 
 __global__ void CaddKernel(
-    cuComplex *c, const cuComplex alpha, const cuComplex *a,
-    const cuComplex beta, const cuComplex *b, int size
+    cuComplex* c, const cuComplex alpha, const cuComplex* a,
+    const cuComplex beta, const cuComplex* b, int size
 ) {
     assert(c);
     assert(a);
@@ -53,8 +53,8 @@ __global__ void CaddKernel(
 }
 
 __global__ void ZaddKernel(
-    cuDoubleComplex *c, const cuDoubleComplex alpha, const cuDoubleComplex *a,
-    const cuDoubleComplex beta, const cuDoubleComplex *b, int size
+    cuDoubleComplex* c, const cuDoubleComplex alpha, const cuDoubleComplex* a,
+    const cuDoubleComplex beta, const cuDoubleComplex* b, int size
 ) {
     assert(c);
     assert(a);
@@ -96,7 +96,7 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
   }
 }
 */
-__global__ void CinitKernel(cuComplex *a, int nrow) {
+__global__ void CinitKernel(cuComplex* a, int nrow) {
     assert(a);
     assert(nrow >= 0);
 
@@ -115,7 +115,7 @@ __global__ void CinitKernel(cuComplex *a, int nrow) {
     }
 }
 
-__global__ void ZinitKernel(cuDoubleComplex *a, int nrow) {
+__global__ void ZinitKernel(cuDoubleComplex* a, int nrow) {
     assert(a);
     assert(nrow >= 0);
 
@@ -134,7 +134,7 @@ __global__ void ZinitKernel(cuDoubleComplex *a, int nrow) {
     }
 }
 
-__global__ void DinitKernel(double *a, int nrow) {
+__global__ void DinitKernel(double* a, int nrow) {
     assert(a);
     assert(nrow >= 0);
 
@@ -146,7 +146,7 @@ __global__ void DinitKernel(double *a, int nrow) {
     }
 }
 
-__global__ void SinitKernel(float *a, int nrow) {
+__global__ void SinitKernel(float* a, int nrow) {
     assert(a);
     assert(nrow >= 0);
 
@@ -159,7 +159,7 @@ __global__ void SinitKernel(float *a, int nrow) {
 }
 
 __global__ void CtraceKernel(
-    cuComplex *a, int nrow, float *trace, bool *mask, int mask_present
+    cuComplex* a, int nrow, float* trace, bool* mask, int mask_present
 ) {
     assert(a);
     assert(nrow >= 0);
@@ -190,7 +190,7 @@ __global__ void CtraceKernel(
 }
 
 __global__ void ZtraceKernel(
-    cuDoubleComplex *a, int nrow, double *trace, bool *mask, int mask_present
+    cuDoubleComplex* a, int nrow, double* trace, bool* mask, int mask_present
 ) {
     assert(a);
     assert(nrow >= 0);
@@ -223,7 +223,7 @@ __global__ void ZtraceKernel(
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT  ROUTINES
  * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
 
-extern "C" int cu_createMat(void **d_A, int bytecount) {
+extern "C" int cu_createMat(void** d_A, int bytecount) {
     assert(d_A);
     assert(bytecount >= 0);
     cudaError_t err = cudaMalloc(d_A, bytecount);
@@ -231,7 +231,7 @@ extern "C" int cu_createMat(void **d_A, int bytecount) {
     return err;
 }
 
-extern "C" int cu_copyMatH2D(void *h_A, void *d_A, int bytecount) {
+extern "C" int cu_copyMatH2D(void* h_A, void* d_A, int bytecount) {
     assert(h_A);
     assert(d_A);
     assert(bytecount >= 0);
@@ -240,7 +240,7 @@ extern "C" int cu_copyMatH2D(void *h_A, void *d_A, int bytecount) {
     return err;
 }
 
-extern "C" int cu_copyMatD2H(void *h_A, void *d_A, int bytecount) {
+extern "C" int cu_copyMatD2H(void* h_A, void* d_A, int bytecount) {
     assert(h_A);
     assert(d_A);
     assert(bytecount >= 0);
@@ -249,7 +249,7 @@ extern "C" int cu_copyMatD2H(void *h_A, void *d_A, int bytecount) {
     return err;
 }
 
-extern "C" int cu_deleteMat(void *d_A) {
+extern "C" int cu_deleteMat(void* d_A) {
     // printf("add_free: %p",d_A);
     return cudaFree(d_A);
 }
@@ -257,7 +257,7 @@ extern "C" int cu_deleteMat(void *d_A) {
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ INIT/FINAL ROUTINES
  * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
 
-extern "C" int cu_cudaGetDeviceCount(int *count) {
+extern "C" int cu_cudaGetDeviceCount(int* count) {
     assert(count);
     return cudaGetDeviceCount(count);
 }
@@ -274,7 +274,7 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
     return err;
 }
 
-extern "C" int cu_cublasInit(cublasHandle_t *hcublas) {
+extern "C" int cu_cublasInit(cublasHandle_t* hcublas) {
     assert(hcublas);
     cublasStatus_t err = cublasCreate(hcublas);
     assert(err == CUBLAS_STATUS_SUCCESS);
@@ -291,7 +291,7 @@ extern "C" int cu_cublasFinalize(cublasHandle_t hcublas) {
     return err;
 }
 
-extern "C" int cu_cusolverInit(cusolverDnHandle_t *hcusolver) {
+extern "C" int cu_cusolverInit(cusolverDnHandle_t* hcusolver) {
     assert(hcusolver);
     cusolverStatus_t err = cusolverDnCreate(hcusolver);
     assert(err == cudaSuccess);
@@ -316,8 +316,8 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  * k: #cols of op(A) = #rows of op(B)
  */
 extern "C" int cu_CmultMat(
-    cublasHandle_t hcublas, int m, int n, int k, const cuComplex *alpha,
-    const void *d_A, const void *d_B, const cuComplex *beta, void *d_C,
+    cublasHandle_t hcublas, int m, int n, int k, const cuComplex* alpha,
+    const void* d_A, const void* d_B, const cuComplex* beta, void* d_C,
     int dagger
 ) {
     assert(m >= 0);
@@ -329,9 +329,9 @@ extern "C" int cu_CmultMat(
     assert(beta);
     assert(dagger == 0 || dagger == 1 || dagger == 2);
 
-    cuComplex* pdA = (cuComplex *)d_A;
-    cuComplex* pdB = (cuComplex *)d_B;
-    cuComplex* pdC = (cuComplex *)d_C;
+    cuComplex* pdA = (cuComplex*)d_A;
+    cuComplex* pdB = (cuComplex*)d_B;
+    cuComplex* pdC = (cuComplex*)d_C;
 
     cublasStatus_t err;
     if(dagger == 0) {
@@ -339,14 +339,12 @@ extern "C" int cu_CmultMat(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, pdA, m, pdB, k,
             beta, pdC, m
         );
-    }
-    else if(dagger == 1) {
+    } else if(dagger == 1) {
         err = cublasCgemm(
             hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, pdA, k, pdB, k,
             beta, pdC, m
         );
-    }
-    else if(dagger == 2) {
+    } else if(dagger == 2) {
         err = cublasCgemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, pdA, m, pdB, n,
             beta, pdC, m
@@ -361,8 +359,8 @@ extern "C" int cu_CmultMat(
 // op(B):  k x n
 //     C:  m x n
 extern "C" int cu_ZmultMat(
-    cublasHandle_t hcublas, int m, int n, int k, const cuDoubleComplex *alpha,
-    const void *d_A, const void *d_B, const cuDoubleComplex *beta, void *d_C,
+    cublasHandle_t hcublas, int m, int n, int k, const cuDoubleComplex* alpha,
+    const void* d_A, const void* d_B, const cuDoubleComplex* beta, void* d_C,
     int dagger
 ) {
     assert(m >= 0);
@@ -374,23 +372,21 @@ extern "C" int cu_ZmultMat(
     assert(beta);
     assert(dagger == 0 || dagger == 1 || dagger == 2);
 
-    cuDoubleComplex* pdA = (cuDoubleComplex *)d_A;
-    cuDoubleComplex* pdB = (cuDoubleComplex *)d_B;
-    cuDoubleComplex* pdC = (cuDoubleComplex *)d_C;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
+    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
+    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
     cublasStatus_t err;
     if(dagger == 0) {
         err = cublasZgemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, pdA, m, pdB, k,
             beta, pdC, m
         );
-    }
-    else if(dagger == 1) {
+    } else if(dagger == 1) {
         err = cublasZgemm(
             hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, pdA, k, pdB, k,
             beta, pdC, m
         );
-    }
-    else if(dagger == 2) {
+    } else if(dagger == 2) {
         err = cublasZgemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, pdA, m, pdB, n,
             beta, pdC, m
@@ -401,8 +397,8 @@ extern "C" int cu_ZmultMat(
 }
 
 extern "C" int cu_Cinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void *d_A,
-    void *d_Ainv, int n
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
+    void* d_Ainv, int n
 ) {
     assert(hcusolver);
     assert(d_A);
@@ -418,23 +414,22 @@ extern "C" int cu_Cinverse(
 
     // prepare memory on the device
     cuComplex* d_LU;
-    cudaError_t cudaStatus = cudaMalloc(
-        (void **)&d_LU, n * n * sizeof(cuComplex)
-    );
+    cudaError_t cudaStatus =
+        cudaMalloc((void**)&d_LU, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
     int* d_pivot;
-    cudaStatus = cudaMalloc((void **)&d_pivot, n * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
     assert(cudaStatus == cudaSuccess);
     int* d_info;
-    cudaStatus = cudaMalloc((void **)&d_info, sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
     // copy d_LU <- pdA
     cublasStatus_t cublasStatus = cublasCcopy(hcublas, n * n, pdA, 1, d_LU, 1);
     assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
     cuComplex* d_work;
-    cudaStatus = cudaMalloc((void **)&d_work, lwork * sizeof(cuComplex));
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
     // LU factorization of d_A , with partial pivoting and row
@@ -469,8 +464,8 @@ extern "C" int cu_Cinverse(
 }
 
 extern "C" int cu_Zinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void *d_A,
-    void *d_Ainv, int n
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
+    void* d_Ainv, int n
 ) {
     assert(hcusolver);
     assert(d_A);
@@ -486,23 +481,22 @@ extern "C" int cu_Zinverse(
 
     // prepare memory on the device
     cuDoubleComplex* d_LU;
-    cudaError_t cudaStatus = cudaMalloc(
-        (void **)&d_LU, n * n * sizeof(cuDoubleComplex)
-    );
+    cudaError_t cudaStatus =
+        cudaMalloc((void**)&d_LU, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
     int* d_pivot;
-    cudaStatus = cudaMalloc((void **)&d_pivot, n * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
     assert(cudaStatus == cudaSuccess);
     int* d_info;
-    cudaStatus = cudaMalloc((void **)&d_info, sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
     // copy d_LU <- pdA
     cublasStatus_t cublasStatus = cublasZcopy(hcublas, n * n, pdA, 1, d_LU, 1);
     assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
     cuDoubleComplex* d_work;
-    cudaStatus = cudaMalloc((void **)&d_work, lwork * sizeof(cuDoubleComplex));
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
     // LU factorization of d_A , with partial pivoting and row
@@ -537,11 +531,11 @@ extern "C" int cu_Zinverse(
 }
 
 extern "C" int cu_Ckernelsum(
-    void *d_C, cuComplex *alpha, void *d_A, cuComplex *beta, void *d_B, int size
+    void* d_C, cuComplex* alpha, void* d_A, cuComplex* beta, void* d_B, int size
 ) {
-    cuComplex *pdA = (cuComplex *)d_A;
-    cuComplex *pdB = (cuComplex *)d_B;
-    cuComplex *pdC = (cuComplex *)d_C;
+    cuComplex* pdA = (cuComplex*)d_A;
+    cuComplex* pdB = (cuComplex*)d_B;
+    cuComplex* pdC = (cuComplex*)d_C;
 
     int num_blocks = (size / BLOCK_SIZE) + 1;
 
@@ -552,12 +546,12 @@ extern "C" int cu_Ckernelsum(
 }
 
 extern "C" int cu_Zkernelsum(
-    void *d_C, cuDoubleComplex *alpha, void *d_A, cuDoubleComplex *beta,
-    void *d_B, int size
+    void* d_C, cuDoubleComplex* alpha, void* d_A, cuDoubleComplex* beta,
+    void* d_B, int size
 ) {
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
-    cuDoubleComplex *pdB = (cuDoubleComplex *)d_B;
-    cuDoubleComplex *pdC = (cuDoubleComplex *)d_C;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
+    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
+    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
 
     int num_blocks = (size / BLOCK_SIZE) + 1;
 
@@ -568,14 +562,14 @@ extern "C" int cu_Zkernelsum(
 }
 
 extern "C" int cu_Cmatsum(
-    cublasHandle_t hcublas, int m, int n, cuComplex *alpha, void *d_A,
-    cuComplex *beta, void *d_B, void *d_C, int dagger
+    cublasHandle_t hcublas, int m, int n, cuComplex* alpha, void* d_A,
+    cuComplex* beta, void* d_B, void* d_C, int dagger
 ) {
     // m number of rows of matrix op(A) and C
     // n number of columns of matrix op(B) and C
-    cuComplex *pdA = (cuComplex *)d_A;
-    cuComplex *pdB = (cuComplex *)d_B;
-    cuComplex *pdC = (cuComplex *)d_C;
+    cuComplex* pdA = (cuComplex*)d_A;
+    cuComplex* pdB = (cuComplex*)d_B;
+    cuComplex* pdC = (cuComplex*)d_C;
 
     cublasStatus_t err;
     if(dagger == 0) {
@@ -600,14 +594,14 @@ extern "C" int cu_Cmatsum(
 }
 
 extern "C" int cu_Zmatsum(
-    cublasHandle_t hcublas, int m, int n, cuDoubleComplex *alpha, void *d_A,
-    cuDoubleComplex *beta, void *d_B, void *d_C, int dagger
+    cublasHandle_t hcublas, int m, int n, cuDoubleComplex* alpha, void* d_A,
+    cuDoubleComplex* beta, void* d_B, void* d_C, int dagger
 ) {
     // m number of rows of matrix op(A) and C
     // n number of columns of matrix op(B) and C
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
-    cuDoubleComplex *pdB = (cuDoubleComplex *)d_B;
-    cuDoubleComplex *pdC = (cuDoubleComplex *)d_C;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
+    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
+    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
 
     cublasStatus_t err;
     if(dagger == 0) {
@@ -631,10 +625,10 @@ extern "C" int cu_Zmatsum(
     return err;
 }
 
-extern "C" int cu_Cinitmat(void *d_A, int nrow) {
+extern "C" int cu_Cinitmat(void* d_A, int nrow) {
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
-    cuComplex *pdA = (cuComplex *)d_A;
+    cuComplex* pdA = (cuComplex*)d_A;
 
     CinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
     assert(cudaGetLastError() == cudaSuccess);
@@ -642,13 +636,13 @@ extern "C" int cu_Cinitmat(void *d_A, int nrow) {
     return 0;
 }
 
-extern "C" int cu_Zinitmat(void *d_A, int nrow) {
+extern "C" int cu_Zinitmat(void* d_A, int nrow) {
     assert(d_A);
     assert(nrow >= 0);
 
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
     assert(cudaGetLastError() == cudaSuccess);
@@ -657,18 +651,18 @@ extern "C" int cu_Zinitmat(void *d_A, int nrow) {
 }
 
 extern "C" float cu_Ctrace(
-    cublasHandle_t hcublas, void *d_A, int nrow, void *h_mask, int mask_present
+    cublasHandle_t hcublas, void* d_A, int nrow, void* h_mask, int mask_present
 ) {
-    cuComplex *pdA = (cuComplex *)d_A;
+    cuComplex* pdA = (cuComplex*)d_A;
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
-    float *d_work;
-    cudaError_t cudaStatus = cudaMalloc((void **)&d_work, nrow * sizeof(float));
-    float *d_iden;
-    cudaStatus = cudaMalloc((void **)&d_iden, nrow * sizeof(float));
+    float* d_work;
+    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(float));
+    float* d_iden;
+    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(float));
     assert(cudaStatus == cudaSuccess);
-    bool *d_mask;
-    cudaStatus = cudaMalloc((void **)&d_mask, nrow * sizeof(bool));
+    bool* d_mask;
+    cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
     assert(cudaStatus == cudaSuccess);
     if(h_mask) {
         cudaStatus = cudaMemcpy(
@@ -695,25 +689,24 @@ extern "C" float cu_Ctrace(
 }
 
 extern "C" double cu_Ztrace(
-    cublasHandle_t hcublas, void *d_A, int nrow, void *h_mask, int mask_present
+    cublasHandle_t hcublas, void* d_A, int nrow, void* h_mask, int mask_present
 ) {
     assert(d_A);
     assert(nrow >= 0);
     assert(h_mask || mask_present == 0);
     assert(mask_present == 0 || mask_present == 1);
 
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
-    double *d_work;
-    cudaError_t cudaStatus =
-        cudaMalloc((void **)&d_work, nrow * sizeof(double));
+    double* d_work;
+    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(double));
     assert(cudaStatus == cudaSuccess);
-    double *d_iden;
-    cudaStatus = cudaMalloc((void **)&d_iden, nrow * sizeof(double));
+    double* d_iden;
+    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(double));
     assert(cudaStatus == cudaSuccess);
-    bool *d_mask;
-    cudaStatus = cudaMalloc((void **)&d_mask, nrow * sizeof(bool));
+    bool* d_mask;
+    cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
     assert(cudaStatus == cudaSuccess);
     if(h_mask) {
         cudaStatus = cudaMemcpy(
@@ -745,9 +738,9 @@ extern "C" double cu_Ztrace(
 }
 
 extern "C" int
-cu_Cmatcopy(cublasHandle_t hcublas, void *d_A, void *d_B, int N) {
-    cuComplex *pdA = (cuComplex *)d_A;
-    cuComplex *pdB = (cuComplex *)d_B;
+cu_Cmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, int N) {
+    cuComplex* pdA = (cuComplex*)d_A;
+    cuComplex* pdB = (cuComplex*)d_B;
 
     cublasStatus_t err;
 
@@ -756,20 +749,20 @@ cu_Cmatcopy(cublasHandle_t hcublas, void *d_A, void *d_B, int N) {
 }
 
 extern "C" int
-cu_Zmatcopy(cublasHandle_t hcublas, void *d_A, void *d_B, int size) {
+cu_Zmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, int size) {
     assert(d_A);
     assert(d_B);
 
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
-    cuDoubleComplex *pdB = (cuDoubleComplex *)d_B;
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
+    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
 
     cublasStatus_t err = cublasZcopy(hcublas, size, pdA, 1, pdB, 1);
     assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
-extern "C" int cu_Casum(cublasHandle_t hcublas, void *d_A, float *summ, int N) {
-    cuComplex *pdA = (cuComplex *)d_A;
+extern "C" int cu_Casum(cublasHandle_t hcublas, void* d_A, float* summ, int N) {
+    cuComplex* pdA = (cuComplex*)d_A;
 
     cublasStatus_t err;
 
@@ -778,8 +771,8 @@ extern "C" int cu_Casum(cublasHandle_t hcublas, void *d_A, float *summ, int N) {
 }
 
 extern "C" int
-cu_Zasum(cublasHandle_t hcublas, void *d_A, double *summ, int N) {
-    cuDoubleComplex *pdA = (cuDoubleComplex *)d_A;
+cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, int N) {
+    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     cublasStatus_t err;
 
@@ -788,9 +781,9 @@ cu_Zasum(cublasHandle_t hcublas, void *d_A, double *summ, int N) {
 }
 
 extern "C" int cu_Cdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void *h_Go_out,
-    void *h_Ao_in, void *h_Bo_in, void *h_Co_in, int n, int tf32, int *ncyc,
-    cuComplex *one, cuComplex *mone, cuComplex *zero, float SGFACC
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
+    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, int n, int tf32, int* ncyc,
+    cuComplex* one, cuComplex* mone, cuComplex* zero, float SGFACC
 ) {
     assert(h_Go_out);
     assert(h_Ao_in);
@@ -807,19 +800,17 @@ extern "C" int cu_Cdecimation(
     int num_elements = n * n;
     int num_blocks = (num_elements / BLOCK_SIZE) + 1;
 
-    cuComplex *d_Ao;
+    cuComplex* d_Ao;
     cudaError_t cudaStatus =
-        cudaMalloc((void **)&d_Ao, num_elements * sizeof(cuComplex));
+        cudaMalloc((void**)&d_Ao, num_elements * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
-    cuComplex *d_Bo;
-    cudaStatus =
-        cudaMalloc((void **)&d_Bo, num_elements * sizeof(cuComplex));
+    cuComplex* d_Bo;
+    cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
-    cuComplex *d_Co;
-    cudaStatus =
-        cudaMalloc((void **)&d_Co, num_elements * sizeof(cuComplex));
+    cuComplex* d_Co;
+    cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
     cudaStatus = cudaMemcpy(
@@ -844,34 +835,34 @@ extern "C" int cu_Cdecimation(
         assert(cublasStatus == cudaSuccess);
     }
 
-    cuComplex *d_Ao_s;
-    cudaStatus = cudaMalloc((void **)&d_Ao_s, n * n * sizeof(cuComplex));
+    cuComplex* d_Ao_s;
+    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
-    cuComplex *d_C1;
-    cudaStatus = cudaMalloc((void **)&d_C1, n * n * sizeof(cuComplex));
+    cuComplex* d_C1;
+    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
-    cuComplex *d_Go;
-    cudaStatus = cudaMalloc((void **)&d_Go, n * n * sizeof(cuComplex));
+    cuComplex* d_Go;
+    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
-    int *d_pivot;
-    cudaStatus = cudaMalloc((void **)&d_pivot, n * sizeof(int));
+    int* d_pivot;
+    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
     assert(cudaStatus == cudaSuccess);
-    cuComplex *d_T;
-    cudaStatus = cudaMalloc((void **)&d_T, n * n * sizeof(cuComplex));
+    cuComplex* d_T;
+    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
-    cuComplex *d_Self;
-    cudaStatus = cudaMalloc((void **)&d_Self, n * n * sizeof(cuComplex));
+    cuComplex* d_Self;
+    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
-    int *d_info;
-    cudaStatus = cudaMalloc((void **)&d_info, sizeof(int));
+    int* d_info;
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
 
     int lwork;
     cusolverStatus_t cusolverStatus =
         cusolverDnCgetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
     assert(cusolverStatus == cudaSuccess);
-    cuComplex *d_work;
-    cudaStatus = cudaMalloc((void **)&d_work, lwork * sizeof(cuComplex));
+    cuComplex* d_work;
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuComplex));
     assert(cudaStatus == cudaSuccess);
 
     cublasStatus = cublasCcopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
@@ -1000,9 +991,9 @@ extern "C" int cu_Cdecimation(
 }
 
 extern "C" int cu_Zdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void *h_Go_out,
-    void *h_Ao_in, void *h_Bo_in, void *h_Co_in, int n, int tf32, int *ncyc,
-    cuDoubleComplex *one, cuDoubleComplex *mone, cuDoubleComplex *zero,
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
+    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, int n, int tf32, int* ncyc,
+    cuDoubleComplex* one, cuDoubleComplex* mone, cuDoubleComplex* zero,
     double SGFACC
 ) {
     assert(h_Go_out);
@@ -1020,19 +1011,19 @@ extern "C" int cu_Zdecimation(
     int num_elements = n * n;
     int num_blocks = (num_elements / BLOCK_SIZE) + 1;
 
-    cuDoubleComplex *d_Ao;
+    cuDoubleComplex* d_Ao;
     cudaError_t cudaStatus =
-        cudaMalloc((void **)&d_Ao, num_elements * sizeof(cuDoubleComplex));
+        cudaMalloc((void**)&d_Ao, num_elements * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
-    cuDoubleComplex *d_Bo;
+    cuDoubleComplex* d_Bo;
     cudaStatus =
-        cudaMalloc((void **)&d_Bo, num_elements * sizeof(cuDoubleComplex));
+        cudaMalloc((void**)&d_Bo, num_elements * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
-    cuDoubleComplex *d_Co;
+    cuDoubleComplex* d_Co;
     cudaStatus =
-        cudaMalloc((void **)&d_Co, num_elements * sizeof(cuDoubleComplex));
+        cudaMalloc((void**)&d_Co, num_elements * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
     cudaStatus = cudaMemcpy(
@@ -1057,34 +1048,34 @@ extern "C" int cu_Zdecimation(
         assert(cublasStatus == cudaSuccess);
     }
 
-    cuDoubleComplex *d_Ao_s;
-    cudaStatus = cudaMalloc((void **)&d_Ao_s, n * n * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_Ao_s;
+    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex *d_C1;
-    cudaStatus = cudaMalloc((void **)&d_C1, n * n * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_C1;
+    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex *d_Go;
-    cudaStatus = cudaMalloc((void **)&d_Go, n * n * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_Go;
+    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
-    int *d_pivot;
-    cudaStatus = cudaMalloc((void **)&d_pivot, n * sizeof(int));
+    int* d_pivot;
+    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
     assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex *d_T;
-    cudaStatus = cudaMalloc((void **)&d_T, n * n * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_T;
+    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex *d_Self;
-    cudaStatus = cudaMalloc((void **)&d_Self, n * n * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_Self;
+    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
-    int *d_info;
-    cudaStatus = cudaMalloc((void **)&d_info, sizeof(int));
+    int* d_info;
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
 
     int lwork;
     cusolverStatus_t cusolverStatus =
         cusolverDnZgetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
     assert(cusolverStatus == cudaSuccess);
-    cuDoubleComplex *d_work;
-    cudaStatus = cudaMalloc((void **)&d_work, lwork * sizeof(cuDoubleComplex));
+    cuDoubleComplex* d_work;
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuDoubleComplex));
     assert(cudaStatus == cudaSuccess);
 
     cublasStatus = cublasZcopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
