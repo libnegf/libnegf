@@ -8,6 +8,7 @@ set(test-directories
         c_int_file
         f90int
         f90int_file
+        f90elph_deph
         )
 
 if(WITH_TRANSPORT_GPU)
