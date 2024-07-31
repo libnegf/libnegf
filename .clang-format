@@ -1,0 +1,8 @@
+AlignAfterOpenBracket: BlockIndent
+ColumnLimit: 80
+IncludeBlocks: Preserve
+IndentWidth: 4
+PointerAlignment: Left
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: false
