@@ -31,7 +31,6 @@ program hello
   Type(lnParams) :: params
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:), coupling(:)
-  real(kind(1.d0)), dimension(:,:), pointer :: transmission
   real(kind(1.d0)) :: current
 
   surfstart = [61, 81]
