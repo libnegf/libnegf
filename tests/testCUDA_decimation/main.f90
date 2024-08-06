@@ -6,7 +6,7 @@ program test1
   implicit none
   complex(dp), dimension(:,:), allocatable :: H00, H01
   complex(dp), dimension(:,:), allocatable :: S00, S01
-  complex(dp), dimension(:,:), allocatable :: A0, B0, C0, G0
+  complex(dp), dimension(:,:), allocatable, target :: A0, B0, C0, G0
   character(10) :: arg
   integer :: N, ncyc, fu, t1, t2, cr, cm, stat
   real(dp) :: delta, En
@@ -75,7 +75,7 @@ program test1
   call init_negf(negf)
 
   call system_clock(t1, cr, cm)
-  call decimation_gpu(negf, G0, A0, B0, C0, N, .true., ncyc)
+  call decimation_gpu(negf, G0, A0, B0, C0, .true., ncyc)
   call system_clock(t2, cr, cm)
 
   write(*,*) "decimation_cpu time: ",(t2-t1)*1.0/cr,"sec"
