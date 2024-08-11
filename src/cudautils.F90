@@ -191,7 +191,8 @@ module cudautils
 
      integer(c_int) function cu_deleteMat(d_A) bind(C, name='cu_deleteMat')
        use iso_c_binding
-       type(c_ptr), value :: d_A
+       ! not by value since pointer has to be nullified, hence pass its reference
+       type(c_ptr) :: d_A
      end function cu_deleteMat
 
      ! C = alpha*A*B + beta*C
@@ -486,15 +487,15 @@ end interface
      istat = cu_CmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
              & B%d_addr, beta, C%d_addr, 0)
      else
-       select case(dagger)    
+       select case(dagger)
        case('dag_1st')
          istat = cu_CmultMat(hcublas, C%nrow, C%ncol, B%nrow, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
          istat = cu_CmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
-       case default  
-         error stop 'Error in matmul_gpu'    
+       case default
+         error stop 'Error in matmul_gpu'
        end select
      endif
 
@@ -646,15 +647,15 @@ end interface
        istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
              & B%d_addr, beta, C%d_addr, 0)
      else
-       select case(dagger)    
+       select case(dagger)
        case('dag_1st')
          istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, B%nrow, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
          istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
-       case default  
-         error stop 'Error in matmul_gpu'    
+       case default
+         error stop 'Error in matmul_gpu'
        end select
      endif
 

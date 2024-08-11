@@ -199,7 +199,7 @@ Type z_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type z_DNS
 
 Type r_DNS3
@@ -207,7 +207,7 @@ Type r_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type r_DNS3
 
 Type z_DNS3
@@ -215,7 +215,7 @@ Type z_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type z_DNS3
 
 Type c_DNS3
@@ -223,7 +223,7 @@ Type c_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type c_DNS3
 
 
@@ -308,7 +308,7 @@ Type r_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type r_DNS
 
 
@@ -316,7 +316,7 @@ Type c_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type c_DNS
 ! *******************************************************************
 contains

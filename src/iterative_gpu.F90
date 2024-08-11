@@ -70,14 +70,14 @@ module iterative_gpu
 
 contains
 
-  subroutine calculate_gsmr_blocks_sp(negf,ESH,sbl,ebl,gsmr,keepall)
+  subroutine calculate_gsmr_blocks_sp(negf,ESH,sbl,ebl,gsmr,keep_gsmr)
 
     !In/Out
     type(c_DNS), dimension(:), intent(inout) :: gsmr
     type(Tnegf), intent(in) :: negf
     type(c_DNS), dimension(:,:), intent(inout) :: ESH
     integer, intent(in) :: sbl,ebl                 ! start block, end block
-    logical, intent(in), optional :: keepall
+    logical, intent(in), optional :: keep_gsmr
 
     !Work
     type(CublasHandle) :: hh
@@ -96,8 +96,8 @@ contains
     if (nbl.eq.1) return
 
     keep = .true.
-    if (present(keepall)) then
-       keep = keepall
+    if (present(keep_gsmr)) then
+       keep = keep_gsmr
     end if
 
     nrow=ESH(sbl,sbl)%nrow
@@ -143,14 +143,14 @@ contains
 
   end subroutine calculate_gsmr_blocks_sp
 
-  subroutine calculate_gsmr_blocks_dp(negf,ESH,sbl,ebl,gsmr,keepall)
+  subroutine calculate_gsmr_blocks_dp(negf,ESH,sbl,ebl,gsmr,keep_gsmr)
 
     !In/Out
     type(z_DNS), dimension(:), intent(inout) :: gsmr
     type(Tnegf), intent(in) :: negf
     type(z_DNS), dimension(:,:), intent(inout) :: ESH
     integer, intent(in) :: sbl,ebl                 ! start block, end block
-    logical, intent(in), optional :: keepall
+    logical, intent(in), optional :: keep_gsmr
 
     !Work
     type(CublasHandle) :: hh
@@ -169,8 +169,8 @@ contains
     if (nbl.eq.1) return
 
     keep = .true.
-    if (present(keepall)) then
-       keep = keepall
+    if (present(keep_gsmr)) then
+       keep = keep_gsmr
     end if
 
 
@@ -1159,15 +1159,6 @@ contains
         call destroyAll(M(i,i))
       end if
     end do
-    do i=2,nbl
-      if (allocated(M(i-1,i)%val)) then
-        call destroyAll(M(i-1,i))
-      end if
-      if (allocated(M(i,i-1)%val)) then
-        call destroyAll(M(i,i-1))
-      end if
-    end do
-
   end subroutine destroy_tridiag_blk
 
 !---------------------------------------------------

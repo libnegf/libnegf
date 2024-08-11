@@ -1899,6 +1899,9 @@ contains
 
     call meir_wingreen(negf, fixed_occupations=occupations)
     ! Assign the current matrix values to the transmission.
+    if (allocated(negf%tunn_mat)) then
+       call log_deallocate(negf%tunn_mat)
+    end if
     call log_allocate(negf%tunn_mat, size(negf%curr_mat,1), 1)
     negf%tunn_mat(:,1) = negf%curr_mat(:,1)
 

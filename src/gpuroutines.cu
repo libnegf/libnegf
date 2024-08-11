@@ -116,7 +116,7 @@ __global__ void CinitKernel(cuComplex* a, int nrow) {
 }
 
 __global__ void ZinitKernel(cuDoubleComplex* a, int nrow) {
-    assert(a);
+    //assert(a);
     assert(nrow >= 0);
 
     int size = nrow * nrow;
@@ -227,7 +227,7 @@ extern "C" int cu_createMat(void** d_A, int bytecount) {
     assert(d_A);
     assert(bytecount >= 0);
     cudaError_t err = cudaMalloc(d_A, bytecount);
-    // printf("GPU Address: %p \n",*d_A);
+    //printf("create mat at GPU Address: %p \n",*d_A);
     return err;
 }
 
@@ -244,14 +244,19 @@ extern "C" int cu_copyMatD2H(void* h_A, void* d_A, int bytecount) {
     assert(h_A);
     assert(d_A);
     assert(bytecount >= 0);
-    // printf("copy %p to %p\n",d_A,h_A);
+
     cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToHost);
     return err;
 }
 
-extern "C" int cu_deleteMat(void* d_A) {
-    // printf("add_free: %p",d_A);
-    return cudaFree(d_A);
+extern "C" int cu_deleteMat(void** d_A) {
+    int stat = 0;
+    if (*d_A != NULL)
+    {
+       stat = cudaFree(*d_A);
+       *d_A = NULL;
+    }
+    return stat;
 }
 
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ INIT/FINAL ROUTINES
@@ -637,7 +642,8 @@ extern "C" int cu_Cinitmat(void* d_A, int nrow) {
 }
 
 extern "C" int cu_Zinitmat(void* d_A, int nrow) {
-    assert(d_A);
+    //assert(d_A);
+    //printf("d_A: %p %d \n",d_A, d_A);
     assert(nrow >= 0);
 
     int size = nrow * nrow;

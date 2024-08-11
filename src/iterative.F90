@@ -133,7 +133,6 @@ CONTAINS
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
 
     call allocate_blk_dns(Gr,nbl)
-
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nbl)
 
@@ -355,12 +354,10 @@ CONTAINS
     call set_Gr_inel(negf, Gr)
     call set_Gn_inel(negf, Gn)
 
-    negf%tDestroyGn = .true.
-    if (.not.tDestroyGn) negf%tDestroyGn = .false.
-    negf%tDestroyGr = .true.
-    if (.not.tDestroyGr) negf%tDestroyGr = .false.
-    negf%tDestroyESH = .true.
-    if (.not.tDestroyESH) negf%tDestroyESH = .false.
+    ! Compared to previous code, this is trivially equivalent
+    negf%tDestroyGn = tDestroyGn
+    negf%tDestroyGr = tDestroyGr
+    negf%tDestroyESH = tDestroyESH
     call destroy_all_blk(negf)
 
     scba_error = negf%scbaDriverElastic%scba_error()
@@ -515,7 +512,7 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
-       print*,"Allocate negf%G_r"
+       !print*,"Allocate negf%G_r"
        allocate(TMatrixCacheMem::negf%G_r)
     end if
     select type(p => negf%G_r)
@@ -579,7 +576,7 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
-       print*,"Allocate negf%G_n"
+       !print*,"Allocate negf%G_n"
        allocate(TMatrixCacheMem::negf%G_n)
     end if
     select type(p => negf%G_n)
@@ -904,37 +901,29 @@ CONTAINS
   subroutine destroy_all_blk(negf)
     type(Tnegf), intent(in) :: negf
 
+    if (negf%tDestroyESH) then
+      call destroy_tridiag_blk(ESH)
+      if (allocated(ESH)) deallocate(ESH)
+    end if
+
+    if (negf%tDestroyGr) then
+      call destroy_blk(Gr)
+      if (allocated(Gr)) deallocate(Gr)
+    else  
 #:if defined("GPU")
-    if (negf%tDestroyESH) then
-      call destroy_tridiag_blk(ESH)
-      if (allocated(ESH)) deallocate(ESH)
-    end if
-    if (negf%tDestroyGr) then
-      call destroy_blk(Gr)
-      if (allocated(Gr)) deallocate(Gr)
-    else
       call delete_trid_fromGPU(Gr)
+#:endif
     end if
+
     if (negf%tDestroyGn) then
       call destroy_blk(Gn)
       if (allocated(Gn)) deallocate(Gn)
     else
+#:if defined("GPU")
       call delete_trid_fromGPU(Gn)
-    end if
-#:else
-    if (negf%tDestroyESH) then
-      call destroy_tridiag_blk(ESH)
-      if (allocated(ESH)) deallocate(ESH)
-    end if
-    if (negf%tDestroyGr) then
-      call destroy_blk(Gr)
-      if (allocated(Gr)) deallocate(Gr)
-    end if
-    if (negf%tDestroyGn) then
-      call destroy_blk(Gn)
-      if (allocated(Gn)) deallocate(Gn)
-    end if
 #:endif
+    end if
+
   end subroutine destroy_all_blk
 
   !**********************************************************************
@@ -1669,7 +1658,7 @@ CONTAINS
     ! Fall here when there are 2 contacts for fast transmission
     if (ncont == 2 .and. size(negf%ni) == 1 .and. nt == 1) then
       call allocate_gsm(gsmr,nbl)
-      call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr,.false.)
+      call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr, keep_gsmr=.false.)
       call allocate_blk_dns(Gr,nbl)
       call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
 #:if defined("GPU")
@@ -1719,6 +1708,8 @@ CONTAINS
         call calculate_single_transmission_N_contacts(negf,nit,nft,ESH,SelfEneR,cblk,negf%tun_proj,gsmr,Gr,tun)
 
         tun_mat(icpl) = tun
+        call destroy_gsm(gsmr)
+        call deallocate_gsm(gsmr)
 
       end do
     end if
@@ -1781,7 +1772,7 @@ CONTAINS
     complex(dp), intent(in) :: Ec
     type(z_DNS), Dimension(MAXNCONT), intent(in) :: SelfEneR, GS
     type(intarray), intent(in) :: tun_proj
-    real(dp), Dimension(:), intent(inout) :: tun_mat 
+    real(dp), Dimension(:), intent(inout) :: tun_mat
     type(intarray), dimension(:), intent(in) :: dos_proj
     real(dp), Dimension(:), intent(inout) :: ledos
 
