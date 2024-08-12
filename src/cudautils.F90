@@ -110,8 +110,6 @@ module cudautils
       module procedure delete_trid_fromGPU_dp
    end interface delete_trid_fromGPU
 
-
-
    interface matmul_gpu
       module procedure matmul_gpu_sp
       module procedure matmul_gpu_dp
@@ -502,7 +500,7 @@ end interface
 
    end subroutine matmul_gpu_sp
 
-   subroutine inverse_gpu_sp(hcublas, hcusolver, A, Ainv, err)
+  subroutine inverse_gpu_sp(hcublas, hcusolver, A, Ainv, err)
      type(cublasHandle) :: hcublas
      type(cusolverDnHandle) :: hcusolver
      type(c_DNS), intent(in) :: A
@@ -616,7 +614,7 @@ end interface
 
    end subroutine asum_gpu_sp
 
-   subroutine dagger_gpu_sp(hcublas, G, G_dag)
+  subroutine dagger_gpu_sp(hcublas, G, G_dag)
       type(cublasHandle), intent(in) :: hcublas
       type(c_DNS), intent(in) :: G
       type(c_DNS), intent(inout) :: G_dag
@@ -775,7 +773,7 @@ end interface
 
    end subroutine asum_gpu_dp
 
-   subroutine dagger_gpu_dp(hcublas, G, G_dag)
+  subroutine dagger_gpu_dp(hcublas, G, G_dag)
       type(cublasHandle), intent(in) :: hcublas
       type(z_DNS), intent(in) :: G
       type(z_DNS), intent(inout) :: G_dag
