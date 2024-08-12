@@ -352,7 +352,7 @@ contains
     complex(sp), dimension(n,n), intent(out), target :: Go_out
     complex(sp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
      logical, intent(in) :: tf32
-     integer, intent(out) :: ncyc
+     integer, intent(out), target :: ncyc
 
     complex(sp) :: one = (1.0_sp, 0.0_sp)
     complex(sp) :: mone = (-1.0_sp, 0.0_sp)
