@@ -34,6 +34,8 @@ program hello
   real(kind(1.d0)), allocatable :: mu(:), kt(:), coupling(:)
   real(kind(1.d0)) :: current
   integer :: ierr
+  type(MPI_Comm) :: cartComm
+  type(MPI_Comm) :: kComm
 
   call MPI_Init(ierr);
 
@@ -51,7 +53,8 @@ program hello
   call init_negf(pnegf)
 
   write(*,*) 'Setup MPI communicator'
-  call set_mpi_bare_comm(pnegf, MPI_COMM_WORLD) 
+  !call set_mpi_bare_comm(pnegf, MPI_COMM_WORLD) 
+  call set_cartesian_bare_comms(pnegf, MPI_COMM_WORLD, 1, cartComm, kComm)
 
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
