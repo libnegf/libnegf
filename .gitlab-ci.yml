@@ -5,7 +5,7 @@
         MPI: [mpich, openmpi]
   tags:
     - public-docker
-  image: $CI_REGISTRY/conrads2/ci-images/$DISTRO/$MPI
+  image: $CI_REGISTRY/nexgf/libnegf/$DISTRO/$MPI-cpu
   variables:
     BUILD_DIR: build-$DISTRO-$MPI
     CFLAGS: -Wextra -Wall -pedantic
