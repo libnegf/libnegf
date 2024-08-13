@@ -40,6 +40,9 @@ module mpi_globals
 
   contains
 
+    ! Purpose: 
+    ! Set the global variables 'numprocs' and proc 'id' 
+    ! within the energy communicator    
     subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
       logical, optional :: ioProc
@@ -55,7 +58,9 @@ module mpi_globals
 
     end subroutine negf_mpi_init
 
-    ! Initialize a 2D cartesian grid
+    ! Initialize a 2D cartesian grid.
+    ! INPUT: global communicator and size of k communicator
+    ! OUPUT: the cartesian communicator, the energy- and k- communicators
     !
     ! Order: dim 1: k; dim 2: E
     ! It must be periodic in k for all-to-all communications

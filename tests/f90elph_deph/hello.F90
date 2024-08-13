@@ -23,6 +23,7 @@ program hello
   use libnegf
   use lib_param
   use integrations
+  use mpi_f08
 
   implicit none
 
@@ -45,16 +46,18 @@ program hello
   cblk = [6, 1]
 
   pnegf => negf
-  
 
-  write(*,*) 'Libnegf hello world'
-  write(*,*) 'Init...'
+  write(*,*) 'Initializing libNEGF'
   call init_negf(pnegf)
-  call init_contacts(pnegf, 2)
+
+  write(*,*) 'Setup MPI communicator'
+  call set_mpi_bare_comm(pnegf, MPI_COMM_WORLD) 
+
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
 
+  call init_contacts(pnegf, 2)
   call init_structure(pnegf, 2, surfstart, surfend, contend, 6, plend, cblk)
 
   ! Here we set the parameters, only the ones different from default
