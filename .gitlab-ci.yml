@@ -11,7 +11,7 @@
     - public-docker
   image: $CI_REGISTRY/nexgf/libnegf/$DISTRO/$MPI-$DEVICE
   variables:
-    BUILD_DIR: build-$DISTRO-$MPI
+    BUILD_DIR: build-$DISTRO-$MPI-$DEVICE
     CFLAGS: -Wextra -Wall -pedantic
     CXXFLAGS: -Wextra -Wall -pedantic
     LDFLAGS: -Wl,-z,defs
