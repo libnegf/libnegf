@@ -75,7 +75,7 @@ program test1
   call init_negf(negf)
 
   call system_clock(t1, cr, cm)
-  call decimation_gpu(negf, G0, A0, B0, C0, .true., ncyc)
+  call decimation_gpu(negf, G0, A0, B0, C0, 2, .true., ncyc)
   call system_clock(t2, cr, cm)
 
   write(*,*) "decimation_cpu time: ",(t2-t1)*1.0/cr,"sec"
