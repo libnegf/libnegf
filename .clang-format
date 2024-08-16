@@ -1,5 +1,6 @@
 AlignAfterOpenBracket: BlockIndent
 ColumnLimit: 80
+CommentPragmas: '^[^ ]'
 IncludeBlocks: Preserve
 IndentWidth: 4
 PointerAlignment: Left
