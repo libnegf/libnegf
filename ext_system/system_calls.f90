@@ -45,8 +45,6 @@ module system_calls
    integer, intent(out), optional :: error 
 
    integer(c_int) :: err
-   integer :: ios
-
 
    !open(9834, file=trim(dirname)//'/test', iostat=ios)
    !if (ios == 0) then 

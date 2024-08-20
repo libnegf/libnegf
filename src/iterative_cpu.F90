@@ -47,7 +47,7 @@ contains
   !
   !***********************************************************************
 
-  subroutine calculate_gsmr_blocks(negf,ESH,sbl,ebl,gsmr,keepall)
+  subroutine calculate_gsmr_blocks(negf,ESH,sbl,ebl,gsmr,keep_gsmr)
 
     !***********************************************************************
     !Input:
@@ -68,12 +68,12 @@ contains
     type(z_DNS), dimension(:,:), intent(in) :: ESH
     integer, intent(in) :: sbl,ebl                 ! start block, end block
     type(z_DNS), dimension(:), intent(inout) :: gsmr
-    logical, intent(in), optional :: keepall
+    logical, intent(in), optional :: keep_gsmr
 
     !Work
     !type(z_DNS), dimension(:,:), allocatable :: INV
     type(z_DNS) :: work1, work2
-    integer :: nrow, M, N
+    integer :: nrow
     integer :: i, nbl
     logical :: keep
 
@@ -84,8 +84,8 @@ contains
     if (nbl.eq.1) return
 
     keep = .true.
-    if (present(keepall)) then
-       keep = keepall
+    if (present(keep_gsmr)) then
+       keep = keep_gsmr
     end if
 
     nrow=ESH(sbl,sbl)%nrow
@@ -239,7 +239,7 @@ contains
     type(z_DNS), dimension(:,:), allocatable :: Sigma_n
     type(z_DNS) :: work1, Ga, Gam
     complex(dp) :: frmdiff
-    integer :: i, j, fp
+    integer :: i, j
     integer :: nbl, ncont, cb
 
     ncont = struct%num_conts
@@ -623,7 +623,6 @@ contains
     logical, intent(in) :: gpu
 
     integer :: nbl, i
-    real(dp) :: summ
 
     nbl = size(T,1)
 

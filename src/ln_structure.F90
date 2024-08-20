@@ -204,7 +204,7 @@ contains
     ! transport direction for coordinate systems different from NEGF
     integer, intent(in), optional :: transportDirection
 
-    integer :: ii, jj, nn
+    integer :: ii, nn
 
     if (present(basisToMatrix) .and. present(matrixToBasis)) then
       error stop 'Internal error in create_TBasis: two exclusive optional arrays'

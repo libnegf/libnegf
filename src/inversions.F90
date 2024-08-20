@@ -33,7 +33,6 @@ use mat_def
 use sparsekit_drv
 private
 
-INTEGER :: t1_i,t2_I,cr_i,cm_i,t1_ii,t2_ii,cr_ii,cm_ii
 LOGICAL, PARAMETER :: timing=.FALSE.
 
 ! SPARSKIT iterative solvers removed (Alex)
@@ -770,6 +769,7 @@ end subroutine zINV_LAPACK
 ! 
 subroutine cinv(inA,A,n)
   implicit none
+  external cgetrf, cgetrs
   complex(sp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -809,6 +809,7 @@ end subroutine cinv
 subroutine zinv(inA,A,n)
    
   Implicit none
+  external zgetrf, zgetrs
   complex(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -847,6 +848,7 @@ end subroutine zinv
 !---------------------------------------------------------------------------
 subroutine rinv(inA,A,n)
   Implicit none
+  external dgetrf, dgetrs
   real(kind=dp), dimension(:,:) :: inA, A
   integer :: n
 
@@ -890,7 +892,6 @@ end subroutine rinv
   !  (      )|(   G22)
   !
   recursive subroutine block2Green(G,A,n,iter)
-
     complex(dp), dimension(:,:), intent(out) :: G
     complex(dp), dimension(:,:), intent(in) :: A
     integer, intent(in) :: n
@@ -1109,10 +1110,13 @@ end subroutine rinv
   ! A is an n x n complex matrix
   ! 
   subroutine zlin(A,T,gT,n)
+    implicit none
+    external  zgetrf, zgetrs
+
     complex(dp), dimension(:,:) :: A, T, gT
     integer :: n
   
-    INTEGER :: ipiv(n),info, lwork, NB, nrhs
+    INTEGER :: ipiv(n),info, lwork, nrhs
     integer, external :: ilaenv
     complex(dp), dimension(:), allocatable  :: work
     complex(dp), dimension(:,:), allocatable :: LU

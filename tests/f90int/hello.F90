@@ -28,7 +28,7 @@ program hello
   Type(Tnegf), pointer :: pnegf
   Type(lnParams) :: params
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
-  real(kind(1.d0)), allocatable :: mu(:), kt(:)
+  real(kind(1.d0)), dimension(2) :: mu, kt
   real(kind(1.d0)), dimension(:,:), pointer :: transmission
 
   surfstart = [61,81]

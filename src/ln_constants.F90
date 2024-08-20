@@ -165,6 +165,7 @@ contains
   ! [j] = e/h * [Energy]
   ! Current output is converted to Amp
   function convertCurrent(unitsOfH,currUnits) result(curr)
+    use, intrinsic :: ieee_arithmetic
     type(units), intent(in) :: unitsOfH
     type(units), intent(in) :: currUnits
     real(dp) :: curr
@@ -175,6 +176,8 @@ contains
       curr = 1.0_dp
       return
     end if
+
+    curr = ieee_value(curr, ieee_signaling_nan)
 
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then
@@ -191,6 +194,7 @@ contains
   end function convertCurrent
 
   function convertHeatCurrent(unitsOfH,currUnits) result(curr)
+    use, intrinsic :: ieee_arithmetic
     type(units), intent(in) :: unitsOfH
     type(units), intent(in) :: currUnits
     real(dp) :: curr
@@ -201,6 +205,8 @@ contains
       curr = 1.0_dp
       return
     end if
+
+    curr = ieee_value(curr, ieee_signaling_nan)
 
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then
@@ -217,6 +223,7 @@ contains
   end function convertHeatCurrent
 
   function convertHeatConductance(unitsOfH,condUnits) result(cond)
+    use, intrinsic :: ieee_arithmetic
     type(units), intent(in) :: unitsOfH
     type(units), intent(in) :: condUnits
     real(dp) :: cond
@@ -227,6 +234,8 @@ contains
       cond = 1.0_dp
       return
     end if
+
+    cond = ieee_value(cond, ieee_signaling_nan)
 
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then

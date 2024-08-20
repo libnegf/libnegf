@@ -199,7 +199,7 @@ Type z_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type z_DNS
 
 Type r_DNS3
@@ -207,7 +207,7 @@ Type r_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type r_DNS3
 
 Type z_DNS3
@@ -215,7 +215,7 @@ Type z_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type z_DNS3
 
 Type c_DNS3
@@ -223,7 +223,7 @@ Type c_DNS3
   integer :: ncol = 0
   integer :: npoints = 0
   complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type c_DNS3
 
 
@@ -308,7 +308,7 @@ Type r_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type r_DNS
 
 
@@ -316,7 +316,7 @@ Type c_DNS
   integer :: nrow = 0
   integer :: ncol = 0
   complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: val
-  type(c_ptr) :: d_addr
+  type(c_ptr) :: d_addr = C_NULL_PTR
 end Type c_DNS
 ! *******************************************************************
 contains
@@ -1992,6 +1992,8 @@ end subroutine zcassign_DNS
 
 !> Override assignment operation in order to keep track of memory
 subroutine czassign_DNS(M_lhs, M_rhs)
+  use iso_fortran_env, only : sp => real32
+  implicit none
   type(c_DNS), intent(inout) :: M_lhs
   type(z_DNS), intent(in) :: M_rhs
 
@@ -2002,7 +2004,7 @@ subroutine czassign_DNS(M_lhs, M_rhs)
   end if  
   !$OMP PARALLEL DO 
   do cc = 1, M_lhs%ncol
-    M_lhs%val(:,cc) = M_rhs%val(:,cc)
+    M_lhs%val(:,cc) = cmplx(real(m_rhs%val(:,cc)), aimag(m_rhs%val(:,cc)), sp)
   end do
   !$OMP END PARALLEL DO
 end subroutine czassign_DNS

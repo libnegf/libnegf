@@ -118,7 +118,7 @@ contains
   subroutine destroy_mesh(emesh)
     type(mesh) :: emesh
     
-    integer :: nelem,i,k
+    integer :: nelem,i
     type(elem), pointer :: el
 
     nelem = size(emesh%el0)
@@ -250,8 +250,6 @@ contains
 
   !--------------------------------------------------------------------  
   subroutine trapez(x1,x2,x,w,n)
-
-    real(kind=dp), PARAMETER :: ACC = 1d-15
 
     INTEGER n
     real(kind=dp) :: x1,x2,x(n),w(n)

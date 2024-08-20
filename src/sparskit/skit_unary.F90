@@ -414,7 +414,6 @@ module skit_unary
 
     real(dp) :: t, t1
     integer :: k, jcol, nnz, i, j, l, init, inext
-    logical :: found
 
     ierr = 0
     nnz = ia(nrow+1)-1
@@ -499,7 +498,6 @@ module skit_unary
 
     complex(dp) :: t, t1
     integer :: k, jcol, nnz, i, j, l, init, inext
-    logical :: found
 
     ierr = 0
     nnz = ia(nrow+1)-1

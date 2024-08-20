@@ -90,7 +90,7 @@ subroutine negf_init_session(handler) bind(C)
   ALLOCATE(LIB%pNEGF)
 
   handler(:) = 0
-  handler = transfer(LIB, handler, size(handler))
+  handler = transfer(LIB, handler)
 
   ! call here a specific initialization method
 
@@ -1154,7 +1154,6 @@ subroutine negf_init_basis(handler, coords, n_atoms, dims, matrix_indices, latti
   integer(c_int), intent(in), value :: trans_dir   !if:var:in
 
   type(NEGFpointers) :: LIB
-  integer :: i
 
   LIB = transfer(handler, LIB)
 

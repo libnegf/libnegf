@@ -399,6 +399,7 @@ module lib_param
     character(kind=c_char, len=1) :: dore  ! Density or En.Density
     !> Reference contact is set to maximum or minimum Fermi level
     integer(c_int) :: min_or_max
+    logical(c_bool) :: is_s_is;
   end type lnparams
 
 contains

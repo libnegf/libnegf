@@ -126,6 +126,8 @@ contains
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------
   subroutine surface_green(E,HC,SC,pnegf,ncyc,GS)
+    implicit none
+
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
     type(Tnegf) :: pnegf
@@ -275,15 +277,18 @@ contains
   !---------------------------------------------------------------------------------------
   ! --------------------------------------------------------------------
   subroutine decimation(Go,Ao,Bo,Co,n,ncyc)
+    implicit none
+    external zgemm
+
     integer, intent(in) :: n
     complex(dp), DIMENSION(n,n), intent(out) :: Go
     complex(dp), DIMENSION(n,n), intent(inout) :: Ao,Bo,Co
     integer, intent(out) :: ncyc
 
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, A1, B1, C1
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, B1, C1
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
-    integer :: i1, err
+    integer :: i1
     logical :: okCo = .false.
 
     call log_allocate(Ao_s, n, n)
