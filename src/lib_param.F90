@@ -653,6 +653,8 @@ contains
                              !-1: holes
                              ! Can be -1 only in compute_density_efa
 
+     negf%bulk_cont_density = .false. ! Flag to calculate the density of the bulk contacts
+
      negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
 
      ! Initialize the cache space for Gr and Gn

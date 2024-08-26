@@ -1507,6 +1507,8 @@ contains
     real(dp), dimension(:,:), pointer, intent(inout) :: dens
 
     ! TODO: think of a way to associate the type(realArray) vectors
+    ! In this subroutine one should deallocate the negf%contact_density(j1)%array
+    ! objects (see last lines in include_contact_density(negf, q) )
 
   end subroutine associate_contact_densities
 
