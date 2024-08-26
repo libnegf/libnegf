@@ -720,7 +720,8 @@ end subroutine negf_calculate_dephasing_transmission
 !! Compute charge Density for EFA
 !! @param[in]  handler: handler Number for the LIBNEGF instance
 !! @param[in]  ndofs: handler Number for the LIBNEGF instance
-subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
+subroutine negf_density_efa(handler,ndofs,density,particle,contacts) bind(C)
+  use iso_c_binding, only: c_bool
   use libnegfAPICommon  ! if:mod:use  use negf_param
   use ln_precision      !if:mod:use
   use libnegf           ! if:mod:use
@@ -729,6 +730,7 @@ subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
   integer :: ndofs                     ! if:var:in
   real(dp) :: density(ndofs)           ! if:var:in
   integer :: particle                  ! if:var:in
+  logical(c_bool) :: contacts          ! if:var:in
 
   ! particle = 1 for electrons
   ! particle =-1 for holes
@@ -736,6 +738,10 @@ subroutine negf_density_efa(handler,ndofs,density,particle) bind(C)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
+
+  if (contacts) then
+    LIB%pnegf%bulk_cont_density = .true.
+  endif
 
   call compute_density_efa(LIB%pNEGF, density, particle)
 

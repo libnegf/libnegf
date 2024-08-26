@@ -198,6 +198,8 @@ MODULE sparsekit_drv
   interface getdiag
      module procedure getdiag_csr
      module procedure rgetdiag_csr
+     module procedure getdiag_dns
+     module procedure rgetdiag_dns
   end interface
   interface trace
      module procedure ztrace_csr
@@ -3051,6 +3053,52 @@ CONTAINS
 
   end subroutine rgetdiag_csr
   !---------------------------------------------
+
+  subroutine getdiag_dns(A_dns,D_vec)
+
+   implicit none
+
+   type(z_DNS) :: A_dns
+   complex(kind=dp), dimension(:) :: D_vec
+
+   integer :: i, N
+
+   N = A_dns%nrow
+
+   IF(SIZE(D_vec).lt.N) THEN
+      error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+   ENDIF
+
+   do i = 1, N
+      D_vec(i) = A_dns%val(i,i)
+   end do
+
+ end subroutine getdiag_dns
+
+ !---------------------------------------------
+
+ subroutine rgetdiag_dns(A_dns,D_vec)
+
+   implicit none
+
+   type(r_DNS) :: A_dns
+   real(kind=dp), dimension(:) :: D_vec
+
+   integer :: i, N
+
+   N = A_dns%nrow
+
+   IF(SIZE(D_vec).lt.N) THEN
+      error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+   ENDIF
+
+   do i = 1, N
+      D_vec(i) = A_dns%val(i,i)
+   end do
+
+ end subroutine rgetdiag_dns
+
+ !---------------------------------------------
 
   function ztrace_csr(mat, mask) result(trace)
     type(z_CSR), intent(in) :: mat

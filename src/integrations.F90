@@ -847,6 +847,8 @@ contains
      real(dp) :: scba_error
      complex(dp) :: Ec, zt
 
+     logical :: real_axis, contour
+
      ncont = negf%str%num_conts
      outer = negf%outer_blocks
      Npoints = size(negf%en_grid)
@@ -873,7 +875,16 @@ contains
 
         call destroy(GreenR)
 
+        if (negf%bulk_cont_density) then
+          contour = .true.; real_axis = .false.
+          call integrate_contact_density(negf, zt, real_axis, contour)
+        end if
+
      enddo
+
+     if (negf%bulk_cont_density) then
+      call finalize_contact_density(negf)
+     end if
 
      ! NOTE: The following assumes contour_int is called BEFORE any
      !       real-axis integration.
@@ -943,6 +954,12 @@ contains
          call concat(TmpMt,zt,GreenR,1,1) !partial sums on local E
 
          call destroy(GreenR)
+          ! Perform integration of diag(GBulk) in the contacts
+          ! TODO: generalize negf%contact_density(:) with k-dependence
+         !  if (negf%bulk_cont_density) then
+         !    real_axis = .false.; contour = .true.
+         !    call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
+         !  end if
 
        enddo enloop
 
@@ -1083,6 +1100,8 @@ contains
     real(dp), DIMENSION(:), allocatable :: frm_f
     real(dp) :: Er, scba_error
 
+    logical :: real_axis, contour
+
     complex(dp) :: zt
     complex(dp) :: Ec
 
@@ -1090,6 +1109,8 @@ contains
     outer = negf%outer_blocks
     Npoints = size(negf%en_grid)
     particle = negf%particle
+
+    negf%readOldSGF = negf%readOldDM_SGFs
 
     call log_allocate(frm_f,ncont)
 
@@ -1128,7 +1149,17 @@ contains
 
       call destroy(G)
 
+      ! Perform integration of diag(GBulk) in the contacts
+      if (negf%bulk_cont_density) then
+        real_axis = .true.; contour = .false.
+        call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
+      end if
+
     enddo enloop
+
+    if (negf%bulk_cont_density) then
+      call finalize_contact_density(negf)
+    end if
 
     if (allocated(negf%rho%nzval)) then
        call concat(negf%rho,TmpMt,1,1)
@@ -1167,6 +1198,8 @@ contains
     outer = negf%outer_blocks
     Npoints = size(negf%en_grid)
     particle = negf%particle
+
+    negf%readOldSGF = negf%readOldDM_SGFs
 
     ref_bk = negf%refcont
     negf%refcont = ncont + 1
@@ -1245,7 +1278,12 @@ contains
           call concat(TmpMt,zt,G,1,1)
 
           call destroy(G)
-
+          ! Perform integration of diag(GBulk) in the contacts
+          ! TODO: generalize negf%contact_density(:) with k-dependence
+         !  if (negf%bulk_cont_density) then
+         !    real_axis = .true.; contour = .false.
+         !    call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
+         !  end if
         enddo enloop
 
         associate(rho => negf%DM(iK)%rho)
@@ -1309,6 +1347,7 @@ contains
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
     real(dp) :: Omega, mumax, muref, kbT
+    real(dp) :: Emin, Emax
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1328,8 +1367,10 @@ contains
 
     allocate(pnts(Npoints))
     allocate(wght(Npoints))
+    Emin = negf%Ec-negf%DeltaEc
+    Emax = mumax + Omega
 
-    call trapez(negf%Ec-negf%DeltaEc, mumax + Omega,pnts,wght,Npoints)
+    call trapez(Emin, Emax,pnts,wght,Npoints)
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -1370,7 +1411,8 @@ contains
 
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, Emax, muref, kbT
+    real(dp) :: Omega, mumin, Emin, Emax, muref, kbT
+
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1391,9 +1433,10 @@ contains
     allocate(pnts(Npoints))
     allocate(wght(Npoints))
 
+    Emin = mumin-Omega
     Emax = negf%Ev+negf%DeltaEv
 
-    call trapez(mumin-Omega, Emax, pnts, wght, Npoints)
+    call trapez(Emin, Emax, pnts, wght, Npoints)
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -2433,6 +2476,65 @@ contains
     enddo
 
   end subroutine electron_current_meir_wingreen
+
+
+  subroutine integrate_contact_density(negf, weight, real_axis, contour, frm_f)
+    type(Tnegf) :: negf
+    complex(dp), intent(in) :: weight
+    logical, intent(in) :: real_axis, contour
+    real(dp), dimension(:), intent(in), optional :: frm_f
+
+    integer :: j1
+    complex(dp), dimension(:), allocatable :: temp
+
+    if (real_axis .and. .not. present(frm_f)) then
+        error stop "Calculation of contact bulk density at non-equilibrium (real-axis) requires fermi functions"
+    endif
+
+    do j1 = 1,negf%str%num_conts
+      associate(bulkG => negf%cont_bulkG(j1))
+
+      if (.not. allocated(negf%bulk_diags(j1)%array)) then
+        call log_allocate(negf%bulk_diags(j1)%array, bulkG%nrow)
+        negf%bulk_diags(j1)%array = 0.0_dp
+      endif
+
+      associate(b_diag => negf%bulk_diags(j1)%array)
+      call log_allocate(temp, bulkG%nrow)
+      temp = 0.0_dp
+      call getdiag(bulkG, temp)
+
+      if (real_axis) then
+        b_diag(:) = b_diag(:) + temp(:) * frm_f(j1)*weight
+      end if
+      if (contour) then
+        b_diag(:) = b_diag(:) + temp(:) * weight ! Fermi function already present in weight
+      end if 
+
+      call log_deallocate(temp)
+      call destroy(negf%cont_bulkG(j1))
+
+      end associate
+      end associate
+    end do    
+
+  end subroutine integrate_contact_density
+
+
+  subroutine finalize_contact_density(negf)
+    type(Tnegf) :: negf
+
+    integer :: j1
+
+    do j1 = 1,negf%str%num_conts
+      associate(b_diag => negf%bulk_diags(j1)%array)
+      call log_allocate(negf%contact_density(j1)%array, size(b_diag))
+      negf%contact_density(j1)%array(:) = real(j*(b_diag(:)-conjg(b_diag(:))),dp)
+      end associate
+      call log_deallocate(negf%bulk_diags(j1)%array)
+    end do
+
+  end subroutine finalize_contact_density
 
 
   !-----------------------------------------------------------------------

@@ -44,7 +44,7 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, lnParams, intArray, TEnGrid, TInteractionList
+  public :: Tnegf, lnParams, intArray, complArray, realArray, TEnGrid, TInteractionList
   public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
   public :: destroy_interactions
@@ -61,6 +61,14 @@ module lib_param
   type intArray
     integer, dimension(:), allocatable :: indexes
   end type intArray
+
+  type complArray
+    complex(dp), dimension(:), allocatable :: array
+  end type complArray
+
+  type realArray
+    real(dp), dimension(:), allocatable :: array
+  end type realArray
 
   ! Array used to store the k-dependent matrices
   type TMatrixArrayHS
@@ -232,6 +240,13 @@ module lib_param
     ! Ponters of current working density matrix
     type(z_CSR), pointer :: rho => null()
     !logical :: internalDM
+
+    !Bulk contact density calculation
+    logical :: bulk_cont_density                    ! Flag to trigger the calculation
+    type(z_DNS) :: cont_bulkG(MAXNCONT)             ! Collection of contact bulk Green's functions
+    type(complArray) :: bulk_diags(MAXNCONT)        ! Diagonals of the bulk Green that contain 
+                                                    !   the result of the energy integration (one for each contact)
+    type(realArray) :: contact_density(MAXNCONT)    ! Final result of the contact density calculation
 
     type(TStruct_Info) :: str     ! system structure
     type(TBasisCenters) :: basis  ! local basis centers
@@ -638,6 +653,8 @@ contains
                              ! 1: electrons
                              !-1: holes
                              ! Can be -1 only in compute_density_efa
+
+     negf%bulk_cont_density = .false. ! Flag to calculate the density of the bulk contacts
 
      negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
 

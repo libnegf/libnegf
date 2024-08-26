@@ -460,10 +460,14 @@ contains
       ii = 1
     end if
 
-    if (ii > size(negf%HS)) then
-       error stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
+    if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
+      error stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
     else
-      if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
+      if (.not.associated(negf%HS(ii)%S)) then
+        allocate(negf%HS(ii)%S)
+      else
+        call destroy(negf%HS(ii)%S)
+      endif
     end if
 
     call create_id(negf%HS(ii)%S, nrow)
@@ -1484,6 +1488,18 @@ contains
 
 
   !--------------------------------------------------------------------
+  subroutine associate_contact_densities(negf, dens)
+    type(TNegf), pointer, intent(in)  :: negf
+    real(dp), dimension(:,:), pointer, intent(inout) :: dens
+
+    ! TODO: think of a way to associate the type(realArray) vectors
+    ! In this subroutine one should deallocate the negf%contact_density(j1)%array
+    ! objects (see last lines in include_contact_density(negf, q) )
+
+  end subroutine associate_contact_densities
+
+
+  !--------------------------------------------------------------------
   !>
   !! Get currents by copy.
   !! @param [in] negf: negf container
@@ -1708,6 +1724,7 @@ contains
     real(dp), dimension(:) :: q
     integer :: particle  ! +1 for electrons, -1 for holes
     complex(dp), dimension(:), allocatable :: q_tmp
+    complex(dp), dimension(:), allocatable :: q_reduced
 
     integer :: k
 
@@ -1770,9 +1787,7 @@ contains
           negf%particle = -1
           call real_axis_int_p_def(negf)
        endif
-       ! we use contour_int here because it integrates Gr, while
-       ! real_axis_int integrates Gn
-       !call contour_int(negf)
+
        call real_axis_int(negf)
     endif
 
@@ -1782,16 +1797,24 @@ contains
     ! rho(rk) = sum_ii Pii ui(rk)^2
     if (negf%rho%nrow.gt.0) then
        call log_allocate(q_tmp, negf%rho%nrow)
+       call log_allocate(q_reduced, size(q_tmp))
 
        call getdiag(negf%rho, q_tmp)
+       call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
 
        do k = 1, size(q)
-          q(k) = real(q_tmp(k))
+          q(k) = real(q_reduced(k))
        enddo
 
        call log_deallocate(q_tmp)
+       call log_deallocate(q_reduced)
     else
        q = 0.0_dp
+    endif
+
+    if (negf%bulk_cont_density) then
+      q = 0.0_dp
+      call include_contact_density(negf, q)
     endif
 
     call destroy_contact_matrices(negf)
@@ -1830,6 +1853,64 @@ contains
     call destroy_contact_matrices(negf)
 
   end subroutine compute_density_quasiEq
+
+  !-------------------------------------------------------------------------------
+  subroutine include_contact_density(negf, q)
+    type(Tnegf), intent(in) :: negf
+    real(dp), dimension(:), intent(inout) :: q
+
+    integer ::  NC1, NC2, ND, k, i, index
+    complex(dp), dimension(:), allocatable :: q_tmp
+    complex(dp), dimension(:), allocatable :: q_reduced
+    real(dp), dimension(:), allocatable :: cont1_reduced, cont2_reduced
+
+
+    ! For now we assume 2 contacts
+    ! NOTE: negf%rho%nrow has size: device + contacts
+    call log_allocate(q_tmp, negf%rho%nrow)
+    call log_allocate(q_reduced, size(q_tmp))
+    call log_allocate(cont1_reduced, size(negf%contact_density(1)%array))
+    call log_allocate(cont2_reduced, size(negf%contact_density(2)%array))
+    call getdiag(negf%rho, q_tmp)
+
+    call mpifx_reduce(negf%energyComm, q_tmp, q_reduced, MPI_SUM)
+    call mpifx_reduce(negf%energyComm, negf%contact_density(1)%array, cont1_reduced, MPI_SUM)
+    call mpifx_reduce(negf%energyComm, negf%contact_density(2)%array, cont2_reduced, MPI_SUM)
+
+    NC1 = size(cont1_reduced)
+    NC2 = size(cont2_reduced)
+    ND = size(q_reduced) - 2*NC1 - 2*NC2               ! Times 2: the bulk density is computed on 1 PL but
+                                                   ! the contact is made by 2 PLs
+    ! Device
+    do k = 1, ND
+      q(k) = real(q_reduced(k))
+    end do
+    ! Contact 1
+    ! i = 0 -> PL 1
+    ! i = 1 -> PL 2
+    do i = 0,1
+      do k = 1, NC1
+          index = k + ND + NC1*i
+          q(index) = cont1_reduced(k)
+      end do
+    end do
+    ! Contact 2
+    do i = 0,1
+      do k = 1, NC2
+        index = k + ND + 2*NC1 + i*NC2
+        q(index) = cont2_reduced(k)
+      end do
+    end do
+
+    call log_deallocate(q_tmp)
+    call log_deallocate(q_reduced)
+    call log_deallocate(cont1_reduced)
+    call log_deallocate(cont2_reduced)
+    do i = 1,negf%str%num_conts
+      call log_deallocate(negf%contact_density(i)%array)
+    end do
+
+  end subroutine include_contact_density
 
 
 
