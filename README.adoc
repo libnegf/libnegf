@@ -12,11 +12,16 @@ Have a look at the link:CONTRIBUTING.adoc[contributor's guide] if you want to he
 
 For an example of application, see the use of libNEGF in https://dftbplus.org[DFTB+].
 
-*A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo, New Journal of Physics 10, 065022 (2008)
+If you used libNEGF, please cite the following publication:
+____
+{empty}A. Pecchia, L. Salvucci, G. Penazzi and A. Di Carlo: "`Non-equilibrium Green's functions in density functional tight binding: method and applications`". New Journal of Physics 10, 065022 (2008). DOI: 10.1088/1367-2630/10/6/065022.
+____
+
 
 == Installation
 
 libNEGF requires
+
 * CMake,
 * a C99 compiler,
 * a Fortran 2018 compiler,
@@ -27,3 +32,8 @@ libNEGF requires
 Optionally CUDA can be used.
 
 Note that MPICH version 4 may cause build problems due to the mpifx dependency, see https://github.com/dftbplus/mpifx/issues/48[mpifx#48]. Moreover it is recommended to use recent gfortran releases: gfortran 11 and 12 are known to work, gfortran 10.2.1 (found in Debian 11) and GCC 8.3.0 (found in Debian 10) are known _not_ to work.
+
+
+== Generating libNEGF Input
+
+To create libNEGF input, obtain Slater-Koster parameterizations{empty}footnote:[J. C. Slater and G. F. Koster: "`Simplified LCAO Method for the Periodic Potential Problem`". 1954. Physical Review 94 (1498). DOI: 10.1103/PhysRev.94.1498.] for the molecule at hand (e.g., from the https://dftb.org/parameters/[DFTB+ Parameters] page) and describe the geometric properties of the molecule and its contacts. The description file format as well as visualization of input and output are described in details in the DTFB+ recipes document https://dftbplus-recipes.readthedocs.io/en/latest/transport/setup-geometry.html[_Setup Geometry utility_].

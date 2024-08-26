@@ -51,6 +51,10 @@ module ContSelfEnergy
   public :: SelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
+  public :: decimation
+#:if defined("GPU")
+  public :: decimation_gpu
+#:endif
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
@@ -82,7 +86,7 @@ module ContSelfEnergy
         type(c_ptr), value :: h_Bo_in
         type(c_ptr), value :: h_Co_in
         integer(c_int), value :: n
-        integer(c_int), value :: ncyc
+        type(c_ptr), value :: ncyc
         integer(c_int), value :: tf32
         complex(c_float_complex) :: one
         complex(c_float_complex) :: mone
@@ -103,7 +107,7 @@ module ContSelfEnergy
         type(c_ptr), value :: h_Bo_in
         type(c_ptr), value :: h_Co_in
         integer(c_int), value :: n
-        integer(c_int), value :: ncyc
+        type(c_ptr), value :: ncyc
         integer(c_int), value :: tf32
         complex(c_double_complex) :: one
         complex(c_double_complex) :: mone
@@ -122,6 +126,8 @@ contains
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
   !--------------------------------------------------------------------
   subroutine surface_green(E,HC,SC,pnegf,ncyc,GS)
+    implicit none
+
     complex(dp), intent(in) :: E
     type(z_DNS), intent(in) :: HC,SC
     type(Tnegf) :: pnegf
@@ -276,15 +282,18 @@ contains
   !---------------------------------------------------------------------------------------
   ! --------------------------------------------------------------------
   subroutine decimation(Go,Ao,Bo,Co,n,ncyc)
+    implicit none
+    external zgemm
+
     integer, intent(in) :: n
     complex(dp), DIMENSION(n,n), intent(out) :: Go
     complex(dp), DIMENSION(n,n), intent(inout) :: Ao,Bo,Co
     integer, intent(out) :: ncyc
 
-    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, A1, B1, C1
+    complex(dp), ALLOCATABLE, DIMENSION(:,:) :: Ao_s, B1, C1
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
-    integer :: i1, err
+    integer :: i1
     logical :: okCo = .false.
 
     call log_allocate(Ao_s, n, n)
@@ -353,7 +362,7 @@ contains
     complex(sp), dimension(n,n), intent(out), target :: Go_out
     complex(sp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
      logical, intent(in) :: tf32
-     integer, intent(out) :: ncyc
+     integer, intent(out), target :: ncyc
 
     complex(sp) :: one = (1.0_sp, 0.0_sp)
     complex(sp) :: mone = (-1.0_sp, 0.0_sp)
@@ -370,8 +379,8 @@ contains
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
-    istat = cu_Cdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, ncyc, one, mone,&
-    & zero, real(SGFACC,sp)*n*n)
+    istat = cu_Cdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
+            one, mone, zero, real(SGFACC,sp)*n*n)
 
   end subroutine decimation_gpu_sp
 
@@ -382,7 +391,7 @@ contains
     complex(dp), dimension(n,n), intent(out), target :: Go_out
     complex(dp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
     logical, intent(in) :: tf32
-    integer, intent(out) :: ncyc
+    integer, intent(out), target :: ncyc
 
     complex(dp) :: one = (1.0_dp, 0.0_dp)
     complex(dp) :: mone = (-1.0_dp, 0.0_dp)
@@ -400,8 +409,8 @@ contains
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
-    istat = cu_Zdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, ncyc, one, mone,&
-    & zero, real(SGFACC,dp)*n*n)
+    istat = cu_Zdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
+            one, mone, zero, real(SGFACC,dp)*n*n)
 
   end subroutine decimation_gpu_dp
 

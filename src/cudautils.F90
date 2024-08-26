@@ -110,8 +110,6 @@ module cudautils
       module procedure delete_trid_fromGPU_dp
    end interface delete_trid_fromGPU
 
-
-
    interface matmul_gpu
       module procedure matmul_gpu_sp
       module procedure matmul_gpu_dp
@@ -193,7 +191,8 @@ module cudautils
 
      integer(c_int) function cu_deleteMat(d_A) bind(C, name='cu_deleteMat')
        use iso_c_binding
-       type(c_ptr), value :: d_A
+       ! not by value since pointer has to be nullified, hence pass its reference
+       type(c_ptr) :: d_A
      end function cu_deleteMat
 
      ! C = alpha*A*B + beta*C
@@ -488,21 +487,21 @@ end interface
      istat = cu_CmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
              & B%d_addr, beta, C%d_addr, 0)
      else
-       select case(dagger)    
+       select case(dagger)
        case('dag_1st')
          istat = cu_CmultMat(hcublas, C%nrow, C%ncol, B%nrow, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
          istat = cu_CmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
-       case default  
-         error stop 'Error in matmul_gpu'    
+       case default
+         error stop 'Error in matmul_gpu'
        end select
      endif
 
    end subroutine matmul_gpu_sp
 
-   subroutine inverse_gpu_sp(hcublas, hcusolver, A, Ainv, err)
+  subroutine inverse_gpu_sp(hcublas, hcusolver, A, Ainv, err)
      type(cublasHandle) :: hcublas
      type(cusolverDnHandle) :: hcusolver
      type(c_DNS), intent(in) :: A
@@ -585,6 +584,7 @@ end interface
       logical, intent(in), optional, target :: tun_mask(:)
 
       type(c_ptr) :: dummy
+      dummy = c_null_ptr
 
       if (.not.present(tun_mask)) then
          trace = cu_Ctrace(hcublas, A%d_addr, A%nrow, dummy, 0)
@@ -616,7 +616,7 @@ end interface
 
    end subroutine asum_gpu_sp
 
-   subroutine dagger_gpu_sp(hcublas, G, G_dag)
+  subroutine dagger_gpu_sp(hcublas, G, G_dag)
       type(cublasHandle), intent(in) :: hcublas
       type(c_DNS), intent(in) :: G
       type(c_DNS), intent(inout) :: G_dag
@@ -647,15 +647,15 @@ end interface
        istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
              & B%d_addr, beta, C%d_addr, 0)
      else
-       select case(dagger)    
+       select case(dagger)
        case('dag_1st')
          istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, B%nrow, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
          istat = cu_ZmultMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
                & B%d_addr, beta, C%d_addr, 2)
-       case default  
-         error stop 'Error in matmul_gpu'    
+       case default
+         error stop 'Error in matmul_gpu'
        end select
      endif
 
@@ -744,6 +744,7 @@ end interface
       logical, intent(in), optional, target :: tun_mask(:)
 
       type(c_ptr) :: dummy
+      dummy = c_null_ptr
 
       if (.not.present(tun_mask)) then
          trace = cu_Ztrace(hcublas, A%d_addr, A%nrow, dummy, 0)
@@ -775,7 +776,7 @@ end interface
 
    end subroutine asum_gpu_dp
 
-   subroutine dagger_gpu_dp(hcublas, G, G_dag)
+  subroutine dagger_gpu_dp(hcublas, G, G_dag)
       type(cublasHandle), intent(in) :: hcublas
       type(z_DNS), intent(in) :: G
       type(z_DNS), intent(inout) :: G_dag

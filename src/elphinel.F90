@@ -268,7 +268,7 @@ contains
 
     type(MPI_Comm) :: kComm
 
-    integer :: i, nKloc, nKprocs, mpierr, myid
+    integer :: nKloc, nKprocs, mpierr, myid
     logical :: remain_dims(2) = [.true., .false.]
 
     this%kpoint = kpoints
@@ -314,7 +314,7 @@ contains
   subroutine prepare_POKmat(this)
     class(ElPhonPolarOptical) :: this
 
-    integer :: iZ, iQ, eQ, iK, fu, nDeltaZ, nCentralAtoms, n_eq
+    integer :: iZ, iQ, eQ, iK, nDeltaZ, nCentralAtoms, n_eq
     real(dp) :: kq(3), kk(3), ekp(3), QQ(3), Q2, bb, z_mn, Kf
     real(dp) :: zmin, zmax
     real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
@@ -407,7 +407,7 @@ contains
   subroutine prepare_NonPOKmat(this)
     class(ElPhonNonPolarOptical) :: this
 
-    integer :: iZ, iQ, iK, fu, nDeltaZ, nCentralAtoms, eQ, n_eq
+    integer :: iZ, iQ, iK, nDeltaZ, nCentralAtoms, eQ, n_eq
     real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf, ekp(3), ekp2
     real(dp) :: zmin, zmax
     real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
@@ -539,7 +539,7 @@ contains
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
 
-    integer :: n, npl, ii, ierr, jj
+    integer :: npl, jj
     type(x_dns), pointer :: tmp_blk
     type(TMatLabel) :: label
     !print*,'inel%add_sigma_r'
@@ -582,7 +582,7 @@ contains
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
 
-    integer :: n, npl, ii, ierr, jj
+    integer :: npl, jj
     type(x_dns), pointer :: tmp_blk
     type(TMatLabel) :: label
     npl = this%struct%num_PLs
@@ -623,9 +623,8 @@ contains
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
 
-    type(z_dns), pointer :: tmp_blk
     type(TMatLabel) :: label
-    integer :: ii, jj
+    integer :: ii
 
     if (this%scba_iter .eq. 0) return
 
@@ -717,16 +716,13 @@ contains
     integer, intent(in), optional :: spin
 
 #:if defined("MPI")
-    integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift, err
+    integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift
     integer :: iK, iE, Ndz, PL_start
     complex(lp) :: fac_min, fac_plus
     type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
-    logical :: buff
     integer :: transDir
-
-    real(dp) :: maxvalue
 
     transDir = this%basis%transportDirection
     nbl = this%struct%num_PLs
@@ -933,7 +929,7 @@ contains
     integer, intent(in), optional :: spin
 
 #:if defined("MPI")
-    integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift, err
+    integer :: ii, ibl, nbl, Np, Mp, NK, NE, NKloc, NEloc, iEshift
     integer :: iK, iE, Ndz, PL_start
     complex(lp) :: fac_min, fac_plus
     type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
@@ -942,8 +938,6 @@ contains
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
     integer :: transDir
-
-    real(dp) :: maxvalue
 
     transDir = this%basis%transportDirection
     nbl = this%struct%num_PLs

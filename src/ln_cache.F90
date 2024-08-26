@@ -42,10 +42,6 @@ module ln_cache
     integer :: col_block = -1
   end type TMatLabel
 
-  interface operator (==)
-    module procedure labeleq
-  end interface
-
   type, abstract :: TMatrixCache
   contains
     procedure(abst_add_matrix_dp), deferred :: add_dp
@@ -203,19 +199,6 @@ module ln_cache
   end type
 
 contains
-
-  function labeleq(label1, label2) result(var)
-     type(TMatLabel), intent(in) :: label1, label2
-     logical :: var
-     var = .false.
-     if (label1%kpoint        == label2%kpoint        .and. &
-       & label1%spin          == label2%spin          .and. &
-       & label1%row_block     == label2%row_block     .and. &
-       & label1%col_block     == label2%col_block     .and. &
-       & label1%energy_point  == label2%energy_point ) then
-          var = .true.
-     end if
-  end function labeleq
 
   subroutine print_label(label)
     type(TMatLabel) :: label
@@ -476,10 +459,6 @@ contains
     type(z_DNS):: matrix
     type(TMatLabel) :: label
 
-    character(2) :: ofcont
-    character(1) :: ofspin
-    character(10) :: ofkpnt
-    character(10) :: ofpnt
     character(LST) :: filename
     integer :: file_unit
 
@@ -495,10 +474,6 @@ contains
     type(c_DNS):: matrix
     type(TMatLabel) :: label
 
-    character(2) :: ofcont
-    character(1) :: ofspin
-    character(10) :: ofkpnt
-    character(10) :: ofpnt
     character(LST) :: filename
     integer :: file_unit
 
@@ -571,7 +546,6 @@ contains
 
     character(LST) :: filename
     logical :: file_exists
-    integer :: file_unit
 
     call disk_indices_to_filename(filename, label)
     inquire (file=trim(this%scratch_path)//filename, EXIST=file_exists)
@@ -586,8 +560,6 @@ contains
 
   subroutine disk_list_cache(this)
     class(TMatrixCacheDisk) :: this
-
-    type(TMatLabel) :: label
 
     ! no good. Probably the object should keep track of
     ! the cached matrices with a mapping label-> filename

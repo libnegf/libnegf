@@ -211,17 +211,14 @@ contains
   subroutine ldos_int(negf)
     type(Tnegf) :: negf
 
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Type(z_CSR) ::  Gr, TmpMt
     complex(dp), Dimension(:), ALLOCATABLE :: diag
 
-    integer :: Npoints, i, i1, l, kb, ke
+    integer :: Npoints, i, i1
     integer :: outer, ncont
 
-    real(dp) :: ncyc, scba_error
+    real(dp) :: scba_error
     complex(dp) :: Ec
-    character(6) :: ofKP
-    character(1) :: ofSp
 
     outer = 1
     ncont = negf%str%num_conts
@@ -675,6 +672,7 @@ contains
   !
   !-----------------------------------------------------------------------
   subroutine contour_int_def(negf)
+     use, intrinsic :: ieee_arithmetic
      type(Tnegf) :: negf
 
      integer :: i, Npoints, ioffs, nPoles
@@ -704,7 +702,12 @@ contains
      else
        mumin = muref - nkT
        nPoles = negf%n_poles
-       Lambda = 2.0_dp* negf%n_poles * KbT * pi
+       ! Poles of the Fermi function:
+       ! exp[(z-mu)/kbT] = -1 => z = mu + (pi*kbT + 2*pi*n*kbT) i
+       Lambda = 2.0_dp* nPoles * KbT * pi
+       if (nPoles .eq. 0) then
+         Lambda = 0.5_dp * KbT * pi
+       end if
      end if
 
      Npoints=negf%Np_n(1) + negf%Np_n(2) + nPoles
@@ -769,6 +772,8 @@ contains
 
      if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then     ! Circle integration T=0
        call  gauleg(alpha,0.0_dp,pnts,wght,negf%Np_n(2))
+       z_diff = cmplx(ieee_value(1.0_dp, ieee_signaling_nan), &
+                      ieee_value(1.0_dp, ieee_signaling_nan))
      else                                          ! Segment integration T>0
        z1 = muref + nkT + j*Lambda
        z2 = muref - nkT + j*Lambda
@@ -838,8 +843,8 @@ contains
      type(Tnegf) :: negf
 
      type(z_CSR) :: GreenR, TmpMt
-     integer :: i, i1, ncont, Npoints, outer
-     real(dp) :: ncyc, scba_error
+     integer :: i, ncont, Npoints, outer
+     real(dp) :: scba_error
      complex(dp) :: Ec, zt
 
      logical :: real_axis, contour
@@ -903,8 +908,8 @@ contains
      type(TMatrixArrayDM) :: dm_c(:)
 
      type(z_CSR) :: GreenR, TmpMt
-     integer :: i, i1, iK, ncont, Npoints, outer
-     real(dp) :: ncyc, scba_error
+     integer :: i, iK, ncont, Npoints, outer
+     real(dp) :: scba_error
      complex(dp) :: Ec, zt
 
      ncont = negf%str%num_conts
@@ -1088,12 +1093,12 @@ contains
 
     type(z_CSR) :: G, TmpMt
 
-    integer :: ref, Npoints
-    integer :: iE, i1, j1, iK, outer, ncont
+    integer :: Npoints
+    integer :: iE, j1, outer, ncont
     integer :: particle
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    real(dp) :: ncyc, Er, scba_error, scba_elastic_tol
+    real(dp) :: Er, scba_error
 
     logical :: real_axis, contour
 
@@ -1179,15 +1184,14 @@ contains
     type(Tnegf) :: negf
      type(TMatrixArrayDM) :: dm_c(:)
 
-    integer :: ref, Npoints
-    integer :: scba_iter, scba_elastic_iter, scba_niter_ela, scba_niter_inela
-    integer :: iE, i1, j1, iK, outer, ncont, ref_bk
+    integer :: Npoints
+    integer :: scba_iter, scba_niter_ela, scba_niter_inela
+    integer :: iE, j1, iK, outer, ncont, ref_bk
     integer :: particle
     type(z_CSR) :: G, TmpMt
 
     real(dp), DIMENSION(:), allocatable :: frm_f
-    complex(dp), DIMENSION(:), allocatable :: diag
-    real(dp) :: ncyc, Er, scba_elastic_error, scba_inelastic_error
+    real(dp) :: Er, scba_elastic_error, scba_inelastic_error
     complex(dp) :: zt, Ec
 
     ncont = negf%str%num_conts
@@ -1342,7 +1346,7 @@ contains
 
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumax, muref, ff, kbT
+    real(dp) :: Omega, mumax, muref, kbT
     real(dp) :: Emin, Emax
 
     ncont = negf%str%num_conts
@@ -1407,7 +1411,8 @@ contains
 
     integer :: i, ioffset, ncont, Npoints
     real(dp), DIMENSION(:), allocatable :: wght,pnts   ! Gauss-quadrature points
-    real(dp) :: Omega, mumin, Emin, Emax, muref, ff, kbT
+    real(dp) :: Omega, mumin, Emin, Emax, muref, kbT
+
 
     ncont = negf%str%num_conts
     ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
@@ -1521,8 +1526,6 @@ contains
   !--------------------------------------------------------------------
   subroutine trapez(x1,x2,x,w,n)
 
-    real(kind=dp), PARAMETER :: ACC = 1d-15
-
     INTEGER n
     real(kind=dp) :: x1,x2,x(n),w(n)
 
@@ -1542,8 +1545,6 @@ contains
   end subroutine trapez
   !--------------------------------------------------------------------
   subroutine simpsons(x1,x2,x,w,n)
-    real(kind=dp), PARAMETER :: ACC = 1d-15
-
     INTEGER n
     real(kind=dp) :: x1,x2,x(n),w(n)
 
@@ -1569,8 +1570,6 @@ contains
   end subroutine simpsons
   !--------------------------------------------------------------------
   subroutine three_eigth(x1,x2,x,w,n)
-
-    real(kind=dp), PARAMETER :: ACC = 1d-15
 
     INTEGER n
     real(kind=dp) :: x1,x2,x(n),w(n)
@@ -1607,7 +1606,7 @@ contains
   subroutine tunneling_int_def(negf)
     type(Tnegf) :: negf
 
-    integer :: i, k, ncont, Npoints, np
+    integer :: i, k, Npoints, np
     integer, allocatable :: seq(:)
 
     Npoints=nint((negf%Emax-negf%Emin)/negf%Estep) + 1
@@ -1673,10 +1672,9 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Real(dp), Dimension(:), allocatable :: tun_mat
     Real(dp), Dimension(:), allocatable :: ledos
-    Real(dp) :: mu1, mu2   ! contact potentials
     Real(dp) :: ncyc       ! stores average number of iters in decimation
 
-    Integer :: i, icont, icpl      ! dummy counters
+    Integer :: i, icont            ! dummy counters
     Integer :: ncont               ! number of contacts
     Integer :: size_ni             ! emitter-collector contacts
 
@@ -1801,7 +1799,7 @@ contains
     real(dp), dimension(:), optional :: fixed_occupations
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
-    integer :: iE, iK, jj, i1, j1, Npoints, outer, ncont, icont, scba_elastic_iter
+    integer :: iE, iK, j1, Npoints, outer, ncont, icont, scba_elastic_iter
     real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error, scba_inelastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp), dimension(:), allocatable :: curr_mat, frm
@@ -1976,17 +1974,15 @@ contains
     type(Tnegf) :: negf
 
     integer :: nbl, Npoints, outer
-    integer :: iE, i1, j1, iK, icont, ncont, ref_bk
-    integer :: scba_iter, scba_elastic_iter, scba_niter_ela
-    integer :: scba_inelastic_iter, scba_niter_inela
-    Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-    real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
+    integer :: iE, j1, iK, ncont, ref_bk
+    integer :: scba_iter, scba_niter_ela
+    integer :: scba_niter_inela
+    real(dp) :: Er, scba_elastic_tol, scba_elastic_error
     real(dp) :: scba_inelastic_error
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
     real(dp), dimension(:), allocatable :: tmp_currents
     real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
-    complex(dp), DIMENSION(:), allocatable :: diag
-    complex(dp) :: Ec, zt
+    complex(dp) :: Ec
     type(z_CSR) :: G, TmpMt
 
     ncont = negf%str%num_conts
@@ -2122,7 +2118,7 @@ contains
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
       allocate(tmp_currents, mold=negf%currents)
       allocate(tmp_ldos_mat, mold=negf%ldos_mat)
-      
+
       ! Work around because of MPI error with TiberCAD (MPI_IN_PLACE flag is not recognized)
       tmp_currents = 0.0_dp
       call mpifx_reduce(negf%energyComm, negf%currents, tmp_currents, MPI_SUM)
@@ -2130,7 +2126,7 @@ contains
       tmp_currents = 0.0_dp
       call mpifx_reduce(negf%kComm, negf%currents, tmp_currents, MPI_SUM)
       negf%currents = tmp_currents
-      
+
       tmp_ldos_mat = 0.0_dp
       call mpifx_reduce(negf%energyComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
       negf%ldos_mat = tmp_ldos_mat
@@ -2289,7 +2285,7 @@ contains
     real(dp), intent(out) :: scba_error
 
     integer :: scba_iter, scba_niter, i1
-    real(dp) :: ncyc, scba_tol
+    real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
 
     negf%readOldSGF = negf%readOldDM_SGFs
@@ -2354,7 +2350,7 @@ contains
     Type(z_CSR), intent(out), optional :: Gr
 
     integer :: i1
-    integer :: scba_iter, scba_elastic_iter, scba_niter_ela
+    integer :: scba_elastic_iter, scba_niter_ela
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     real(dp) :: Er, ncyc, scba_elastic_tol, scba_elastic_error
 
@@ -2460,7 +2456,6 @@ contains
     type(Tnegf) :: negf
 
     integer :: size_ni, ii
-    real(dp) :: mu1, mu2
 
     if (.not.allocated(negf%curr_mat)) then
       write(*,*) 'Internal error: electron_current_meir_wingreen must be invoked'
@@ -2554,10 +2549,9 @@ contains
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
     Real(dp), Dimension(:), allocatable :: tun_mat
     Real(dp), Dimension(:), allocatable :: ledos
-    Real(dp) :: mu1, mu2   ! contact potentials
     Real(dp) :: ncyc       ! stores average number of iters in decimation
 
-    Integer :: i, icont, icpl      ! dummy counters
+    Integer :: i, icont            ! dummy counters
     Integer :: ncont               ! number of contacts
     Integer :: size_ni             ! emitter-collector contacts
 
@@ -2614,6 +2608,8 @@ contains
          delta = negf%delta * real(negf%en_grid(i)%Ec)
        case(DELTA_MINGO)
          delta = negf%delta * (1.0_dp - real(negf%en_grid(i)%Ec)/(negf%wmax+1d-12)) * Ec
+       case default
+         error stop "unreachable case libnegf delta"
        end select
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
@@ -2911,9 +2907,9 @@ contains
     real(dp), dimension(:), intent(in) :: TUN_TOT
     real(dp), intent(in) :: kbT  ! temperature
 
-    REAL(dp) :: destep,TT1,TT2
+    REAL(dp) :: TT1,TT2
     REAL(dp) :: E1,E2,c1,c2,curr
-    INTEGER :: i,i1,N,Npoints,imin,imax
+    INTEGER :: i,Npoints
 
     curr=0.0_dp
     Npoints=NINT((emax-emin)/estep);

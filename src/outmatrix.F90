@@ -40,8 +40,7 @@ module outmatrix
 
       integer :: n,k,n1,k1
       complex(kind=dp) :: gs(n,n)
-      integer :: i1,i2,length
-      character :: kk(2), line(2)
+      integer :: i1,i2
       character(20) :: STR
 
       n1=n
@@ -65,7 +64,7 @@ module outmatrix
 
       integer :: n,k,n1,k1
       complex(kind=dp) :: gs(n,n)
-      integer :: i1,i2,iu,length
+      integer :: i1,i2,iu
       character :: FRM(*)
       character(20) :: STR
 
@@ -95,7 +94,7 @@ module outmatrix
 
       integer :: n,k,n1,k1
       real(kind=dp) :: gs(n,n)
-      integer :: i1,i2,iu,length
+      integer :: i1,i2,iu
       character :: FRM(*)
       character(20) :: STR
 

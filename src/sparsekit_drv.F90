@@ -37,7 +37,7 @@ MODULE sparsekit_drv
 
   public :: zsumcsr1
   public :: ramub_st
-  public :: zprint_csrdns, zprint_csrcoo, ziluk_st, ztransp_st, ztransp2_st
+  public :: zprint_csrdns, zprint_csrcoo, ztransp_st, ztransp2_st
   public :: zsubmat_st, zcopymat_st, zamub_st, zaplb_st, zcplsamub_st
   public :: zdagger, zspectral
   public :: zmask_realloc
@@ -867,13 +867,13 @@ CONTAINS
        call csrdns(sp_csr%nrow,sp_csr%ncol,sp_csr%nzval,sp_csr%colind,sp_csr%rowpnt,dense%val,ierr)
        call destroy(sp_csr)
 
+       if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR)
+
     else
 
        dense%val(:,:)=(0.0_dp, 0.0_dp)
 
     endif
-
-    if (ierr.ne.0) call error_msg('(zcscdns_st)',CONVERR)
 
   end subroutine zcscdns_st
 
@@ -1398,6 +1398,8 @@ CONTAINS
       end if
     case('*')
       C_nnz = nnz_mult(A_csr, B_csr)
+     case default
+      error stop "unreachable case C_nnz"
     end select
 
   end function nnz
@@ -1585,7 +1587,7 @@ CONTAINS
     !*********************************************************************************
 
     type(z_CSR) :: A_csr
-    integer :: i1,i2,j1,j2,sorted,nnz
+    integer :: i1,i2,j1,j2,nnz
     integer :: i,j
 
     !Check i1, i2, j1, j2 validity
@@ -1682,7 +1684,7 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,nnz
-    integer :: a_bw, b_bw, ml, mu, iband
+    integer :: a_bw, b_bw, ml, mu
     real(dp) :: bndav
 
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
@@ -1875,6 +1877,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
+    external zgemm
 
     type(z_DNS) :: A_dns,B_dns,C_dns
     integer :: M,N,K
@@ -1919,7 +1922,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
     integer :: M,N,K
@@ -1964,7 +1967,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     complex(dp), Dimension(:,:) :: A,B
     type(z_DNS) :: C_dns
     complex(dp) :: s
@@ -2019,7 +2022,7 @@ CONTAINS
     !****************************************************************
 
     implicit none
-
+    external zgemm
     type(z_DNS) :: A_dns,B_dns,C_dns
     complex(dp) :: s
     integer :: M,N,K
@@ -2974,12 +2977,10 @@ CONTAINS
         do l=iao(i),iao(i+1)-1
           if (jao(l).eq.j) then
             iad=l
+            ao(iad) = ao(iad) + x
             exit
           endif
         enddo
-
-        ao(iad) = ao(iad) + x
-
       endif
     enddo
 

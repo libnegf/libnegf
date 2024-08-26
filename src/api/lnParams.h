@@ -13,8 +13,8 @@
 
 struct lnparams {
   int verbose;
-  int readold_dm_sgf;
-  int readold_t_sgf;
+  int readold_dm_sgfs;
+  int readold_t_sgfs;
   int sgfcache;
   int spin;
   int kpoint;
@@ -24,7 +24,7 @@ struct lnparams {
   double wmax;
   double dos_delta;
   double eneconv;
-  double wght;
+  double kwght;
   double ec;
   double ev;
   double deltaec;

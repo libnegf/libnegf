@@ -21,7 +21,6 @@ int main()
   double currents[2]= {0.0, 0.0};
   double coupling[60];
   int leadpairs;
-  int foo[1] = {0};
 
   MPI_Init(NULL, NULL);
   printf("Initializing libNEGF \n");
