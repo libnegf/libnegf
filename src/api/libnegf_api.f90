@@ -423,7 +423,7 @@ subroutine negf_set_mpi_fcomm(handler, comm) bind(C)
 end subroutine negf_set_mpi_fcomm
 
 !!* Initializing mpi k-E cartesian communicators
-subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm) bind(C)
+subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm, en_comm) bind(C)
   use iso_c_binding, only : c_int  ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf           ! if:mod:use
@@ -435,11 +435,12 @@ subroutine negf_cartesian_init(handler, in_comm, nk, cart_comm, k_comm) bind(C)
   type(MPI_Comm), intent(in), value :: in_comm             ! if:var:in
   type(MPI_Comm), intent(out) :: cart_comm      ! if:var:out
   type(MPI_Comm), intent(out) :: k_comm         ! if:var:out
+  type(MPI_Comm), intent(out) :: en_comm         ! if:var:out
 
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
-  call set_cartesian_bare_comms(LIB%pNEGF, in_comm, nk, cart_comm, k_comm)
+  call set_cartesian_bare_comms(LIB%pNEGF, in_comm, nk, cart_comm, k_comm, en_comm)
 
 end subroutine negf_cartesian_init
 

@@ -23,8 +23,8 @@ int main()
 
   MPI_Fint global_comm_f = MPI_Comm_c2f(MPI_COMM_WORLD);
   negf_set_mpi_fcomm(hand, global_comm_f);
-  MPI_Fint cart_comm, k_comm;
-  negf_cartesian_init(hand, global_comm_f, 1, &cart_comm, &k_comm);
+  MPI_Fint cart_comm, k_comm, en_comm;
+  negf_cartesian_init(hand, global_comm_f, 1, &cart_comm, &k_comm, &en_comm);
 
   //Release library
   negf_destruct_libnegf(hand);

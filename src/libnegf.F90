@@ -1153,17 +1153,18 @@ contains
 
   end subroutine
 
-  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm)
+  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm, enComm)
     type(Tnegf), intent(inout) :: negf
     type(MPI_Comm), intent(in) :: mpicomm
     integer, intent(in) :: nk
     type(MPI_Comm), intent(out) :: cartComm
     type(MPI_Comm), intent(out) :: kComm
+    type(MPI_Comm), intent(out) :: enComm
 
     call negf%globalComm%init(mpicomm)
 
     call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, &
-          & cartComm, kComm)
+          & cartComm, kComm, enComm)
     call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
 
   end subroutine set_cartesian_bare_comms
