@@ -1153,17 +1153,18 @@ contains
 
   end subroutine
 
-  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm)
+  subroutine set_cartesian_bare_comms(negf, mpicomm, nk, cartComm, kComm, enComm)
     type(Tnegf), intent(inout) :: negf
     type(MPI_Comm), intent(in) :: mpicomm
     integer, intent(in) :: nk
     type(MPI_Comm), intent(out) :: cartComm
     type(MPI_Comm), intent(out) :: kComm
+    type(MPI_Comm), intent(out) :: enComm
 
     call negf%globalComm%init(mpicomm)
 
     call negf_cart_init(negf%globalComm, nk, negf%cartComm, negf%energyComm, negf%kComm, &
-          & cartComm, kComm)
+          & cartComm, kComm, enComm)
     call negf_mpi_init(negf, negf%cartComm, negf%energyComm, negf%kComm)
 
   end subroutine set_cartesian_bare_comms
@@ -1836,20 +1837,26 @@ contains
     real(dp), dimension(:) :: q, Ec, Ev, mu_n, mu_p
     integer :: particle  ! +1 for electrons, -1 for holes
 
+    real(dp), dimension(:), allocatable :: q_tmp
+
     if (particle /= +1 .and. particle /= -1) then
        error stop "libNEGF error. In compute_density_quasiEq, unknown particle"
     endif
 
+    call log_allocate(q_tmp, size(q))
 
     call extract_cont(negf)
-    q = 0.0_dp
+    q_tmp = 0.0_dp
 
     if (particle == 1) then
-      call quasiEq_int_n(negf, mu_n, Ec, q)
+      call quasiEq_int_n(negf, mu_n, Ec, q_tmp)
     else ! particle == -1
-      call quasiEq_int_p(negf, mu_p, Ev, q)
+      call quasiEq_int_p(negf, mu_p, Ev, q_tmp)
     endif
 
+    call mpifx_reduce(negf%energyComm, q_tmp, q, MPI_SUM)
+
+    call log_deallocate(q_tmp)
     call destroy_contact_matrices(negf)
 
   end subroutine compute_density_quasiEq

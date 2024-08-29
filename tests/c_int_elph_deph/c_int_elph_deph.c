@@ -30,8 +30,8 @@ int main()
   printf("Initializing NEGF mpi and cartesian grid\n");
   MPI_Fint global_comm = MPI_Comm_c2f(MPI_COMM_WORLD);
   negf_set_mpi_fcomm(hand, global_comm);
-  MPI_Fint cart_comm, k_comm;
-  negf_cartesian_init(hand, global_comm, 1, &cart_comm, &k_comm);
+  MPI_Fint cart_comm, k_comm, en_comm;
+  negf_cartesian_init(hand, global_comm, 1, &cart_comm, &k_comm, &en_comm);
 
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
   negf_set_s_id(hand, 100, 1);

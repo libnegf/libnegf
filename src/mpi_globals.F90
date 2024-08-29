@@ -69,7 +69,7 @@ module mpi_globals
     ! For E it is used to compute where E +/- wq are located
     ! For K it is used to compute where another q is placed
     !
-    subroutine negf_cart_init(inComm, nk, cartComm, energyComm, kComm, bareCartComm, barekComm)
+    subroutine negf_cart_init(inComm, nk, cartComm, energyComm, kComm, bareCartComm, barekComm, bareEnComm)
       !> Input communicator
       type(mpifx_comm), intent(in) :: inComm
       !> Number of processors for k
@@ -82,7 +82,7 @@ module mpi_globals
       type(mpifx_comm), intent(out) :: kComm
 
       !> Output communicators of type int for TiberCAD
-      type(MPI_Comm), intent(out), optional :: bareCartComm, barekComm
+      type(MPI_Comm), intent(out), optional :: bareCartComm, barekComm, bareEnComm
 
       type(MPI_Comm) :: outComm
       integer :: ndims = 2
@@ -115,6 +115,7 @@ module mpi_globals
       call energyComm%init(outComm, mpierr)
       id = energyComm%rank
       numprocs = energyComm%size
+      if (present(bareEnComm)) bareEnComm = outComm
 
       remain_dims(:) = [.true., .false.]
       call MPI_CART_SUB(cartComm%comm, remain_dims, outComm, mpierr)
