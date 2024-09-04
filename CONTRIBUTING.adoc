@@ -4,8 +4,15 @@ Contributing to libNEGF
 How to contribute
 =================
 
-The preferred method is to fork the project on and then create a
-pull request. Your changes should be based on the default branch. Before you
+LibNEGF is currently being hosted and developed on a private server on https://gitlab.com.
+Any new modification is then authomatically pushed to this repository. In order to contribute
+to the project, you will need to create a Gitlab account. Then, please open a new issue on the
+Github repository called "Requesting access to the Gitlab repository", stating in the
+description your Gitlab account and a very short description of which new feature you
+would like to implement. You will then be added to the libNEGF project.
+
+Afterwards, you will be able to open an issue and a related merge request, in which you can implement
+the new feature. Your changes should be based on the default branch. Before you
 start, please read the style convention below.
 
 libNEGF has been contributed by several authors, and a lot of the code
