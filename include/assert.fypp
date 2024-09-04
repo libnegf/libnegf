@@ -1,0 +1,6 @@
+! Execute the check unconditionally like in Rust.
+#:def ASSERT(condition)
+  if(.not. (${condition}$)) then
+    error stop "${_FILE_}$:${_LINE_}$: assertion failed"
+  end if
+#:enddef ASSERT
