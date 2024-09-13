@@ -94,7 +94,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -122,7 +122,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -148,7 +148,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -175,7 +175,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -200,7 +200,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -227,7 +227,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*8
+          alloc_mem= alloc_mem + size(array, kind=long)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -253,7 +253,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -278,7 +278,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -303,7 +303,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -328,7 +328,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*4
+          alloc_mem= alloc_mem + size(array, kind=long)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -353,7 +353,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*8
+          alloc_mem= alloc_mem + size(array, kind=long)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -379,7 +379,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -404,7 +404,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -429,7 +429,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -454,7 +454,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*8
+          alloc_mem= alloc_mem + size(array, kind=long)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -479,7 +479,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*4
+          alloc_mem= alloc_mem + size(array, kind=long)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -504,7 +504,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -529,7 +529,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*4
+          alloc_mem= alloc_mem + size(array, kind=long)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -557,7 +557,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -582,7 +582,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -607,7 +607,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*2*8
+          alloc_mem= alloc_mem + size(array, kind=long)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -632,7 +632,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*8
+          alloc_mem= alloc_mem + size(array, kind=long)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -659,7 +659,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array)*4
+          alloc_mem= alloc_mem + size(array, kind=long)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -677,7 +677,7 @@ contains
     logical, DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -693,7 +693,7 @@ contains
     integer, DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -707,7 +707,7 @@ contains
     integer, DIMENSION(:,:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -721,7 +721,7 @@ contains
     real(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -736,7 +736,7 @@ contains
     real(dp), DIMENSION(:,:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -750,7 +750,7 @@ contains
     complex(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*8
+       alloc_mem= alloc_mem - size(array, kind=long)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -764,7 +764,7 @@ contains
     logical, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -778,7 +778,7 @@ contains
     integer, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -792,7 +792,7 @@ contains
     real(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -807,7 +807,7 @@ contains
     real(kind=sp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -822,7 +822,7 @@ contains
     complex(kind=sp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -837,7 +837,7 @@ contains
     complex(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*8
+       alloc_mem= alloc_mem - size(array, kind=long)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -852,7 +852,7 @@ contains
     integer, DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -866,7 +866,7 @@ contains
     real(kind=dp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -880,7 +880,7 @@ contains
     real(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -894,7 +894,7 @@ contains
     complex(kind=dp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*8
+       alloc_mem= alloc_mem - size(array, kind=long)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -908,7 +908,7 @@ contains
     complex(kind=sp), DIMENSION(:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*4
+       alloc_mem= alloc_mem - size(array, kind=long)*2*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -922,7 +922,7 @@ contains
     complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*4
+       alloc_mem= alloc_mem - size(array, kind=long)*2*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -937,7 +937,7 @@ contains
     integer, DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -951,7 +951,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -965,7 +965,7 @@ contains
     real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*4
+       alloc_mem= alloc_mem - size(array, kind=long)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -980,7 +980,7 @@ contains
     complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*2*8
+       alloc_mem= alloc_mem - size(array, kind=long)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -994,7 +994,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array)*8
+       alloc_mem= alloc_mem - size(array, kind=long)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1078,13 +1078,18 @@ contains
        return
     endif
 
-    if(abs(mem).lt.10000000) then
+    if(abs(mem).lt.1000000) then
        str=' kb'; dec=1000
        return
     endif
 
-    if(abs(mem).ge.10000000) then
+    if(abs(mem).lt.1000000000) then
        str=' Mb'; dec=1000000
+       return
+    endif
+
+    if(abs(mem).ge.1000000000) then
+       str=' Gb'; dec=1000000000
        return
     endif
 
