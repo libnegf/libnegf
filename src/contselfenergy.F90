@@ -93,7 +93,7 @@ module ContSelfEnergy
         type(c_ptr), value :: h_Ao_in
         type(c_ptr), value :: h_Bo_in
         type(c_ptr), value :: h_Co_in
-        integer(c_int), value :: n
+        integer(c_size_t), value :: n
         type(c_ptr), value :: ncyc
         integer(c_int), value :: tf32
         complex(${CBIND_CMPLX}$) :: one
@@ -370,8 +370,16 @@ contains
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
-    istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
-            one, mone, zero, real(SGFACC,${KIND}$)*n*n)
+    block
+      integer(c_size_t) :: n_size
+
+      @:ASSERT(n >= 0)
+      n_size = int(n, kind=c_size_t)
+
+      istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
+                                     c_loc(Co_in), n_size, tf, c_loc(ncyc), one, mone, zero, &
+                                     real(SGFACC,${KIND}$)*n*n)
+    end block
 
   end subroutine decimation_gpu_${KIND}$
 

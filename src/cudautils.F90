@@ -19,11 +19,15 @@
 !!--------------------------------------------------------------------------!
 #:include "types.fypp"
 
+
+#:include "assert.fypp"
+
+
 module cudautils
    use ln_precision
    use mat_def
    use lib_param
-   use iso_c_binding
+   use iso_c_binding, only : c_int, c_loc, c_null_ptr, c_ptr, c_size_t
    use, intrinsic :: ieee_arithmetic
    implicit none
    private
@@ -243,21 +247,21 @@ module cudautils
        use iso_c_binding
        ! not by value since pointer has to be initialized, hence pass its reference
        type(c_ptr) :: d_A
-       integer(c_int), value :: siz
+       integer(c_size_t), value :: siz
      end function cu_createMat
 
      integer(c_int) function cu_copyMatD2H(h_A, d_A, siz) bind(C, name='cu_copyMatD2H')
        use iso_c_binding
        type(c_ptr), value :: h_A
        type(c_ptr), value :: d_A
-       integer(c_int), value :: siz
+       integer(c_size_t), value :: siz
      end function cu_copyMatD2H
 
      integer(c_int) function cu_copyMatH2D(h_A, d_A, siz) bind(C, name='cu_copyMatH2D')
        use iso_c_binding
        type(c_ptr), value :: h_A
        type(c_ptr), value :: d_A
-       integer(c_int), value :: siz
+       integer(c_size_t), value :: siz
      end function cu_copyMatH2D
 
      integer(c_int) function cu_deleteMat(d_A) bind(C, name='cu_deleteMat')
@@ -285,9 +289,9 @@ module cudautils
        use iso_c_binding
        import cublasHandle
        type(cublasHandle), value :: hcublas
-       integer(c_int), value :: m
-       integer(c_int), value :: n
-       integer(c_int), value :: k
+       integer(c_size_t), value :: m
+       integer(c_size_t), value :: n
+       integer(c_size_t), value :: k
        complex(${C_BIND_CMPLX}$) :: alpha
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_B
@@ -303,7 +307,7 @@ module cudautils
        import cusolverDnHandle
        type(cusolverDnHandle), value :: hcusolver
        type(cublasHandle), value :: hcublas
-       integer(c_int), value :: N
+       integer(c_size_t), value :: N
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_Ainv
      end function cu_${CTYPE}$inverse
@@ -313,8 +317,8 @@ module cudautils
        use iso_c_binding
        import cublasHandle
        type(cublasHandle), value :: hcublas
-       integer(c_int), value :: m
-       integer(c_int), value :: n
+       integer(c_size_t), value :: m
+       integer(c_size_t), value :: n
        integer(c_int), value :: dagger
        complex(${C_BIND_CMPLX}$) :: alpha
        type(c_ptr), value :: d_A
@@ -327,7 +331,7 @@ module cudautils
                   &   bind(C, name='cu_${CTYPE}$initmat')
        use iso_c_binding
        type(c_ptr), value :: d_A
-       integer(c_int), value :: nrow
+       integer(c_size_t), value :: nrow
      end function cu_${CTYPE}$initmat
 
      real(${C_BIND_REAL}$) function cu_${CTYPE}$trace(hcublas, d_A, nrow, h_tun, mask_present) &
@@ -337,7 +341,7 @@ module cudautils
        type(cublasHandle), value :: hcublas
        type(c_ptr), value :: d_A
        type(c_ptr), value :: h_tun
-       integer(c_int), value :: nrow
+       integer(c_size_t), value :: nrow
        integer(c_int), value :: mask_present
      end function cu_${CTYPE}$trace
 
@@ -348,7 +352,7 @@ module cudautils
        type(cublasHandle), value :: hcublas
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_B
-       integer(c_int), value :: msize
+       integer(c_size_t), value :: msize
      end function cu_${CTYPE}$matcopy
 
      integer(c_int) function cu_${CTYPE}$asum(hcublas, d_A, summ, N) &
@@ -358,7 +362,7 @@ module cudautils
        type(cublasHandle), value :: hcublas
        type(c_ptr), value :: d_A
        real(${C_BIND_REAL}$) :: summ
-       integer(c_int), value :: N
+       integer(c_size_t), value :: N
      end function cu_${CTYPE}$asum
 
    #:endfor
@@ -419,7 +423,8 @@ end interface
      type(${MTYPE}$), intent(in) :: A
 
      integer :: err
-     err = cu_createMat(A%d_addr, size(A%val,1)*size(A%val,2)*${CUDATYPE}$)
+     err = cu_createMat(A%d_addr, &
+                      & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
    end subroutine createGPU_${KIND}$
 #:enddef createGPU_template
 
@@ -429,7 +434,8 @@ end interface
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
      !call createGPU(A)
-     err = cu_copyMatH2D(c_loc(A%val), A%d_addr, size(A%val,1)*size(A%val,2)*${CUDATYPE}$)
+     err = cu_copyMatH2D(c_loc(A%val), A%d_addr, &
+                       & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
 
@@ -437,7 +443,8 @@ end interface
    subroutine copyFromGPU_${KIND}$(A)
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
-     err = cu_copyMatD2H(c_loc(A%val), A%d_addr, size(A%val,1)*size(A%val,2)*${CUDATYPE}$)
+     err = cu_copyMatD2H(c_loc(A%val), A%d_addr, &
+                       & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
    end subroutine copyFromGPU_${KIND}$
 #:enddef copyFromGPU_template
 
@@ -483,18 +490,32 @@ end interface
      character(*), intent(in), optional :: dagger
 
      integer :: istat
+     integer(c_size_t) :: ncol_A
+     integer(c_size_t) :: ncol_C
+     integer(c_size_t) :: nrow_B
+     integer(c_size_t) :: nrow_C
+
+     @:ASSERT(A%ncol >= 0)
+     ncol_A = int(A%ncol, kind=c_size_t)
+     @:ASSERT(C%ncol >= 0)
+     ncol_C = int(C%ncol, kind=c_size_t)
+
+     @:ASSERT(B%nrow >= 0)
+     nrow_B = int(B%nrow, kind=c_size_t)
+     @:ASSERT(C%nrow >= 0)
+     nrow_C = int(C%nrow, kind=c_size_t)
 
      if (.not.present(dagger)) then
-     istat = cu_${CTYPE}$multMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
-             & B%d_addr, beta, C%d_addr, 0)
+     istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+                               & B%d_addr, beta, C%d_addr, 0)
      else
        select case(dagger)
        case('dag_1st')
-         istat = cu_${CTYPE}$multMat(hcublas, C%nrow, C%ncol, B%nrow, alpha, A%d_addr, &
-               & B%d_addr, beta, C%d_addr, 1)
+         istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, nrow_B, alpha, A%d_addr, &
+                                   & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
-         istat = cu_${CTYPE}$multMat(hcublas, C%nrow, C%ncol, A%ncol, alpha, A%d_addr, &
-               & B%d_addr, beta, C%d_addr, 2)
+         istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+                                   & B%d_addr, beta, C%d_addr, 2)
        case default
          error stop 'Error in matmul_gpu'
        end select
@@ -512,10 +533,13 @@ end interface
      integer, intent(out) :: err
 
      integer :: istat
+     integer(c_size_t) :: nrow
 
      call init_gpu_${KIND}$(Ainv)
 
-     istat = cu_${CTYPE}$inverse(hcublas,hcusolver, A%d_addr, Ainv%d_addr, A%nrow)
+     @:ASSERT(A%nrow >= 0)
+     nrow = int(A%nrow, kind=c_size_t)
+     istat = cu_${CTYPE}$inverse(hcublas,hcusolver, A%d_addr, Ainv%d_addr, nrow)
      err = istat
 
    end subroutine inverse_gpu_${KIND}$
@@ -531,7 +555,8 @@ end interface
 
      integer :: istat
 
-     istat = cu_${CTYPE}$kernelsum(C%d_addr, alpha, A%d_addr, beta, B%d_addr, size(A%val))
+     istat = cu_${CTYPE}$kernelsum(C%d_addr, alpha, A%d_addr, beta, B%d_addr, &
+                                 & size(A%val, kind=c_size_t))
 
    end subroutine kernelsum_gpu_${KIND}$
 #:enddef kernelsum_gpu_template
@@ -547,15 +572,25 @@ end interface
      character(*), intent(in), optional :: dagger
 
      integer :: istat
+     integer(c_size_t) :: ncol_C
+     integer(c_size_t) :: nrow_C
+
+     @:ASSERT(C%ncol >= 0)
+     ncol_C = int(C%ncol, kind=c_size_t)
+     @:ASSERT(C%nrow >= 0)
+     nrow_C = int(C%nrow, kind=c_size_t)
 
      if (.not.present(dagger)) then
-       istat = cu_${CTYPE}$matsum(hcublas, C%nrow, C%ncol, alpha, A%d_addr, beta, B%d_addr, C%d_addr, 0)
+       istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+                                & C%d_addr, 0)
      else
        if (dagger == 'dag_1st') then
-         istat = cu_${CTYPE}$matsum(hcublas, C%nrow, C%ncol, alpha, A%d_addr, beta, B%d_addr, C%d_addr, 1)
+         istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+                                  & C%d_addr, 1)
        endif
        if (dagger == 'dag_2nd') then
-         istat = cu_${CTYPE}$matsum(hcublas, C%nrow, C%ncol, alpha, A%d_addr, beta, B%d_addr, C%d_addr, 2)
+         istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+                                  & C%d_addr, 2)
        endif
      endif
 
@@ -583,8 +618,11 @@ end interface
       type(${MTYPE}$), intent(inout) :: A
 
       integer :: istat
+      integer(c_size_t) :: nrow
 
-      istat = cu_${CTYPE}$initmat(A%d_addr, A%nrow)
+      @:ASSERT(A%nrow >= 0)
+      nrow = int(A%nrow, kind=c_size_t)
+      istat = cu_${CTYPE}$initmat(A%d_addr, nrow)
 
    end subroutine init_gpu_${KIND}$
 #:enddef init_gpu_template
@@ -597,12 +635,16 @@ end interface
       logical, intent(in), optional, target :: tun_mask(:)
 
       type(c_ptr) :: dummy
+      integer(c_size_t) :: nrow
       dummy = c_null_ptr
 
+      @:ASSERT(A%nrow >= 0)
+      nrow = int(A%nrow, kind=c_size_t)
+
       if (.not.present(tun_mask)) then
-         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, A%nrow, dummy, 0)
+         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, nrow, dummy, 0)
       else
-         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, A%nrow, c_loc(tun_mask), 1)
+         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, nrow, c_loc(tun_mask), 1)
       endif
 
    end subroutine trace_gpu_${KIND}$
@@ -615,8 +657,12 @@ end interface
       type(${MTYPE}$), intent(inout) :: Acopy
 
       integer :: istat
+      integer(c_size_t) :: n
 
-      istat = cu_${CTYPE}$matcopy(hcublas, A%d_addr, Acopy%d_addr, A%nrow*A%ncol)
+      @:ASSERT(A%ncol >= 0)
+      @:ASSERT(A%nrow >= 0)
+      n = int(A%ncol, kind=c_size_t) * int(A%nrow, kind=c_size_t)
+      istat = cu_${CTYPE}$matcopy(hcublas, A%d_addr, Acopy%d_addr, n)
 
    end subroutine copy_mat_gpu_${KIND}$
 #:enddef copy_mat_gpu_template
@@ -628,8 +674,12 @@ end interface
       real(${KIND}$), intent(out) :: summ
 
       integer :: istat
+      integer(c_size_t) :: n
 
-      istat = cu_${CTYPE}$asum(hcublas, A%d_addr, summ, A%nrow*A%ncol)
+      @:ASSERT(A%ncol >= 0)
+      @:ASSERT(A%nrow >= 0)
+      n = int(A%ncol, kind=c_size_t) * int(A%nrow, kind=c_size_t)
+      istat = cu_${CTYPE}$asum(hcublas, A%d_addr, summ, n)
 
    end subroutine asum_gpu_${KIND}$
 #:enddef asum_gpu_template
@@ -798,12 +848,3 @@ end interface
 
  #:endfor
 end module cudautils
-
-
-
-
-
-
-
-
-

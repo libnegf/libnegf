@@ -34,15 +34,13 @@
 
 __global__ void CaddKernel(
     cuComplex* c, const cuComplex alpha, const cuComplex* a,
-    const cuComplex beta, const cuComplex* b, int size
+    const cuComplex beta, const cuComplex* b, size_t size
 ) {
     assert(c);
     assert(a);
     assert(b);
-    assert(size >= 0);
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    assert(i >= 0);
+    auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(i < size) {
         c[i].x = (alpha.x * a[i].x - alpha.y * a[i].y) +
@@ -54,15 +52,13 @@ __global__ void CaddKernel(
 
 __global__ void ZaddKernel(
     cuDoubleComplex* c, const cuDoubleComplex alpha, const cuDoubleComplex* a,
-    const cuDoubleComplex beta, const cuDoubleComplex* b, int size
+    const cuDoubleComplex beta, const cuDoubleComplex* b, size_t size
 ) {
     assert(c);
     assert(a);
     assert(b);
-    assert(size >= 0);
 
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    assert(i >= 0);
+    auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(i < size) {
         c[i].x = (alpha.x * a[i].x - alpha.y * a[i].y) +
@@ -96,13 +92,11 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
   }
 }
 */
-__global__ void CinitKernel(cuComplex* a, int nrow) {
+__global__ void CinitKernel(cuComplex* a, size_t nrow) {
     assert(a);
-    assert(nrow >= 0);
 
-    int size = nrow * nrow;
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto size = nrow * nrow;
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(i < size) {
         if(i % (nrow + 1) == 0) {
@@ -115,13 +109,11 @@ __global__ void CinitKernel(cuComplex* a, int nrow) {
     }
 }
 
-__global__ void ZinitKernel(cuDoubleComplex* a, int nrow) {
-    //assert(a);
-    assert(nrow >= 0);
+__global__ void ZinitKernel(cuDoubleComplex* a, size_t nrow) {
+    assert(a);
 
-    int size = nrow * nrow;
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto size = nrow * nrow;
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(i < size) {
         if(i % (nrow + 1) == 0) {
@@ -134,24 +126,20 @@ __global__ void ZinitKernel(cuDoubleComplex* a, int nrow) {
     }
 }
 
-__global__ void DinitKernel(double* a, int nrow) {
+__global__ void DinitKernel(double* a, size_t nrow) {
     assert(a);
-    assert(nrow >= 0);
 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(i < nrow) {
         a[i] = 1.0;
     }
 }
 
-__global__ void SinitKernel(float* a, int nrow) {
+__global__ void SinitKernel(float* a, size_t nrow) {
     assert(a);
-    assert(nrow >= 0);
 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(i < nrow) {
         a[i] = 1.0;
@@ -159,17 +147,15 @@ __global__ void SinitKernel(float* a, int nrow) {
 }
 
 __global__ void CtraceKernel(
-    cuComplex* a, int nrow, float* trace, bool* mask, int mask_present
+    cuComplex* a, size_t nrow, float* trace, bool* mask, int mask_present
 ) {
     assert(a);
-    assert(nrow >= 0);
     assert(trace);
     assert(mask || mask_present == 0);
     assert(mask_present == 0 || mask_present == 1);
 
-    int size = nrow * nrow;
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto size = nrow * nrow;
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(mask_present == 0) {
         if(i < size) {
@@ -183,9 +169,7 @@ __global__ void CtraceKernel(
             if(i % (nrow + 1) == 0) {
                 if(mask[i % nrow]) {
                     trace[i % nrow] = a[i].x;
-                }
-		    else
-		    {
+                } else {
                     trace[i % nrow] = 0.0;
                 }
             }
@@ -194,17 +178,15 @@ __global__ void CtraceKernel(
 }
 
 __global__ void ZtraceKernel(
-    cuDoubleComplex* a, int nrow, double* trace, bool* mask, int mask_present
+    cuDoubleComplex* a, size_t nrow, double* trace, bool* mask, int mask_present
 ) {
     assert(a);
-    assert(nrow >= 0);
     assert(trace);
     assert(mask || mask_present == 0);
     assert(mask_present == 0 || mask_present == 1);
 
-    int size = nrow * nrow;
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    assert(i >= 0);
+    auto size = nrow * nrow;
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if(mask_present == 0) {
         if(i < size) {
@@ -218,9 +200,7 @@ __global__ void ZtraceKernel(
             if(i % (nrow + 1) == 0) {
                 if(mask[i % nrow]) {
                     trace[i % nrow] = a[i].x;
-                }
-		    else
-		    {
+                } else {
                     trace[i % nrow] = 0.0;
                 }
             }
@@ -231,27 +211,24 @@ __global__ void ZtraceKernel(
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT  ROUTINES
  * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
 
-extern "C" int cu_createMat(void** d_A, int bytecount) {
+extern "C" int cu_createMat(void** d_A, size_t bytecount) {
     assert(d_A);
-    assert(bytecount >= 0);
     cudaError_t err = cudaMalloc(d_A, bytecount);
     //printf("create mat at GPU Address: %p \n",*d_A);
     return err;
 }
 
-extern "C" int cu_copyMatH2D(void* h_A, void* d_A, int bytecount) {
+extern "C" int cu_copyMatH2D(void* h_A, void* d_A, size_t bytecount) {
     assert(h_A);
     assert(d_A);
-    assert(bytecount >= 0);
     // printf("copy %p to %p\n",h_A,d_A);
     cudaError_t err = cudaMemcpy(d_A, h_A, bytecount, cudaMemcpyHostToDevice);
     return err;
 }
 
-extern "C" int cu_copyMatD2H(void* h_A, void* d_A, int bytecount) {
+extern "C" int cu_copyMatD2H(void* h_A, void* d_A, size_t bytecount) {
     assert(h_A);
     assert(d_A);
-    assert(bytecount >= 0);
 
     cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToHost);
     return err;
@@ -259,10 +236,9 @@ extern "C" int cu_copyMatD2H(void* h_A, void* d_A, int bytecount) {
 
 extern "C" int cu_deleteMat(void** d_A) {
     int stat = 0;
-    if (*d_A != NULL)
-    {
-       stat = cudaFree(*d_A);
-       *d_A = NULL;
+    if(*d_A != NULL) {
+        stat = cudaFree(*d_A);
+        *d_A = NULL;
     }
     return stat;
 }
@@ -294,7 +270,6 @@ extern "C" int cu_cudaSetDevice(int count) {
     assert(err == cudaSuccess);
     return err;
 }
-
 
 extern "C" int cu_cublasInit(cublasHandle_t* hcublas) {
     assert(hcublas);
@@ -338,13 +313,10 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  * k: #cols of op(A) = #rows of op(B)
  */
 extern "C" int cu_CmultMat(
-    cublasHandle_t hcublas, int m, int n, int k, const cuComplex* alpha,
-    const void* d_A, const void* d_B, const cuComplex* beta, void* d_C,
-    int dagger
+    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+    const cuComplex* alpha, const void* d_A, const void* d_B,
+    const cuComplex* beta, void* d_C, int dagger
 ) {
-    assert(m >= 0);
-    assert(n >= 0);
-    assert(k >= 0);
     assert(alpha);
     assert(d_A);
     assert(d_B);
@@ -381,13 +353,10 @@ extern "C" int cu_CmultMat(
 // op(B):  k x n
 //     C:  m x n
 extern "C" int cu_ZmultMat(
-    cublasHandle_t hcublas, int m, int n, int k, const cuDoubleComplex* alpha,
-    const void* d_A, const void* d_B, const cuDoubleComplex* beta, void* d_C,
-    int dagger
+    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+    const cuDoubleComplex* alpha, const void* d_A, const void* d_B,
+    const cuDoubleComplex* beta, void* d_C, int dagger
 ) {
-    assert(m >= 0);
-    assert(n >= 0);
-    assert(k >= 0);
     assert(alpha);
     assert(d_A);
     assert(d_B);
@@ -398,6 +367,7 @@ extern "C" int cu_ZmultMat(
     cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
     cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
     cublasStatus_t err;
+
     if(dagger == 0) {
         err = cublasZgemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, pdA, m, pdB, k,
@@ -420,12 +390,11 @@ extern "C" int cu_ZmultMat(
 
 extern "C" int cu_Cinverse(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, int n
+    void* d_Ainv, size_t n
 ) {
     assert(hcusolver);
     assert(d_A);
     assert(d_Ainv);
-    assert(n >= 0);
 
     // compute buffer size and prep . memory
     cuComplex* pdA = (cuComplex*)d_A;
@@ -487,12 +456,11 @@ extern "C" int cu_Cinverse(
 
 extern "C" int cu_Zinverse(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, int n
+    void* d_Ainv, size_t n
 ) {
     assert(hcusolver);
     assert(d_A);
     assert(d_Ainv);
-    assert(n >= 0);
 
     // compute buffer size and prep . memory
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
@@ -553,7 +521,7 @@ extern "C" int cu_Zinverse(
 }
 
 extern "C" int cu_Cmatsum(
-    cublasHandle_t hcublas, int m, int n, cuComplex* alpha, void* d_A,
+    cublasHandle_t hcublas, size_t m, size_t n, cuComplex* alpha, void* d_A,
     cuComplex* beta, void* d_B, void* d_C, int dagger
 ) {
     // m number of rows of matrix op(A) and C
@@ -585,8 +553,8 @@ extern "C" int cu_Cmatsum(
 }
 
 extern "C" int cu_Zmatsum(
-    cublasHandle_t hcublas, int m, int n, cuDoubleComplex* alpha, void* d_A,
-    cuDoubleComplex* beta, void* d_B, void* d_C, int dagger
+    cublasHandle_t hcublas, size_t m, size_t n, cuDoubleComplex* alpha,
+    void* d_A, cuDoubleComplex* beta, void* d_B, void* d_C, int dagger
 ) {
     // m number of rows of matrix op(A) and C
     // n number of columns of matrix op(B) and C
@@ -616,9 +584,9 @@ extern "C" int cu_Zmatsum(
     return err;
 }
 
-extern "C" int cu_Cinitmat(void* d_A, int nrow) {
-    int size = nrow * nrow;
-    int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+extern "C" int cu_Cinitmat(void* d_A, size_t nrow) {
+    auto size = nrow * nrow;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     cuComplex* pdA = (cuComplex*)d_A;
 
     CinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
@@ -627,13 +595,12 @@ extern "C" int cu_Cinitmat(void* d_A, int nrow) {
     return 0;
 }
 
-extern "C" int cu_Zinitmat(void* d_A, int nrow) {
-    //assert(d_A);
+extern "C" int cu_Zinitmat(void* d_A, size_t nrow) {
+    assert(d_A);
     //printf("d_A: %p %d \n",d_A, d_A);
-    assert(nrow >= 0);
 
-    int size = nrow * nrow;
-    int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto size = nrow * nrow;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
@@ -643,11 +610,12 @@ extern "C" int cu_Zinitmat(void* d_A, int nrow) {
 }
 
 extern "C" float cu_Ctrace(
-    cublasHandle_t hcublas, void* d_A, int nrow, void* h_mask, int mask_present
+    cublasHandle_t hcublas, void* d_A, size_t nrow, void* h_mask,
+    int mask_present
 ) {
     cuComplex* pdA = (cuComplex*)d_A;
-    int size = nrow * nrow;
-    int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto size = nrow * nrow;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     float* d_work;
     cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(float));
     float* d_iden;
@@ -681,16 +649,16 @@ extern "C" float cu_Ctrace(
 }
 
 extern "C" double cu_Ztrace(
-    cublasHandle_t hcublas, void* d_A, int nrow, void* h_mask, int mask_present
+    cublasHandle_t hcublas, void* d_A, size_t nrow, void* h_mask,
+    int mask_present
 ) {
     assert(d_A);
-    assert(nrow >= 0);
     assert(h_mask || mask_present == 0);
     assert(mask_present == 0 || mask_present == 1);
 
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    int size = nrow * nrow;
-    int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto size = nrow * nrow;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     double* d_work;
     cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(double));
     assert(cudaStatus == cudaSuccess);
@@ -730,58 +698,58 @@ extern "C" double cu_Ztrace(
 }
 
 extern "C" int
-cu_Cmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, int N) {
+cu_Cmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, size_t n) {
+    assert(d_A);
+    assert(d_B);
+
     cuComplex* pdA = (cuComplex*)d_A;
     cuComplex* pdB = (cuComplex*)d_B;
 
-    cublasStatus_t err;
-
-    err = cublasCcopy(hcublas, N * N, pdA, 1, pdB, 1);
+    auto err = cublasCcopy(hcublas, n * n, pdA, 1, pdB, 1);
+    assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
 extern "C" int
-cu_Zmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, int size) {
+cu_Zmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, size_t n) {
     assert(d_A);
     assert(d_B);
 
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
     cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
 
-    cublasStatus_t err = cublasZcopy(hcublas, size, pdA, 1, pdB, 1);
+    auto err = cublasZcopy(hcublas, n, pdA, 1, pdB, 1);
     assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
-extern "C" int cu_Casum(cublasHandle_t hcublas, void* d_A, float* summ, int N) {
+extern "C" int
+cu_Casum(cublasHandle_t hcublas, void* d_A, float* summ, size_t n) {
     cuComplex* pdA = (cuComplex*)d_A;
 
-    cublasStatus_t err;
-
-    err = cublasScasum(hcublas, N, pdA, 1, summ);
+    auto err = cublasScasum(hcublas, n, pdA, 1, summ);
+    assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
 extern "C" int
-cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, int N) {
+cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, size_t n) {
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
-    cublasStatus_t err;
-
-    err = cublasDzasum(hcublas, N, pdA, 1, summ);
+    auto err = cublasDzasum(hcublas, n, pdA, 1, summ);
+    assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
 extern "C" int cu_Cdecimation(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
-    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, int n, int tf32, int* ncyc,
+    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, size_t n, int tf32, int* ncyc,
     cuComplex* one, cuComplex* mone, cuComplex* zero, float SGFACC
 ) {
     assert(h_Go_out);
     assert(h_Ao_in);
     assert(h_Bo_in);
     assert(h_Co_in);
-    assert(n > 0);
     assert(tf32 == 0 || tf32 == 1);
     assert(ncyc);
     assert(one);
@@ -789,8 +757,8 @@ extern "C" int cu_Cdecimation(
     assert(zero);
     assert(SGFACC > 0.0);
 
-    int num_elements = n * n;
-    int num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto num_elements = n * n;
+    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     cuComplex* d_Ao;
     cudaError_t cudaStatus =
@@ -984,7 +952,7 @@ extern "C" int cu_Cdecimation(
 
 extern "C" int cu_Zdecimation(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
-    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, int n, int tf32, int* ncyc,
+    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, size_t n, int tf32, int* ncyc,
     cuDoubleComplex* one, cuDoubleComplex* mone, cuDoubleComplex* zero,
     double SGFACC
 ) {
@@ -992,7 +960,6 @@ extern "C" int cu_Zdecimation(
     assert(h_Ao_in);
     assert(h_Bo_in);
     assert(h_Co_in);
-    assert(n > 0);
     assert(tf32 == 0 || tf32 == 1);
     assert(ncyc);
     assert(one);
@@ -1000,8 +967,8 @@ extern "C" int cu_Zdecimation(
     assert(zero);
     assert(SGFACC > 0.0);
 
-    int num_elements = n * n;
-    int num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto num_elements = n * n;
+    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     cuDoubleComplex* d_Ao;
     cudaError_t cudaStatus =
@@ -1195,11 +1162,10 @@ extern "C" int cu_Zdecimation(
     return cudaStatus;
 }
 
-extern "C" int cu_meminfo(size_t *freemem, size_t *totalmem) {
+extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
     cudaError_t cudaStatus;
     cudaStatus = cudaDeviceSynchronize();
     cudaStatus = cudaMemGetInfo(freemem, totalmem);
     assert(cudaStatus == cudaSuccess);
     return cudaStatus;
 }
-
