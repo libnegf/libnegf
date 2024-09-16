@@ -35,9 +35,6 @@
 
 constexpr auto BLOCK_SIZE = std::size_t{1024};
 
-#define TILE_DIM 32
-#define BLOCK_ROWS 8
-
 
 template<typename>
 struct get_real {};
