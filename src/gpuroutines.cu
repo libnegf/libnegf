@@ -36,6 +36,10 @@
 constexpr auto BLOCK_SIZE = std::size_t{1024};
 
 
+/**
+ * Given a floating-point type, returns the associated real-valued type; for
+ * real-valued types, this is the type itself.
+ */
 template<typename>
 struct get_real {};
 
@@ -50,6 +54,9 @@ struct get_real<cuDoubleComplex> {
 };
 
 
+/**
+ * Computes c = α a · β b.
+ */
 template<typename Number>
 __global__ void addKernel(
     Number* c, Number alpha, const Number* a, Number beta, const Number* b,
@@ -96,6 +103,9 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
 */
 
 
+/**
+ * Initializes a square complex matrix as the identity matrix.
+ */
 template<typename Number>
 __global__ void initKernel(Number* a, size_t nrow) {
     assert(a);
@@ -136,6 +146,16 @@ __global__ void SinitKernel(float* a, size_t nrow) {
 }
 
 
+/**
+ * Computes the trace of a matrix A.
+ *
+ * Optionally, a bit mask can be passed to the function. If a mask is present,
+ * then a diagonal element (i,i) is only considered for the trace computation
+ * if the i-th value in mask is nonzero.
+ *
+ * @param[in] mask A bitmask of length nrow indicating which rows to ignore
+ * (zero means ignore).
+ */
 template<typename Number, typename Real = typename get_real<Number>::type>
 __device__ void
 traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
@@ -180,8 +200,9 @@ __global__ void ZtraceKernel(
 }
 
 
-/*~-~-~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT  ROUTINES
- * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
+/*
+ * DATA MOVEMENT ROUTINES
+ */
 
 extern "C" int cu_createMat(void** d_A, size_t bytecount) {
     assert(d_A);
@@ -215,8 +236,10 @@ extern "C" int cu_deleteMat(void** d_A) {
     return stat;
 }
 
-/*~-~-~-~-~-~-~-~-~-~-~-~-~-~ INIT/FINAL ROUTINES
- * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
+
+/*
+ * INIT/FINAL ROUTINES
+ */
 
 extern "C" int cu_cudaGetDeviceCount(int* count) {
     assert(count);
@@ -282,10 +305,19 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  * MATRIX ROUTINES
  */
 
-/* C = alpha op(A) op(B) + beta C
- * m: #rows of op(A)
- * n: #cols of op(B)
- * k: #cols of op(A) = #rows of op(B)
+/**
+ * Multiplies the matrices A, B and adds the result to C.
+ *
+ * op(.) indicates if the matrix or its complex-conjugate is used. The allowed
+ * values for dagger are:
+ * * `dagger == 0`: compute C ≔ α A · B + β C
+ * * `dagger == 1`: compute C ≔ α A^* · B + β C
+ * * `dagger == 2`: compute C ≔ α A · B^* + β C
+ *
+ * @param[in] m The number of rows of C and op(A).
+ * @param[in] n The number of columns of C and op(B).
+ * @param[in] k The number of columns of op(A) and the number of rows of op(B).
+ * @param[in] dagger A shorthand for various combinations of op(A), op(B).
  */
 template<typename Number>
 int cu_multMat(
@@ -502,12 +534,31 @@ extern "C" int cu_Zkernelsum(
 }
 
 
+/**
+ * Computes the sum of α op(A) + β op(B), where op(.) indicates if the matrix
+ * or its complex-conjugate is used.
+ *
+ * The possible options are:
+ * * `dagger == 0`: compute C ≔ α A + β B
+ * * `dagger == 1`: compute C ≔ α A^* + β B
+ * * `dagger == 2`: compute C ≔ α A + B^*
+ *
+ * @param[in] m The number of rows of op(A) and op(B).
+ * @param[in] n The number of columns of op(A) and op(B).
+ * @param[in] dagger A shorthand for various combinations of op(A), op(B).
+ */
 template<typename Number>
 int cu_matsum(
     cublasHandle_t hcublas, size_t m, size_t n, const Number* alpha,
     const Number* d_A, const Number* beta, const Number* d_B, Number* d_C,
     int dagger
 ) {
+	assert(d_A);
+	assert(d_B);
+	assert(d_C);
+	assert(d_A != d_C || dagger == 0 || dagger == 2);
+	assert(d_B != d_C || dagger == 1);
+
     cublasStatus_t err;
     if(dagger == 0) {
         err = cublasGeam(
