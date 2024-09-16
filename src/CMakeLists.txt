@@ -46,6 +46,9 @@ if(WITH_TRANSPORT_GPU)
   list(APPEND sources-fpp cudautils.F90)
   list(APPEND sources-fpp iterative_gpu.F90)
   set(sources-cuda gpuroutines.cu)
+  set_source_files_properties(
+    gpuroutines.cu
+    PROPERTIES INCLUDE_DIRECTORIES ${PROJECT_SOURCE_DIR}/include)
 else()
   list(APPEND sources-fpp iterative_cpu.F90)
 endif()

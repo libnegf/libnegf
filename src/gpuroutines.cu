@@ -19,22 +19,44 @@
  *!!--------------------------------------------------------------------------!
  */
 
-#include <cublas_v2.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cusolverDn.h>
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cassert>
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
-#define BLOCK_SIZE 1024
+#include <libnegf/cublas_v2.h>
+
+
+constexpr auto BLOCK_SIZE = std::size_t{1024};
+
 #define TILE_DIM 32
 #define BLOCK_ROWS 8
 
-__global__ void CaddKernel(
-    cuComplex* c, const cuComplex alpha, const cuComplex* a,
-    const cuComplex beta, const cuComplex* b, size_t size
+
+template<typename>
+struct get_real {};
+
+template<>
+struct get_real<cuComplex> {
+    using type = float;
+};
+
+template<>
+struct get_real<cuDoubleComplex> {
+    using type = double;
+};
+
+
+template<typename Number>
+__global__ void addKernel(
+    Number* c, Number alpha, const Number* a, Number beta, const Number* b,
+    size_t size
 ) {
     assert(c);
     assert(a);
@@ -50,23 +72,6 @@ __global__ void CaddKernel(
     }
 }
 
-__global__ void ZaddKernel(
-    cuDoubleComplex* c, const cuDoubleComplex alpha, const cuDoubleComplex* a,
-    const cuDoubleComplex beta, const cuDoubleComplex* b, size_t size
-) {
-    assert(c);
-    assert(a);
-    assert(b);
-
-    auto i = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if(i < size) {
-        c[i].x = (alpha.x * a[i].x - alpha.y * a[i].y) +
-                 (beta.x * b[i].x - beta.y * b[i].y);
-        c[i].y = (alpha.x * a[i].y + alpha.y * a[i].x) +
-                 (beta.x * b[i].y + beta.y * b[i].x);
-    }
-}
 
 /*
 __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
@@ -92,7 +97,10 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
   }
 }
 */
-__global__ void CinitKernel(cuComplex* a, size_t nrow) {
+
+
+template<typename Number>
+__global__ void initKernel(Number* a, size_t nrow) {
     assert(a);
 
     auto size = nrow * nrow;
@@ -109,22 +117,6 @@ __global__ void CinitKernel(cuComplex* a, size_t nrow) {
     }
 }
 
-__global__ void ZinitKernel(cuDoubleComplex* a, size_t nrow) {
-    assert(a);
-
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if(i < size) {
-        if(i % (nrow + 1) == 0) {
-            a[i].x = 1.0;
-            a[i].y = 0.0;
-        } else {
-            a[i].x = 0.0;
-            a[i].y = 0.0;
-        }
-    }
-}
 
 __global__ void DinitKernel(double* a, size_t nrow) {
     assert(a);
@@ -146,9 +138,10 @@ __global__ void SinitKernel(float* a, size_t nrow) {
     }
 }
 
-__global__ void CtraceKernel(
-    cuComplex* a, size_t nrow, float* trace, bool* mask, int mask_present
-) {
+
+template<typename Number, typename Real = typename get_real<Number>::type>
+__device__ void
+traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
     assert(a);
     assert(trace);
     assert(mask || mask_present == 0);
@@ -175,38 +168,20 @@ __global__ void CtraceKernel(
             }
         }
     }
+}
+
+__global__ void CtraceKernel(
+    cuComplex* a, size_t nrow, float* trace, bool* mask, int mask_present
+) {
+    traceKernel(a, nrow, trace, mask, mask_present);
 }
 
 __global__ void ZtraceKernel(
     cuDoubleComplex* a, size_t nrow, double* trace, bool* mask, int mask_present
 ) {
-    assert(a);
-    assert(trace);
-    assert(mask || mask_present == 0);
-    assert(mask_present == 0 || mask_present == 1);
-
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if(mask_present == 0) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                trace[i % nrow] = a[i].x;
-            }
-        }
-    }
-    if(mask_present == 1) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                if(mask[i % nrow]) {
-                    trace[i % nrow] = a[i].x;
-                } else {
-                    trace[i % nrow] = 0.0;
-                }
-            }
-        }
-    }
+    traceKernel(a, nrow, trace, mask, mask_present);
 }
+
 
 /*~-~-~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT  ROUTINES
  * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
@@ -305,88 +280,69 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
     return err;
 }
 
-/*~-~-~-~-~-~-~-~-~-~-~-~-~-~ MATRIX ROUTINES
- * -~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-*/
+
+/*
+ * MATRIX ROUTINES
+ */
+
 /* C = alpha op(A) op(B) + beta C
  * m: #rows of op(A)
  * n: #cols of op(B)
  * k: #cols of op(A) = #rows of op(B)
  */
+template<typename Number>
+int cu_multMat(
+    cublasHandle_t hcublas, size_t m, size_t n, size_t k, const Number* alpha,
+    const Number* d_A, const Number* d_B, const Number* beta, Number* d_C,
+    int dagger
+) {
+    assert(alpha);
+    assert(d_A);
+    assert(d_B);
+    assert(beta);
+    assert(dagger == 0 || dagger == 1 || dagger == 2);
+
+    cublasStatus_t err;
+    if(dagger == 0) {
+        err = cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, d_A, m, d_B, k,
+            beta, d_C, m
+        );
+    } else if(dagger == 1) {
+        err = cublasGemm(
+            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, d_A, k, d_B, k,
+            beta, d_C, m
+        );
+    } else if(dagger == 2) {
+        err = cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, d_A, m, d_B, n,
+            beta, d_C, m
+        );
+    } else {
+        std::fprintf(stderr, "expected dagger in [0, 1, 2], got %d\n", dagger);
+        std::exit(EXIT_FAILURE);
+    }
+    assert(err == CUBLAS_STATUS_SUCCESS);
+    return err;
+}
+
 extern "C" int cu_CmultMat(
     cublasHandle_t hcublas, size_t m, size_t n, size_t k,
-    const cuComplex* alpha, const void* d_A, const void* d_B,
-    const cuComplex* beta, void* d_C, int dagger
+    const cuComplex* alpha, const cuComplex* d_A, const cuComplex* d_B,
+    const cuComplex* beta, cuComplex* d_C, int dagger
 ) {
-    assert(alpha);
-    assert(d_A);
-    assert(d_B);
-    assert(beta);
-    assert(dagger == 0 || dagger == 1 || dagger == 2);
-
-    cuComplex* pdA = (cuComplex*)d_A;
-    cuComplex* pdB = (cuComplex*)d_B;
-    cuComplex* pdC = (cuComplex*)d_C;
-
-    cublasStatus_t err;
-    if(dagger == 0) {
-        err = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, pdA, m, pdB, k,
-            beta, pdC, m
-        );
-    } else if(dagger == 1) {
-        err = cublasCgemm(
-            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, pdA, k, pdB, k,
-            beta, pdC, m
-        );
-    } else if(dagger == 2) {
-        err = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, pdA, m, pdB, n,
-            beta, pdC, m
-        );
-    }
-    assert(err == CUBLAS_STATUS_SUCCESS);
-    return err;
+    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
-//  C = alpha op(A) op(B) + beta C
-// op(A):  m x k
-// op(B):  k x n
-//     C:  m x n
 extern "C" int cu_ZmultMat(
     cublasHandle_t hcublas, size_t m, size_t n, size_t k,
-    const cuDoubleComplex* alpha, const void* d_A, const void* d_B,
-    const cuDoubleComplex* beta, void* d_C, int dagger
+    const cuDoubleComplex* alpha, const cuDoubleComplex* d_A,
+    const cuDoubleComplex* d_B, const cuDoubleComplex* beta,
+    cuDoubleComplex* d_C, int dagger
 ) {
-    assert(alpha);
-    assert(d_A);
-    assert(d_B);
-    assert(beta);
-    assert(dagger == 0 || dagger == 1 || dagger == 2);
-
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
-    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
-    cublasStatus_t err;
-
-    if(dagger == 0) {
-        err = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, pdA, m, pdB, k,
-            beta, pdC, m
-        );
-    } else if(dagger == 1) {
-        err = cublasZgemm(
-            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, pdA, k, pdB, k,
-            beta, pdC, m
-        );
-    } else if(dagger == 2) {
-        err = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, pdA, m, pdB, n,
-            beta, pdC, m
-        );
-    }
-    assert(err == CUBLAS_STATUS_SUCCESS);
-    return err;
+    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
+
 
 extern "C" int cu_Cinverse(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
@@ -520,94 +476,103 @@ extern "C" int cu_Zinverse(
     return cudaStatus;
 }
 
-extern "C" int cu_Cmatsum(
-    cublasHandle_t hcublas, size_t m, size_t n, cuComplex* alpha, void* d_A,
-    cuComplex* beta, void* d_B, void* d_C, int dagger
+template<typename Number>
+int cu_kernelsum(
+    Number* d_C, Number* alpha, Number* d_A, Number* beta, Number* d_B,
+    size_t size
 ) {
-    // m number of rows of matrix op(A) and C
-    // n number of columns of matrix op(B) and C
-    cuComplex* pdA = (cuComplex*)d_A;
-    cuComplex* pdB = (cuComplex*)d_B;
-    cuComplex* pdC = (cuComplex*)d_C;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
+    addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, size);
+    assert(cudaGetLastError() == cudaSuccess);
+
+    return 0;
+}
+
+
+extern "C" int cu_Ckernelsum(
+    cuComplex* d_C, cuComplex* alpha, cuComplex* d_A, cuComplex* beta,
+    cuComplex* d_B, size_t size
+) {
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+}
+
+extern "C" int cu_Zkernelsum(
+    cuDoubleComplex* d_C, cuDoubleComplex* alpha, cuDoubleComplex* d_A,
+    cuDoubleComplex* beta, cuDoubleComplex* d_B, size_t size
+) {
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+}
+
+
+template<typename Number>
+int cu_matsum(
+    cublasHandle_t hcublas, size_t m, size_t n, const Number* alpha,
+    const Number* d_A, const Number* beta, const Number* d_B, Number* d_C,
+    int dagger
+) {
     cublasStatus_t err;
     if(dagger == 0) {
-        err = cublasCgeam(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, alpha, pdA, m, beta, pdB,
-            m, pdC, m
+        err = cublasGeam(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, alpha, d_A, m, beta, d_B,
+            m, d_C, m
         );
-    }
-    if(dagger == 1) {
-        err = cublasCgeam(
-            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, alpha, pdA, n, beta, pdB,
-            m, pdC, m
+    } else if(dagger == 1) {
+        err = cublasGeam(
+            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, alpha, d_A, n, beta, d_B,
+            m, d_C, m
         );
-    }
-    if(dagger == 2) {
-        err = cublasCgeam(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, alpha, pdA, m, beta, pdB,
-            n, pdC, m
+    } else if(dagger == 2) {
+        err = cublasGeam(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, alpha, d_A, m, beta, d_B,
+            n, d_C, m
         );
+    } else {
+        std::fprintf(stderr, "expected dagger in [0, 1, 2], got %d\n", dagger);
+        std::exit(EXIT_FAILURE);
     }
+
     return err;
+}
+
+extern "C" int cu_Cmatsum(
+    cublasHandle_t hcublas, size_t m, size_t n, const cuComplex* alpha,
+    const cuComplex* d_A, const cuComplex* beta, const cuComplex* d_B,
+    cuComplex* d_C, int dagger
+) {
+    return cu_matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
 }
 
 extern "C" int cu_Zmatsum(
-    cublasHandle_t hcublas, size_t m, size_t n, cuDoubleComplex* alpha,
-    void* d_A, cuDoubleComplex* beta, void* d_B, void* d_C, int dagger
+    cublasHandle_t hcublas, size_t m, size_t n, const cuDoubleComplex* alpha,
+    const cuDoubleComplex* d_A, const cuDoubleComplex* beta,
+    const cuDoubleComplex* d_B, cuDoubleComplex* d_C, int dagger
 ) {
-    // m number of rows of matrix op(A) and C
-    // n number of columns of matrix op(B) and C
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
-    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
-
-    cublasStatus_t err;
-    if(dagger == 0) {
-        err = cublasZgeam(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, alpha, pdA, m, beta, pdB,
-            m, pdC, m
-        );
-    }
-    if(dagger == 1) {
-        err = cublasZgeam(
-            hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, alpha, pdA, n, beta, pdB,
-            m, pdC, m
-        );
-    }
-    if(dagger == 2) {
-        err = cublasZgeam(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, alpha, pdA, m, beta, pdB,
-            n, pdC, m
-        );
-    }
-    return err;
+    return cu_matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
 }
 
-extern "C" int cu_Cinitmat(void* d_A, size_t nrow) {
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    cuComplex* pdA = (cuComplex*)d_A;
-
-    CinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
-    assert(cudaGetLastError() == cudaSuccess);
-
-    return 0;
-}
-
-extern "C" int cu_Zinitmat(void* d_A, size_t nrow) {
+extern "C" int cu_Cinitmat(cuComplex* d_A, size_t nrow) {
     assert(d_A);
-    //printf("d_A: %p %d \n",d_A, d_A);
-
     auto size = nrow * nrow;
     auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
-    ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
+    initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
     assert(cudaGetLastError() == cudaSuccess);
 
     return 0;
 }
+
+extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, size_t nrow) {
+    assert(d_A);
+    auto size = nrow * nrow;
+    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
+    assert(cudaGetLastError() == cudaSuccess);
+
+    return 0;
+}
+
 
 extern "C" float cu_Ctrace(
     cublasHandle_t hcublas, void* d_A, size_t nrow, void* h_mask,
@@ -697,28 +662,28 @@ extern "C" double cu_Ztrace(
     return result;
 }
 
-extern "C" int
-cu_Cmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, size_t n) {
+extern "C" int cu_Cmatcopy(
+    cublasHandle_t hcublas, const cuComplex* d_A, cuComplex* d_B,
+    size_t num_elements
+) {
     assert(d_A);
     assert(d_B);
+    assert(num_elements <= INT_MAX);
 
-    cuComplex* pdA = (cuComplex*)d_A;
-    cuComplex* pdB = (cuComplex*)d_B;
-
-    auto err = cublasCcopy(hcublas, n * n, pdA, 1, pdB, 1);
+    auto err = cublasCcopy(hcublas, num_elements, d_A, 1, d_B, 1);
     assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
-extern "C" int
-cu_Zmatcopy(cublasHandle_t hcublas, void* d_A, void* d_B, size_t n) {
+extern "C" int cu_Zmatcopy(
+    cublasHandle_t hcublas, cuDoubleComplex* d_A, cuDoubleComplex* d_B,
+    size_t num_elements
+) {
     assert(d_A);
     assert(d_B);
+    assert(num_elements <= INT_MAX);
 
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
-
-    auto err = cublasZcopy(hcublas, n, pdA, 1, pdB, 1);
+    auto err = cublasZcopy(hcublas, num_elements, d_A, 1, d_B, 1);
     assert(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
@@ -832,7 +797,7 @@ extern "C" int cu_Cdecimation(
     for(int i1 = 1; i1 <= 300; i1++) {
         *ncyc = i1;
 
-        CinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
+        initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
         cublasStatus = cublasCcopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
         assert(cublasStatus == cudaSuccess);
@@ -908,7 +873,7 @@ extern "C" int cu_Cdecimation(
         assert(cublasStatus == cudaSuccess);
     }
 
-    CinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
+    initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
     cublasStatus = cublasCcopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
     assert(cublasStatus == cudaSuccess);
     cusolverStatus =
@@ -1044,7 +1009,7 @@ extern "C" int cu_Zdecimation(
     for(int i1 = 1; i1 <= 300; i1++) {
         *ncyc = i1;
 
-        ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
+        initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
         cublasStatus = cublasZcopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
         assert(cublasStatus == cudaSuccess);
@@ -1120,7 +1085,7 @@ extern "C" int cu_Zdecimation(
         assert(cublasStatus == cudaSuccess);
     }
 
-    ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
+    initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
     cublasStatus = cublasZcopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
     assert(cublasStatus == cudaSuccess);
     cusolverStatus =
