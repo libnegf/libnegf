@@ -34,6 +34,32 @@ Optionally CUDA can be used.
 Note that MPICH version 4 may cause build problems due to the mpifx dependency, see https://github.com/dftbplus/mpifx/issues/48[mpifx#48]. Moreover it is recommended to use recent gfortran releases: gfortran 11 and 12 are known to work, gfortran 10.2.1 (found in Debian 11) and GCC 8.3.0 (found in Debian 10) are known _not_ to work.
 
 
+
+== Memory Scaling
+
+The peak memory consumption is a function of the device size and the number of
+its principal layers (PLs) with all PLs assumed to be identical. This allows
+one to estimate maximum problem sizes for a given set of resources.
+
+The principal layer size is
+```
+PL_size = (N_atoms × N_orbitals)² × 16 bytes
+```
+in double precision, where the number of atoms `N_atoms` scales quadratically
+with the device size. The number of orbitals `N_orbitals` is none and includes
+the d orbitals. `N_pl` denotes the number of principal layers.
+
+.libNEGF peak memory consumption
+[options="header"]
+|===
+| Computation                              | Peak memory consumption
+| Coherent transmission, `computeLDOS=No`  | 7 × PL_size
+| Coherent transmission, `computeLDOS=Yes` | 3 × N_pl × PL_size
+| Density matrix (coherent transmission)   | 7 × N_pl × PL_size
+| Inelastic code                           | 12 × N_pl × PL_size
+|===
+
+
 == Generating libNEGF Input
 
 To create libNEGF input, obtain Slater-Koster parameterizations{empty}footnote:[J. C. Slater and G. F. Koster: "`Simplified LCAO Method for the Periodic Potential Problem`". 1954. Physical Review 94 (1498). DOI: 10.1103/PhysRev.94.1498.] for the molecule at hand (e.g., from the https://dftb.org/parameters/[DFTB+ Parameters] page) and describe the geometric properties of the molecule and its contacts. The description file format as well as visualization of input and output are described in details in the DTFB+ recipes document https://dftbplus-recipes.readthedocs.io/en/latest/transport/setup-geometry.html[_Setup Geometry utility_].
