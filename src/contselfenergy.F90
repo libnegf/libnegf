@@ -41,6 +41,7 @@ module ContSelfEnergy
 #:endif
 #:if defined("GPU")
  use iso_c_binding
+ use cudautils
 #:endif
  implicit none
  private
@@ -506,7 +507,11 @@ contains
 
        call destroy(TpMt)
 
-       call SelfEnergy( GS(i),Tlc(i),Tcl(i),SelfEneR(i) )
+#:if defined("GPU")
+       call SelfEnergy_dns_gpu(pnegf%hcublas, GS(i), Tlc(i), Tcl(i), SelfEneR(i) )
+#:else
+       call SelfEnergy(GS(i), Tlc(i), Tcl(i), SelfEneR(i) )
+#:endif
 
     enddo
 
@@ -582,13 +587,42 @@ contains
     type(z_DNS) :: TG
 
     call prealloc_mult(Tlc,GS,TG)
-
     call prealloc_mult(TG,Tcl,SelfEneR)
-
     call destroy(TG)
 
   end subroutine SelfEnergy_dns
 
+#:if defined("GPU")
+  ! GPU implementation of the contact self-energy
+  subroutine SelfEnergy_dns_gpu(hh, GS, Tlc, Tcl, SelfEneR)
+
+    type(cublasHandle), intent(in) :: hh
+    type(z_DNS), intent(in) :: GS,Tlc,Tcl
+    !OUTPUT
+
+    type(z_DNS), intent(inout) :: SelfEneR
+
+    ! locals
+    type(z_DNS) :: TG
+    complex(dp), parameter :: one = (1.0_dp, 0.0_dp)
+    complex(dp), parameter :: zero = (0.0_dp, 0.0_dp)
+
+    call copyToGPU(GS)
+    call copyToGPU(Tlc)
+    call createAll(TG, Tlc%nrow, GS%ncol)
+    call matmul_gpu(hh, one, Tlc, GS, zero, TG)
+    call deleteGPU(GS)
+    call deleteGPU(Tlc)
+    call copyToGPU(Tcl)
+    call createAll(SelfEneR, TG%nrow, Tcl%ncol)
+    call matmul_gpu(hh, one, TG, Tcl, zero, SelfEneR)
+    call copyFromGPU(SelfEneR)
+    call deleteGPU(Tcl)
+    call deleteGPU(TG)
+    call deleteGPU(SelfEneR)
+
+  end subroutine SelfEnergy_dns_gpu
+#:endif
 
 end module ContSelfEnergy
 
