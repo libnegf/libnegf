@@ -182,7 +182,8 @@ module skit_blassm
     iw = 0
 
     if(.not.values) scal = cmplx(ieee_value(1.0_dp, ieee_signaling_nan), &
-                                 ieee_value(1.0_dp, ieee_signaling_nan))
+                                 ieee_value(1.0_dp, ieee_signaling_nan), &
+                                 dp)
 
     do ii = 1, nrow 
       do ka = ia(ii), ia(ii+1)-1 
@@ -247,7 +248,8 @@ module skit_blassm
            scal = a(ka)*s
         else
            scal = cmplx(ieee_value(1.0_dp, ieee_signaling_nan), &
-                        ieee_value(1.0_dp, ieee_signaling_nan))
+                        ieee_value(1.0_dp, ieee_signaling_nan), &
+                        dp)
         end if   
         jj = ja(ka)
         do kb = ib(jj), ib(jj+1)-1
@@ -801,7 +803,8 @@ module skit_blassm
     iw = 0
 
     if(.not.values) scal = cmplx(ieee_value(1.0_dp, ieee_signaling_nan), &
-                                 ieee_value(1.0_dp, ieee_signaling_nan))
+                                 ieee_value(1.0_dp, ieee_signaling_nan), &
+                                 dp)
       
     do ii = 1, nrow 
        do ka=ia(ii), ia(ii+1)-1 

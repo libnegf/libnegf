@@ -773,7 +773,8 @@ contains
      if (kbT.eq.0.0_dp .or. wqmax>0.0_dp) then     ! Circle integration T=0
        call  gauleg(alpha,0.0_dp,pnts,wght,negf%Np_n(2))
        z_diff = cmplx(ieee_value(1.0_dp, ieee_signaling_nan), &
-                      ieee_value(1.0_dp, ieee_signaling_nan))
+                      ieee_value(1.0_dp, ieee_signaling_nan), &
+                      dp)
      else                                          ! Segment integration T>0
        z1 = muref + nkT + j*Lambda
        z2 = muref - nkT + j*Lambda

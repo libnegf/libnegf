@@ -19,6 +19,9 @@
 !!--------------------------------------------------------------------------!
 
 
+#:include "assert.fypp"
+
+
 !---------------------------------------------------------------------
 !    Subroutine : SelfEnergy for contacts
 !---------------------------------------------------------------------
@@ -158,6 +161,8 @@ contains
     label%col_block = 0
 
     flag = pnegf%ReadOldSGF
+    @:ASSERT(flag == 0 .or. flag == 1 .or. flag == 2)
+
     verbose = pnegf%verbose
     contdim = pnegf%str%cont_dim(ii)
     surfdim = pnegf%str%mat_C_Start(ii) - pnegf%str%mat_B_Start(ii)

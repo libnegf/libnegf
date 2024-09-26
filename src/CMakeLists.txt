@@ -73,9 +73,12 @@ foreach(fppsrc IN LISTS sources-fpp)
   string(REGEX REPLACE "\\.F90" ".f90" f90src ${fppsrc})
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${f90src}
-    COMMAND ${FYPP} ${fyppdefs} ${CMAKE_CURRENT_SOURCE_DIR}/${fppsrc}
+    COMMAND ${FYPP}
+      -I${PROJECT_SOURCE_DIR}/include
+      ${fyppdefs} ${CMAKE_CURRENT_SOURCE_DIR}/${fppsrc}
       ${CMAKE_CURRENT_BINARY_DIR}/${f90src}
     MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${fppsrc}
+    DEPENDS ${PROJECT_SOURCE_DIR}/include/assert.fypp
     VERBATIM)
   list(APPEND sources-fpp-f90 ${CMAKE_CURRENT_BINARY_DIR}/${f90src})
 endforeach()
