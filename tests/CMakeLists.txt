@@ -21,6 +21,7 @@ set(test-directories
         f90int_file
         f90_transmission
         f90elph_deph
+	  f90read_hs
         )
 
 if(WITH_TRANSPORT_GPU)
