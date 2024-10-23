@@ -51,7 +51,7 @@ module readHS
     read(fu2, *) !read # header line
     read(fu1, *) nAtoms
     read(fu2, *) int1
-    write(*,*) 'Number of atoms: ',nAtoms
+    !write(*,*) 'Number of atoms: ',nAtoms
     if (int1 /= nAtoms) then
       error stop("Number of atoms do not match")
     end if
@@ -86,9 +86,9 @@ module readHS
     end do
     orb%mOrb = maxval(orb%nOrbAtom) 
     maxneig = maxval(nNeighbours)
-    write(*,*) 'Max number of orbitals: ',orb%mOrb
-    write(*,*) 'Max number of neighbours: ',maxneig
-    write(*,*) 'Size of allocated sparse: ',matSize
+    !write(*,*) 'Max number of orbitals: ',orb%mOrb
+    !write(*,*) 'Max number of neighbours: ',maxneig
+    !write(*,*) 'Size of allocated sparse: ',matSize
     allocate(H0(matSize))
     allocate(S(matSize))
     allocate(iNeighbour(0:maxneig,nAtoms))
