@@ -86,7 +86,7 @@ program test_readHS
   if (globalComm%lead) then
      write(*,*) 'k-points'
      do ii = 1, nk
-       write(*,'(I,A,3f14.6,A)') ii,'[',kPoints(:,ii),']'
+       write(*,'(I0,A,3f14.6,A)') ii,'[',kPoints(:,ii),']'
      end do
   end if
 

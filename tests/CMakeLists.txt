@@ -45,6 +45,21 @@ function(transfer_test_data testname)
     add_dependencies(${testname} ${testname}-data-transfer)
 endfunction()
 
+function(unzip_test_data testname)
+    if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
+	  add_custom_target(${testname}-data-unzip)
+        add_dependencies(${testname}-data-unzip ${testname}-data-transfer)
+    else()
+        add_custom_target(
+            ${testname}-data-unzip
+            COMMENT "unzip ${CMAKE_CURRENT_SOURCE_DIR} for out-of-source build."
+		COMMAND tar -xJf ${CMAKE_CURRENT_BINARY_DIR}/*.tar.xz
+		COMMAND rm -f ${CMAKE_CURRENT_BINARY_DIR}/*.tar)
+    endif()
+    add_dependencies(${testname}-data-unzip ${testname}-data-transfer)
+    add_dependencies(${testname} ${testname}-data-unzip)
+endfunction()
+
 # A function to setup C++ tests.
 function(setup_cpp_test testname source)
     add_executable(${testname} ${source})
