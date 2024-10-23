@@ -53,7 +53,7 @@ module readHS
     read(fu2, *) int1
     !write(*,*) 'Number of atoms: ',nAtoms
     if (int1 /= nAtoms) then
-      error stop("Number of atoms do not match")
+      error stop "Number of atoms do not match"
     end if
     allocate(nNeighbours(nAtoms))
     allocate(iAtomStart(0:nAtoms))
