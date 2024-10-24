@@ -46,6 +46,11 @@ function(transfer_test_data testname)
 endfunction()
 
 function(unzip_test_data testname)
+    find_program(XZ NAMES xz)
+    if(NOT XZ)
+      message(FATAL_ERROR "cannot run test '${testname}' because xz executable is missing")
+    endif()
+
     if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
 	  add_custom_target(${testname}-data-unzip)
         add_dependencies(${testname}-data-unzip ${testname}-data-transfer)
