@@ -53,7 +53,6 @@ function(unzip_test_data testname)
 
     if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
 	  add_custom_target(${testname}-data-unzip)
-        add_dependencies(${testname}-data-unzip ${testname}-data-transfer)
     else()
         add_custom_target(
             ${testname}-data-unzip
