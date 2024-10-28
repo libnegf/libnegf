@@ -541,22 +541,22 @@ contains
     call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1_dns)
     call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2_dns)
 
-         write(*,*) '~-~-~-~-~-~-~-~-~-~-~-~-~-~-'
-         write(*,*) 'N_conts: TRS= GAM2 * Gr(bl2,bl1)* GAM1 * Gr(bl2,bl1)^+'
-         write(*,*) 'N_conts: sum_GAM1_dns=', sum(ABS(GAM1_dns%val))
-         write(*,*) 'N_conts: sum_Gr(',bl2,bl1,')=', sum(ABS(Gr(bl2,bl1)%val))
-         write(*,*) ''
+         !write(*,*) '~-~-~-~-~-~-~-~-~-~-~-~-~-~-'
+         !write(*,*) 'N_conts: TRS= GAM2 * Gr(bl2,bl1)* GAM1 * Gr(bl2,bl1)^+'
+         !write(*,*) 'N_conts: sum_GAM1_dns=', sum(ABS(GAM1_dns%val))
+         !write(*,*) 'N_conts: sum_Gr(',bl2,bl1,')=', sum(ABS(Gr(bl2,bl1)%val))
+         !write(*,*) ''
 
     ! Work to compute transmission matrix (Gamma2 Gr Gamma1 Ga)
     call prealloc_mult(GAM2_dns,Gr(bl2,bl1),work1)
-         write(*,*) 'N_conts: sum_GAM2_dns=', sum(ABS(GAM2_dns%val))
+         !write(*,*) 'N_conts: sum_GAM2_dns=', sum(ABS(GAM2_dns%val))
 
     call destroy(GAM2_dns)
 
     call prealloc_mult(work1,GAM1_dns,work2)
 
-         write(*,*) 'N_conts: sum_work1=', sum(ABS(work1%val))
-         write(*,*) 'N_conts: sum_work2', sum(ABS(work2%val))
+         !write(*,*) 'N_conts: sum_work1=', sum(ABS(work1%val))
+         !write(*,*) 'N_conts: sum_work2', sum(ABS(work2%val))
     call destroy(work1)
 
     call destroy(GAM1_dns)

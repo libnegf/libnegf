@@ -71,7 +71,9 @@ function(setup_cpp_test testname source)
     target_link_libraries(${testname} negf)
     target_link_libraries(${testname} LAPACK::LAPACK)
     target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
-    add_test(${testname} ${testname})
+    add_test(
+	    NAME ${testname} 
+	    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 -- ${testname})
 endfunction()
 
 # A function to setup C tests.

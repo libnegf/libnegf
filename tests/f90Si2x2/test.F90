@@ -126,8 +126,9 @@ program test_readHS
   call get_params(pnegf, params)
   params%verbose = 100 
   params%Emin = -4.560_dp/eV2Hartree
-  params%Emax = -4.245_dp/eV2Hartree
+  params%Emax = -4.485_dp/eV2Hartree
   params%Estep = 0.005_dp/eV2Hartree
+  ! nStep = (-4.485 + 4.560)/0.005 + 1 = 16
   params%delta = 1.e-5_dp  !Already in Hartree
   params%mu(1:2) = mu
   params%kbT_t(1:2) = kt
@@ -205,13 +206,13 @@ program test_readHS
   ierr = 0
   if (globalComm%lead) then
      open(111,file="transmission.dat")   
-     nSteps = int((params%Emax - params%Emin)/params%Estep) + 1  
+     nSteps = size(tunnMat,1)
+     !nint((params%Emax - params%Emin)/params%Estep) + 1 
      do ii = 1, nSteps
        write(111,*) (params%Emin + (ii-1)*params%Estep)*eV2Hartree, tunnMat(ii,1)
      end do
      close(111)
      open(113,file="transmission_kpoints.dat")   
-     nSteps = int((params%Emax - params%Emin)/params%Estep) + 1  
      do ii = 1, nSteps
         write(113,advance='no',fmt='(f20.6)') (params%Emin + (ii-1)*params%Estep)*eV2Hartree
         do jj = 1, nK
