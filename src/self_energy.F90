@@ -59,19 +59,16 @@ module self_energy
     integer :: iEminus, iEplus, iE, iEglo, iin
     integer :: myid, commsize, ndims = 2
     integer :: dims(2), coords(2), coordsH(2)
-    type(x_DNS), target :: rbuff1, rbuff2, sbuffH, rbuffH
-    type(x_DNS), pointer :: pbuff1, pbuff2, pGG, pSigma
+    type(x_DNS), target :: rbuff1, rbuff2, sbuffK, rbuffK
+    type(x_DNS), pointer :: pbuff1, pbuff2, pGG1, pGG2, pSigma
     real(lp), allocatable :: KKbuf(:)
     integer :: ierr
-    type(MPI_Request) :: rqE1,rqE2,rqE3,rqE4, rqH1, rqH2
-    type(MPI_Status) :: statusE(4), statusH(2)
+    type(MPI_Request) :: rqE1,rqE2,rqE3,rqE4, rqK1, rqK2
+    type(MPI_Status) :: statE(4), statK(2)
 
     integer :: msource, mdest, psource, pdest
     integer :: hsource, hdest
     integer :: ndiff
-
-    nullify(pbuff1)
-    nullify(pbuff2)
 
     dims(1) = NK/NKloc
     dims(2) = NE/NEloc
@@ -83,10 +80,11 @@ module self_energy
 
     Np = size(GG(0,0)%pMat%val,1)
     Mp = size(GG(0,0)%pMat%val,2)
+    
     call create(rbuff1, Np, Mp)
     call create(rbuff2, Np, Mp)
-    call create(sbuffH, Np, Mp)
-    call create(rbuffH, Np, Mp)
+    call create(sbuffK, Np, Mp)
+    call create(rbuffK, Np, Mp)
 
     ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) *
     !               * (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
@@ -104,40 +102,88 @@ module self_energy
         !// |oooooo|oooooo|oooooo|oooooo|
         !//  ^-----|-E----|--^              ihbarOmega = 7; ndiff = 1 iMinus = 0
         !//     ^--|----E-|-----^                           ndiff = 1 iMinus = 3
+        !//       ^|------|E-----|--^                       ndiff = 2 iMinus = 5
+        !//^|------|E-----|-^                               ndiff = 1 iMinus = 0
         !////////////////////////////////////////////////////////////////////////////////////
-
-        !// pbuff1 points to G(k,E-wq)
+        nullify(pbuff1)
+        nullify(pbuff2)
+        !// pbuff1 => G(k,E-wq)
         !// checks if iE-iEhbaromega is on the same processor => no communication
-        !// if iEglo<iEhbaromega => the processor is on the lower end of the energy grid
-        !//                      => communication is local or forced to be by truncation of G
-        !//                         such that G(E<0) = G(0), e.g., G(E-hw) = G(Elow)
+        !//          for E<0 take G(E<0) = 0
+        mdest = MPI_PROC_NULL
+        msource = MPI_PROC_NULL
         iEminus = iE - iEhbaromega
-        if (iEminus >= 0 .or. iEglo < iEhbaromega) then
-          if (iEglo < iEhbaromega) iEminus = 0
+        if (iEminus >= 0) then
           pbuff1 => GG(iEminus, iQ)%pMat
-          mdest = MPI_PROC_NULL
-          msource = MPI_PROC_NULL
-        end if
+        else !(iEminus < 0) 
+          rbuff1%val=(0.0_lp, 0.0_lp)  
+          pbuff1 => rbuff1
+        end if   
 
-        ! MPI communications
+        ! -------------------------------------------------------------------------------
+        ! MPI communications. 
+        ! Communications take place if (iE < iEhbaromega .and. iEglo >= iEhbaromega)
+        ! The latter is necessary to avoid 1-to-many communications
+        ! If we take G(0) for all G(E<0) it is possible that rank 0 has to send
+        ! G's to more than 1 rank, whenever ihbaromega > NEloc
+        ! Example behaviour for ihbaromega=7 and NEloc=6, for iE=0:
+        ! iEglo=0; ndiff=0 => no communication 
+        ! iEglo=6; ihbaromega=7; NEloc=6 => ndiff=1; iEminus=0 
+        ! => rank=0 SEND TO rank=1 GG(0,iQ)
+        ! iEglo=12; ihbaromega=7; ndiff=12/6 - 5/6 = 2 => iEminus=(18-7)%6=5
+        ! => rank=0 SEND TO rank=2 GG(5,iQ)   
+        ! We have a 1 TO many communication
+        ! -------------------------------------------------------------------------------
         if (dims(2) > 1) then
-          if ( iEhbaromega >= NEloc ) then
-            ndiff = iEhbaromega / NEloc
-          else
-            ndiff = 1
-          end if
+          if (iE < iEhbaromega) then
+            if (iEglo - iEhbaromega < 0 ) then
+              rbuff1%val=(0.0_lp, 0.0_lp)  
+              pbuff1 => rbuff1
+              ! takes care of the negative side where -1 turns into 0
+              ! so +1 is added at the end if (mod(iEhbaromega-iEglo, NEloc) /= 0)
+              !  ______________________
+              !  333333222222221111111100000000111111112222222233333333
+              ! --ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo----------
+              !   345670123456701234567012345670123456701234567012345670
+              !        ^-------------------^
+              ! -----------------------------------------------------------------------------
+              !rank=           0 iE           4 iEglo           4 iEminus         -16     -16
+              !ndiff = (ihwq-iEglo)/NEloc + iEglo/NEloc = 16/8 + 0 = 2 
+              !rank=           2 iE           4 iEglo          20 iEminus         -16      0
+              !ndiff = iEglo/NEloc - (iEglo-ihwq)/NEloc = 20/8 - (0) = 2 
+              ! -----------------------------------------------------------------------------
+              !rank=           0 iE           5 iEglo           5 iEminus         -15     -15
+              !ndiff = (ihwq-iEglo)/NEloc + iEglo/NEloc + 1 = 15/8 + 0 + 1 = 2 
+              !rank=           2 iE           5 iEglo          21 iEminus         -15      1
+              !ndiff = iEglo/NEloc - (iEglo-ihwq)/NEloc = 21/8 - 1/8  = 2 
+              ! -----------------------------------------------------------------------------
+              ndiff = (iEhbaromega-iEglo)/NEloc + iEglo/NEloc
+              if (mod(iEhbaromega-iEglo, NEloc) /= 0) then
+                ndiff = ndiff + 1
+              end if
+            else
+              ! get processor distance between iEglo and iEglo-ihbarOmega
+              ndiff = iEglo/NEloc - (iEglo-iEhbaromega)/NEloc
+            end if
+           
+            iEminus = mod(iE + (ndiff+1)*NEloc - iEhbaromega, NEloc)
 
-          call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
+            call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
+     
+            if (mdest /= MPI_PROC_NULL) then 
+               pGG1 => GG(iEminus, iQ)%pMat
+               call MPI_Isend(pGG1%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
+            end if
+            
+            if (msource /= MPI_PROC_NULL) then
+               call MPI_Irecv(rbuff1%val, Mp*Np, MPI_XX_COMPLEX, msource, 41, comm2d, rqE2, ierr)
+               pbuff1 => rbuff1
+            end if
 
-          if (mdest /= MPI_PROC_NULL .and. iE < iEhbaromega) then
-             iEminus = mod(iE + (ndiff+1)*NEloc - iEhbaromega, NEloc)
-             pGG => GG(iEminus, iQ)%pMat
-             call MPI_Isend(pGG%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
-          end if
-
-          if (msource /= MPI_PROC_NULL .and. iE < iEhbaromega) then
-             call MPI_Irecv(rbuff1%val, Mp*Np, MPI_XX_COMPLEX, msource, 41, comm2d, rqE2, ierr)
-             pbuff1 => rbuff1
+            ! Wait for complete communications
+            if (mdest/=MPI_PROC_NULL) call MPI_Wait(rqE1, statE(1), ierr);
+            if (msource/=MPI_PROC_NULL) call MPI_Wait(rqE2, statE(2), ierr);
+                 
           end if
         end if
 
@@ -145,56 +191,58 @@ module self_energy
         !// Communications of G(k, E+hwq)
         !////////////////////////////////////////////////////////////////////////////////////
         !// checks if iE+iEhbaromega is on the same processor => no communication
-        !// pbuff2 points to G(k,E+wq)
+        !// pbuff2 => G(k,E+wq)
+        pdest = MPI_PROC_NULL
+        psource = MPI_PROC_NULL
         iEplus = iE + iEhbaromega
-        if (iEplus < NEloc .or. iEglo+iEhbaromega > NE) then
-          if (iEglo+iEhbaromega > NE) iEplus = NEloc-1
+        if (iEplus < NEloc) then
           pbuff2 => GG(iEplus, iQ)%pMat
-          pdest = MPI_PROC_NULL
-          psource = MPI_PROC_NULL
+        else
+          rbuff2%val=(0.0_lp, 0.0_lp)  
+          pbuff2 => rbuff2
         end if
 
         if (dims(2) > 1) then
-          if ( iEhbaromega >= NEloc ) then
-            ndiff = iEhbaromega / NEloc
-          else
-            ndiff = 1
-          end if
+          if (iE + iEhbaromega >= NEloc) then
+            if (iEglo + iEhbaromega >= NE ) then
+              rbuff2%val=(0.0_lp, 0.0_lp)  
+              pbuff2 => rbuff2
+            end if
+      
+            ! get processor distance between iEglo+ihbarOmega and iEglo
+            ndiff = (iEglo+iEhbaromega)/NEloc - iEglo/NEloc
+            iEplus = mod(iEglo + iEhbaromega, NEloc)
+            
+            call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
+   
+            if (pdest /= MPI_PROC_NULL) then
+               pGG2 => GG(iEplus, iQ)%pMat
+               call MPI_Isend(pGG2%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
+            end if
+          
+            if (psource /= MPI_PROC_NULL) then
+               call MPI_Irecv(rbuff2%val, Mp*Np, MPI_XX_COMPLEX, psource, 42, comm2d, rqE4, ierr)
+               pbuff2 => rbuff2
+            end if
 
-          call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
-
-          if (pdest /= MPI_PROC_NULL .and. iE >= NEloc - iEhbaromega) then
-             iEplus = mod(iEglo + iEhbaromega, NEloc)
-             pGG => GG(iEplus, iQ)%pMat
-             call MPI_Isend(pGG%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
-          end if
-
-          if (psource /= MPI_PROC_NULL .and. iE >= NEloc - iEhbaromega) then
-             call MPI_Irecv(rbuff2%val, Mp*Np, MPI_XX_COMPLEX, psource, 42, comm2d, rqE4, ierr)
-             pbuff2 => rbuff2
+            if(pdest/=MPI_PROC_NULL) call MPI_Wait(rqE3, statE(3), ierr);
+            if(psource/=MPI_PROC_NULL) call MPI_Wait(rqE4, statE(4), ierr);
+               
           end if
         end if
-
-        ! Wait for complete communications
-        if (dims(2) > 1) then
-          if(mdest /= MPI_PROC_NULL .and. iE<iEhbaromega) call MPI_Wait(rqE1, statusE(1), ierr);
-          if(msource /= MPI_PROC_NULL  .and. iE<iEhbaromega) call MPI_Wait(rqE2, statusE(2), ierr);
-
-          if(pdest /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE3, statusE(3), ierr);
-          if(psource /= MPI_PROC_NULL .and. iE >= NEloc-iEhbaromega) call MPI_Wait(rqE4, statusE(4), ierr);
-        end if
-
+        
         !//   Compute:
-        !//   sbuffH_ij(iQ) = (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
+        !//   sbuffK_ij(iQ) = (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
+
         !$OMP PARALLEL DO private (nu)
         do nu = 1, Mp
-          sbuffH%val(:,nu) = (fac_minus*pbuff1%val(:,nu) + fac_plus*pbuff2%val(:,nu))
+          sbuffK%val(:,nu) = (fac_minus*pbuff1%val(:,nu) + fac_plus*pbuff2%val(:,nu))
         end do
         !$OMP END PARALLEL DO
 
         !// The Outer loop performs the summation over iQ
         !// This Inner loop updates Sigma(iK):
-        !// Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) * sbuffH_ij(iQ)
+        !// Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) * sbuffK_ij(iQ)
         do iK = 0, NKloc-1
           iKglo = kindices_map(iK,coords(1))-1
           pSigma => Sigma(iE, iK)%pMat
@@ -204,7 +252,7 @@ module self_energy
           !$OMP DO
           do nu = 1, Mp
             KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo)
-            pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * sbuffH%val(:,nu)
+            pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * sbuffK%val(:,nu)
           end do
           !$OMP END DO
           deallocate(KKbuf)
@@ -221,13 +269,13 @@ module self_energy
         !// cpu#2: iQ = 0, 1; coords(1)=2 => iQglo = 4, 5
         !//
         !// ii = 1: #0->#1, #1->#2,  #2->#0
-        !// cpu#0: (recv sbuffH(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
-        !// cpu#1: (recv sbuffH(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
-        !// cpu#2: (recv sbuffH(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// cpu#0: (recv sbuffK(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#1: (recv sbuffK(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !// cpu#2: (recv sbuffK(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
         !// ii = 2: #0->#2, #1->#0,  #2->#1
-        !// cpu#0: (recv sbuffH(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
-        !// cpu#1: (recv sbuffH(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
-        !// cpu#2: (recv sbuffH(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !// cpu#0: (recv sbuffK(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// cpu#1: (recv sbuffK(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#2: (recv sbuffK(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
         !////////////////////////////////////////////////////////////////////////////////////
         if (dims(1) > 1) then
           do iin = 1, dims(1)-1
@@ -243,12 +291,12 @@ module self_energy
             ! Actual shift used in send/recv:
             call MPI_Cart_shift(comm2d, 0, 1, hsource, hdest, ierr)
 
-            call MPI_Isend(sbuffH%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqH1, ierr)
-            call MPI_Irecv(rbuffH%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqH2, ierr)
+            call MPI_Isend(sbuffK%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqK1, ierr)
+            call MPI_Irecv(rbuffK%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqK2, ierr)
 
-            call MPI_Wait(rqH2, statusH(2), ierr)
+            call MPI_Wait(rqK2, statK(2), ierr)
 
-            ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffH_ij(iQ2)
+            ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffK_ij(iQ2)
             do iK = 0, NKloc-1
               iKglo = kindices_map(iK,coords(1))-1
               pSigma => Sigma(iE, iK)%pMat
@@ -257,18 +305,18 @@ module self_energy
               !$OMP DO
               do nu = 1, Mp
                 KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2)
-                pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * rbuffH%val(:,nu)
+                pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * rbuffK%val(:,nu)
               end do
               !$OMP END DO
               deallocate(KKbuf)
               !$OMP END PARALLEL
             end do
 
-            call MPI_Wait(rqH1, statusH(1), ierr)
+            call MPI_Wait(rqK1, statK(1), ierr)
 
             !$OMP PARALLEL DO
             do nu = 1, Mp
-              sbuffH%val(:,nu) = rbuffH%val(:,nu)
+              sbuffK%val(:,nu) = rbuffK%val(:,nu)
             end do
             !$OMP END PARALLEL DO
 
@@ -280,8 +328,8 @@ module self_energy
 
     call destroy(rbuff1)
     call destroy(rbuff2)
-    call destroy(sbuffH)
-    call destroy(rbuffH)
+    call destroy(sbuffK)
+    call destroy(rbuffK)
 
 
   end subroutine selfenergy
