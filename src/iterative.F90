@@ -20,7 +20,6 @@
 
 
 module iterative
-
   use ln_precision
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
@@ -228,7 +227,6 @@ CONTAINS
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
 
     call allocate_blk_dns(Gr,nbl)
-
     ! compute Gr(1,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     ! compute Gr(n,n), Gr(n-1,n), Gr(n, n-1);  n = 2 .. nbl
@@ -940,15 +938,6 @@ CONTAINS
           call delete_trid_fromGPU(Gr)
         #:endif
         call destroy_tridiag_blk(Gr)
-        !do ii = 1, size(Gr,1)
-        !  print*,'Allocated Gr',ii,ii,Gr(ii,ii)%nrow
-        !end do
-        !Note: The following code fails for unclear reasons:
-        !deallocate(Gr,stat=ii)
-        !if (ii.ne.0) then
-        !   print*,'Allocation error:',ii
-        !   error stop
-        !end if
         call deallocate_blk_dns(Gr)
       end if
     else
@@ -1978,8 +1967,11 @@ CONTAINS
     if (.not.allocated(gsm)) then
       allocate(gsm(nbl),stat=ierr)
     end if
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate gsm'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'ALLOCATION ERROR # ',ierr
+       error stop 'ALLOCATION ERROR: could not allocate gsm'
+    end if
   end subroutine allocate_gsm
 
   !---------------------------------------------------
@@ -1989,8 +1981,11 @@ CONTAINS
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'ALLOCATION ERROR # ',ierr
+       error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    end if
   end subroutine allocate_blk_dns
 
   !---------------------------------------------------
@@ -2000,8 +1995,11 @@ CONTAINS
     integer :: ierr
 
     deallocate(gsm,stat=ierr)
-    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'DEALLOCATION ERROR # ',ierr
+       error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+    end if
   end subroutine deallocate_gsm
 
   !---------------------------------------------------
