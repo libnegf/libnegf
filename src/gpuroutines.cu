@@ -1208,3 +1208,12 @@ extern "C" int cu_Zdecimation(
 
     return cudaStatus;
 }
+
+extern "C" int cu_meminfo(size_t *freemem, size_t *totalmem) {
+    cudaError_t cudaStatus;
+    cudaStatus = cudaDeviceSynchronize();
+    cudaStatus = cudaMemGetInfo(freemem, totalmem);
+    assert(cudaStatus == cudaSuccess);
+    return cudaStatus;
+}
+

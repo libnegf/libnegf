@@ -592,6 +592,7 @@ contains
     call destroy_tridiag_blk(Sigma_n)
     call deallocate_blk_dns(Sigma_n)
 
+
     contains
     ! Recursive calculation of Sigma_n:
     ! gns(i+1) = gsmr(i+1) Sigma(i+1,i+1) gsmr(i+1)^dag

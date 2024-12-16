@@ -227,6 +227,9 @@ CONTAINS
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
 
+    print*,"Before calc tridiag Gr"
+    call printDevMemInfo()
+
     call allocate_blk_dns(Gr,nbl)
 
     ! compute Gr(1,1)
@@ -242,6 +245,9 @@ CONTAINS
     call set_Gr_ela(negf, Gr)
 
     !Computing device G_n
+    print*,"Before calc tridiag Gn"
+    call printDevMemInfo()
+
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 

@@ -53,6 +53,8 @@ module cudautils
 
    public :: checksum
 
+   public :: printDevMemInfo
+
    interface createGPU
       module procedure createGPU_sp
       module procedure createGPU_dp
@@ -379,6 +381,13 @@ module cudautils
        real(c_double) :: summ
        integer(c_int), value :: N
      end function cu_Zasum
+
+     integer(c_int) function cu_meminfo(freemem, totalmem) &
+                  &   bind(C, name='cu_meminfo')
+       use iso_c_binding
+       integer(c_int64_t) :: freemem
+       integer(c_int64_t) :: totalmem
+     end function cu_meminfo
 
 end interface
 
@@ -937,4 +946,12 @@ end interface
     end if
 
   end subroutine checksum
+
+  subroutine printDevMemInfo()
+    integer(8) :: freemem, totalmem
+    integer :: err
+    err = cu_meminfo(freemem, totalmem)
+    print*,'freemem=',freemem,'totalmem=',totalmem
+  end subroutine printDevMemInfo
+
 end module cudautils
