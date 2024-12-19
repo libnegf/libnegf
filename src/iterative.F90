@@ -140,7 +140,7 @@ CONTAINS
     call copy_trid_toHOST(Gr)
 #:endif
 
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
     call destroy_gsm(gsmr)
@@ -155,7 +155,7 @@ CONTAINS
 
     call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
 
-    call destroy_blk(Gr)
+    call destroy_tridiag_blk(Gr,"Gr")
     DEALLOCATE(Gr)
 
   end subroutine calculate_Gr
@@ -218,7 +218,6 @@ CONTAINS
     associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
 
     Ec = cmplx(E,0.0_dp,dp)
-
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
@@ -226,9 +225,6 @@ CONTAINS
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
-
-    print*,"Before calc tridiag Gr"
-    call printDevMemInfo()
 
     call allocate_blk_dns(Gr,nbl)
 
@@ -245,8 +241,6 @@ CONTAINS
     call set_Gr_ela(negf, Gr)
 
     !Computing device G_n
-    print*,"Before calc tridiag Gn"
-    call printDevMemInfo()
 
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
@@ -271,7 +265,6 @@ CONTAINS
       call blk2csr(Gr,negf%str,negf%S,Grout)
     end if
     end associate
-
 
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
@@ -518,7 +511,6 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
-       !print*,"Allocate negf%G_r"
        allocate(TMatrixCacheMem::negf%G_r)
     end if
     select type(p => negf%G_r)
@@ -582,7 +574,6 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
-       !print*,"Allocate negf%G_n"
        allocate(TMatrixCacheMem::negf%G_n)
     end if
     select type(p => negf%G_n)
@@ -908,13 +899,17 @@ CONTAINS
     type(Tnegf), intent(in) :: negf
 
     if (negf%tDestroyESH) then
-      call destroy_tridiag_blk(ESH)
-      if (allocated(ESH)) deallocate(ESH)
+      if (allocated(ESH)) then
+        call destroy_tridiag_blk(ESH,"ESH")
+        call deallocate_blk_dns(ESH)
+      end if
     end if
 
     if (negf%tDestroyGr) then
-      call destroy_blk(Gr)
-      if (allocated(Gr)) deallocate(Gr)
+      if (allocated(Gr)) then
+        call destroy_tridiag_blk(Gr,"Gr")
+        call deallocate_blk_dns(Gr)
+      end if
     else  
 #:if defined("GPU")
       call delete_trid_fromGPU(Gr)
@@ -922,8 +917,10 @@ CONTAINS
     end if
 
     if (negf%tDestroyGn) then
-      call destroy_blk(Gn)
-      if (allocated(Gn)) deallocate(Gn)
+      if (allocated(Gn)) then 
+        call destroy_tridiag_blk(Gn,"Gn")
+        call deallocate_blk_dns(Gn)
+      end if
     else
 #:if defined("GPU")
       call delete_trid_fromGPU(Gn)
@@ -936,28 +933,34 @@ CONTAINS
   subroutine destroy_gsm(gsm)
     type(z_DNS), dimension(:) :: gsm
     integer :: i, nbl
+    character(1) :: str
 
     nbl=size(gsm,1)
 
 #:if defined("GPU")
     do i=1,nbl
+       write(str,'(I1)') i
        if (allocated(gsm(i)%val)) then
-          call destroyAll(gsm(i))
+          call destroyAll(gsm(i), "gsmr("//str//")")
        end if
     end do
 #:else
     do i=1,nbl
+       write(str,'(I1)') i
        if (allocated(gsm(i)%val)) then
-          call destroy(gsm(i))
+          call destroy(gsm(i),tag= "gsmr("//str//")")
        end if
     end do
 #:endif
   end subroutine destroy_gsm
 
   !**********************************************************************
-  subroutine destroy_blk(M)
+  subroutine destroy_blk(M, str)
     type(z_DNS), dimension(:,:), allocatable :: M
+    character(len=*), intent(in), optional :: str
+    
     integer :: i, i1, nbl
+    character(1) :: sbl1, sbl2
 
     if (.not.allocated(M)) return
 
@@ -966,7 +969,9 @@ CONTAINS
     do i=1,nbl
        do i1=1,nbl
           if (ALLOCATED(M(i1,i)%val)) THEN
-             call destroyAll(M(i1,i))
+             write(sbl1,'(I1)') i
+             write(sbl2,'(I1)') i1
+             call destroyAll(M(i1,i),str//"("//sbl2//","//sbl1//")")
           end if
        end do
     end do
@@ -974,7 +979,9 @@ CONTAINS
     do i=1,nbl
        do i1=1,nbl
           if (ALLOCATED(M(i1,i)%val)) THEN
-             call destroy(M(i1,i))
+             write(sbl1,'(I1)') i
+             write(sbl2,'(I1)') i1
+             call destroy(M(i1,i),tag= str//"("//sbl2//","//sbl1//")")
           end if
        end do
     end do
@@ -982,28 +989,52 @@ CONTAINS
   end subroutine destroy_blk
 
   !**********************************************************************
-  subroutine destroy_tridiag_blk(M)
+  subroutine destroy_tridiag_blk(M, str)
     type(z_DNS), dimension(:,:), allocatable :: M
+    character(len=*), intent(in), optional :: str
 
     integer :: i, nbl
+    character(1) :: sbl1, sbl2
 
     if (.not.allocated(M)) return
 
     nbl=size(M,1)
 
+#:if defined("GPU")
     do i=1,nbl
-      if (allocated(M(i,i)%val)) then
-        call destroy(M(i,i))
+      if (allocated(M(i,i)%val)) then    
+        write(sbl1,'(i1)') i
+        call destroyAll(M(i,i),str//"("//sbl1//","//sbl1//")")
       end if
     end do
     do i=2,nbl
+      write(sbl1,'(i1)') i
+      write(sbl2,'(i1)') i-1
       if (allocated(M(i-1,i)%val)) then
-        call destroy(M(i-1,i))
+        call destroyAll(M(i-1,i),str//"("//sbl2//","//sbl1//")")
       end if
       if (allocated(M(i,i-1)%val)) then
-        call destroy(M(i,i-1))
+        call destroyAll(M(i,i-1),str//"("//sbl1//","//sbl2//")")
       end if
     end do
+#:else
+    do i=1,nbl
+      if (allocated(M(i,i)%val)) then    
+        write(sbl1,'(i1)') i
+        call destroy(M(i,i),tag=str//"("//sbl1//","//sbl1//")")
+      end if
+    end do
+    do i=2,nbl
+      write(sbl1,'(i1)') i
+      write(sbl2,'(i1)') i-1
+      if (allocated(M(i-1,i)%val)) then
+        call destroy(M(i-1,i),tag=str//"("//sbl2//","//sbl1//")")
+      end if
+      if (allocated(M(i,i-1)%val)) then
+        call destroy(M(i,i-1),tag=str//"("//sbl1//","//sbl2//")")
+      end if
+    end do
+#:endif
 
   end subroutine destroy_tridiag_blk
 
@@ -1726,10 +1757,10 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-    call destroy_tridiag_blk(Gr)
+    call destroy_tridiag_blk(Gr,"Gr")
     call deallocate_blk_dns(Gr)
 
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
   end subroutine calculate_transmissions
@@ -1792,7 +1823,7 @@ CONTAINS
     Integer :: nbl,ncont
     Integer :: nit, nft, icpl
     Integer :: iLDOS, i2, i
-    character(1) :: Im
+    character(1) :: Im, sbl1, sbl2
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
@@ -1834,20 +1865,24 @@ CONTAINS
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
     ! Destroy only off-diagonal blocks
 #:if defined("GPU")
     call copy_trid_toHOST(Gr)
     do i=2,nbl
-      call destroyAll(Gr(i-1,i))
-      call destroyAll(Gr(i,i-1))
+      write(sbl1,'(A)') i
+      write(sbl2,'(A)') i-1
+      call destroyAll(Gr(i-1,i),"Gr("//sbl2//","//sbl1//")")
+      call destroyAll(Gr(i,i-1),"Gr("//sbl1//","//sbl2//")")
     end do
 #:else
     do i=2,nbl
-      call destroy(Gr(i-1,i))
-      call destroy(Gr(i,i-1))
+      write(sbl1,'(A)') i
+      write(sbl2,'(A)') i-1
+      call destroy(Gr(i-1,i),tag="Gr("//sbl2//","//sbl1//")")
+      call destroy(Gr(i,i-1),tag="Gr("//sbl1//","//sbl2//")")
     end do
 #:endif
     associate(str=>negf%str, dos_proj=>negf%dos_proj)
@@ -1858,24 +1893,26 @@ CONTAINS
 #:if defined("GPU")
     call delete_vdns_fromGPU(SelfEneR)
     do i=1,nbl
-       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
-       call dns2csr(Gr(i,i),GrCSR)
-       !Concatena direttamente la parte immaginaria per il calcolo della doS
-       zc=(-1.0_dp,0.0_dp)/pi
+      write(sbl1,'(A)') i
+      call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
+      call dns2csr(Gr(i,i),GrCSR)
+      !Concatena direttamente la parte immaginaria per il calcolo della doS
+      zc=(-1.0_dp,0.0_dp)/pi
 
-       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
-       call destroyAll(Gr(i,i))
-       call destroy(GrCSR)
+      call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
+      call destroyAll(Gr(i,i),"Gr("//sbl1//","//sbl1//")")
+      call destroy(GrCSR)
     end do
 #:else
     do i=1,nbl
+      write(sbl1,'(A)') i
       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
       call dns2csr(Gr(i,i),GrCSR)
       !Concatena direttamente la parte immaginaria per il calcolo della doS
       zc=minusOne/pi
 
       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
-      call destroy(Gr(i,i))
+      call destroy(Gr(i,i),tag="Gr("//sbl1//","//sbl1//")")
       call destroy(GrCSR)
     end do
 #:endif
@@ -1924,7 +1961,7 @@ CONTAINS
 
       call allocate_blk_dns(ESH, nbl)
 
-      call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start)
+      call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start,"ESH")
 
       call destroy(ESH_tot)
 

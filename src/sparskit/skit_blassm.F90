@@ -22,42 +22,42 @@ module skit_blassm
   public :: as1pls2b, copymat
 
   interface amub
-    module procedure :: ramub    
+    module procedure :: damub    
     module procedure :: zamub    
   end interface amub
   
   interface aplsb
-    module procedure :: raplsb
+    module procedure :: daplsb
     module procedure :: zaplsb
   end interface aplsb
 
   interface amubs
-    !module procedure :: ramub    
+    !module procedure :: damub    
     module procedure :: zamubs    
   end interface amubs
 
   interface aplb
-    module procedure :: raplb    
+    module procedure :: daplb    
     module procedure :: zaplb    
   end interface aplb 
 
   interface aplb1
-    module procedure :: raplb1    
+    module procedure :: daplb1    
     module procedure :: zaplb1    
   end interface aplb1 
 
   interface cplsamub
-    !module procedure :: rcplsamub   
+    !module procedure :: dcplsamub   
     module procedure :: zcplsamub   
   end interface cplsamub 
 
   interface as1pls2b
-    !module procedure :: ras1pls2b     
+    !module procedure :: das1pls2b     
     module procedure :: zas1pls2b 
   end interface as1pls2b
 
   interface copymat 
-    !module procedure :: rcopymat     
+    !module procedure :: dcopymat     
     module procedure :: zcopymat 
   end interface copymat
 
@@ -107,7 +107,7 @@ module skit_blassm
   !   on the condition that ncol(A) = nrow(B). 
   !
   !----------------------------------------------------------------------- 
-  subroutine ramub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
+  subroutine damub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
     use, intrinsic :: ieee_arithmetic
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
@@ -160,7 +160,7 @@ module skit_blassm
        end do
        ic(ii+1) = len+1
      end do
-  end subroutine ramub
+  end subroutine damub
   
   subroutine zamub(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr) 
     use, intrinsic :: ieee_arithmetic
@@ -320,7 +320,7 @@ module skit_blassm
   ! iw  = integer work array of length equal to the number of
   !         columns in A.
   !-----------------------------------------------------------------------
-  subroutine raplb(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
+  subroutine daplb(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
@@ -371,7 +371,7 @@ module skit_blassm
        end do 
        ic(ii+1) = len+1
     end do
-  end subroutine raplb
+  end subroutine daplb
   
   subroutine zaplb(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
@@ -470,7 +470,7 @@ module skit_blassm
   !-------
   !     this will not work if any of the two input matrices is not sorted
   !-----------------------------------------------------------------------
-  subroutine raplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
+  subroutine daplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:)
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
@@ -527,7 +527,7 @@ module skit_blassm
        end do
        ic(ii+1) = kc
      end do 
-  end subroutine raplb1
+  end subroutine daplb1
   
   subroutine zaplb1(nrow,ncol,job,a,ja,ia,b,jb,ib,c,jc,ic,nzmax,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
@@ -632,7 +632,7 @@ module skit_blassm
   !         columns in A.
   !
   !-----------------------------------------------------------------------
-  subroutine raplsb(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
+  subroutine daplsb(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 
     real(dp), intent(in) :: a(:), b(:), s
     integer, intent(in) :: ja(:), ia(:), jb(:), ib(:)
@@ -683,7 +683,7 @@ module skit_blassm
        end do
        ic(ii+1) = len+1
     end do 
-  end subroutine raplsb
+  end subroutine daplsb
   
   subroutine zaplsb(nrow,ncol,job,a,ja,ia,s,b,jb,ib,c,jc,ic,nzmax,iw,ierr)
     integer, intent(in) :: nrow, ncol, nzmax, job 

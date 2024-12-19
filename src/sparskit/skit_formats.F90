@@ -27,37 +27,37 @@ module skit_formats
   public :: submat
   
   interface dnscsr
-    module procedure :: rdnscsr  
+    module procedure :: ddnscsr  
     module procedure :: zdnscsr  
   end interface dnscsr
 
   interface csrdns
-    module procedure :: rcsrdns  
+    module procedure :: dcsrdns  
     module procedure :: zcsrdns    
   end interface csrdns
   
   interface coocsr
-    module procedure :: rcoocsr  
+    module procedure :: dcoocsr  
     module procedure :: zcoocsr    
   end interface coocsr
 
   interface csrcoo
-    module procedure :: rcsrcoo  
+    module procedure :: dcsrcoo  
     module procedure :: zcsrcoo    
   end interface csrcoo
 
   interface csrcsc
-    module procedure :: rcsrcsc
+    module procedure :: dcsrcsc
     module procedure :: zcsrcsc    
   end interface csrcsc
 
   interface csrcsc2
-    module procedure :: rcsrcsc2
+    module procedure :: dcsrcsc2
     module procedure :: zcsrcsc2   
   end interface csrcsc2
 
   interface submat
-    module procedure :: rsubmat    
+    module procedure :: dsubmat    
     module procedure :: zsubmat    
   end interface submat
         
@@ -93,7 +93,7 @@ module skit_formats
   !         processing row number i, because there was no space left in
   !         a, and ja (as defined by parameter nzmax).
   !----------------------------------------------------------------------- 
-  subroutine rdnscsr(nrow,ncol,nzmax,dns,a,ja,ia,ierr)
+  subroutine ddnscsr(nrow,ncol,nzmax,dns,a,ja,ia,ierr)
     integer, intent(in) :: nrow, ncol, nzmax    
     real(dp), intent(in) :: dns(:,:)
     real(dp), intent(inout) :: a(:)
@@ -118,7 +118,7 @@ module skit_formats
        end do    
        ia(i+1) = next
      end do
-  end subroutine rdnscsr
+  end subroutine ddnscsr
   !----------------------------------------------------------------------- 
   subroutine zdnscsr(nrow,ncol,nzmax,dns,a,ja,ia,ierr)
     integer, intent(in) :: nrow, ncol, nzmax    
@@ -175,7 +175,7 @@ module skit_formats
   !         row number i, because it found a column number .gt. ncol.
   ! 
   !----------------------------------------------------------------------- 
-  subroutine rcsrdns(nrow, ncol,a, ja, ia, dns, ierr) 
+  subroutine dcsrdns(nrow, ncol,a, ja, ia, dns, ierr) 
     integer, intent(in) :: nrow, ncol
     real(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
@@ -198,7 +198,7 @@ module skit_formats
       end do    
     end do
 
-  end subroutine rcsrdns
+  end subroutine dcsrdns
 
   !----------------------------------------------------------------------- 
   subroutine zcsrdns(nrow, ncol,a, ja, ia, dns, ierr) 
@@ -256,7 +256,7 @@ module skit_formats
   !------ This routine is NOT in place.  See coicsr
   !
   !------------------------------------------------------------------------
-  subroutine rcoocsr(nrow,nnz,a,ir,jc,ao,jao,iao)
+  subroutine dcoocsr(nrow,nnz,a,ir,jc,ao,jao,iao)
     integer, intent(in) :: nrow, nnz   
     real(dp), intent(in) :: a(:) 
     integer, intent(in) :: ir(:), jc(:)
@@ -291,7 +291,7 @@ module skit_formats
     end do
     iao(1) = 1
 
-  end subroutine rcoocsr
+  end subroutine dcoocsr
 
   subroutine zcoocsr(nrow,nnz,a,ir,jc,ao,jao,iao)
     integer, intent(in) :: nrow, nnz   
@@ -373,7 +373,7 @@ module skit_formats
   !         but ir CANNOT be the same as ia. 
   !         2) note the order in the output arrays, 
   !------------------------------------------------------------------------
-  subroutine rcsrcoo(nrow,job,nzmax,a,ja,ia,nnz,ao,ir,jc,ierr)
+  subroutine dcsrcoo(nrow,job,nzmax,a,ja,ia,nnz,ao,ir,jc,ierr)
     integer, intent(in) :: nrow, job, nzmax   
     real(dp), intent(in) :: a(:) 
     integer, intent(in) :: ia(:), ja(:)
@@ -409,7 +409,7 @@ module skit_formats
         jc(k) = ja(k)
       end do  
     end if  
-  end subroutine rcsrcoo
+  end subroutine dcsrcoo
 
   subroutine zcsrcoo(nrow,job,nzmax,a,ja,ia,nnz,ao,ir,jc,ierr)
     integer, intent(in) :: nrow, job, nzmax   
@@ -485,15 +485,15 @@ module skit_formats
   !   the transpose. 
   !
   !-----------------------------------------------------------------------     
-  subroutine rcsrcsc(n,job,ipos,a,ja,ia,ao,jao,iao)
+  subroutine dcsrcsc(n,job,ipos,a,ja,ia,ao,jao,iao)
     integer, intent(in) :: n, job, ipos
     real(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
     real(dp), intent(inout) :: ao(:)
     integer, intent(inout) :: jao(:), iao(:)
 
-    call rcsrcsc2(n,n,job,ipos,a,ja,ia,ao,jao,iao)
-  end subroutine rcsrcsc
+    call dcsrcsc2(n,n,job,ipos,a,ja,ia,ao,jao,iao)
+  end subroutine dcsrcsc
   
   subroutine zcsrcsc(n,job,ipos,a,ja,ia,ao,jao,iao)
     integer, intent(in) :: n, job, ipos
@@ -545,7 +545,7 @@ module skit_formats
   !   the transpose. 
   !
   !----------------------------------------------------------------------- 
-  subroutine rcsrcsc2(n,n2,job,ipos,a,ja,ia,ao,jao,iao)
+  subroutine dcsrcsc2(n,n2,job,ipos,a,ja,ia,ao,jao,iao)
     integer, intent(in) :: n, n2, job, ipos
     real(dp), intent(in) :: a(:)
     integer, intent(in) :: ja(:), ia(:)
@@ -584,7 +584,7 @@ module skit_formats
        iao(i+1) = iao(i)
     end do
     iao(1) = ipos
-  end subroutine rcsrcsc2
+  end subroutine dcsrcsc2
 
   subroutine zcsrcsc2(n,n2,job,ipos,a,ja,ia,ao,jao,iao)
     integer, intent(in) :: n, n2, job, ipos
@@ -660,7 +660,7 @@ module skit_formats
   ! jao,iao = extracted matrix in general sparse format with jao containing
   ! the column indices,and iao being the pointer to the beginning 
   ! of the row,in arrays a,ja.
-  subroutine rsubmat(n, job, i1, i2, j1, j2, a, ja, ia, nr, nc, ao, jao, iao)  
+  subroutine dsubmat(n, job, i1, i2, j1, j2, a, ja, ia, nr, nc, ao, jao, iao)  
     integer, intent(in) :: n, job, i1, i2, j1, j2 
     integer, intent(in) :: ia(:),ja(:)
     real(dp), intent(in) :: a(:)
@@ -692,7 +692,7 @@ module skit_formats
     end do 
     iao(nr+1) = klen+1
       
-  end subroutine rsubmat
+  end subroutine dsubmat
 
   subroutine zsubmat(n, job, i1, i2, j1, j2, a, ja, ia, nr, nc, ao, jao, iao)  
     integer, intent(in) :: n, job, i1, i2, j1, j2 

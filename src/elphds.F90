@@ -19,15 +19,16 @@
 !!--------------------------------------------------------------------------!
 
 !> Overlap mask elastic dephasing model
+#:include "types.fypp"
 
 module elphds
 
-  use ln_precision, only : dp
+  use ln_precision, only : sp, dp
   use interactions, only : TInteraction
   use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
-  use mat_def, only : z_csr, z_dns, create, destroy
+  use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy
   use sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
 
@@ -59,8 +60,10 @@ module elphds
 
   contains
 
-    procedure :: add_sigma_r
-    procedure :: add_sigma_n
+    procedure :: add_sigma_r_sp
+    procedure :: add_sigma_r_dp
+    procedure :: add_sigma_n_sp
+    procedure :: add_sigma_n_dp
     procedure :: get_sigma_n_blk
     procedure :: get_sigma_n_mat
     procedure :: set_Gr
@@ -164,9 +167,10 @@ contains
 
   !> This interface should append
   !  the retarded self energy to ESH
-  subroutine add_sigma_r(this, esh, en_index, k_index, spin)
+#:def add_sigma_r_template(KIND,MTYPE)  
+  subroutine add_sigma_r_${KIND}$(this, esh, en_index, k_index, spin)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), intent(inout) :: esh
+    type(${MTYPE}$), dimension(:,:), intent(inout) :: esh
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
@@ -199,14 +203,16 @@ contains
     end do
     deallocate(tmp_blk)
 
-  end subroutine add_sigma_r
+  end subroutine add_sigma_r_${KIND}$
+#:enddef add_sigma_r_template  
 
   !--------------------------------------------------------------------------
   !> This interface should append
   !  sigma_n to a passed self energy, sigma
-  subroutine add_sigma_n(this, sigma, en_index, k_index, spin)
+#:def add_sigma_n_template(KIND,MTYPE)  
+  subroutine add_sigma_n_${KIND}$(this, sigma, en_index, k_index, spin)
     class(ElPhonDephS) :: this
-    type(z_dns), dimension(:,:), intent(inout) :: sigma
+    type(${MTYPE}$), dimension(:,:), intent(inout) :: sigma
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
@@ -239,7 +245,18 @@ contains
     end do
     deallocate(tmp_blk)
 
-  end subroutine add_sigma_n
+  end subroutine add_sigma_n_${KIND}$
+#:enddef add_sigma_n_template  
+
+#:for PREC in PRECISIONS
+     #:set KIND = PREC_ABBREVS[PREC]
+     #:set MTYPE = MAT_TYPES['complex'][PREC]
+
+     $:add_sigma_r_template(KIND,MTYPE)
+     
+     $:add_sigma_n_template(KIND,MTYPE)
+#:endfor
+
 
   !> Returns the lesser (n) Self Energy in block format
   !

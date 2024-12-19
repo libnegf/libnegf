@@ -20,11 +20,12 @@
 
 ! Inelastic electron-phonon interactions
 ! This is the base class for inelastic interactions
+#:include "types.fypp"
 
 module elphinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
-  use ln_precision, only : dp, lp => dp
-  use mat_def, only : z_csr, z_dns, x_dns => z_dns, create, destroy, cross_product, volume
+  use ln_precision, only : sp, dp, lp => dp
+  use mat_def, only : z_csr, c_dns, z_dns, x_dns => z_dns, create, destroy, cross_product, volume
   use ln_constants, only : pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
@@ -88,8 +89,10 @@ module elphinel
 
   contains
 
-    procedure :: add_sigma_r
-    procedure :: add_sigma_n
+    procedure :: add_sigma_r_sp
+    procedure :: add_sigma_r_dp
+    procedure :: add_sigma_n_sp
+    procedure :: add_sigma_n_dp
     procedure :: get_sigma_n_blk
     procedure :: get_sigma_n_mat
     procedure :: set_Gr
@@ -532,9 +535,10 @@ contains
 
   !--------------------------------------------------------------------------
   !> Retrieve matrix pointer from cache and add it to ESH
-  subroutine add_sigma_r(this, esh, en_index, k_index, spin)
+#:def add_sigma_r_template(KIND,MTYPE)  
+  subroutine add_sigma_r_${KIND}$(this, esh, en_index, k_index, spin)
     class(ElPhonInel) :: this
-    type(z_dns), dimension(:,:), intent(inout) :: esh
+    type(${MTYPE}$), dimension(:,:), intent(inout) :: esh
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
@@ -571,13 +575,15 @@ contains
       end if
     end do
 
-  end subroutine add_sigma_r
+  end subroutine add_sigma_r_${KIND}$
+#:enddef add_sigma_r_template  
 
   !--------------------------------------------------------------------------
   !> Retrieve matrix pointer from cache and add it to sigma
-  subroutine add_sigma_n(this, sigma, en_index, k_index, spin)
+#:def add_sigma_n_template(KIND,MTYPE)  
+  subroutine add_sigma_n_${KIND}$(this, sigma, en_index, k_index, spin)
     class(ElPhonInel) :: this
-    type(z_dns), dimension(:,:), intent(inout) :: sigma
+    type(${MTYPE}$), dimension(:,:), intent(inout) :: sigma
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
@@ -611,7 +617,17 @@ contains
       end if
     end do
 
-  end subroutine add_sigma_n
+  end subroutine add_sigma_n_${KIND}$
+#:enddef add_sigma_n_template  
+
+#:for PREC in PRECISIONS
+     #:set KIND = PREC_ABBREVS[PREC]
+     #:set MTYPE = MAT_TYPES['complex'][PREC]
+
+     $:add_sigma_r_template(KIND,MTYPE)
+     
+     $:add_sigma_n_template(KIND,MTYPE)
+#:endfor
 
   !--------------------------------------------------------------------------
   !> Returns the lesser (n) Self Energy in block format

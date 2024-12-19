@@ -1120,7 +1120,7 @@ extern "C" int cu_Zdecimation(
         double summ;
         cublasStatus = cublasDzasum(hcublas, n * n, d_C1, 1, &summ);
         assert(cublasStatus == cudaSuccess);
-        // printf("loop it= %d , summ= %f \n ", i1, summ);
+        //printf("loop it= %d , summ= %f \n ", i1, summ);
 
         if(summ <= SGFACC) {
             if(okCo) {

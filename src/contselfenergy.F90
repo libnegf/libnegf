@@ -20,7 +20,7 @@
 
 
 #:include "assert.fypp"
-
+#:include "types.fypp"
 
 !---------------------------------------------------------------------
 !    Subroutine : SelfEnergy for contacts
@@ -77,8 +77,12 @@ module ContSelfEnergy
 
 #:if defined("GPU")
   interface
-     integer(c_int) function cu_Cdecimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, tf32, ncyc, one, mone, zero, SGFACC) bind(C, name='cu_Cdecimation')
+  #:for PREC in PRECISIONS       
+    #:set CTYPE = CHAR_ABBREVS['complex'][PREC]
+    #:set CBIND_CMPLX = ISO_C_BIND_TYPES['complex'][PREC]
+    #:set CBIND_REAL = ISO_C_BIND_TYPES['real'][PREC]
+    integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
+                     & n, tf32, ncyc, one, mone, zero, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
         use iso_c_binding
         import cublasHandle
         import cusolverDnHandle
@@ -92,37 +96,18 @@ module ContSelfEnergy
         integer(c_int), value :: n
         type(c_ptr), value :: ncyc
         integer(c_int), value :: tf32
-        complex(c_float_complex) :: one
-        complex(c_float_complex) :: mone
-        complex(c_float_complex) :: zero
-        real(c_float) :: SGFACC
-     end function
-
-     integer(c_int) function cu_Zdecimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, tf32, ncyc, one, mone, zero, SGFACC) bind(C, name='cu_Zdecimation')
-        use iso_c_binding
-        import cublasHandle
-        import cusolverDnHandle
-
-         type(cublasHandle), value :: hcublas
-        type(cusolverDnHandle), value :: hcusolver
-        type(c_ptr), value :: h_Go_out
-        type(c_ptr), value :: h_Ao_in
-        type(c_ptr), value :: h_Bo_in
-        type(c_ptr), value :: h_Co_in
-        integer(c_int), value :: n
-        type(c_ptr), value :: ncyc
-        integer(c_int), value :: tf32
-        complex(c_double_complex) :: one
-        complex(c_double_complex) :: mone
-        complex(c_double_complex) :: zero
-        real(c_double) :: SGFACC
-     end function
+        complex(${CBIND_CMPLX}$) :: one
+        complex(${CBIND_CMPLX}$) :: mone
+        complex(${CBIND_CMPLX}$) :: zero
+        real(${CBIND_REAL}$) :: SGFACC
+    end function
+  #:endfor
   end interface
 
   interface decimation_gpu
-     module procedure decimation_gpu_sp
-     module procedure decimation_gpu_dp
+  #:for PREC in PRECISIONS       
+     module procedure decimation_gpu_${PREC_ABBREVS[PREC]}$
+  #:endfor   
   end interface
 #:endif
 contains
@@ -188,8 +173,7 @@ contains
     else         !*** load from file ***
         if (id0.and.verbose.gt.VBT) call message_clock(trim("Loading SGF "//ofpnt))
     endif
-
-    call create(GS,ngs,ngs)
+    call create(GS,ngs,ngs,tag="GS")
     GS%val=zero
 
     !.......... Ficticious contact ....................
@@ -217,10 +201,10 @@ contains
 
        if(flag.ge.1) then
 
-          call log_allocate(Ao,npl,npl)
-          call log_allocate(Bo,npl,npl)
-          call log_allocate(Co,npl,npl)
-          call log_allocate(Go,npl,npl)
+          call log_allocate(Ao,npl,npl,"Ao")
+          call log_allocate(Bo,npl,npl,"Bo")
+          call log_allocate(Co,npl,npl,"Co")
+          call log_allocate(Go,npl,npl,"Go")
 
           Ao=E*SC%val(n1:n2,n1:n2)-HC%val(n1:n2,n1:n2)
           Bo=E*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
@@ -236,10 +220,9 @@ contains
             pnegf%cont_bulkG(ii)%val = 0.0_dp
             call compGreen(pnegf%cont_bulkG(ii)%val, Ao, npl)
           endif
-          call log_deallocate(Ao)
-          call log_deallocate(Bo)
-          call log_deallocate(Co)
-
+          call log_deallocate(Ao,"Ao")
+          call log_deallocate(Bo,"Bo")
+          call log_deallocate(Co,"Co")
           ! Fill up remaining bits of the surface green's function
           ! Add green's function of the bound layer.....
           if (n0.gt.0) then
@@ -261,7 +244,7 @@ contains
              call destroy(gt)
           else
              GS%val = Go
-             call log_deallocate(Go)
+             call log_deallocate(Go,"Go")
           endif
 
           !print*,'GS',maxval(abs(GS%val))
@@ -361,47 +344,20 @@ contains
 !-------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------
 #:if defined("GPU")
-  subroutine decimation_gpu_sp(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
-     implicit none
-     type(Tnegf), intent(in) :: negf
-     integer, intent(in) :: n
-    complex(sp), dimension(n,n), intent(out), target :: Go_out
-    complex(sp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
-     logical, intent(in) :: tf32
-     integer, intent(out), target :: ncyc
+#:def decimation_gpu_template(KIND, CTYPE)
 
-    complex(sp) :: one = (1.0_sp, 0.0_sp)
-    complex(sp) :: mone = (-1.0_sp, 0.0_sp)
-    complex(sp) :: zero = (0.0_sp, 0.0_sp)
-    integer :: istat, tf
-    type(cublasHandle) :: hh
-    type(cusolverDnHandle) :: hhsol
-
-    if (tf32) then
-       tf = 1
-    else
-       tf = 0
-    endif
-    hh = negf%hcublas
-    hhsol = negf%hcusolver
-
-    istat = cu_Cdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
-            one, mone, zero, real(SGFACC,sp)*n*n)
-
-  end subroutine decimation_gpu_sp
-
-  subroutine decimation_gpu_dp(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
+  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
     implicit none
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: n
-    complex(dp), dimension(n,n), intent(out), target :: Go_out
-    complex(dp), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
+    complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
+    complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
     logical, intent(in) :: tf32
     integer, intent(out), target :: ncyc
 
-    complex(dp) :: one = (1.0_dp, 0.0_dp)
-    complex(dp) :: mone = (-1.0_dp, 0.0_dp)
-    complex(dp) :: zero = (0.0_dp, 0.0_dp)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: mone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
     integer :: istat, tf
     type(cublasHandle) :: hh
     type(cusolverDnHandle) :: hhsol
@@ -411,14 +367,23 @@ contains
     else
        tf = 0
     endif
-
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
-    istat = cu_Zdecimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
-            one, mone, zero, real(SGFACC,dp)*n*n)
+    istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), c_loc(Co_in), n, tf, c_loc(ncyc), &
+            one, mone, zero, real(SGFACC,${KIND}$)*n*n)
 
-  end subroutine decimation_gpu_dp
+  end subroutine decimation_gpu_${KIND}$
+
+#:enddef decimation_gpu_template
+
+#:for PREC in PRECISIONS
+     #:set KIND = PREC_ABBREVS[PREC]
+     #:set CTYPE = CHAR_ABBREVS['complex'][PREC]
+
+     $:decimation_gpu_template(KIND,CTYPE)      
+#:endfor
+
 
 #:endif
 
@@ -612,18 +577,21 @@ contains
     complex(dp), parameter :: one = (1.0_dp, 0.0_dp)
     complex(dp), parameter :: zero = (0.0_dp, 0.0_dp)
 
+    call createGPU(GS)
     call copyToGPU(GS)
+    call createGPU(Tlc)
     call copyToGPU(Tlc)
     call createAll(TG, Tlc%nrow, GS%ncol)
     call matmul_gpu(hh, one, Tlc, GS, zero, TG)
     call deleteGPU(GS)
     call deleteGPU(Tlc)
+    call createGPU(Tcl)
     call copyToGPU(Tcl)
     call createAll(SelfEneR, TG%nrow, Tcl%ncol)
     call matmul_gpu(hh, one, TG, Tcl, zero, SelfEneR)
     call copyFromGPU(SelfEneR)
     call deleteGPU(Tcl)
-    call deleteGPU(TG)
+    call destroyAll(TG)
     call deleteGPU(SelfEneR)
 
   end subroutine SelfEnergy_dns_gpu

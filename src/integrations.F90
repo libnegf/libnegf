@@ -1744,13 +1744,13 @@ contains
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
        if (.not.do_ledos) then
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Transmission ')
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
@@ -2620,13 +2620,13 @@ contains
 
 
        if (.not.do_ledos) then
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling ')
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Phonon Transmission ')
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Tunneling and DOS')
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Phonon Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
