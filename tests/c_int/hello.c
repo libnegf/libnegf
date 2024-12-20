@@ -25,6 +25,7 @@ int main()
   printf("Initializing libNEGF \n");
   negf_init_session(hand);
   negf_init(hand);
+  printf("Read H\n");
   negf_read_hs(hand, &realmat[0], &imagmat[0], 0);
   negf_set_s_id(hand, 100, 1);
   negf_init_contacts(hand, 2);
@@ -32,9 +33,10 @@ int main()
 
   //Set parameters
   negf_get_params(hand, &params);
+  params.verbose = 100;
   params.emin = -3.0;
   params.emax = 3.0;
-  params.estep = 0.01;
+  params.estep = 0.1;
   params.kbt_t[0] = 0.001;
   params.kbt_t[1] = 0.001;
   //use default for Np_n = (20,20); n_kt=10; n_poles=3; 
@@ -56,6 +58,7 @@ int main()
   //Release library
   negf_destruct_libnegf(handler);
   negf_destruct_session(handler);
+  negf_mem_stats(handler);
   printf("Done \n");
 
 }

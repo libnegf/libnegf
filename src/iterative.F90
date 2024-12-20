@@ -933,22 +933,19 @@ CONTAINS
   subroutine destroy_gsm(gsm)
     type(z_DNS), dimension(:) :: gsm
     integer :: i, nbl
-    character(1) :: str
 
     nbl=size(gsm,1)
 
 #:if defined("GPU")
     do i=1,nbl
-       write(str,'(I1)') i
        if (allocated(gsm(i)%val)) then
-          call destroyAll(gsm(i), "gsmr("//str//")")
+          call destroyAll(gsm(i))
        end if
     end do
 #:else
     do i=1,nbl
-       write(str,'(I1)') i
        if (allocated(gsm(i)%val)) then
-          call destroy(gsm(i),tag= "gsmr("//str//")")
+          call destroy(gsm(i))
        end if
     end do
 #:endif
@@ -960,7 +957,6 @@ CONTAINS
     character(len=*), intent(in), optional :: str
     
     integer :: i, i1, nbl
-    character(1) :: sbl1, sbl2
 
     if (.not.allocated(M)) return
 
@@ -969,9 +965,7 @@ CONTAINS
     do i=1,nbl
        do i1=1,nbl
           if (ALLOCATED(M(i1,i)%val)) THEN
-             write(sbl1,'(I1)') i
-             write(sbl2,'(I1)') i1
-             call destroyAll(M(i1,i),str//"("//sbl2//","//sbl1//")")
+             call destroyAll(M(i1,i))
           end if
        end do
     end do
@@ -979,9 +973,7 @@ CONTAINS
     do i=1,nbl
        do i1=1,nbl
           if (ALLOCATED(M(i1,i)%val)) THEN
-             write(sbl1,'(I1)') i
-             write(sbl2,'(I1)') i1
-             call destroy(M(i1,i),tag= str//"("//sbl2//","//sbl1//")")
+             call destroy(M(i1,i))
           end if
        end do
     end do
@@ -994,7 +986,6 @@ CONTAINS
     character(len=*), intent(in), optional :: str
 
     integer :: i, nbl
-    character(1) :: sbl1, sbl2
 
     if (.not.allocated(M)) return
 
@@ -1003,35 +994,29 @@ CONTAINS
 #:if defined("GPU")
     do i=1,nbl
       if (allocated(M(i,i)%val)) then    
-        write(sbl1,'(i1)') i
-        call destroyAll(M(i,i),str//"("//sbl1//","//sbl1//")")
+        call destroyAll(M(i,i))
       end if
     end do
     do i=2,nbl
-      write(sbl1,'(i1)') i
-      write(sbl2,'(i1)') i-1
       if (allocated(M(i-1,i)%val)) then
-        call destroyAll(M(i-1,i),str//"("//sbl2//","//sbl1//")")
+        call destroyAll(M(i-1,i))
       end if
       if (allocated(M(i,i-1)%val)) then
-        call destroyAll(M(i,i-1),str//"("//sbl1//","//sbl2//")")
+        call destroyAll(M(i,i-1))
       end if
     end do
 #:else
     do i=1,nbl
       if (allocated(M(i,i)%val)) then    
-        write(sbl1,'(i1)') i
-        call destroy(M(i,i),tag=str//"("//sbl1//","//sbl1//")")
+        call destroy(M(i,i))
       end if
     end do
     do i=2,nbl
-      write(sbl1,'(i1)') i
-      write(sbl2,'(i1)') i-1
       if (allocated(M(i-1,i)%val)) then
-        call destroy(M(i-1,i),tag=str//"("//sbl2//","//sbl1//")")
+        call destroy(M(i-1,i))
       end if
       if (allocated(M(i,i-1)%val)) then
-        call destroy(M(i,i-1),tag=str//"("//sbl1//","//sbl2//")")
+        call destroy(M(i,i-1))
       end if
     end do
 #:endif
@@ -1823,12 +1808,11 @@ CONTAINS
     Integer :: nbl,ncont
     Integer :: nit, nft, icpl
     Integer :: iLDOS, i2, i
-    character(1) :: Im, sbl1, sbl2
+    character(1) :: Im
 
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     Im = 'I'
-
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     call allocate_gsm(gsmr,nbl)
@@ -1836,6 +1820,7 @@ CONTAINS
 
     call allocate_blk_dns(Gr,nbl)
     ! call create
+    
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nbl)
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
@@ -1872,17 +1857,13 @@ CONTAINS
 #:if defined("GPU")
     call copy_trid_toHOST(Gr)
     do i=2,nbl
-      write(sbl1,'(A)') i
-      write(sbl2,'(A)') i-1
-      call destroyAll(Gr(i-1,i),"Gr("//sbl2//","//sbl1//")")
-      call destroyAll(Gr(i,i-1),"Gr("//sbl1//","//sbl2//")")
+      call destroyAll(Gr(i-1,i))
+      call destroyAll(Gr(i,i-1))
     end do
 #:else
     do i=2,nbl
-      write(sbl1,'(A)') i
-      write(sbl2,'(A)') i-1
-      call destroy(Gr(i-1,i),tag="Gr("//sbl2//","//sbl1//")")
-      call destroy(Gr(i,i-1),tag="Gr("//sbl1//","//sbl2//")")
+      call destroy(Gr(i-1,i))
+      call destroy(Gr(i,i-1))
     end do
 #:endif
     associate(str=>negf%str, dos_proj=>negf%dos_proj)
@@ -1893,26 +1874,24 @@ CONTAINS
 #:if defined("GPU")
     call delete_vdns_fromGPU(SelfEneR)
     do i=1,nbl
-      write(sbl1,'(A)') i
       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
       call dns2csr(Gr(i,i),GrCSR)
       !Concatena direttamente la parte immaginaria per il calcolo della doS
       zc=(-1.0_dp,0.0_dp)/pi
 
       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
-      call destroyAll(Gr(i,i),"Gr("//sbl1//","//sbl1//")")
+      call destroyAll(Gr(i,i))
       call destroy(GrCSR)
     end do
 #:else
     do i=1,nbl
-      write(sbl1,'(A)') i
       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
       call dns2csr(Gr(i,i),GrCSR)
       !Concatena direttamente la parte immaginaria per il calcolo della doS
       zc=minusOne/pi
 
       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
-      call destroy(Gr(i,i),tag="Gr("//sbl1//","//sbl1//")")
+      call destroy(Gr(i,i))
       call destroy(GrCSR)
     end do
 #:endif
