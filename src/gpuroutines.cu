@@ -184,6 +184,10 @@ __global__ void CtraceKernel(
                 if(mask[i % nrow]) {
                     trace[i % nrow] = a[i].x;
                 }
+		    else
+		    {
+                    trace[i % nrow] = 0.0;
+                }
             }
         }
     }
@@ -214,6 +218,10 @@ __global__ void ZtraceKernel(
             if(i % (nrow + 1) == 0) {
                 if(mask[i % nrow]) {
                     trace[i % nrow] = a[i].x;
+                }
+		    else
+		    {
+                    trace[i % nrow] = 0.0;
                 }
             }
         }
