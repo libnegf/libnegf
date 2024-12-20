@@ -1,5 +1,5 @@
 #! libNEGF library
-#! Inclue file to deal with single/double precision with fypp
+#! Include file to deal with single/double precision with fypp
 
 #:set TYPES = ['real', 'complex']
 

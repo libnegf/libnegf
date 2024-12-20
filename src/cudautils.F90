@@ -54,7 +54,15 @@ module cudautils
 
    public :: checksum
 
-   public :: printDevMemInfo
+   public :: cublasInitialize
+   public :: cusolverInitialize
+   public :: cublasFinalize
+   public :: cusolverFinalize
+   
+   public :: getDeviceCount
+   public :: setDevice
+   !public :: getDeviceProperties 
+   public :: getDevMemInfo
      
 
    interface createGPU
@@ -197,6 +205,47 @@ module cudautils
    ! Notes: type(c_ptr) -> void**
    !        type(c_ptr), value -> void*
    interface
+     integer(c_int) function cu_cublasInit(hcublas) bind(C, name='cu_cublasInit')
+       use iso_c_binding
+       import cublasHandle
+       type(cublasHandle) :: hcublas
+     end function cu_cublasInit
+
+     integer(c_int) function cu_cublasFinalize(hcublas) bind(C, name='cu_cublasFinalize')
+       use iso_c_binding
+       import cublasHandle
+       type(cublasHandle), value :: hcublas
+     end function cu_cublasFinalize
+
+     integer(c_int) function cu_cusolverInit(hcusolver) bind(C, name='cu_cusolverInit')
+       use iso_c_binding
+       import cusolverDnHandle
+       type(cusolverDnHandle) :: hcusolver
+     end function cu_cusolverInit
+
+     integer(c_int) function cu_cusolverFinalize(hcusolver) bind(C, name='cu_cusolverFinalize')
+       use iso_c_binding
+       import cusolverDnHandle
+       type(cusolverDnHandle), value :: hcusolver
+     end function cu_cusolverFinalize
+     
+     integer(c_int) function cu_cudaGetDeviceCount(count) bind(C, name='cu_cudaGetDeviceCount')
+       use iso_c_binding
+       integer(c_int) :: count
+     end function cu_cudaGetDeviceCount
+
+     integer(c_int) function cu_cudaGetDeviceProperties(device,prop) &
+                                          & bind(C, name='cu_cudaGetDeviceProperties')
+       use iso_c_binding
+       integer(c_int) :: device
+       type(c_ptr) :: prop     
+     end function cu_cudaGetDeviceProperties
+
+     integer(c_int) function cu_cudaSetDevice(device) bind(C, name='cu_cudaSetDevice')
+       use iso_c_binding
+       integer(c_int), value :: device
+     end function cu_cudaSetDevice
+
      integer(c_int) function cu_createMat(d_A, siz) bind(C, name='cu_createMat')
        use iso_c_binding
        ! not by value since pointer has to be initialized, hence pass its reference
@@ -336,8 +385,53 @@ end interface
 
 
  contains
+   
+!~-~-~-~-~-~-~-~-~-~-~-~ INIT/FINALIZE ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
+   subroutine cublasInitialize(hcublas)
+     type(cublasHandle), intent(inout) :: hcublas
+     integer :: err
+     err = cu_cublasInit(hcublas)
+   end subroutine cublasInitialize
 
-!~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
+   subroutine cublasFinalize(hcublas)
+     type(cublasHandle), intent(inout) :: hcublas
+     integer :: err
+     err = cu_cublasFinalize(hcublas)
+   end subroutine cublasFinalize
+
+   subroutine cusolverInitialize(hcusolver)
+     type(cusolverDnHandle), intent(inout) :: hcusolver
+     integer :: err
+     err = cu_cusolverInit(hcusolver)
+   end subroutine cusolverInitialize
+
+   subroutine cusolverFinalize(hcusolver)
+     type(cusolverDnHandle), intent(inout) :: hcusolver
+     integer :: err
+     err = cu_cusolverFinalize(hcusolver)
+   end subroutine cusolverFinalize
+
+   subroutine getDeviceCount(count)
+     integer(4) :: count
+     integer :: err
+     err = cu_cudaGetDeviceCount(count)
+   end subroutine getDeviceCount
+
+   subroutine setDevice(count)
+     integer(4) :: count
+     integer :: err
+     err = cu_cudaSetDevice(count)
+   end subroutine setDevice
+
+   subroutine getDevMemInfo(freemem, totalmem)
+     integer(8) :: freemem, totalmem
+     integer :: err
+     err = cu_meminfo(freemem, totalmem)
+   end subroutine getDevMemInfo
+
+
+
+!~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 #:def createGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
    subroutine createGPU_${KIND}$(A)
      type(${MTYPE}$), intent(in) :: A
@@ -392,15 +486,6 @@ end interface
      call destroy(A,tag= str)
    end subroutine destroyAll_${KIND}$
 #:enddef destroyAll_template
-
-
-  subroutine printDevMemInfo()
-    integer(8) :: freemem, totalmem
-    integer :: err
-    err = cu_meminfo(freemem, totalmem)
-    print*,'freemem=',freemem,'totalmem=',totalmem
-  end subroutine printDevMemInfo
-
 
 !~-~-~-~-~-~-~-~-~-~-~-~ MATRIX COMPUTATION ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
 

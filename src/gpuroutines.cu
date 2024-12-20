@@ -264,7 +264,9 @@ extern "C" int cu_deleteMat(void** d_A) {
 
 extern "C" int cu_cudaGetDeviceCount(int* count) {
     assert(count);
-    return cudaGetDeviceCount(count);
+    cudaError_t err = cudaGetDeviceCount(count);
+    assert(err == cudaSuccess);
+    return err;
 }
 
 extern "C" int cu_cudaGetDeviceProperties(int device) {
@@ -278,6 +280,13 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
 
     return err;
 }
+
+extern "C" int cu_cudaSetDevice(int count) {
+    cudaError_t err = cudaSetDevice(count);
+    assert(err == cudaSuccess);
+    return err;
+}
+
 
 extern "C" int cu_cublasInit(cublasHandle_t* hcublas) {
     assert(hcublas);
@@ -543,6 +552,7 @@ extern "C" int cu_Ckernelsum(
     cuComplex* pdC = (cuComplex*)d_C;
 
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     CaddKernel<<<num_blocks, BLOCK_SIZE>>>(pdC, *alpha, pdA, *beta, pdB, size);
     assert(cudaGetLastError() == cudaSuccess);
@@ -559,6 +569,7 @@ extern "C" int cu_Zkernelsum(
     cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
 
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     ZaddKernel<<<num_blocks, BLOCK_SIZE>>>(pdC, *alpha, pdA, *beta, pdB, size);
     assert(cudaGetLastError() == cudaSuccess);
@@ -633,6 +644,7 @@ extern "C" int cu_Zmatsum(
 extern "C" int cu_Cinitmat(void* d_A, int nrow) {
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     cuComplex* pdA = (cuComplex*)d_A;
 
     CinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
@@ -648,6 +660,7 @@ extern "C" int cu_Zinitmat(void* d_A, int nrow) {
 
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     ZinitKernel<<<num_blocks, BLOCK_SIZE>>>(pdA, nrow);
@@ -662,6 +675,7 @@ extern "C" float cu_Ctrace(
     cuComplex* pdA = (cuComplex*)d_A;
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     float* d_work;
     cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(float));
     float* d_iden;
@@ -705,6 +719,7 @@ extern "C" double cu_Ztrace(
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
     int size = nrow * nrow;
     int num_blocks = (size / BLOCK_SIZE) + 1;
+    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     double* d_work;
     cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(double));
     assert(cudaStatus == cudaSuccess);
@@ -805,6 +820,7 @@ extern "C" int cu_Cdecimation(
 
     int num_elements = n * n;
     int num_blocks = (num_elements / BLOCK_SIZE) + 1;
+    //int num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     cuComplex* d_Ao;
     cudaError_t cudaStatus =
@@ -1016,6 +1032,7 @@ extern "C" int cu_Zdecimation(
 
     int num_elements = n * n;
     int num_blocks = (num_elements / BLOCK_SIZE) + 1;
+    //int num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     cuDoubleComplex* d_Ao;
     cudaError_t cudaStatus =

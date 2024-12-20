@@ -27,8 +27,8 @@ program hello
 
   implicit none
 
-  Type(Tnegf), target :: negf
-  Type(Tnegf), pointer :: pnegf
+  !Type(Tnegf), target :: negf
+  Type(Tnegf) :: pnegf
   Type(lnParams) :: params
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:), coupling(:)
@@ -47,7 +47,7 @@ program hello
   kt = [1.0d-3, 1.0d-3]
   cblk = [6, 1]
 
-  pnegf => negf
+  !pnegf => negf
 
   write(*,*) 'Initializing libNEGF'
   call init_negf(pnegf)
