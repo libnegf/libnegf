@@ -544,39 +544,6 @@ extern "C" int cu_Zinverse(
     return cudaStatus;
 }
 
-extern "C" int cu_Ckernelsum(
-    void* d_C, cuComplex* alpha, void* d_A, cuComplex* beta, void* d_B, int size
-) {
-    cuComplex* pdA = (cuComplex*)d_A;
-    cuComplex* pdB = (cuComplex*)d_B;
-    cuComplex* pdC = (cuComplex*)d_C;
-
-    int num_blocks = (size / BLOCK_SIZE) + 1;
-    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    CaddKernel<<<num_blocks, BLOCK_SIZE>>>(pdC, *alpha, pdA, *beta, pdB, size);
-    assert(cudaGetLastError() == cudaSuccess);
-
-    return 0;
-}
-
-extern "C" int cu_Zkernelsum(
-    void* d_C, cuDoubleComplex* alpha, void* d_A, cuDoubleComplex* beta,
-    void* d_B, int size
-) {
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    cuDoubleComplex* pdB = (cuDoubleComplex*)d_B;
-    cuDoubleComplex* pdC = (cuDoubleComplex*)d_C;
-
-    int num_blocks = (size / BLOCK_SIZE) + 1;
-    //int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    ZaddKernel<<<num_blocks, BLOCK_SIZE>>>(pdC, *alpha, pdA, *beta, pdB, size);
-    assert(cudaGetLastError() == cudaSuccess);
-
-    return 0;
-}
-
 extern "C" int cu_Cmatsum(
     cublasHandle_t hcublas, int m, int n, cuComplex* alpha, void* d_A,
     cuComplex* beta, void* d_B, void* d_C, int dagger

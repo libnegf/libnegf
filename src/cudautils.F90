@@ -44,7 +44,6 @@ module cudautils
    public :: matmul_gpu
    public :: inverse_gpu
    public :: matsum_gpu
-   public :: kernelsum_gpu
    public :: spectral_gpu
    public :: init_gpu
    public :: trace_gpu
@@ -148,12 +147,6 @@ module cudautils
       module procedure matsum_gpu_${PREC_ABBREVS[PREC]}$
    #:endfor
    end interface matsum_gpu
-
-   interface kernelsum_gpu
-   #:for PREC in PRECISIONS
-      module procedure kernelsum_gpu_${PREC_ABBREVS[PREC]}$
-   #:endfor
-   end interface kernelsum_gpu
 
    interface spectral_gpu
    #:for PREC in PRECISIONS
@@ -314,17 +307,6 @@ module cudautils
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_Ainv
      end function cu_${CTYPE}$inverse
-
-     integer(c_int) function cu_${CTYPE}$kernelsum(d_C,alpha,d_A,beta,d_B,msize) &
-                  &   bind(C, name='cu_${CTYPE}$kernelsum')
-       use iso_c_binding
-       type(c_ptr), value :: d_C
-       complex(${C_BIND_CMPLX}$) :: alpha
-       complex(${C_BIND_CMPLX}$) :: beta
-       type(c_ptr), value :: d_A
-       type(c_ptr), value :: d_B
-       integer(c_int), value :: msize
-     end function cu_${CTYPE}$kernelsum
 
      integer(c_int) function cu_${CTYPE}$matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger) &
                   &   bind(C, name='cu_${CTYPE}$matsum')
@@ -787,8 +769,6 @@ end interface
      $:matmul_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:inverse_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
-
-     $:kernelsum_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:matsum_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
