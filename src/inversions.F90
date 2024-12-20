@@ -770,7 +770,8 @@ end subroutine zINV_LAPACK
 subroutine cinv(inA,A,n)
   implicit none
   external cgetrf, cgetrs
-  complex(sp), dimension(:,:) :: inA, A
+  real(kind=sp), dimension(:,:), intent(out) :: inA
+  real(kind=sp), dimension(:,:), intent(in) :: A
   integer :: n
 
   INTEGER :: ipiv(n),info,i 
@@ -810,7 +811,8 @@ subroutine zinv(inA,A,n)
    
   Implicit none
   external zgetrf, zgetrs
-  complex(kind=dp), dimension(:,:) :: inA, A
+  complex(kind=dp), dimension(:,:), intent(out) :: inA
+  complex(kind=dp), dimension(:,:), intent(in) :: A
   integer :: n
 
   INTEGER :: ipiv(n), info, i
@@ -849,7 +851,8 @@ end subroutine zinv
 subroutine rinv(inA,A,n)
   Implicit none
   external dgetrf, dgetrs
-  real(kind=dp), dimension(:,:) :: inA, A
+  real(kind=dp), dimension(:,:), intent(out) :: inA
+  real(kind=dp), dimension(:,:), intent(in) :: A
   integer :: n
 
   INTEGER :: ipiv(n), info, i

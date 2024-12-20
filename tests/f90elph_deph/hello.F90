@@ -32,8 +32,8 @@ program hello
   Type(lnParams) :: params
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   real(kind(1.d0)), allocatable :: mu(:), kt(:), coupling(:)
-  real(kind(1.d0)) :: current
-  integer :: ierr
+  real(kind(1.d0)) :: current, sendbuff, recvbuff
+  integer :: ierr, rank
   type(MPI_Comm) :: cartComm
   type(MPI_Comm) :: kComm, enComm
 
@@ -55,6 +55,7 @@ program hello
   write(*,*) 'Setup MPI communicator'
   !call set_mpi_bare_comm(pnegf, MPI_COMM_WORLD) 
   call set_cartesian_bare_comms(pnegf, MPI_COMM_WORLD, 1, cartComm, kComm, enComm)
+  call MPI_Comm_rank(enComm, rank, ierr);
 
   write(*,*) 'Import Hamiltonian'
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
@@ -74,35 +75,50 @@ program hello
   call set_params(pnegf, params)
 
   ! Check values for 0 and finite coupling.
-  write(*,*) '------------------------------------------------------------------ '
-  write(*,*) 'Test 1 - current with coupling = 0'
-  write(*,*) '------------------------------------------------------------------ '
+  if (rank==0) then
+    write(*,*) '------------------------------------------------------------------ '
+    write(*,*) 'Test 1 - current with coupling = 0'
+    write(*,*) '------------------------------------------------------------------ '
+  end if
   allocate(coupling(60))
   coupling = 0.0
   call set_elph_dephasing(pnegf, coupling, 5)
-  write(*,*) 'Compute current'
+  if (rank==0) then
+    write(*,*) 'Compute current'
+  end if
   call compute_current(pnegf)
   ! The current should be 2: energy window is 1 and
   ! spin degeneracy is 2.
-  write(*,*) 'Current ', pnegf%currents(1)
-  if (abs(pnegf%currents(1) - 2.0) > 1e-4) then
-     error stop "Wrong current for zero coupling"
+  sendbuff = pnegf%currents(1)
+  call MPI_reduce(sendbuff, current, 1, MPI_DOUBLE, MPI_SUM, 0, encomm, ierr)
+
+  if (rank==0) then
+    write(*,*) 'Current ', current
+    if (abs(current - 2.0) > 1e-4) then
+       error stop "Wrong current for zero coupling"
+    end if
   end if
 
   ! Compute for finite coupling, we should have a smaller current.
-  write(*,*) '------------------------------------------------------------------ '
-  write(*,*) 'Test 2 - current with coupling = 0.05'
-  write(*,*) '------------------------------------------------------------------ '
+  if (rank==0) then
+    write(*,*) '------------------------------------------------------------------ '
+    write(*,*) 'Test 2 - current with coupling = 0.05'
+    write(*,*) '------------------------------------------------------------------ '
+  end if
   coupling = 0.05
   call destroy_interactions(pnegf)
   call set_elph_dephasing(pnegf, coupling, 5)
   call compute_current(pnegf)
   current = abs(pnegf%currents(1))
-  write(*,*) 'Current with Meir-Wingreen', current
-  ! The current with dephasing is smaller than the ballistic current.
-  if (current > 1.95 .or. current < 1.90) then
-     error stop "Wrong current for finite coupling"
+  sendbuff = current 
+  call MPI_reduce(sendbuff, current, 1, MPI_DOUBLE, MPI_SUM, 0, encomm, ierr)
+  if (rank==0) then
+    write(*,*) 'Current with Meir-Wingreen', current 
+    if (current > 1.95 .or. current < 1.90) then
+       error stop "Wrong current for finite coupling"
+    end if
   end if
+  ! The current with dephasing is smaller than the ballistic current.
 
   !write(*,*) '------------------------------------------------------------------ '
   !write(*,*) 'Test 3 - cross-check using effective transmission'
@@ -114,13 +130,13 @@ program hello
   !  error stop "Current evaluated with effective transmission does not match Meir Wingreen"
   !end if
 
-  call writeMemInfo(6)
-  write(*,*) 'Destroy negf'
   deallocate(coupling)
   call destroy_negf(pnegf)
-  call writePeakInfo(6)
-  call writeMemInfo(6)
-  write(*,*) 'Done'
+  
+  if (rank==0) then
+    call writePeakInfo(6)
+    call writeMemInfo(6)
+  end if
   
   call MPI_finalize(ierr);
 

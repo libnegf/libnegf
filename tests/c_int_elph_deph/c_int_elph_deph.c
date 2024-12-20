@@ -21,6 +21,9 @@ int main()
   double currents[2]= {0.0, 0.0};
   double coupling[60];
   int leadpairs;
+  int rank, err;
+  MPI_Comm en_comm_c;
+  double sendbuff, recvbuff;
 
   MPI_Init(NULL, NULL);
   printf("Initializing libNEGF \n");
@@ -42,7 +45,7 @@ int main()
   negf_get_params(hand, &params);
   params.emin = -2.0;
   params.emax = 2.0;
-  params.estep = 0.1;
+  params.estep = 0.01;
   params.kbt_t[0] = 0.001;
   params.kbt_t[1] = 0.001;
   params.mu[0] = -0.5;
@@ -60,23 +63,32 @@ int main()
   // Calculate the current.
   negf_solve_landauer(hand);
   negf_get_currents(hand, &leadpairs, &currents[0], 1);
+    
+  sendbuff = currents[0];
 
-  printf("Current: %f \n",currents[0]);
+  en_comm_c = MPI_Comm_f2c(en_comm);
+  err = MPI_Reduce(&sendbuff, &recvbuff, 1, MPI_DOUBLE, MPI_SUM, 0, en_comm_c);
+ 
   //Release library
   negf_destruct_libnegf(handler);
   negf_destruct_session(handler);
-  negf_mem_stats(handler);
-  printf("Done \n");
 
-  if (currents[0] > 1.95 || currents[0] < 1.90) {
-    printf("Error in current value not between 1.90 and 1.95 \n");
-    MPI_Finalize(); 
-    return 1;
-  }
-  else
+  MPI_Comm_rank(en_comm_c, &rank);
+
+  err = 0;
+  if (rank == 0) 
   {
-    MPI_Finalize(); 
-    return 0;
+    negf_mem_stats(handler);
+    printf("Current: %f \n",recvbuff);
+    printf("Done \n");
+
+    if (recvbuff > 1.95 || recvbuff < 1.90) {
+      printf("Error in current value not between 1.90 and 1.95 \n");
+      err = 1;
+    }
   } 
+
+  MPI_Finalize(); 
+  return err;
 
 }

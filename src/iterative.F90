@@ -20,7 +20,6 @@
 
 
 module iterative
-
   use ln_precision
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
@@ -227,7 +226,6 @@ CONTAINS
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
 
     call allocate_blk_dns(Gr,nbl)
-
     ! compute Gr(1,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     ! compute Gr(n,n), Gr(n-1,n), Gr(n, n-1);  n = 2 .. nbl
@@ -277,7 +275,6 @@ CONTAINS
     end if
 
     call destroy_all_blk(negf)
-
   end subroutine calculate_Gn_neq_components
 
 
@@ -319,7 +316,6 @@ CONTAINS
     do while (.not.negf%scbaDriverElastic%is_converged() .and. scba_iter <= scba_niter)
 
       call negf%scbaDriverElastic%set_scba_iter(scba_iter, negf%interactList)
-
       ! Initially all containers must be cleaned
       negf%tDestroyGn = .true.
       negf%tDestroyGr = .true.
@@ -894,10 +890,22 @@ CONTAINS
 #:endif
   end subroutine init_tridiag_blk
 
-  !---------------------------------------------------------------------
+  !**********************************************************************
+  ! Wrapper code that conditionally deallocates block-arrays
+  ! depending on negf%tDestroyTAG   TAG = Gn, Gr, ESH
+  !
+  ! NOTE: We always remove from GPU
+  ! destroy_tridiag_blk: destroy only from CPU
+  ! delete_trid_fromGPU: destroy only from GPU
+  ! detroy_blk: destroy from both CPU and GPU
+  ! deallocate_blk_dns: deallocation wrapper with error checking
+  !
+  !**********************************************************************
   subroutine destroy_all_blk(negf)
     type(Tnegf), intent(in) :: negf
 
+    ! NOTE: ESH is currently *not* on the GPU
+    !       => we do not delete from GPU
     if (negf%tDestroyESH) then
       if (allocated(ESH)) then
         call destroy_tridiag_blk(ESH,"ESH")
@@ -927,8 +935,26 @@ CONTAINS
 #:endif
     end if
 
+    !
+    if (negf%tDestroyGr) then
+      if (allocated(Gr)) then
+        #:if defined("GPU")
+          call delete_trid_fromGPU(Gr)
+        #:endif
+        call destroy_tridiag_blk(Gr)
+        call deallocate_blk_dns(Gr)
+      end if
+    else
+#:if defined("GPU")
+      call delete_trid_fromGPU(Gr)
+#:endif
+    end if
+
+
   end subroutine destroy_all_blk
 
+  !**********************************************************************
+  ! Destroy blocks of gsm from CPU and GPU
   !**********************************************************************
   subroutine destroy_gsm(gsm)
     type(z_DNS), dimension(:) :: gsm
@@ -1960,8 +1986,11 @@ CONTAINS
     if (.not.allocated(gsm)) then
       allocate(gsm(nbl),stat=ierr)
     end if
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate gsm'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'ALLOCATION ERROR # ',ierr
+       error stop 'ALLOCATION ERROR: could not allocate gsm'
+    end if
   end subroutine allocate_gsm
 
   !---------------------------------------------------
@@ -1971,8 +2000,11 @@ CONTAINS
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'ALLOCATION ERROR # ',ierr
+       error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    end if
   end subroutine allocate_blk_dns
 
   !---------------------------------------------------
@@ -1982,8 +2014,11 @@ CONTAINS
     integer :: ierr
 
     deallocate(gsm,stat=ierr)
-    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
-
+    if (ierr.ne.0) then
+       print*
+       print*,'DEALLOCATION ERROR # ',ierr
+       error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+    end if
   end subroutine deallocate_gsm
 
   !---------------------------------------------------
@@ -1993,7 +2028,11 @@ CONTAINS
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
+    if (ierr.ne.0) then
+       print*
+       print*,'DEALLOCATION ERROR # ',ierr
+       error stop 'DEALLOCATION ERROR of block-Matrix'
+    end if
 
   end subroutine deallocate_blk_dns
 

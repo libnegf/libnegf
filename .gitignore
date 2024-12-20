@@ -7,7 +7,7 @@
 #Compiled library
 *.a
 *.so
-build
+build*
 # User defined configuration
 Makefile.user
 custom.cmake
