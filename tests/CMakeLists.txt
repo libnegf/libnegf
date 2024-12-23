@@ -1,3 +1,14 @@
+# Test input files may be large and are therefore managed by git-lfs.
+find_program(GIT_LFS git-lfs)
+
+if(NOT GIT_LFS)
+  message(FATAL_ERROR
+    "Tests cannot be run because git-lfs is missing. "
+    "Disable testing or install git-lfs."
+  )
+endif()
+
+
 # List of active tets. Each test indicates a subdirectory.
 set(test-directories
         f90init
