@@ -17,7 +17,11 @@
 !!  License along with libNEGF.  If not, see                                !
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
+
+
+#:include "assert.fypp"
 #:include "types.fypp"
+
 
 module iterative_gpu
   use ln_precision
@@ -141,6 +145,8 @@ contains
 #:def calculate_gsmr_blocks_template(KIND, CTYPE, MTYPE, CUDATYPE)
   subroutine calculate_gsmr_blocks_${KIND}$(negf,ESH,sbl,ebl,gsmr,keep_gsmr)
 
+    use iso_c_binding, only : c_associated, C_NULL_PTR
+
     !In/Out
     type(${MTYPE}$), dimension(:), intent(inout) :: gsmr
     type(Tnegf), intent(in) :: negf
@@ -192,26 +198,22 @@ contains
           call destroyAll(gsmr(i+1))
        end if
 
-       call createAll(work2, work1%nrow, ESH(i+1,i)%ncol)
+       call createAll(work2, ESH(i,i)%nrow, ESH(i,i)%ncol)
+       @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
+       ESH(i,i)%d_addr = work2%d_addr
+       call copyToGPU(ESH(i,i))
+       ESH(i,i)%d_addr = C_NULL_PTR
+
        call createGPU(ESH(i+1,i))
        call copyToGPU(ESH(i+1,i))
-       call matmul_gpu(hh, one, work1, ESH(i+1,i), zero, work2)
+       call matmul_gpu(hh, mone, work1, ESH(i+1,i), one, work2)
+
        call deleteGPU(ESH(i+1,i))
-
        call destroyAll(work1)
 
-       call createAll(work1,  ESH(i,i)%nrow, ESH(i,i)%ncol)
-       call createGPU(ESH(i,i))
-       call copyToGPU(ESH(i,i))
-       call matsum_gpu(hh, one, ESH(i,i), mone, work2, work1)
-       call deleteGPU(ESH(i,i))
-
+       call createAll(gsmr(i), work2%nrow, work2%ncol)
+       call inverse_gpu(hh, hhsol, work2, gsmr(i), istat)
        call destroyAll(work2)
-
-       call createAll(gsmr(i), work1%nrow, work1%ncol)
-       call inverse_gpu(hh, hhsol, work1, gsmr(i), istat)
-       call destroyAll(work1)
-
     end do
 
   end subroutine calculate_gsmr_blocks_${KIND}$
