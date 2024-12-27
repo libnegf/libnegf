@@ -184,7 +184,7 @@ contains
     call createGPU(ESH(sbl,sbl))
     call copyToGPU(ESH(sbl,sbl))
     call inverse_gpu(hh, hhsol, ESH(sbl,sbl), gsmr(sbl), istat)
-    call deleteGPU(ESH(sbl,sbl))
+    call deleteGPU_async(ESH(sbl,sbl))
 
     do i=sbl-1,ebl,-1
 
@@ -255,14 +255,14 @@ contains
           call createGPU(ESH(sbl,sbl))
           call copyToGPU(ESH(sbl,sbl))
           call inverse_gpu(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
-          call deleteGPU(ESH(sbl,sbl))
+          call deleteGPU_async(ESH(sbl,sbl))
        else
           call createGPU_only_async(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU(ESH(sbl,sbl))
           call copyToGPU(ESH(sbl,sbl))
           call copy_mat_gpu(hh, ESH(sbl,sbl), work1)
-          call deleteGPU(ESH(sbl,sbl))
+          call deleteGPU_async(ESH(sbl,sbl))
 
           if (sbl+1.le.nbl) then
              call createGPU_only_async(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
@@ -282,7 +282,7 @@ contains
              call createGPU(ESH(sbl,sbl))
              call copyToGPU(ESH(sbl,sbl))
              call matsum_gpu(hh, one, ESH(sbl,sbl), mone, work3, work1)
-             call deleteGPU(ESH(sbl,sbl))
+             call deleteGPU_async(ESH(sbl,sbl))
 
              call deleteGPU_async(work2)
              call deleteGPU_async(work3)
@@ -307,7 +307,7 @@ contains
           call createAll(Gr(i,i-1), work1%nrow, Gr(i-1,i-1)%ncol)
           @:ASSERT(c_associated(ESH(i,i-1)%d_addr))
           call matmul_gpu(hh, one, gsmr(i), ESH(i,i-1), zero, work1)
-          call deleteGPU(ESH(i,i-1))
+          call deleteGPU_async(ESH(i,i-1))
           call matmul_gpu(hh, mone, work1, Gr(i-1,i-1), zero, Gr(i,i-1))
           call deleteGPU_async(work1)
 
@@ -315,7 +315,7 @@ contains
           call createAll(Gr(i-1,i), Gr(i-1,i-1)%nrow, work2%ncol)
           @:ASSERT(c_associated(ESH(i-1,i)%d_addr))
           call matmul_gpu(hh, one, ESH(i-1,i), gsmr(i), zero, work2)
-          call deleteGPU(ESH(i-1,i))
+          call deleteGPU_async(ESH(i-1,i))
           call matmul_gpu(hh, mone, Gr(i-1,i-1), work2, zero, Gr(i-1,i))
 
           call createGPU_only_async(work1, Gr(i,i-1)%nrow, work2%ncol)
