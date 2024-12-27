@@ -53,6 +53,7 @@ module cudautils
 
    public :: matmul_gpu
    public :: inverse_gpu
+   public :: inverse_gpu_async
    public :: matsum_gpu
    public :: spectral_gpu
    public :: init_gpu
@@ -175,6 +176,12 @@ module cudautils
       module procedure inverse_gpu_${PREC_ABBREVS[PREC]}$
    #:endfor
    end interface inverse_gpu
+
+   interface inverse_gpu_async
+   #:for PREC in PRECISIONS
+      module procedure inverse_gpu_async_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface inverse_gpu_async
 
    interface matsum_gpu
    #:for PREC in PRECISIONS
@@ -365,6 +372,18 @@ module cudautils
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_Ainv
      end function cu_${CTYPE}$inverse
+
+     integer(c_int) function cu_${CTYPE}$inverse_async(hcublas, hcusolver, d_A, d_Ainv, N) &
+                  &   bind(C, name='cu_${CTYPE}$inverse_async')
+       use iso_c_binding
+       import cublasHandle
+       import cusolverDnHandle
+       type(cusolverDnHandle), value :: hcusolver
+       type(cublasHandle), value :: hcublas
+       integer(c_int), value :: N
+       type(c_ptr), value :: d_A
+       type(c_ptr), value :: d_Ainv
+     end function cu_${CTYPE}$inverse_async
 
      integer(c_int) function cu_${CTYPE}$matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger) &
                   &   bind(C, name='cu_${CTYPE}$matsum')
@@ -643,6 +662,25 @@ end interface
 
    end subroutine inverse_gpu_${KIND}$
 #:enddef inverse_gpu_template
+
+#:def inverse_gpu_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+  subroutine inverse_gpu_async_${KIND}$(hcublas, hcusolver, A, Ainv, err)
+     type(cublasHandle) :: hcublas
+     type(cusolverDnHandle) :: hcusolver
+     type(${MTYPE}$), intent(in) :: A
+     type(${MTYPE}$), intent(inout) :: Ainv
+     integer, intent(out) :: err
+
+     integer :: istat
+
+     call init_gpu_${KIND}$(Ainv)
+
+     istat = cu_${CTYPE}$inverse_async(hcublas,hcusolver, A%d_addr, Ainv%d_addr, A%nrow)
+     err = istat
+     @:ASSERT(err == 0)
+
+   end subroutine inverse_gpu_async_${KIND}$
+#:enddef inverse_gpu_async_template
 
 #:def kernelsum_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
    subroutine kernelsum_gpu_${KIND}$(C,alpha,A,beta,B)
@@ -926,6 +964,8 @@ end interface
      $:matmul_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:inverse_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
+
+     $:inverse_gpu_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:matsum_gpu_template(KIND, CTYPE, MTYPE, CUDATYPE)
 

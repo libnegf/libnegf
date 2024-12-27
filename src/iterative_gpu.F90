@@ -184,7 +184,7 @@ contains
     call createGPU_async(gsmr(sbl))
     call createGPU_async(ESH(sbl,sbl))
     call copyToGPU_async(ESH(sbl,sbl))
-    call inverse_gpu(hh, hhsol, ESH(sbl,sbl), gsmr(sbl), istat)
+    call inverse_gpu_async(hh, hhsol, ESH(sbl,sbl), gsmr(sbl), istat)
     call deleteGPU_async(ESH(sbl,sbl))
 
     do i=sbl-1,ebl,-1
@@ -212,7 +212,7 @@ contains
 
        call create(gsmr(i), work2%nrow, work2%ncol)
        call createGPU_async(gsmr(i))
-       call inverse_gpu(hh, hhsol, work2, gsmr(i), istat)
+       call inverse_gpu_async(hh, hhsol, work2, gsmr(i), istat)
        call deleteGPU_async(work2)
     end do
 
@@ -257,7 +257,7 @@ contains
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU_async(ESH(sbl,sbl))
           call copyToGPU_async(ESH(sbl,sbl))
-          call inverse_gpu(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
+          call inverse_gpu_async(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
           call deleteGPU_async(ESH(sbl,sbl))
        else
           call createGPU_only_async(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
@@ -296,7 +296,7 @@ contains
 
           call create(Gr(sbl,sbl), work1%nrow, work1%ncol)
           call createGPU_async(Gr(sbl,sbl))
-          call inverse_gpu(hh, hhsol, work1, Gr(sbl,sbl), istat)
+          call inverse_gpu_async(hh, hhsol, work1, Gr(sbl,sbl), istat)
           call deleteGPU_async(work1)
        endif
        return
