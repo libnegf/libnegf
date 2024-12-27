@@ -262,10 +262,9 @@ contains
        else
           call createGPU_only_async(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
-          call createGPU_async(ESH(sbl,sbl))
+          ESH(sbl,sbl)%d_addr = work1%d_addr
           call copyToGPU_async(ESH(sbl,sbl))
-          call copy_mat_gpu(hh, ESH(sbl,sbl), work1)
-          call deleteGPU_async(ESH(sbl,sbl))
+          ESH(sbl,sbl)%d_addr = C_NULL_PTR
 
           if (sbl+1.le.nbl) then
              call createGPU_only_async(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
