@@ -43,6 +43,7 @@ module cudautils
    public :: deleteGPU_async
    public :: createAll
    public :: destroyAll
+   public :: waitForGPU
 
    public :: copy_trid_toGPU
    public :: copy_trid_toHOST
@@ -255,6 +256,10 @@ module cudautils
        type(cusolverDnHandle), value :: hcusolver
      end function cu_cusolverFinalize
      
+     integer(c_int) function cudaDeviceSynchronize() bind(C, name='cudaDeviceSynchronize')
+       use iso_c_binding
+     end function cudaDeviceSynchronize
+
      integer(c_int) function cu_cudaFreeAsync(d_A) bind(C, name='cu_cudaFreeAsync')
        use iso_c_binding
        ! not by value since pointer has to be initialized, hence pass its reference
@@ -464,6 +469,11 @@ end interface
      err = cu_meminfo(freemem, totalmem)
    end subroutine getDevMemInfo
 
+   subroutine waitForGPU()
+     integer :: err
+     err = cudaDeviceSynchronize()
+     @:ASSERT(err == 0)
+   end subroutine waitForGPU
 
 
 !~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-

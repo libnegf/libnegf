@@ -1849,8 +1849,12 @@ CONTAINS
     
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nbl)
+#:if defined("GPU")
+    call waitForGPU()
+#:endif
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
 #:if defined("GPU")
+    call waitForGPU()
     call copy_vdns_toGPU(SelfEneR)
 #:endif
     associate(cblk=>negf%str%cblk)
