@@ -257,7 +257,7 @@ contains
           call inverse_gpu(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
           call deleteGPU(ESH(sbl,sbl))
        else
-          call createAll(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
+          call createGPU_only_async(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU(ESH(sbl,sbl))
           call copyToGPU(ESH(sbl,sbl))
@@ -265,14 +265,14 @@ contains
           call deleteGPU(ESH(sbl,sbl))
 
           if (sbl+1.le.nbl) then
-             call createAll(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
+             call createGPU_only_async(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
              if (.not. c_associated(ESH(sbl,sbl+1)%d_addr)) then
                call createGPU(ESH(sbl,sbl+1))
                call copyToGPU(ESH(sbl,sbl+1))
              endif
              call matmul_gpu(hh, one, ESH(sbl,sbl+1), gsmr(sbl+1), zero, work2)
 
-             call createAll(work3, work2%nrow, ESH(sbl+1,sbl)%ncol)
+             call createGPU_only_async(work3, work2%nrow, ESH(sbl+1,sbl)%ncol)
              if (.not. c_associated(ESH(sbl+1,sbl)%d_addr)) then
                call createGPU(ESH(sbl+1,sbl))
                call copyToGPU(ESH(sbl+1,sbl))
@@ -284,8 +284,8 @@ contains
              call matsum_gpu(hh, one, ESH(sbl,sbl), mone, work3, work1)
              call deleteGPU(ESH(sbl,sbl))
 
-             call destroyAll(work2)
-             call destroyAll(work3)
+             call deleteGPU_async(work2)
+             call deleteGPU_async(work3)
           end if
           if (sbl-1.ge.1) then
              error stop "Error: Gr_tridiag requires gsml"
@@ -293,7 +293,7 @@ contains
 
           call createAll(Gr(sbl,sbl), work1%nrow, work1%ncol)
           call inverse_gpu(hh, hhsol, work1, Gr(sbl,sbl), istat)
-          call destroyAll(work1)
+          call deleteGPU_async(work1)
        endif
        return
     endif
@@ -303,29 +303,29 @@ contains
     if ((ebl.ge.sbl).and.(ebl.gt.1).and.(sbl.gt.1)) THEN
        do i=sbl,ebl,1
           @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
-          call createAll(work1, gsmr(i)%nrow, ESH(i,i-1)%ncol)
+          call createGPU_only_async(work1, gsmr(i)%nrow, ESH(i,i-1)%ncol)
           call createAll(Gr(i,i-1), work1%nrow, Gr(i-1,i-1)%ncol)
           @:ASSERT(c_associated(ESH(i,i-1)%d_addr))
           call matmul_gpu(hh, one, gsmr(i), ESH(i,i-1), zero, work1)
           call deleteGPU(ESH(i,i-1))
           call matmul_gpu(hh, mone, work1, Gr(i-1,i-1), zero, Gr(i,i-1))
-          call destroyAll(work1)
+          call deleteGPU_async(work1)
 
-          call createAll(work2, ESH(i-1,i)%nrow, gsmr(i)%ncol)
+          call createGPU_only_async(work2, ESH(i-1,i)%nrow, gsmr(i)%ncol)
           call createAll(Gr(i-1,i), Gr(i-1,i-1)%nrow, work2%ncol)
           @:ASSERT(c_associated(ESH(i-1,i)%d_addr))
           call matmul_gpu(hh, one, ESH(i-1,i), gsmr(i), zero, work2)
           call deleteGPU(ESH(i-1,i))
           call matmul_gpu(hh, mone, Gr(i-1,i-1), work2, zero, Gr(i-1,i))
 
-          call createAll(work1, Gr(i,i-1)%nrow, work2%ncol)
+          call createGPU_only_async(work1, Gr(i,i-1)%nrow, work2%ncol)
           call matmul_gpu(hh, mone, Gr(i,i-1), work2, zero, work1)
 
-          call destroyAll(work2)
+          call deleteGPU_async(work2)
           call createAll(Gr(i,i), gsmr(i)%nrow, gsmr(i)%ncol)
           call matsum_gpu(hh, one, gsmr(i), one, work1, Gr(i,i))
 
-          call destroyAll(work1)
+          call deleteGPU_async(work1)
        end do
     else
        error stop "Error: Gr_tridiag requires gsml"
