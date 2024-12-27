@@ -181,16 +181,16 @@ contains
     hhsol = negf%hcusolver
 
     call createAll(gsmr(sbl),nrow,nrow)
-    call createGPU(ESH(sbl,sbl))
-    call copyToGPU(ESH(sbl,sbl))
+    call createGPU_async(ESH(sbl,sbl))
+    call copyToGPU_async(ESH(sbl,sbl))
     call inverse_gpu(hh, hhsol, ESH(sbl,sbl), gsmr(sbl), istat)
     call deleteGPU_async(ESH(sbl,sbl))
 
     do i=sbl-1,ebl,-1
 
        call createGPU_only_async(work1, ESH(i,i+1)%nrow, gsmr(i+1)%ncol)
-       call createGPU(ESH(i,i+1))
-       call copyToGPU(ESH(i,i+1))
+       call createGPU_async(ESH(i,i+1))
+       call copyToGPU_async(ESH(i,i+1))
        call matmul_gpu(hh, one, ESH(i,i+1), gsmr(i+1), zero, work1)
 
        if (.not.keep) then
@@ -200,11 +200,11 @@ contains
        call createGPU_only_async(work2, ESH(i,i)%nrow, ESH(i,i)%ncol)
        @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
        ESH(i,i)%d_addr = work2%d_addr
-       call copyToGPU(ESH(i,i))
+       call copyToGPU_async(ESH(i,i))
        ESH(i,i)%d_addr = C_NULL_PTR
 
-       call createGPU(ESH(i+1,i))
-       call copyToGPU(ESH(i+1,i))
+       call createGPU_async(ESH(i+1,i))
+       call copyToGPU_async(ESH(i+1,i))
        call matmul_gpu(hh, mone, work1, ESH(i+1,i), one, work2)
 
        call deleteGPU_async(work1)
@@ -252,35 +252,35 @@ contains
        if (nbl.eq.1) then
           call createAll(Gr(sbl,sbl), ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
-          call createGPU(ESH(sbl,sbl))
-          call copyToGPU(ESH(sbl,sbl))
+          call createGPU_async(ESH(sbl,sbl))
+          call copyToGPU_async(ESH(sbl,sbl))
           call inverse_gpu(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
           call deleteGPU_async(ESH(sbl,sbl))
        else
           call createGPU_only_async(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
-          call createGPU(ESH(sbl,sbl))
-          call copyToGPU(ESH(sbl,sbl))
+          call createGPU_async(ESH(sbl,sbl))
+          call copyToGPU_async(ESH(sbl,sbl))
           call copy_mat_gpu(hh, ESH(sbl,sbl), work1)
           call deleteGPU_async(ESH(sbl,sbl))
 
           if (sbl+1.le.nbl) then
              call createGPU_only_async(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
              if (.not. c_associated(ESH(sbl,sbl+1)%d_addr)) then
-               call createGPU(ESH(sbl,sbl+1))
-               call copyToGPU(ESH(sbl,sbl+1))
+               call createGPU_async(ESH(sbl,sbl+1))
+               call copyToGPU_async(ESH(sbl,sbl+1))
              endif
              call matmul_gpu(hh, one, ESH(sbl,sbl+1), gsmr(sbl+1), zero, work2)
 
              call createGPU_only_async(work3, work2%nrow, ESH(sbl+1,sbl)%ncol)
              if (.not. c_associated(ESH(sbl+1,sbl)%d_addr)) then
-               call createGPU(ESH(sbl+1,sbl))
-               call copyToGPU(ESH(sbl+1,sbl))
+               call createGPU_async(ESH(sbl+1,sbl))
+               call copyToGPU_async(ESH(sbl+1,sbl))
              endif
              call matmul_gpu(hh, one, work2, ESH(sbl+1,sbl), zero, work3)
 
-             call createGPU(ESH(sbl,sbl))
-             call copyToGPU(ESH(sbl,sbl))
+             call createGPU_async(ESH(sbl,sbl))
+             call copyToGPU_async(ESH(sbl,sbl))
              call matsum_gpu(hh, one, ESH(sbl,sbl), mone, work3, work1)
              call deleteGPU_async(ESH(sbl,sbl))
 

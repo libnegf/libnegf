@@ -215,6 +215,16 @@ extern "C" int cu_copyMatH2D(void* h_A, void* d_A, size_t bytecount) {
     return err;
 }
 
+extern "C" int cu_copyMatH2D_async(void* h_A, void* d_A, size_t bytecount) {
+    assert(h_A);
+    assert(d_A);
+    // printf("copy %p to %p\n",h_A,d_A);
+    cudaError_t err = cudaMemcpyAsync(
+        d_A, h_A, bytecount, cudaMemcpyHostToDevice
+    );
+    return err;
+}
+
 extern "C" int cu_copyMatD2H(void* h_A, void* d_A, size_t bytecount) {
     assert(h_A);
     assert(d_A);
