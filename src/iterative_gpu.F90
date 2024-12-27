@@ -192,7 +192,6 @@ contains
        call createGPU(ESH(i,i+1))
        call copyToGPU(ESH(i,i+1))
        call matmul_gpu(hh, one, ESH(i,i+1), gsmr(i+1), zero, work1)
-       call deleteGPU(ESH(i,i+1))
 
        if (.not.keep) then
           call destroyAll(gsmr(i+1))
@@ -208,7 +207,6 @@ contains
        call copyToGPU(ESH(i+1,i))
        call matmul_gpu(hh, mone, work1, ESH(i+1,i), one, work2)
 
-       call deleteGPU(ESH(i+1,i))
        call destroyAll(work1)
 
        call createAll(gsmr(i), work2%nrow, work2%ncol)
@@ -222,6 +220,9 @@ contains
 
 #:def calculate_Gr_tridiag_blocks_template(KIND, CTYPE, MTYPE, CUDATYPE)
   subroutine calculate_Gr_tridiag_blocks_${KIND}$(negf,ESH,gsmr,Gr,sbl,ebl)
+
+    use iso_c_binding, only : c_associated, C_NULL_PTR
+
     !In/Out
     type(${MTYPE}$), dimension(:,:), intent(inout) :: Gr
     type(${MTYPE}$), dimension(:), intent(in) :: gsmr
@@ -250,12 +251,14 @@ contains
     if (.not.present(ebl)) then
        if (nbl.eq.1) then
           call createAll(Gr(sbl,sbl), ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
+          @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU(ESH(sbl,sbl))
           call copyToGPU(ESH(sbl,sbl))
           call inverse_gpu(hh, hhsol, ESH(sbl,sbl), Gr(sbl,sbl), istat)
           call deleteGPU(ESH(sbl,sbl))
        else
           call createAll(work1, ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
+          @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU(ESH(sbl,sbl))
           call copyToGPU(ESH(sbl,sbl))
           call copy_mat_gpu(hh, ESH(sbl,sbl), work1)
@@ -263,16 +266,18 @@ contains
 
           if (sbl+1.le.nbl) then
              call createAll(work2, ESH(sbl,sbl+1)%nrow, gsmr(sbl+1)%ncol)
-             call createGPU(ESH(sbl,sbl+1))
-             call copyToGPU(ESH(sbl,sbl+1))
+             if (.not. c_associated(ESH(sbl,sbl+1)%d_addr)) then
+               call createGPU(ESH(sbl,sbl+1))
+               call copyToGPU(ESH(sbl,sbl+1))
+             endif
              call matmul_gpu(hh, one, ESH(sbl,sbl+1), gsmr(sbl+1), zero, work2)
-             call deleteGPU(ESH(sbl,sbl+1))
 
              call createAll(work3, work2%nrow, ESH(sbl+1,sbl)%ncol)
-             call createGPU(ESH(sbl+1,sbl))
-             call copyToGPU(ESH(sbl+1,sbl))
+             if (.not. c_associated(ESH(sbl+1,sbl)%d_addr)) then
+               call createGPU(ESH(sbl+1,sbl))
+               call copyToGPU(ESH(sbl+1,sbl))
+             endif
              call matmul_gpu(hh, one, work2, ESH(sbl+1,sbl), zero, work3)
-             call deleteGPU(ESH(sbl+1,sbl))
 
              call createGPU(ESH(sbl,sbl))
              call copyToGPU(ESH(sbl,sbl))
@@ -297,10 +302,10 @@ contains
     !***
     if ((ebl.ge.sbl).and.(ebl.gt.1).and.(sbl.gt.1)) THEN
        do i=sbl,ebl,1
+          @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
           call createAll(work1, gsmr(i)%nrow, ESH(i,i-1)%ncol)
           call createAll(Gr(i,i-1), work1%nrow, Gr(i-1,i-1)%ncol)
-          call createGPU(ESH(i,i-1))
-          call copyToGPU(ESH(i,i-1))
+          @:ASSERT(c_associated(ESH(i,i-1)%d_addr))
           call matmul_gpu(hh, one, gsmr(i), ESH(i,i-1), zero, work1)
           call deleteGPU(ESH(i,i-1))
           call matmul_gpu(hh, mone, work1, Gr(i-1,i-1), zero, Gr(i,i-1))
@@ -308,8 +313,7 @@ contains
 
           call createAll(work2, ESH(i-1,i)%nrow, gsmr(i)%ncol)
           call createAll(Gr(i-1,i), Gr(i-1,i-1)%nrow, work2%ncol)
-          call createGPU(ESH(i-1,i))
-          call copyToGPU(ESH(i-1,i))
+          @:ASSERT(c_associated(ESH(i-1,i)%d_addr))
           call matmul_gpu(hh, one, ESH(i-1,i), gsmr(i), zero, work2)
           call deleteGPU(ESH(i-1,i))
           call matmul_gpu(hh, mone, Gr(i-1,i-1), work2, zero, Gr(i-1,i))
