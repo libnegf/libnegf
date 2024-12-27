@@ -188,7 +188,7 @@ contains
 
     do i=sbl-1,ebl,-1
 
-       call createAll(work1, ESH(i,i+1)%nrow, gsmr(i+1)%ncol)
+       call createGPU_only_async(work1, ESH(i,i+1)%nrow, gsmr(i+1)%ncol)
        call createGPU(ESH(i,i+1))
        call copyToGPU(ESH(i,i+1))
        call matmul_gpu(hh, one, ESH(i,i+1), gsmr(i+1), zero, work1)
@@ -197,7 +197,7 @@ contains
           call destroyAll(gsmr(i+1))
        end if
 
-       call createAll(work2, ESH(i,i)%nrow, ESH(i,i)%ncol)
+       call createGPU_only_async(work2, ESH(i,i)%nrow, ESH(i,i)%ncol)
        @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
        ESH(i,i)%d_addr = work2%d_addr
        call copyToGPU(ESH(i,i))
@@ -207,11 +207,11 @@ contains
        call copyToGPU(ESH(i+1,i))
        call matmul_gpu(hh, mone, work1, ESH(i+1,i), one, work2)
 
-       call destroyAll(work1)
+       call deleteGPU_async(work1)
 
        call createAll(gsmr(i), work2%nrow, work2%ncol)
        call inverse_gpu(hh, hhsol, work2, gsmr(i), istat)
-       call destroyAll(work2)
+       call deleteGPU_async(work2)
     end do
 
   end subroutine calculate_gsmr_blocks_${KIND}$

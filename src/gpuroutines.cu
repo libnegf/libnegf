@@ -190,6 +190,23 @@ extern "C" int cu_createMat(void** d_A, size_t bytecount) {
     return err;
 }
 
+extern "C" int cu_cudaFreeAsync(void** d_A) {
+    if(!*d_A) {
+        return 0;
+    }
+    int stat = cudaFreeAsync(*d_A, 0);
+    *d_A = NULL;
+    return stat;
+}
+
+extern "C" int cu_cudaMallocAsync(void** d_A, size_t bytecount) {
+    assert(d_A);
+    cudaError_t err = cudaMallocAsync(d_A, bytecount, 0);
+    //printf("create mat at GPU Address: %p \n",*d_A);
+    assert(err == cudaSuccess);
+    return err;
+}
+
 extern "C" int cu_copyMatH2D(void* h_A, void* d_A, size_t bytecount) {
     assert(h_A);
     assert(d_A);
