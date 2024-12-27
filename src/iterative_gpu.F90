@@ -180,7 +180,8 @@ contains
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
-    call createAll(gsmr(sbl),nrow,nrow)
+    call create(gsmr(sbl),nrow,nrow)
+    call createGPU_async(gsmr(sbl))
     call createGPU_async(ESH(sbl,sbl))
     call copyToGPU_async(ESH(sbl,sbl))
     call inverse_gpu(hh, hhsol, ESH(sbl,sbl), gsmr(sbl), istat)
@@ -209,7 +210,8 @@ contains
 
        call deleteGPU_async(work1)
 
-       call createAll(gsmr(i), work2%nrow, work2%ncol)
+       call create(gsmr(i), work2%nrow, work2%ncol)
+       call createGPU_async(gsmr(i))
        call inverse_gpu(hh, hhsol, work2, gsmr(i), istat)
        call deleteGPU_async(work2)
     end do
@@ -250,7 +252,8 @@ contains
 
     if (.not.present(ebl)) then
        if (nbl.eq.1) then
-          call createAll(Gr(sbl,sbl), ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
+          call create(Gr(sbl,sbl), ESH(sbl,sbl)%nrow, ESH(sbl,sbl)%ncol)
+          call createGPU_async(Gr(sbl,sbl))
           @:ASSERT(.not. c_associated(ESH(sbl,sbl)%d_addr))
           call createGPU_async(ESH(sbl,sbl))
           call copyToGPU_async(ESH(sbl,sbl))
@@ -291,7 +294,8 @@ contains
              error stop "Error: Gr_tridiag requires gsml"
           end if
 
-          call createAll(Gr(sbl,sbl), work1%nrow, work1%ncol)
+          call create(Gr(sbl,sbl), work1%nrow, work1%ncol)
+          call createGPU_async(Gr(sbl,sbl))
           call inverse_gpu(hh, hhsol, work1, Gr(sbl,sbl), istat)
           call deleteGPU_async(work1)
        endif
@@ -304,7 +308,8 @@ contains
        do i=sbl,ebl,1
           @:ASSERT(.not. c_associated(ESH(i,i)%d_addr))
           call createGPU_only_async(work1, gsmr(i)%nrow, ESH(i,i-1)%ncol)
-          call createAll(Gr(i,i-1), work1%nrow, Gr(i-1,i-1)%ncol)
+          call create(Gr(i,i-1), work1%nrow, Gr(i-1,i-1)%ncol)
+          call createGPU_async(Gr(i,i-1))
           @:ASSERT(c_associated(ESH(i,i-1)%d_addr))
           call matmul_gpu(hh, one, gsmr(i), ESH(i,i-1), zero, work1)
           call deleteGPU_async(ESH(i,i-1))
@@ -312,7 +317,8 @@ contains
           call deleteGPU_async(work1)
 
           call createGPU_only_async(work2, ESH(i-1,i)%nrow, gsmr(i)%ncol)
-          call createAll(Gr(i-1,i), Gr(i-1,i-1)%nrow, work2%ncol)
+          call create(Gr(i-1,i), Gr(i-1,i-1)%nrow, work2%ncol)
+          call createGPU_async(Gr(i-1,i))
           @:ASSERT(c_associated(ESH(i-1,i)%d_addr))
           call matmul_gpu(hh, one, ESH(i-1,i), gsmr(i), zero, work2)
           call deleteGPU_async(ESH(i-1,i))
@@ -322,7 +328,8 @@ contains
           call matmul_gpu(hh, mone, Gr(i,i-1), work2, zero, work1)
 
           call deleteGPU_async(work2)
-          call createAll(Gr(i,i), gsmr(i)%nrow, gsmr(i)%ncol)
+          call create(Gr(i,i), gsmr(i)%nrow, gsmr(i)%ncol)
+          call createGPU_async(Gr(i,i))
           call matsum_gpu(hh, one, gsmr(i), one, work1, Gr(i,i))
 
           call deleteGPU_async(work1)
