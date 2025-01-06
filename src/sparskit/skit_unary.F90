@@ -25,33 +25,33 @@ module skit_unary
   public :: amask 
 
   interface getelm
-    module procedure :: rgetelm    
+    module procedure :: dgetelm    
     module procedure :: zgetelm    
   end interface getelm
   
   interface csort
-    module procedure :: rcsort  
+    module procedure :: dcsort  
     module procedure :: zcsort    
   end interface csort
   
   interface vperm
     module procedure :: ivperm  
-    module procedure :: rvperm   
+    module procedure :: dvperm   
     module procedure :: zvperm   
   end interface vperm
 
   interface transp 
-    module procedure :: rtransp  
+    module procedure :: dtransp  
     module procedure :: ztransp   
   end interface transp
 
   interface getdia 
-    module procedure :: rgetdia
+    module procedure :: dgetdia
     module procedure :: zgetdia  
   end interface getdia
 
   interface amask 
-    module procedure :: ramask 
+    module procedure :: damask 
     module procedure :: zamask
   end interface amask 
 
@@ -93,7 +93,7 @@ module skit_unary
   !-----------------------------------------------------------------------
   !     noel m. nachtigal october 28, 1990 -- youcef saad jan 20, 1991.
   !----------------------------------------------------------------------- 
-  function rgetelm(i,j,a,ja,ia,iadd,sorted) result(getelm) 
+  function dgetelm(i,j,a,ja,ia,iadd,sorted) result(getelm) 
     integer, intent(in) :: i,j
     integer, intent(in) :: ia(:), ja(:) 
     integer, intent(inout) :: iadd
@@ -142,7 +142,7 @@ module skit_unary
           endif
        end do 
     endif
-  end function rgetelm
+  end function dgetelm
 
   function zgetelm(i,j,a,ja,ia,iadd,sorted) result(getelm) 
     integer, intent(in) :: i,j
@@ -253,7 +253,7 @@ module skit_unary
   !   (the matrix a, ja, ia will contain len fewer elements) 
   ! 
   !----------------------------------------------------------------------c
-  subroutine rgetdia(nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
+  subroutine dgetdia(nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
     integer, intent(in) :: nrow, ncol, job   
     real(dp), intent(inout) :: a(:)
     integer, intent(inout) :: ia(:), ja(:)
@@ -303,7 +303,7 @@ module skit_unary
 
     !  redefine ia(nrow+1)
     ia(nrow+1) = ko+1
-  end subroutine rgetdia
+  end subroutine dgetdia
   !----------------------------------------------------------------------
 
   subroutine zgetdia(nrow,ncol,job,a,ja,ia,len,diag,idiag,ioff)
@@ -406,7 +406,7 @@ module skit_unary
   !         indices in each are not in increasing order) use csrcsc
   !         if you want them sorted.
   !----------------------------------------------------------------------
-  subroutine rtransp(nrow,ncol,a,ja,ia,iwk,ierr)
+  subroutine dtransp(nrow,ncol,a,ja,ia,iwk,ierr)
     integer, intent(in) :: nrow
     real(dp), intent(inout) :: a(:) 
     integer, intent(inout) :: ia(:), ja(:), iwk(:)
@@ -488,7 +488,7 @@ module skit_unary
     end do
     ia(1) = 1
 
-  end subroutine rtransp
+  end subroutine dtransp
 
   subroutine ztransp(nrow,ncol,a,ja,ia,iwk,ierr)
     integer, intent(in) :: nrow
@@ -601,7 +601,7 @@ module skit_unary
   ! way that the column indices are in increasing order within each row.
   ! iwork(1:nnz) contains the permutation used  to rearrange the elements.
   !----------------------------------------------------------------------- 
-  subroutine rcsort(nrow,a,ja,ia,iwork,values)
+  subroutine dcsort(nrow,a,ja,ia,iwork,values)
     integer, intent(in) :: nrow
     real(dp), intent(inout) :: a(:) 
     integer, intent(inout), dimension(:) :: ja, ia, iwork 
@@ -664,7 +664,7 @@ module skit_unary
        ia(i+1) = ia(i)
     end do
     ia(1) = ifirst 
-  end subroutine rcsort
+  end subroutine dcsort
   ! -------- Cmplx version -------------------------------------------------
   subroutine zcsort(nrow,a,ja,ia,iwork,values) 
     integer, intent(in) :: nrow
@@ -794,7 +794,7 @@ module skit_unary
  
   end subroutine ivperm
   ! ---- Real version ----------------------------------------------------
-  subroutine rvperm(n, x, perm) 
+  subroutine dvperm(n, x, perm) 
     integer, intent(in) :: n
     real(dp), intent(inout) :: x(n)
     integer, intent(inout) :: perm(n)
@@ -835,7 +835,7 @@ module skit_unary
     do k = 1, n
        perm(k) = -perm(k)
     end do 
-  end subroutine rvperm
+  end subroutine dvperm
   ! ---- Cmplx version ----------------------------------------------------
   subroutine zvperm(n, x, perm) 
     integer, intent(in) :: n
@@ -981,7 +981,7 @@ module skit_unary
 !
 !-----------------------------------------------------------------------
 
-  subroutine ramask(nrow,ncol,a,ja,ia,jmask,imask,c,jc,ic,iw,nzmax,ierr)
+  subroutine damask(nrow,ncol,a,ja,ia,jmask,imask,c,jc,ic,iw,nzmax,ierr)
       real(dp) :: a(:),c(:) 
       integer, intent(in) :: nrow, ncol, nzmax
       integer, intent(in) :: ia(:),ja(:), jmask(:)
@@ -1025,7 +1025,7 @@ module skit_unary
       end do 
       ic(nrow+1)=len+1
 
-   end subroutine ramask
+   end subroutine damask
 
   subroutine zamask(nrow,ncol,a,ja,ia,jmask,imask,c,jc,ic,iw,nzmax,ierr)
       complex(dp) :: a(:),c(:) 

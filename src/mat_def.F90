@@ -1093,30 +1093,33 @@ subroutine zdestroy_EXT_COO(mat)
 end subroutine zdestroy_EXT_COO
 ! ------------------------------------------------------------------
 
-subroutine zcreate_DNS(mat,nrow,ncol)
+subroutine zcreate_DNS(mat,nrow,ncol,tag)
 
   type(z_DNS) :: mat
   integer :: nrow, ncol
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag)
 
 end subroutine zcreate_DNS
 ! ------------------------------------------------------------------
 
-subroutine ccreate_DNS(mat,nrow,ncol)
+subroutine ccreate_DNS(mat,nrow,ncol,tag)
 
   type(c_DNS) :: mat
   integer :: nrow, ncol
+  character(len=*), optional :: tag
+
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (ccreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag)
 
 end subroutine ccreate_DNS
 ! ------------------------------------------------------------------
@@ -1193,23 +1196,24 @@ end subroutine cdestroy_DNS3
 ! ------------------------------------------------------------------
 ! ------------------------------------------------------------------
 
-subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
+subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
 
   type(z_DNS) :: mat1
   type(z_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
+  character(len=*), optional :: tag
 
   mat1%nrow=0
   mat1%ncol=0
 
   if (allocated(mat1%val)) then
-     call log_deallocate(mat1%val)
+     call log_deallocate(mat1%val,tag)
   end if
 
   if (present(mat2)) then
      mat2%nrow=0
      mat2%ncol=0
      if (allocated(mat2%val)) then
-        call log_deallocate(mat2%val)
+        call log_deallocate(mat2%val,tag)
      end if
   else
      return
@@ -1219,7 +1223,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat3%nrow=0
      mat3%ncol=0
      if (allocated(mat3%val)) then
-        call log_deallocate(mat3%val)
+        call log_deallocate(mat3%val,tag)
      end if
   else
      return
@@ -1229,7 +1233,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat4%nrow=0
      mat4%ncol=0
      if (allocated(mat4%val)) then
-        call log_deallocate(mat4%val)
+        call log_deallocate(mat4%val,tag)
      endif
   else
      return
@@ -1239,7 +1243,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat5%nrow=0
      mat5%ncol=0
      if (allocated(mat5%val)) then
-        call log_deallocate(mat5%val)
+        call log_deallocate(mat5%val,tag)
      end if
   else
      return
@@ -1249,7 +1253,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat6%nrow=0
      mat6%ncol=0
      if (allocated(mat6%val)) then
-        call log_deallocate(mat6%val)
+        call log_deallocate(mat6%val,tag)
      end if
   else
      return
@@ -1259,7 +1263,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat7%nrow=0
      mat7%ncol=0
      if (allocated(mat7%val)) then
-        call log_deallocate(mat7%val)
+        call log_deallocate(mat7%val,tag)
      endif
   else
      return
@@ -1269,7 +1273,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat8%nrow=0
      mat8%ncol=0
      if (allocated(mat8%val)) then
-        call log_deallocate(mat8%val)
+        call log_deallocate(mat8%val,tag)
      endif
   else
      return
@@ -1278,23 +1282,24 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 end subroutine zdestroy_DNS
 
 
-subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
+subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
 
   type(c_DNS) :: mat1
   type(c_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
+  character(len=*), optional :: tag
 
   mat1%nrow=0
   mat1%ncol=0
 
   if (allocated(mat1%val)) then
-     call log_deallocate(mat1%val)
+     call log_deallocate(mat1%val,tag)
   end if
 
   if (present(mat2)) then
      mat2%nrow=0
      mat2%ncol=0
      if (allocated(mat2%val)) then
-       call log_deallocate(mat2%val)
+       call log_deallocate(mat2%val,tag)
      end if
   else
      return
@@ -1304,7 +1309,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat3%nrow=0
      mat3%ncol=0
      if (allocated(mat3%val)) then
-       call log_deallocate(mat3%val)
+       call log_deallocate(mat3%val,tag)
      end if
   else
      return
@@ -1314,7 +1319,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat4%nrow=0
      mat4%ncol=0
      if (allocated(mat4%val)) then
-       call log_deallocate(mat4%val)
+       call log_deallocate(mat4%val,tag)
      endif
   else
      return
@@ -1324,7 +1329,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat5%nrow=0
      mat5%ncol=0
      if (allocated(mat5%val)) then
-       call log_deallocate(mat5%val)
+       call log_deallocate(mat5%val,tag)
      end if
   else
      return
@@ -1334,7 +1339,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat6%nrow=0
      mat6%ncol=0
      if (allocated(mat6%val)) then
-       call log_deallocate(mat6%val)
+       call log_deallocate(mat6%val,tag)
      end if
   else
      return
@@ -1344,7 +1349,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat7%nrow=0
      mat7%ncol=0
      if (allocated(mat7%val)) then
-        call log_deallocate(mat7%val)
+        call log_deallocate(mat7%val,tag)
      endif
   else
      return
@@ -1354,7 +1359,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat8%nrow=0
      mat8%ncol=0
      if (allocated(mat8%val)) then
-       call log_deallocate(mat8%val)
+       call log_deallocate(mat8%val,tag)
      endif
   else
      return

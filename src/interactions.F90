@@ -24,8 +24,8 @@
 module interactions
 
   use globals, only : LST
-  use ln_precision, only : dp
-  use mat_def, only : z_dns
+  use ln_precision, only : sp, dp
+  use mat_def, only : c_dns, z_dns
   use ln_structure, only : TStruct_info
 
   implicit none
@@ -54,8 +54,12 @@ module interactions
 
     procedure, non_overridable :: set_scba_iter
     procedure, non_overridable :: set_structure
-    procedure(abst_add_sigma_r), deferred :: add_sigma_r
-    procedure(abst_add_sigma_n), deferred :: add_sigma_n
+    procedure(abst_add_sigma_r_sp), deferred :: add_sigma_r_sp
+    procedure(abst_add_sigma_r_dp), deferred :: add_sigma_r_dp
+    generic :: add_sigma_r => add_sigma_r_sp, add_sigma_r_dp
+    procedure(abst_add_sigma_n_sp), deferred :: add_sigma_n_sp
+    procedure(abst_add_sigma_n_dp), deferred :: add_sigma_n_dp
+    generic :: add_sigma_n => add_sigma_n_sp, add_sigma_n_dp
     procedure(abst_get_sigma_n_blk), deferred :: get_sigma_n_blk
     procedure(abst_get_sigma_n_mat), deferred :: get_sigma_n_mat
     generic :: get_sigma_n => get_sigma_n_blk, get_sigma_n_mat
@@ -88,8 +92,20 @@ module interactions
   abstract interface
 
     !> This interface should append
-    !! the retarded self energy to ESH
-    subroutine abst_add_sigma_r(this, esh, en_index, k_index, spin)
+    !! the retarded self energy to ESH (single precision)
+    subroutine abst_add_sigma_r_sp(this, esh, en_index, k_index, spin)
+      import :: TInteraction
+      import :: c_dns
+      class(TInteraction) :: this
+      type(c_dns), dimension(:,:), intent(inout) :: esh
+      integer, intent(in), optional  :: en_index
+      integer, intent(in), optional  :: k_index
+      integer, intent(in), optional  :: spin
+    end subroutine abst_add_sigma_r_sp
+
+    !> This interface should append
+    !! the retarded self energy to ESH (double precision)
+    subroutine abst_add_sigma_r_dp(this, esh, en_index, k_index, spin)
       import :: TInteraction
       import :: z_dns
       class(TInteraction) :: this
@@ -97,11 +113,23 @@ module interactions
       integer, intent(in), optional  :: en_index
       integer, intent(in), optional  :: k_index
       integer, intent(in), optional  :: spin
-    end subroutine abst_add_sigma_r
+    end subroutine abst_add_sigma_r_dp
 
     !> This interface should append
-    !! the retarded self energy to sigma
-    subroutine abst_add_sigma_n(this, sigma, en_index, k_index, spin)
+    !! the retarded self energy to sigma (single precision)
+    subroutine abst_add_sigma_n_sp(this, sigma, en_index, k_index, spin)
+      import :: TInteraction
+      import :: c_dns
+      class(TInteraction) :: this
+      type(c_dns), dimension(:,:), intent(inout) :: sigma
+      integer, intent(in), optional  :: en_index
+      integer, intent(in), optional  :: k_index
+      integer, intent(in), optional  :: spin
+    end subroutine abst_add_sigma_n_sp
+
+    !> This interface should append
+    !! the retarded self energy to sigma (double precision)
+    subroutine abst_add_sigma_n_dp(this, sigma, en_index, k_index, spin)
       import :: TInteraction
       import :: z_dns
       class(TInteraction) :: this
@@ -109,7 +137,7 @@ module interactions
       integer, intent(in), optional  :: en_index
       integer, intent(in), optional  :: k_index
       integer, intent(in), optional  :: spin
-    end subroutine abst_add_sigma_n
+    end subroutine abst_add_sigma_n_dp
 
     !> Returns the lesser (n) Self Energy in block format
     !! @param [in] this: calling instance

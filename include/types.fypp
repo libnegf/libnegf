@@ -1,0 +1,22 @@
+#! libNEGF library
+#! Include file to deal with single/double precision with fypp
+
+#:set TYPES = ['real', 'complex']
+
+#:set PRECISIONS = ['single', 'double']
+
+#:set PREC_ABBREVS = {'single': 'sp',  'double': 'dp'}
+
+#:set CHAR_ABBREVS = {'real': {'single': 'S',  'double': 'D'}, &
+                  &  'complex': {'single': 'C',  'double': 'Z'}}
+
+#:set MAT_TYPES = {'real': {'single': 's_DNS', 'double': 'r_DNS'}, &
+               &  'complex': {'single': 'c_DNS', 'double': 'z_DNS'} }
+
+#:set ISO_C_BIND_TYPES = {'real':   {'single': 'c_float', 'double': 'c_double'}, &
+                     & 'complex': {'single': 'c_float_complex', 'double': 'c_double_complex'} }
+
+
+#:set CUDATYPES = {'single': 'COMPLEX_SIZE', 'double': 'DOUBLE_COMPLEX_SIZE' }
+
+

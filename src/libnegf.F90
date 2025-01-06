@@ -43,6 +43,9 @@ module libnegf
 #:if defined("MPI")
  use libmpifx_module
 #:endif
+#:if defined("GPU")
+ use cudautils
+#:endif
  use clock
  implicit none
  private
@@ -132,63 +135,7 @@ module libnegf
  integer, parameter, public :: COMPSAVE_SGF = 2
   
  !-----------------------------------------------------------------------------
-#:if defined("GPU")
-  interface
-     integer(c_int) function cu_cublasInit(hcublas) bind(C, name='cu_cublasInit')
-       use iso_c_binding
-       import cublasHandle
-       type(cublasHandle) :: hcublas
-     end function cu_cublasInit
-
-     integer(c_int) function cu_cublasFinalize(hcublas) bind(C, name='cu_cublasFinalize')
-       use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
-     end function cu_cublasFinalize
-
-     integer(c_int) function cu_cusolverInit(hcusolver) bind(C, name='cu_cusolverInit')
-       use iso_c_binding
-       import cusolverDnHandle
-       type(cusolverDnHandle) :: hcusolver
-     end function cu_cusolverInit
-
-     integer(c_int) function cu_cusolverFinalize(hcusolver) bind(C, name='cu_cusolverFinalize')
-       use iso_c_binding
-       import cusolverDnHandle
-       type(cusolverDnHandle), value :: hcusolver
-     end function cu_cusolverFinalize
-  end interface
-#:endif
-
-contains
-
-#:if defined("GPU")
-   subroutine cublasInitialize(hcublas)
-     type(cublasHandle), intent(inout) :: hcublas
-     integer :: err
-     err = cu_cublasInit(hcublas)
-   end subroutine cublasInitialize
-
-   subroutine cublasFinalize(hcublas)
-     type(cublasHandle), intent(inout) :: hcublas
-     integer :: err
-     err = cu_cublasFinalize(hcublas)
-   end subroutine cublasFinalize
-
-   subroutine cusolverInitialize(hcusolver)
-     type(cusolverDnHandle), intent(inout) :: hcusolver
-     integer :: err
-     err = cu_cusolverInit(hcusolver)
-   end subroutine cusolverInitialize
-
-   subroutine cusolverFinalize(hcusolver)
-     type(cusolverDnHandle), intent(inout) :: hcusolver
-     integer :: err
-     err = cu_cusolverFinalize(hcusolver)
-   end subroutine cusolverFinalize
-#:endif
-
-
+  contains
   !--------------------------------------------------------------------
   !>  Init libNEGF
   !!  General initializations of libNEGF are currently done via files.
@@ -201,13 +148,25 @@ contains
     type(Tnegf) :: negf
 
     real(dp) :: kpoints(3,1), kweights(1)
-    integer :: local_kindex(1)
+    integer :: local_kindex(1), ndevs, ii
+    integer(8) :: freemem, totalmem
 
     call set_defaults(negf)
     negf%form%formatted = .true.
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
+
 #:if defined("GPU")
+    call getDeviceCount(ndevs)
+    if (ndevs == 0) then
+       error stop "No GPUs found on host"
+    end if
+    do ii = 1, ndevs
+      call setDevice(ii-1)
+      call getDevMemInfo(freemem, totalmem)
+      print*,'device=',ii-1
+      print*,'freemem=',freemem/1e6,' MB','  totalmem=',totalmem/1e6,' MB'
+    end do   
     call cublasInitialize(negf%hcublas)
     call cusolverInitialize(negf%hcusolver)
 #:endif

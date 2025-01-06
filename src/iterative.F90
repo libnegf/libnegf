@@ -139,7 +139,7 @@ CONTAINS
     call copy_trid_toHOST(Gr)
 #:endif
 
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
     call destroy_gsm(gsmr)
@@ -154,7 +154,7 @@ CONTAINS
 
     call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
 
-    call destroy_blk(Gr)
+    call destroy_tridiag_blk(Gr,"Gr")
     DEALLOCATE(Gr)
 
   end subroutine calculate_Gr
@@ -217,7 +217,6 @@ CONTAINS
     associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
 
     Ec = cmplx(E,0.0_dp,dp)
-
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
@@ -240,6 +239,7 @@ CONTAINS
     call set_Gr_ela(negf, Gr)
 
     !Computing device G_n
+
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 
@@ -263,7 +263,6 @@ CONTAINS
       call blk2csr(Gr,negf%str,negf%S,Grout)
     end if
     end associate
-
 
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
@@ -508,7 +507,6 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_r)) then
-       !print*,"Allocate negf%G_r"
        allocate(TMatrixCacheMem::negf%G_r)
     end if
     select type(p => negf%G_r)
@@ -572,7 +570,6 @@ CONTAINS
     logical :: tTridiag
 
     if (.not.associated(negf%G_n)) then
-       !print*,"Allocate negf%G_n"
        allocate(TMatrixCacheMem::negf%G_n)
     end if
     select type(p => negf%G_n)
@@ -911,18 +908,25 @@ CONTAINS
     !       => we do not delete from GPU
     if (negf%tDestroyESH) then
       if (allocated(ESH)) then
-         call destroy_tridiag_blk(ESH)
-         call deallocate_blk_dns(ESH)
+        call destroy_tridiag_blk(ESH,"ESH")
+        call deallocate_blk_dns(ESH)
       end if
     end if
 
+    if (negf%tDestroyGr) then
+      if (allocated(Gr)) then
+        call destroy_tridiag_blk(Gr,"Gr")
+        call deallocate_blk_dns(Gr)
+      end if
+    else  
+#:if defined("GPU")
+      call delete_trid_fromGPU(Gr)
+#:endif
+    end if
+
     if (negf%tDestroyGn) then
-      if (allocated(Gn)) then
-        !call destroy_blk(Gn)
-        #:if defined("GPU")
-          call delete_trid_fromGPU(Gn)
-        #:endif
-        call destroy_tridiag_blk(Gn)
+      if (allocated(Gn)) then 
+        call destroy_tridiag_blk(Gn,"Gn")
         call deallocate_blk_dns(Gn)
       end if
     else
@@ -974,10 +978,10 @@ CONTAINS
   end subroutine destroy_gsm
 
   !**********************************************************************
-  ! Destroy ALL blocks from CPU and GPU
-  !**********************************************************************
-  subroutine destroy_blk(M)
+  subroutine destroy_blk(M, str)
     type(z_DNS), dimension(:,:), allocatable :: M
+    character(len=*), intent(in), optional :: str
+    
     integer :: i, i1, nbl
 
     if (.not.allocated(M)) return
@@ -1003,10 +1007,9 @@ CONTAINS
   end subroutine destroy_blk
 
   !**********************************************************************
-  ! Destroy tri-diagonal blocks from CPU (only)
-  !**********************************************************************
-  subroutine destroy_tridiag_blk(M)
+  subroutine destroy_tridiag_blk(M, str)
     type(z_DNS), dimension(:,:), allocatable :: M
+    character(len=*), intent(in), optional :: str
 
     integer :: i, nbl
 
@@ -1014,8 +1017,23 @@ CONTAINS
 
     nbl=size(M,1)
 
+#:if defined("GPU")
     do i=1,nbl
-      if (allocated(M(i,i)%val)) then
+      if (allocated(M(i,i)%val)) then    
+        call destroyAll(M(i,i))
+      end if
+    end do
+    do i=2,nbl
+      if (allocated(M(i-1,i)%val)) then
+        call destroyAll(M(i-1,i))
+      end if
+      if (allocated(M(i,i-1)%val)) then
+        call destroyAll(M(i,i-1))
+      end if
+    end do
+#:else
+    do i=1,nbl
+      if (allocated(M(i,i)%val)) then    
         call destroy(M(i,i))
       end if
     end do
@@ -1027,6 +1045,7 @@ CONTAINS
         call destroy(M(i,i-1))
       end if
     end do
+#:endif
 
   end subroutine destroy_tridiag_blk
 
@@ -1749,10 +1768,10 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-    call destroy_tridiag_blk(Gr)
+    call destroy_tridiag_blk(Gr,"Gr")
     call deallocate_blk_dns(Gr)
 
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
   end subroutine calculate_transmissions
@@ -1820,7 +1839,6 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     Im = 'I'
-
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     call allocate_gsm(gsmr,nbl)
@@ -1828,6 +1846,7 @@ CONTAINS
 
     call allocate_blk_dns(Gr,nbl)
     ! call create
+    
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nbl)
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
@@ -1857,7 +1876,7 @@ CONTAINS
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
-    call destroy_tridiag_blk(ESH)
+    call destroy_tridiag_blk(ESH,"ESH")
     call deallocate_blk_dns(ESH)
 
     ! Destroy only off-diagonal blocks
@@ -1881,14 +1900,14 @@ CONTAINS
 #:if defined("GPU")
     call delete_vdns_fromGPU(SelfEneR)
     do i=1,nbl
-       call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
-       call dns2csr(Gr(i,i),GrCSR)
-       !Concatena direttamente la parte immaginaria per il calcolo della doS
-       zc=(-1.0_dp,0.0_dp)/pi
+      call create(GrCSR,Gr(i,i)%nrow,Gr(i,i)%ncol,Gr(i,i)%nrow*Gr(i,i)%ncol)
+      call dns2csr(Gr(i,i),GrCSR)
+      !Concatena direttamente la parte immaginaria per il calcolo della doS
+      zc=(-1.0_dp,0.0_dp)/pi
 
-       call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
-       call destroyAll(Gr(i,i))
-       call destroy(GrCSR)
+      call concat(Grm,zc,GrCSR,Im,str%mat_PL_start(i),str%mat_PL_start(i))
+      call destroyAll(Gr(i,i))
+      call destroy(GrCSR)
     end do
 #:else
     do i=1,nbl
@@ -1947,7 +1966,7 @@ CONTAINS
 
       call allocate_blk_dns(ESH, nbl)
 
-      call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start)
+      call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start,"ESH")
 
       call destroy(ESH_tot)
 

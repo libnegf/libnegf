@@ -213,10 +213,12 @@ MODULE sparsekit_drv
   interface zdagger
      module procedure zdagacsr
      module procedure zdagadns
+     module procedure cdagadns
   end interface
   interface zspectral
      module procedure zspectral_csr
      module procedure zspectral_dns
+     module procedure cspectral_dns
   end interface
   interface check_if_hermitian
      module procedure check_hermitian_csr
@@ -2449,10 +2451,11 @@ CONTAINS
   end subroutine zextract_csr
 
   !------------------------------------------------------------------------------
-  subroutine zextract_dns(A_csr,i1,i2,j1,j2,A_dns)
+  subroutine zextract_dns(A_csr,i1,i2,j1,j2,A_dns,str)
     type(z_CSR) :: A_csr
     type(z_DNS) :: A_dns
     integer :: i1,i2,j1,j2
+    character(len=*), intent(in), optional :: str
 
     integer :: i,k
 
@@ -2462,8 +2465,8 @@ CONTAINS
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
        error stop
     ENDIF
-
-    call create(A_dns,(i2-i1+1),(j2-j1+1))
+ 
+    call create(A_dns,(i2-i1+1),(j2-j1+1),tag=str)
     A_dns%val=(0.0_dp,0.0_dp)
 
     do i = i1, i2
@@ -2762,8 +2765,19 @@ CONTAINS
 
     B_dns%val = conjg(transpose(A_dns%val))
 
-
   end subroutine zdagadns
+
+  subroutine cdagadns(A_dns,B_dns)
+
+    implicit none
+
+    Type(c_dns) :: A_dns, B_dns
+
+    call create(B_dns,A_dns%ncol,A_dns%nrow)
+
+    B_dns%val = conjg(transpose(A_dns%val))
+
+  end subroutine cdagadns
 
   !*************************************************************************
   !
@@ -2843,6 +2857,29 @@ CONTAINS
     endif
 
   end subroutine zspectral_dns
+  
+  
+  subroutine cspectral_dns(GreenR1,GreenR2,flagR,A)
+    implicit none
+
+    type(c_DNS) :: GreenR1, GreenR2, GreenA, A
+    integer :: flagR
+
+
+    !Hermitiano di GreenR2 passato in GreenA
+    call zdagger(GreenR2,GreenA)
+
+    call create(A,GreenA%nrow,GreenA%ncol)
+
+    A%val=(0.0_sp,1.0_sp)*(GreenR1%val - GreenA%val)
+
+    call destroy(GreenA)
+
+    if (flagR.eq.1) then
+       call destroy(GreenR2)
+    endif
+  end subroutine cspectral_dns
+
   !*************************************************************************
   !
   !  Subroutine per il sorting delle matrici csr
@@ -3337,28 +3374,29 @@ CONTAINS
   !------------------------------------------------------------
   !> Convert a CSR in a block dense matrix, only taking the
   !  diagonal and sub/over diag
-  subroutine zcsr2blk_sod(Acsr,Ablk,indblk)
-
-        IMPLICIT NONE
-
+  subroutine zcsr2blk_sod(Acsr,Ablk,indblk,str)
     INTEGER :: i
     TYPE(z_CSR) :: Acsr
     INTEGER :: nbl
     TYPE(z_DNS), DIMENSION(:,:) :: Ablk
     INTEGER, DIMENSION(:) :: indblk
+    character(len=*),intent(in),optional :: str
 
+    character(1) :: si1, si2
     nbl = size(Ablk,1)
 
     DO i=1,nbl
-
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,Ablk(i,i))
+      write(si1,'(I1)') i
+      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,Ablk(i,i),str//"("//si1//","//si1//")")
 
     END DO
 
     DO i=2,nbl
 
-      CALL extract(Acsr,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,Ablk(i-1,i))
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,Ablk(i,i-1))
+      write(si1,'(I1)') i
+      write(si2,'(I1)') i-1
+      CALL extract(Acsr,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,Ablk(i-1,i),str//"("//si2//","//si1//")")
+      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,Ablk(i,i-1),str//"("//si1//","//si2//")")
 
     END DO
 
