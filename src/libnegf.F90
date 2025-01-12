@@ -164,8 +164,8 @@ module libnegf
     do ii = 1, ndevs
       call setDevice(ii-1)
       call getDevMemInfo(freemem, totalmem)
-      print*,'device=',ii-1
-      print*,'freemem=',freemem/1e6,' MB','  totalmem=',totalmem/1e6,' MB'
+      !print*,'device=',ii-1
+      !print*,'freemem=',freemem/1e6,' MB','  totalmem=',totalmem/1e6,' MB'
     end do   
     call cublasInitialize(negf%hcublas)
     call cusolverInitialize(negf%hcusolver)
@@ -311,7 +311,7 @@ module libnegf
     integer, optional :: iKS
 
     integer :: nnz, i, base, ii
-!
+
     if (present(iKS)) then
       ii = iKS
     else
