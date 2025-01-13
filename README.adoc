@@ -33,6 +33,10 @@ Optionally CUDA can be used.
 
 Note that MPICH version 4 may cause build problems due to the mpifx dependency, see https://github.com/dftbplus/mpifx/issues/48[mpifx#48]. Moreover it is recommended to use recent gfortran releases: gfortran 11 and 12 are known to work, gfortran 10.2.1 (found in Debian 11) and GCC 8.3.0 (found in Debian 10) are known _not_ to work.
 
+Running the tests additionally requires git-lfs for downloading test inputs.
+The extension of test input files is `.dat`.
+
+
 
 == Generating libNEGF Input
 
