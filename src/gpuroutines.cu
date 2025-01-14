@@ -701,10 +701,12 @@ cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, size_t n) {
     return err;
 }
 
-extern "C" int cu_Cdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
-    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, size_t n, int tf32, int* ncyc,
-    cuComplex* one, cuComplex* mone, cuComplex* zero, float SGFACC
+
+template<typename Number>
+int decimation(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* h_Go_out,
+    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n, int tf32,
+    int* ncyc, float SGFACC
 ) {
     assert(h_Go_out);
     assert(h_Ao_in);
@@ -720,29 +722,34 @@ extern "C" int cu_Cdecimation(
     auto num_elements = n * n;
     auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    cuComplex* d_Ao;
+    using Real = typename get_real<Number>::type;
+    auto one = Number{Real{1}};
+    auto mone = Number{-Real{1}};
+    auto zero = Number{Real{0}};
+
+    Number* d_Ao;
     cudaError_t cudaStatus =
-        cudaMalloc((void**)&d_Ao, num_elements * sizeof(cuComplex));
+        cudaMalloc((void**)&d_Ao, num_elements * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
-    cuComplex* d_Bo;
-    cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(cuComplex));
+    Number* d_Bo;
+    cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
-    cuComplex* d_Co;
-    cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(cuComplex));
+    Number* d_Co;
+    cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
     cudaStatus = cudaMemcpy(
-        d_Ao, h_Ao_in, n * n * sizeof(cuComplex), cudaMemcpyHostToDevice
+        d_Ao, h_Ao_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
     assert(cudaStatus == cudaSuccess);
     cudaStatus = cudaMemcpy(
-        d_Bo, h_Bo_in, n * n * sizeof(cuComplex), cudaMemcpyHostToDevice
+        d_Bo, h_Bo_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
     assert(cudaStatus == cudaSuccess);
     cudaStatus = cudaMemcpy(
-        d_Co, h_Co_in, n * n * sizeof(cuComplex), cudaMemcpyHostToDevice
+        d_Co, h_Co_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
     assert(cudaStatus == cudaSuccess);
 
@@ -755,23 +762,23 @@ extern "C" int cu_Cdecimation(
         assert(cublasStatus == cudaSuccess);
     }
 
-    cuComplex* d_Ao_s;
-    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(cuComplex));
+    Number* d_Ao_s;
+    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
-    cuComplex* d_C1;
-    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(cuComplex));
+    Number* d_C1;
+    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
-    cuComplex* d_Go;
-    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(cuComplex));
+    Number* d_Go;
+    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
     int* d_pivot;
     cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
     assert(cudaStatus == cudaSuccess);
-    cuComplex* d_T;
-    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(cuComplex));
+    Number* d_T;
+    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
-    cuComplex* d_Self;
-    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(cuComplex));
+    Number* d_Self;
+    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
@@ -779,13 +786,13 @@ extern "C" int cu_Cdecimation(
 
     int lwork;
     cusolverStatus_t cusolverStatus =
-        cusolverDnCgetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
+        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
     assert(cusolverStatus == cudaSuccess);
-    cuComplex* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuComplex));
+    Number* d_work;
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
-    cublasStatus = cublasCcopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
+    cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
     assert(cublasStatus == cudaSuccess);
 
     bool okCo = false;
@@ -794,32 +801,32 @@ extern "C" int cu_Cdecimation(
 
         initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
-        cublasStatus = cublasCcopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
+        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
         assert(cublasStatus == cudaSuccess);
 
-        cusolverStatus = cusolverDnCgetrf(
+        cusolverStatus = libnegf::cusolverDngetrf(
             hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
         );
         assert(cusolverStatus == cudaSuccess);
-        cusolverStatus = cusolverDnCgetrs(
+        cusolverStatus = libnegf::cusolverDngetrs(
             hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
         );
         assert(cusolverStatus == cudaSuccess);
 
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Go, n, d_Co, n,
-            zero, d_T, n
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Co, n,
+            &zero, d_T, n
         );
         assert(cublasStatus == cudaSuccess);
 
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Co, n, d_T, n,
-            zero, d_C1, n
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Co, n, d_T, n,
+            &zero, d_C1, n
         );
         assert(cublasStatus == cudaSuccess);
 
-        float summ;
-        cublasStatus = cublasScasum(hcublas, n * n, d_C1, 1, &summ);
+        Real summ;
+        cublasStatus = libnegf::cublasAsum(hcublas, n * n, d_C1, 1, &summ);
         assert(cublasStatus == cudaSuccess);
         // printf("loop it= %d , summ= %f \n ", i1, summ);
 
@@ -833,54 +840,57 @@ extern "C" int cu_Cdecimation(
             okCo = false;
         }
 
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Bo, n, d_T, n,
-            zero, d_Self, n
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
+            &zero, d_Self, n
         );
         assert(cublasStatus == cudaSuccess);
 
-        cublasStatus = cublasCaxpy(hcublas, n * n, mone, d_Self, 1, d_Ao_s, 1);
+        cublasStatus =
+            libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao_s, 1);
         assert(cublasStatus == cudaSuccess);
-        cublasStatus = cublasCaxpy(hcublas, n * n, mone, d_Self, 1, d_Ao, 1);
+        cublasStatus =
+            libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao, 1);
         assert(cublasStatus == cudaSuccess);
 
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Go, n, d_Bo, n,
-            zero, d_T, n
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Bo, n,
+            &zero, d_T, n
         );
         assert(cublasStatus == cudaSuccess);
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, mone, d_Co, n, d_T, n,
-            one, d_Ao, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasCcopy(hcublas, n * n, d_C1, 1, d_Co, 1);
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasCgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Bo, n, d_T, n,
-            zero, d_C1, n
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &mone, d_Co, n, d_T, n,
+            &one, d_Ao, n
         );
         assert(cublasStatus == cudaSuccess);
 
-        cublasStatus = cublasCcopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
+        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Co, 1);
+        assert(cublasStatus == cudaSuccess);
+
+        cublasStatus = libnegf::cublasGemm(
+            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
+            &zero, d_C1, n
+        );
+        assert(cublasStatus == cudaSuccess);
+
+        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
         assert(cublasStatus == cudaSuccess);
     }
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
-    cublasStatus = cublasCcopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
+    cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
     assert(cublasStatus == cudaSuccess);
-    cusolverStatus =
-        cusolverDnCgetrf(hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info);
+    cusolverStatus = libnegf::cusolverDngetrf(
+        hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
+    );
     assert(cusolverStatus == cudaSuccess);
-    cusolverStatus = cusolverDnCgetrs(
+    cusolverStatus = libnegf::cusolverDngetrs(
         hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
     );
     assert(cusolverStatus == cudaSuccess);
 
     cudaStatus = cudaMemcpy(
-        h_Go_out, d_Go, n * n * sizeof(cuComplex), cudaMemcpyDeviceToHost
+        h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
     );
     assert(cudaStatus == cudaSuccess);
 
@@ -908,219 +918,32 @@ extern "C" int cu_Cdecimation(
     assert(cudaStatus == cudaSuccess);
 
     return cudaStatus;
+}
+
+
+extern "C" int cu_Cdecimation(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* h_Go_out,
+    cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
+    int tf32, int* ncyc, float SGFACC
+) {
+    return decimation(
+        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, tf32, ncyc,
+        SGFACC
+    );
 }
 
 extern "C" int cu_Zdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* h_Go_out,
-    void* h_Ao_in, void* h_Bo_in, void* h_Co_in, size_t n, int tf32, int* ncyc,
-    cuDoubleComplex* one, cuDoubleComplex* mone, cuDoubleComplex* zero,
-    double SGFACC
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver,
+    cuDoubleComplex* h_Go_out, cuDoubleComplex* h_Ao_in,
+    cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n, int tf32,
+    int* ncyc, double SGFACC
 ) {
-    assert(h_Go_out);
-    assert(h_Ao_in);
-    assert(h_Bo_in);
-    assert(h_Co_in);
-    assert(tf32 == 0 || tf32 == 1);
-    assert(ncyc);
-    assert(one);
-    assert(mone);
-    assert(zero);
-    assert(SGFACC > 0.0);
-
-    auto num_elements = n * n;
-    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    cuDoubleComplex* d_Ao;
-    cudaError_t cudaStatus =
-        cudaMalloc((void**)&d_Ao, num_elements * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    cuDoubleComplex* d_Bo;
-    cudaStatus =
-        cudaMalloc((void**)&d_Bo, num_elements * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    cuDoubleComplex* d_Co;
-    cudaStatus =
-        cudaMalloc((void**)&d_Co, num_elements * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    cudaStatus = cudaMemcpy(
-        d_Ao, h_Ao_in, n * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice
+    return decimation(
+        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, tf32, ncyc,
+        SGFACC
     );
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaMemcpy(
-        d_Bo, h_Bo_in, n * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice
-    );
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaMemcpy(
-        d_Co, h_Co_in, n * n * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice
-    );
-    assert(cudaStatus == cudaSuccess);
-
-    cublasStatus_t cublasStatus =
-        cublasSetPointerMode(hcublas, CUBLAS_POINTER_MODE_HOST);
-    assert(cublasStatus == cudaSuccess);
-
-    if(tf32 == 1) {
-        cublasStatus = cublasSetMathMode(hcublas, CUBLAS_TENSOR_OP_MATH);
-        assert(cublasStatus == cudaSuccess);
-    }
-
-    cuDoubleComplex* d_Ao_s;
-    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex* d_C1;
-    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex* d_Go;
-    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-    int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex* d_T;
-    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-    cuDoubleComplex* d_Self;
-    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-    int* d_info;
-    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    assert(cudaStatus == cudaSuccess);
-
-    int lwork;
-    cusolverStatus_t cusolverStatus =
-        cusolverDnZgetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
-    assert(cusolverStatus == cudaSuccess);
-    cuDoubleComplex* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    cublasStatus = cublasZcopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
-    assert(cublasStatus == cudaSuccess);
-
-    bool okCo = false;
-    for(int i1 = 1; i1 <= 300; i1++) {
-        *ncyc = i1;
-
-        initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
-
-        cublasStatus = cublasZcopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
-        assert(cublasStatus == cudaSuccess);
-
-        cusolverStatus = cusolverDnZgetrf(
-            hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
-        );
-        assert(cusolverStatus == cudaSuccess);
-        cusolverStatus = cusolverDnZgetrs(
-            hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
-        );
-        assert(cusolverStatus == cudaSuccess);
-
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Go, n, d_Co, n,
-            zero, d_T, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Co, n, d_T, n,
-            zero, d_C1, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        double summ;
-        cublasStatus = cublasDzasum(hcublas, n * n, d_C1, 1, &summ);
-        assert(cublasStatus == cudaSuccess);
-        //printf("loop it= %d , summ= %f \n ", i1, summ);
-
-        if(summ <= SGFACC) {
-            if(okCo) {
-                break;
-            } else {
-                okCo = true;
-            }
-        } else {
-            okCo = false;
-        }
-
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Bo, n, d_T, n,
-            zero, d_Self, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZaxpy(hcublas, n * n, mone, d_Self, 1, d_Ao_s, 1);
-        assert(cublasStatus == cudaSuccess);
-        cublasStatus = cublasZaxpy(hcublas, n * n, mone, d_Self, 1, d_Ao, 1);
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Go, n, d_Bo, n,
-            zero, d_T, n
-        );
-        assert(cublasStatus == cudaSuccess);
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, mone, d_Co, n, d_T, n,
-            one, d_Ao, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZcopy(hcublas, n * n, d_C1, 1, d_Co, 1);
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZgemm(
-            hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, one, d_Bo, n, d_T, n,
-            zero, d_C1, n
-        );
-        assert(cublasStatus == cudaSuccess);
-
-        cublasStatus = cublasZcopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
-        assert(cublasStatus == cudaSuccess);
-    }
-
-    initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
-    cublasStatus = cublasZcopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
-    assert(cublasStatus == cudaSuccess);
-    cusolverStatus =
-        cusolverDnZgetrf(hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info);
-    assert(cusolverStatus == cudaSuccess);
-    cusolverStatus = cusolverDnZgetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
-    );
-    assert(cusolverStatus == cudaSuccess);
-
-    cudaStatus = cudaMemcpy(
-        h_Go_out, d_Go, n * n * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost
-    );
-    assert(cudaStatus == cudaSuccess);
-
-    cudaStatus = cudaFree(d_pivot);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_info);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Ao);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Bo);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Co);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Go);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Ao_s);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_C1);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_T);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_Self);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_work);
-    assert(cudaStatus == cudaSuccess);
-
-    return cudaStatus;
 }
+
 
 extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
     cudaError_t cudaStatus;

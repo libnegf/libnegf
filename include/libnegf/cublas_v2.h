@@ -30,6 +30,36 @@
 
 namespace libnegf {
 
+cublasStatus_t cublasAsum(
+    cublasHandle_t handle, size_t n, const cuComplex* x, size_t incx,
+    float* result
+) {
+    return cublasScasum(handle, n, x, incx, result);
+}
+
+cublasStatus_t cublasAsum(
+    cublasHandle_t handle, size_t n, const cuDoubleComplex* x, size_t incx,
+    double* result
+) {
+    return cublasDzasum(handle, n, x, incx, result);
+}
+
+
+cublasStatus_t cublasAxpy(
+    cublasHandle_t handle, size_t n, const cuComplex* alpha, const cuComplex* x,
+    size_t incx, cuComplex* y, size_t incy
+) {
+    return cublasCaxpy(handle, n, alpha, x, incx, y, incy);
+}
+
+cublasStatus_t cublasAxpy(
+    cublasHandle_t handle, size_t n, const cuDoubleComplex* alpha,
+    const cuDoubleComplex* x, size_t incx, cuDoubleComplex* y, size_t incy
+) {
+    return cublasZaxpy(handle, n, alpha, x, incx, y, incy);
+}
+
+
 cublasStatus_t cublasCopy(
     cublasHandle_t handle, size_t n, const cuComplex* d_x, size_t incx,
     cuComplex* d_y, size_t incy
