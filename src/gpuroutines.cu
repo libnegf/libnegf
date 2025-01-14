@@ -660,9 +660,6 @@ int decimation(
     assert(h_Co_in);
     assert(tf32 == 0 || tf32 == 1);
     assert(ncyc);
-    assert(one);
-    assert(mone);
-    assert(zero);
     assert(SGFACC > 0.0);
 
     auto num_elements = n * n;
