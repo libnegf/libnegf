@@ -28,6 +28,8 @@
 /// This files contains C++ overloads of cuBLAS and cuSolver functions.
 
 
+namespace libnegf {
+
 cublasStatus_t cublasCopy(
     cublasHandle_t handle, size_t n, const cuComplex* d_x, size_t incx,
     cuComplex* d_y, size_t incy
@@ -194,3 +196,5 @@ cublasStatus_t cublasGemm(
         handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc
     );
 }
+
+} // namespace libnegf

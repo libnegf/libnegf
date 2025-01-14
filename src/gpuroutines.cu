@@ -333,17 +333,17 @@ int cu_multMat(
 
     cublasStatus_t err;
     if(dagger == 0) {
-        err = cublasGemm(
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, d_A, m, d_B, k,
             beta, d_C, m
         );
     } else if(dagger == 1) {
-        err = cublasGemm(
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, k, alpha, d_A, k, d_B, k,
             beta, d_C, m
         );
     } else if(dagger == 2) {
-        err = cublasGemm(
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, k, alpha, d_A, m, d_B, n,
             beta, d_C, m
         );
@@ -400,7 +400,7 @@ int inverse(
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
     // copy d_LU <- pdA
-    auto cublasStatus = cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
+    auto cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
     assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
     Number* d_work;
@@ -508,17 +508,17 @@ int cu_matsum(
 
     cublasStatus_t err;
     if(dagger == 0) {
-        err = cublasGeam(
+        err = libnegf::cublasGeam(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, m, n, alpha, d_A, m, beta, d_B,
             m, d_C, m
         );
     } else if(dagger == 1) {
-        err = cublasGeam(
+        err = libnegf::cublasGeam(
             hcublas, CUBLAS_OP_C, CUBLAS_OP_N, m, n, alpha, d_A, n, beta, d_B,
             m, d_C, m
         );
     } else if(dagger == 2) {
-        err = cublasGeam(
+        err = libnegf::cublasGeam(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_C, m, n, alpha, d_A, m, beta, d_B,
             n, d_C, m
         );
