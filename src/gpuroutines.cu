@@ -44,6 +44,16 @@ template<typename>
 struct get_real {};
 
 template<>
+struct get_real<float> {
+    using type = float;
+};
+
+template<>
+struct get_real<double> {
+    using type = double;
+};
+
+template<>
 struct get_real<cuComplex> {
     using type = float;
 };
@@ -108,40 +118,21 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
  */
 template<typename Number>
 __global__ void initKernel(Number* a, size_t nrow) {
+    using Real = typename get_real<Number>::type;
+
     assert(a);
 
     auto size = nrow * nrow;
     auto i = blockDim.x * blockIdx.x + threadIdx.x;
+    auto one = Number{Real{1}};
+    auto zero = Number{Real{0}};
 
     if(i < size) {
         if(i % (nrow + 1) == 0) {
-            a[i].x = 1.0;
-            a[i].y = 0.0;
+            a[i] = one;
         } else {
-            a[i].x = 0.0;
-            a[i].y = 0.0;
+            a[i] = zero;
         }
-    }
-}
-
-
-__global__ void DinitKernel(double* a, size_t nrow) {
-    assert(a);
-
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if(i < nrow) {
-        a[i] = 1.0;
-    }
-}
-
-__global__ void SinitKernel(float* a, size_t nrow) {
-    assert(a);
-
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if(i < nrow) {
-        a[i] = 1.0;
     }
 }
 
@@ -157,7 +148,7 @@ __global__ void SinitKernel(float* a, size_t nrow) {
  * (zero means ignore).
  */
 template<typename Number, typename Real = typename get_real<Number>::type>
-__device__ void
+__global__ void
 traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
     assert(a);
     assert(trace);
@@ -185,18 +176,6 @@ traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
             }
         }
     }
-}
-
-__global__ void CtraceKernel(
-    cuComplex* a, size_t nrow, float* trace, bool* mask, int mask_present
-) {
-    traceKernel(a, nrow, trace, mask, mask_present);
-}
-
-__global__ void ZtraceKernel(
-    cuDoubleComplex* a, size_t nrow, double* trace, bool* mask, int mask_present
-) {
-    traceKernel(a, nrow, trace, mask, mask_present);
 }
 
 
@@ -569,17 +548,17 @@ extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, size_t nrow) {
 }
 
 
-extern "C" float cu_Ctrace(
-    cublasHandle_t hcublas, void* d_A, size_t nrow, void* h_mask,
+template<typename Number, typename Real = typename get_real<Number>::type>
+Real trace(
+    cublasHandle_t hcublas, Number* d_A, size_t nrow, void* h_mask,
     int mask_present
 ) {
-    cuComplex* pdA = (cuComplex*)d_A;
     auto size = nrow * nrow;
     auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    float* d_work;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(float));
-    float* d_iden;
-    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(float));
+    Real* d_work;
+    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(Real));
+    Real* d_iden;
+    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(Real));
     assert(cudaStatus == cudaSuccess);
     bool* d_mask;
     cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
@@ -591,14 +570,14 @@ extern "C" float cu_Ctrace(
         assert(cudaStatus == cudaSuccess);
     }
 
-    SinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
-    CtraceKernel<<<num_blocks, BLOCK_SIZE>>>(
-        pdA, nrow, d_work, d_mask, mask_present
+    //initKernel<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
+    traceKernel<<<num_blocks, BLOCK_SIZE>>>(
+        d_A, nrow, d_work, d_mask, mask_present
     );
 
-    float result;
+    Real result;
     cublasStatus_t err =
-        cublasSdot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
+        libnegf::cublasDot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
     assert(err == CUBLAS_STATUS_SUCCESS);
 
     cudaStatus = cudaFree(d_work);
@@ -607,55 +586,22 @@ extern "C" float cu_Ctrace(
 
     return result;
 }
+
+extern "C" float cu_Ctrace(
+    cublasHandle_t hcublas, cuComplex* d_A, size_t nrow, void* h_mask,
+    int mask_present
+) {
+    return trace(hcublas, d_A, nrow, h_mask, mask_present);
+}
+
 
 extern "C" double cu_Ztrace(
-    cublasHandle_t hcublas, void* d_A, size_t nrow, void* h_mask,
+    cublasHandle_t hcublas, cuDoubleComplex* d_A, size_t nrow, void* h_mask,
     int mask_present
 ) {
-    assert(d_A);
-    assert(h_mask || mask_present == 0);
-    assert(mask_present == 0 || mask_present == 1);
-
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    double* d_work;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(double));
-    assert(cudaStatus == cudaSuccess);
-    double* d_iden;
-    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(double));
-    assert(cudaStatus == cudaSuccess);
-    bool* d_mask;
-    cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
-    assert(cudaStatus == cudaSuccess);
-    if(h_mask) {
-        cudaStatus = cudaMemcpy(
-            d_mask, h_mask, nrow * sizeof(bool), cudaMemcpyHostToDevice
-        );
-        assert(cudaStatus == cudaSuccess);
-    }
-
-    DinitKernel<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
-    assert(cudaGetLastError() == cudaSuccess);
-    ZtraceKernel<<<num_blocks, BLOCK_SIZE>>>(
-        pdA, nrow, d_work, d_mask, mask_present
-    );
-    assert(cudaGetLastError() == cudaSuccess);
-
-    double result;
-    cublasStatus_t err =
-        cublasDdot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
-    assert(err == CUBLAS_STATUS_SUCCESS);
-
-    cudaStatus = cudaFree(d_work);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_iden);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_mask);
-    assert(cudaStatus == cudaSuccess);
-
-    return result;
+    return trace(hcublas, d_A, nrow, h_mask, mask_present);
 }
+
 
 extern "C" int cu_Cmatcopy(
     cublasHandle_t hcublas, const cuComplex* d_A, cuComplex* d_B,
