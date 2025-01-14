@@ -24,7 +24,24 @@
 
 #include <cublas_v2.h>
 
+
 /// This files contains C++ overloads of cuBLAS and cuSolver functions.
+
+
+cublasStatus_t cublasCopy(
+    cublasHandle_t handle, size_t n, const cuComplex* d_x, size_t incx,
+    cuComplex* d_y, size_t incy
+) {
+    return cublasCcopy(handle, n, d_x, incx, d_y, incy);
+}
+
+cublasStatus_t cublasCopy(
+    cublasHandle_t handle, size_t n, const cuDoubleComplex* d_x, size_t incx,
+    cuDoubleComplex* d_y, size_t incy
+) {
+    return cublasZcopy(handle, n, d_x, incx, d_y, incy);
+}
+
 
 // cublasXdot
 

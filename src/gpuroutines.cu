@@ -21,7 +21,6 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <cusolverDn.h>
 
 #include <cassert>
 #include <climits>
@@ -31,6 +30,7 @@
 #include <cstdlib>
 
 #include <libnegf/cublas_v2.h>
+#include <libnegf/cusolverDn.h>
 
 
 constexpr auto BLOCK_SIZE = std::size_t{1024};
@@ -373,25 +373,24 @@ extern "C" int cu_ZmultMat(
 }
 
 
-extern "C" int cu_Cinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, size_t n
+template<typename Number>
+int inverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* d_A,
+    Number* d_Ainv, size_t n
 ) {
     assert(hcusolver);
     assert(d_A);
     assert(d_Ainv);
 
     // compute buffer size and prep . memory
-    cuComplex* pdA = (cuComplex*)d_A;
     int lwork;
     cusolverStatus_t cusolverStatus =
-        cusolverDnCgetrf_bufferSize(hcusolver, n, n, pdA, n, &lwork);
+        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
     assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
 
     // prepare memory on the device
-    cuComplex* d_LU;
-    cudaError_t cudaStatus =
-        cudaMalloc((void**)&d_LU, n * n * sizeof(cuComplex));
+    Number* d_LU;
+    cudaError_t cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
     int* d_pivot;
@@ -401,23 +400,23 @@ extern "C" int cu_Cinverse(
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     assert(cudaStatus == cudaSuccess);
     // copy d_LU <- pdA
-    cublasStatus_t cublasStatus = cublasCcopy(hcublas, n * n, pdA, 1, d_LU, 1);
+    auto cublasStatus = cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
     assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
-    cuComplex* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuComplex));
+    Number* d_work;
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
     assert(cudaStatus == cudaSuccess);
 
     // LU factorization of d_A , with partial pivoting and row
     // interchanges ; row i is interchanged with row d_pivot ( i );
-    cusolverStatus =
-        cusolverDnCgetrf(hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info);
+    cusolverStatus = libnegf::cusolverDngetrf(
+        hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
+    );
 
     // use the LU factorization to solve the system d_LU * x = d_Ainv ;
     // the solution overwrites d_Ainv
-    cuComplex* pdAinv = (cuComplex*)d_Ainv;
-    cusolverStatus = cusolverDnCgetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, pdAinv, n, d_info
+    cusolverStatus = libnegf::cusolverDngetrs(
+        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
     );
     assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
 
@@ -439,70 +438,18 @@ extern "C" int cu_Cinverse(
     return cudaStatus;
 }
 
-extern "C" int cu_Zinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, size_t n
+extern "C" int cu_Cinverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* d_A,
+    cuComplex* d_Ainv, size_t n
 ) {
-    assert(hcusolver);
-    assert(d_A);
-    assert(d_Ainv);
+    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
+}
 
-    // compute buffer size and prep . memory
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    int lwork;
-    cusolverStatus_t cusolverStatus =
-        cusolverDnZgetrf_bufferSize(hcusolver, n, n, pdA, n, &lwork);
-    assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    // prepare memory on the device
-    cuDoubleComplex* d_LU;
-    cudaError_t cudaStatus =
-        cudaMalloc((void**)&d_LU, n * n * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    assert(cudaStatus == cudaSuccess);
-    int* d_info;
-    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    assert(cudaStatus == cudaSuccess);
-    // copy d_LU <- pdA
-    cublasStatus_t cublasStatus = cublasZcopy(hcublas, n * n, pdA, 1, d_LU, 1);
-    assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    cuDoubleComplex* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(cuDoubleComplex));
-    assert(cudaStatus == cudaSuccess);
-
-    // LU factorization of d_A , with partial pivoting and row
-    // interchanges ; row i is interchanged with row d_pivot ( i );
-    cusolverStatus =
-        cusolverDnZgetrf(hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info);
-
-    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
-    // the solution overwrites d_Ainv
-    cuDoubleComplex* pdAinv = (cuDoubleComplex*)d_Ainv;
-    cusolverStatus = cusolverDnZgetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, pdAinv, n, d_info
-    );
-    assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    int info_gpu;
-    // d_info -> info_gpu
-    cudaStatus =
-        cudaMemcpy(&info_gpu, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    assert(cudaStatus == cudaSuccess);
-
-    cudaStatus = cudaFree(d_pivot);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_info);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_work);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_LU);
-    assert(cudaStatus == cudaSuccess);
-
-    return cudaStatus;
+extern "C" int cu_Zinverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuDoubleComplex* d_A,
+    cuDoubleComplex* d_Ainv, size_t n
+) {
+    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
 }
 
 template<typename Number>
@@ -553,11 +500,11 @@ int cu_matsum(
     const Number* d_A, const Number* beta, const Number* d_B, Number* d_C,
     int dagger
 ) {
-	assert(d_A);
-	assert(d_B);
-	assert(d_C);
-	assert(d_A != d_C || dagger == 0 || dagger == 2);
-	assert(d_B != d_C || dagger == 1);
+    assert(d_A);
+    assert(d_B);
+    assert(d_C);
+    assert(d_A != d_C || dagger == 0 || dagger == 2);
+    assert(d_B != d_C || dagger == 1);
 
     cublasStatus_t err;
     if(dagger == 0) {
