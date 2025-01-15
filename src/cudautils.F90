@@ -423,8 +423,7 @@ end interface
      type(${MTYPE}$), intent(in) :: A
 
      integer :: err
-     err = cu_createMat(A%d_addr, &
-                      & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
+     err = cu_createMat(A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
    end subroutine createGPU_${KIND}$
 #:enddef createGPU_template
 
@@ -434,8 +433,7 @@ end interface
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
      !call createGPU(A)
-     err = cu_copyMatH2D(c_loc(A%val), A%d_addr, &
-                       & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
+     err = cu_copyMatH2D(c_loc(A%val), A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
 
@@ -443,8 +441,7 @@ end interface
    subroutine copyFromGPU_${KIND}$(A)
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
-     err = cu_copyMatD2H(c_loc(A%val), A%d_addr, &
-                       & size(A%val,1,kind=c_size_t)*size(A%val,2,kind=c_size_t)*${CUDATYPE}$)
+     err = cu_copyMatD2H(c_loc(A%val), A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
    end subroutine copyFromGPU_${KIND}$
 #:enddef copyFromGPU_template
 
