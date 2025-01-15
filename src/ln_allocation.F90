@@ -23,12 +23,13 @@
 !#:set ARRAYLOG = 1
 
 module ln_allocation
+  use iso_c_binding, only : c_int64_t
   use ln_precision
   implicit none
   private
 
   integer, public :: iolog
-  integer(long) :: alloc_mem, peak_mem
+  integer(c_int64_t) :: alloc_mem, peak_mem
 
   public :: log_allocate, log_deallocate
   public :: log_allocatep, log_deallocatep
@@ -95,7 +96,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -123,7 +124,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -149,7 +150,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -176,7 +177,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -201,7 +202,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -228,7 +229,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -254,7 +255,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -279,7 +280,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -304,7 +305,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -329,7 +330,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -354,7 +355,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -382,7 +383,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -416,7 +417,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -450,7 +451,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -484,7 +485,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -518,7 +519,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -550,7 +551,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -575,7 +576,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -603,7 +604,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -628,7 +629,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -653,7 +654,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*2*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*2*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -678,7 +679,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*8
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*8
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -705,7 +706,7 @@ contains
        if (ierr.ne.0) then
           call allocError()
        else
-          alloc_mem= alloc_mem + size(array, kind=long)*4
+          alloc_mem= alloc_mem + size(array, kind=c_int64_t)*4
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
@@ -723,7 +724,7 @@ contains
     logical, DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -739,7 +740,7 @@ contains
     integer, DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -753,7 +754,7 @@ contains
     integer, DIMENSION(:,:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -767,7 +768,7 @@ contains
     real(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -782,7 +783,7 @@ contains
     real(dp), DIMENSION(:,:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -796,7 +797,7 @@ contains
     complex(kind=dp), DIMENSION(:), POINTER :: array
 
     if (associated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -810,7 +811,7 @@ contains
     logical, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -824,7 +825,7 @@ contains
     integer, DIMENSION(:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -838,7 +839,7 @@ contains
     real(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -853,7 +854,7 @@ contains
     real(kind=sp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -868,7 +869,7 @@ contains
     complex(kind=sp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -883,7 +884,7 @@ contains
     complex(kind=dp), DIMENSION(:), allocatable :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -899,7 +900,7 @@ contains
     character(len=*), optional :: tag
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("ARRAYLOG")
           if (present(tag)) then   
@@ -921,7 +922,7 @@ contains
     character(len=*), optional :: tag
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("ARRAYLOG")
           if (present(tag)) then   
@@ -943,7 +944,7 @@ contains
     character(len=*), optional :: tag
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("ARRAYLOG")
           if (present(tag)) then   
@@ -965,7 +966,7 @@ contains
     character(len=*), optional :: tag
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*8
        deallocate(array)
 #:if defined("ARRAYLOG")
           if (present(tag)) then   
@@ -987,7 +988,7 @@ contains
     character(len=*), optional :: tag
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*4
        deallocate(array)
 #:if defined("ARRAYLOG")
           if (present(tag)) then   
@@ -1008,7 +1009,7 @@ contains
     complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1023,7 +1024,7 @@ contains
     integer, DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1037,7 +1038,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1051,7 +1052,7 @@ contains
     real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*4
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1066,7 +1067,7 @@ contains
     complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*2*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1080,7 +1081,7 @@ contains
     real(kind=dp), DIMENSION(:,:,:,:), ALLOCATABLE :: array
 
     if (allocated(array)) then
-       alloc_mem= alloc_mem - size(array, kind=long)*8
+       alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("MEMLOG")
        call writeMemLog
@@ -1097,7 +1098,7 @@ contains
   end subroutine resetMemLog
   ! ------------------------------------------------------------
   subroutine getMem(mem)
-    integer(long) :: mem
+    integer(c_int64_t) :: mem
 
     mem = alloc_mem
   end subroutine getMem
@@ -1156,7 +1157,7 @@ contains
   subroutine memstr(mem,dec,str)
 
     character(3) :: str
-    integer(long) :: mem
+    integer(c_int64_t) :: mem
     integer :: dec
 
     if(abs(mem).lt.1000) then

@@ -1,9 +1,13 @@
 AlignAfterOpenBracket: BlockIndent
+AllowShortFunctionsOnASingleLine: InlineOnly
+AlwaysBreakTemplateDeclarations: true
 ColumnLimit: 80
 CommentPragmas: '^[^ ]'
 IncludeBlocks: Preserve
 IndentWidth: 4
+MaxEmptyLinesToKeep: 2
 PointerAlignment: Left
+SpaceAfterTemplateKeyword: false
 SpaceBeforeParens: Custom
 SpaceBeforeParensOptions:
   AfterControlStatements: false
