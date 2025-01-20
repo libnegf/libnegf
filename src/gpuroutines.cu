@@ -451,20 +451,6 @@ extern "C" int cu_Cinverse(
     return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
 }
 
-
-extern "C" int cu_Cinverse_async(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, int n
-) {
-    assert(hcusolver);
-    assert(d_A);
-    assert(d_Ainv);
-    assert(n >= 0);
-
-    return -1;
-}
-
-
 extern "C" int cu_Zinverse(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuDoubleComplex* d_A,
     cuDoubleComplex* d_Ainv, size_t n
@@ -549,76 +535,6 @@ int cu_matsum(
 
     return err;
 }
-
-
-extern "C" int cu_Zinverse_async(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, void* d_A,
-    void* d_Ainv, int n
-) {
-    assert(hcusolver);
-    assert(d_A);
-    assert(d_Ainv);
-    assert(n >= 0);
-
-    // compute buffer size and prep . memory
-    cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
-    int lwork;
-    cusolverStatus_t cusolverStatus =
-        cusolverDnZgetrf_bufferSize(hcusolver, n, n, pdA, n, &lwork);
-    assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    // prepare memory on the device
-    cuDoubleComplex* d_LU;
-    cudaError_t cudaStatus =
-        cudaMallocAsync((void**)&d_LU, n * n * sizeof(cuDoubleComplex), 0);
-    assert(cudaStatus == cudaSuccess);
-
-    int* d_pivot;
-    cudaStatus = cudaMallocAsync((void**)&d_pivot, n * sizeof(int), 0);
-    assert(cudaStatus == cudaSuccess);
-    int* d_info;
-    cudaStatus = cudaMallocAsync((void**)&d_info, sizeof(int), 0);
-    assert(cudaStatus == cudaSuccess);
-    // copy d_LU <- pdA
-    cublasStatus_t cublasStatus = cublasZcopy(hcublas, n * n, pdA, 1, d_LU, 1);
-    assert(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    cuDoubleComplex* d_work;
-    cudaStatus = cudaMallocAsync(
-        (void**)&d_work, lwork * sizeof(cuDoubleComplex), 0);
-    assert(cudaStatus == cudaSuccess);
-
-    // LU factorization of d_A , with partial pivoting and row
-    // interchanges ; row i is interchanged with row d_pivot ( i );
-    cusolverStatus =
-        cusolverDnZgetrf(hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info);
-
-    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
-    // the solution overwrites d_Ainv
-    cuDoubleComplex* pdAinv = (cuDoubleComplex*)d_Ainv;
-    cusolverStatus = cusolverDnZgetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, pdAinv, n, d_info
-    );
-    assert(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    int info_gpu;
-    // d_info -> info_gpu
-    cudaStatus =
-        cudaMemcpyAsync(&info_gpu, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    assert(cudaStatus == cudaSuccess);
-
-    cudaStatus = cudaFreeAsync(d_pivot, 0);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFreeAsync(d_info, 0);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFreeAsync(d_work, 0);
-    assert(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFreeAsync(d_LU, 0);
-    assert(cudaStatus == cudaSuccess);
-
-    return cudaStatus;
-}
-
 
 extern "C" int cu_Cmatsum(
     cublasHandle_t hcublas, size_t m, size_t n, const cuComplex* alpha,
