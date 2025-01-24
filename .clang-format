@@ -1,4 +1,5 @@
 AlignAfterOpenBracket: BlockIndent
+AlignEscapedNewlines: DontAlign
 AllowShortFunctionsOnASingleLine: InlineOnly
 AlwaysBreakTemplateDeclarations: true
 ColumnLimit: 80
