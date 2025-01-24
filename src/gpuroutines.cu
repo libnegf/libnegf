@@ -332,7 +332,7 @@ extern "C" int cu_cublasFinalize(cublasHandle_t hcublas) {
 extern "C" int cu_cusolverInit(cusolverDnHandle_t* hcusolver) {
     ENFORCE(hcusolver);
     cusolverStatus_t err = cusolverDnCreate(hcusolver);
-    ENFORCE(err == cudaSuccess);
+    ENFORCE(err == CUSOLVER_STATUS_SUCCESS);
     if(err != 0) {
         printf("cusolver create error: %d\n", err);
     }
@@ -342,7 +342,7 @@ extern "C" int cu_cusolverInit(cusolverDnHandle_t* hcusolver) {
 
 extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
     cusolverStatus_t err = cusolverDnDestroy(hcusolver);
-    ENFORCE(err == cudaSuccess);
+    ENFORCE(err == CUSOLVER_STATUS_SUCCESS);
     return err;
 }
 
@@ -765,11 +765,11 @@ int decimation(
 
     cublasStatus_t cublasStatus =
         cublasSetPointerMode(hcublas, CUBLAS_POINTER_MODE_HOST);
-    ENFORCE(cublasStatus == cudaSuccess);
+    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
     if(tf32 == 1) {
         cublasStatus = cublasSetMathMode(hcublas, CUBLAS_TENSOR_OP_MATH);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
     }
 
     Number* d_Ao_s;
@@ -797,13 +797,13 @@ int decimation(
     int lwork;
     cusolverStatus_t cusolverStatus =
         libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
-    ENFORCE(cusolverStatus == cudaSuccess);
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     Number* d_work;
     cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
     ENFORCE(cudaStatus == cudaSuccess);
 
     cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
-    ENFORCE(cublasStatus == cudaSuccess);
+    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
     bool okCo = false;
     for(int i1 = 1; i1 <= 300; i1++) {
@@ -812,32 +812,32 @@ int decimation(
         initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
         cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cusolverStatus = libnegf::cusolverDngetrf(
             hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
         );
-        ENFORCE(cusolverStatus == cudaSuccess);
+        ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
         cusolverStatus = libnegf::cusolverDngetrs(
             hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
         );
-        ENFORCE(cusolverStatus == cudaSuccess);
+        ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Co, n,
             &zero, d_T, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Co, n, d_T, n,
             &zero, d_C1, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         Real summ;
         cublasStatus = libnegf::cublasAsum(hcublas, n * n, d_C1, 1, &summ);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
         // printf("loop it= %d , summ= %f \n ", i1, summ);
 
         if(summ <= SGFACC) {
@@ -854,50 +854,50 @@ int decimation(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
             &zero, d_Self, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus =
             libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao_s, 1);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
         cublasStatus =
             libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao, 1);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Bo, n,
             &zero, d_T, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &mone, d_Co, n, d_T, n,
             &one, d_Ao, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Co, 1);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
             &zero, d_C1, n
         );
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
         cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
-        ENFORCE(cublasStatus == cudaSuccess);
+        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
     }
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
     cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
-    ENFORCE(cublasStatus == cudaSuccess);
+    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
     cusolverStatus = libnegf::cusolverDngetrf(
         hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
     );
-    ENFORCE(cusolverStatus == cudaSuccess);
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     cusolverStatus = libnegf::cusolverDngetrs(
         hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
     );
-    ENFORCE(cusolverStatus == cudaSuccess);
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
 
     cudaStatus = cudaMemcpy(
         h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
