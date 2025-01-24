@@ -17,6 +17,7 @@
 !!  License along with libNEGF.  If not, see                                !
 !!  <http://www.gnu.org/licenses/>.                                         !
 !!--------------------------------------------------------------------------!
+#:include "assert.fypp"
 #:include "types.fypp"
 
 
@@ -33,11 +34,16 @@ module cudautils
    private
 
    public :: createGPU
+   public :: createGPU_async
+   public :: createGPU_only_async
    public :: copyToGPU
+   public :: copyToGPU_async
    public :: copyFromGPU
    public :: deleteGPU
+   public :: deleteGPU_async
    public :: createAll
    public :: destroyAll
+   public :: waitForGPU
 
    public :: copy_trid_toGPU
    public :: copy_trid_toHOST
@@ -74,11 +80,29 @@ module cudautils
    #:endfor
    end interface createGPU
 
+   interface createGPU_async
+   #:for PREC in PRECISIONS
+      module procedure createGPU_async_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface createGPU_async
+
+   interface createGPU_only_async
+   #:for PREC in PRECISIONS
+      module procedure createGPU_only_async_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface createGPU_only_async
+
    interface deleteGPU
    #:for PREC in PRECISIONS
       module procedure deleteGPU_${PREC_ABBREVS[PREC]}$
    #:endfor
    end interface deleteGPU
+
+   interface deleteGPU_async
+   #:for PREC in PRECISIONS
+      module procedure deleteGPU_async_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface deleteGPU_async
 
    interface createAll
    #:for PREC in PRECISIONS
@@ -97,6 +121,12 @@ module cudautils
       module procedure copyToGPU_${PREC_ABBREVS[PREC]}$
    #:endfor
    end interface copyToGPU
+
+   interface copyToGPU_async
+   #:for PREC in PRECISIONS
+      module procedure copyToGPU_async_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface copyToGPU_async
 
    interface copyFromGPU
    #:for PREC in PRECISIONS
@@ -226,6 +256,16 @@ module cudautils
        type(cusolverDnHandle), value :: hcusolver
      end function cu_cusolverFinalize
      
+     integer(c_int) function cudaDeviceSynchronize() bind(C, name='cudaDeviceSynchronize')
+       use iso_c_binding
+     end function cudaDeviceSynchronize
+
+     integer(c_int) function cu_cudaFreeAsync(d_A) bind(C, name='cu_cudaFreeAsync')
+       use iso_c_binding
+       ! not by value since pointer has to be initialized, hence pass its reference
+       type(c_ptr) :: d_A
+     end function cu_cudaFreeAsync
+
      integer(c_int) function cu_cudaGetDeviceCount(count) bind(C, name='cu_cudaGetDeviceCount')
        use iso_c_binding
        integer(c_int) :: count
@@ -237,6 +277,13 @@ module cudautils
        integer(c_int) :: device
        type(c_ptr) :: prop     
      end function cu_cudaGetDeviceProperties
+
+     integer(c_int) function cu_cudaMallocAsync(d_A, siz) bind(C, name='cu_cudaMallocAsync')
+       use iso_c_binding
+       ! not by value since pointer has to be initialized, hence pass its reference
+       type(c_ptr) :: d_A
+       integer(c_size_t), value :: siz
+     end function cu_cudaMallocAsync
 
      integer(c_int) function cu_cudaSetDevice(device) bind(C, name='cu_cudaSetDevice')
        use iso_c_binding
@@ -263,6 +310,13 @@ module cudautils
        type(c_ptr), value :: d_A
        integer(c_size_t), value :: siz
      end function cu_copyMatH2D
+
+     integer(c_int) function cu_copyMatH2D_async(h_A, d_A, siz) bind(C, name='cu_copyMatH2D_async')
+       use iso_c_binding
+       type(c_ptr), value :: h_A
+       type(c_ptr), value :: d_A
+       integer(c_size_t), value :: siz
+     end function cu_copyMatH2D_async
 
      integer(c_int) function cu_deleteMat(d_A) bind(C, name='cu_deleteMat')
        use iso_c_binding
@@ -415,6 +469,11 @@ end interface
      err = cu_meminfo(freemem, totalmem)
    end subroutine getDevMemInfo
 
+   subroutine waitForGPU()
+     integer :: err
+     err = cudaDeviceSynchronize()
+     @:ASSERT(err == 0)
+   end subroutine waitForGPU
 
 
 !~-~-~-~-~-~-~-~-~-~-~-~ DATA MOVEMENT ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
@@ -427,6 +486,29 @@ end interface
    end subroutine createGPU_${KIND}$
 #:enddef createGPU_template
 
+#:def createGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+   subroutine createGPU_async_${KIND}$(A)
+     use iso_c_binding, only: c_size_t
+     type(${MTYPE}$), intent(in) :: A
+     integer :: err
+     err = cu_cudaMallocAsync(A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
+   end subroutine createGPU_async_${KIND}$
+#:enddef createGPU_async_template
+
+#:def createGPU_only_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+   subroutine createGPU_only_async_${KIND}$(A, m, n)
+     use iso_c_binding, only: c_size_t
+     type(${MTYPE}$), intent(inout) :: A
+     integer, intent(in) :: m, n
+
+     integer :: err
+     A%nrow = m
+     A%ncol = n
+     err = cu_cudaMallocAsync(A%d_addr, int(m, kind=c_size_t) * n *${CUDATYPE}$)
+     @:ASSERT(err == 0)
+   end subroutine createGPU_only_async_${KIND}$
+#:enddef createGPU_only_async_template
+
 
 #:def copyToGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
    subroutine copyToGPU_${KIND}$(A)
@@ -436,6 +518,17 @@ end interface
      err = cu_copyMatH2D(c_loc(A%val), A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
+
+
+#:def copyToGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+   subroutine copyToGPU_async_${KIND}$(A)
+     use iso_c_binding, only: c_size_t
+     type(${MTYPE}$), intent(in), target :: A
+     integer :: err
+     err = cu_copyMatH2D_async(c_loc(A%val), A%d_addr, size(A%val,kind=c_size_t)*${CUDATYPE}$)
+   end subroutine copyToGPU_async_${KIND}$
+#:enddef copyToGPU_async_template
+
 
 #:def copyFromGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
    subroutine copyFromGPU_${KIND}$(A)
@@ -452,6 +545,15 @@ end interface
      err = cu_deleteMat(A%d_addr)
    end subroutine deleteGPU_${KIND}$
 #:enddef deleteGPU_template
+
+#:def deleteGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+   subroutine deleteGPU_async_${KIND}$(A)
+     type(${MTYPE}$), intent(in) :: A
+     integer :: err
+     err = cu_cudaFreeAsync(A%d_addr)
+     @:ASSERT(err == 0)
+   end subroutine deleteGPU_async_${KIND}$
+#:enddef deleteGPU_async_template
 
 #:def createAll_template(KIND, CTYPE, MTYPE, CUDATYPE)
    subroutine createAll_${KIND}$(A, nrow, ncol, str)
@@ -803,11 +905,19 @@ end interface
 
      $:createGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
+     $:createGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+
+     $:createGPU_only_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
+
      $:copyToGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
+
+     $:copyToGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:copyFromGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:deleteGPU_template(KIND, CTYPE, MTYPE, CUDATYPE)
+
+     $:deleteGPU_async_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
      $:createAll_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
