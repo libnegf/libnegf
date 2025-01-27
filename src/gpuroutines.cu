@@ -840,6 +840,8 @@ int decimation(
         ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
         // printf("loop it= %d , summ= %f \n ", i1, summ);
 
+        // summ is stored in host memory => synchronize before reading it
+        cudaDeviceSynchronize();
         if(summ <= SGFACC) {
             if(okCo) {
                 break;
