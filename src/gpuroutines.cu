@@ -805,8 +805,9 @@ int decimation(
     cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
     ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
 
+    constexpr auto MAX_NUM_ITERATIONS = 300;
     bool okCo = false;
-    for(int i1 = 1; i1 <= 300; i1++) {
+    for(int i1 = 1; i1 <= MAX_NUM_ITERATIONS; i1++) {
         *ncyc = i1;
 
         initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
@@ -888,6 +889,8 @@ int decimation(
         cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
         ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
     }
+
+    ENFORCE(*ncyc < MAX_NUM_ITERATIONS);
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
     cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
