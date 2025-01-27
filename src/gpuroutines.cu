@@ -60,6 +60,27 @@
 #endif
 
 
+#define LIBNEGF_CHECK_INFO(info_var) \
+    do { \
+        check_info<<<1, 1>>>(__FILE__, __LINE__, info_var); \
+    } while(false)
+
+
+/// Check if the preceeding BLAS-style routine terminated successfully.
+__global__ void check_info(const char* file, unsigned line, int* d_info) {
+    if(!d_info) {
+        std::printf("%s:%u: info parameter is NULL\n", file, line);
+        __trap();
+    }
+    if(d_info && *d_info != 0) {
+        std::printf(
+            "%s:%u: got info=%d, expected info=0\n", file, line, *d_info
+        );
+        __trap();
+    }
+}
+
+
 constexpr auto BLOCK_SIZE = std::size_t{1024};
 
 
@@ -458,6 +479,8 @@ int inverse(
     cusolverStatus = libnegf::cusolverDngetrf(
         hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
     );
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
 
     // use the LU factorization to solve the system d_LU * x = d_Ainv ;
     // the solution overwrites d_Ainv
@@ -465,12 +488,7 @@ int inverse(
         hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
     );
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    int info_gpu;
-    // d_info -> info_gpu
-    cudaStatus =
-        cudaMemcpy(&info_gpu, d_info, sizeof(int), cudaMemcpyDeviceToHost);
-    ENFORCE(cudaStatus == cudaSuccess);
+    LIBNEGF_CHECK_INFO(d_info);
 
     cudaStatus = cudaFree(d_pivot);
     ENFORCE(cudaStatus == cudaSuccess);
@@ -819,10 +837,12 @@ int decimation(
             hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
         );
         ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+        LIBNEGF_CHECK_INFO(d_info);
         cusolverStatus = libnegf::cusolverDngetrs(
             hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
         );
         ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+        LIBNEGF_CHECK_INFO(d_info);
 
         cublasStatus = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Co, n,
@@ -899,10 +919,12 @@ int decimation(
         hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
     );
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
     cusolverStatus = libnegf::cusolverDngetrs(
         hcusolver, CUBLAS_OP_N, n, n, d_Self, n, d_pivot, d_Go, n, d_info
     );
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
 
     cudaStatus = cudaMemcpy(
         h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
