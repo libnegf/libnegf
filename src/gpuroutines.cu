@@ -983,8 +983,8 @@ extern "C" int cu_Zdecimation(
 
 
 extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
-    cudaError_t cudaStatus;
-    cudaStatus = cudaDeviceSynchronize();
+    auto cudaStatus = cudaDeviceSynchronize();
+    ENFORCE(cudaStatus == cudaSuccess);
     cudaStatus = cudaMemGetInfo(freemem, totalmem);
     ENFORCE(cudaStatus == cudaSuccess);
     return cudaStatus;
