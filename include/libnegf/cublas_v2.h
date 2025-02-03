@@ -19,6 +19,7 @@
  *!!--------------------------------------------------------------------------!
  */
 
+#undef NDEBUG
 #include <cassert>
 #include <climits>
 
@@ -34,6 +35,8 @@ cublasStatus_t cublasAsum(
     cublasHandle_t handle, size_t n, const cuComplex* x, size_t incx,
     float* result
 ) {
+    assert(n <= INT_MAX);
+
     return cublasScasum(handle, n, x, incx, result);
 }
 
@@ -41,6 +44,8 @@ cublasStatus_t cublasAsum(
     cublasHandle_t handle, size_t n, const cuDoubleComplex* x, size_t incx,
     double* result
 ) {
+    assert(n <= INT_MAX);
+
     return cublasDzasum(handle, n, x, incx, result);
 }
 
@@ -49,6 +54,11 @@ cublasStatus_t cublasAxpy(
     cublasHandle_t handle, size_t n, const cuComplex* alpha, const cuComplex* x,
     size_t incx, cuComplex* y, size_t incy
 ) {
+    assert(n <= INT_MAX);
+    assert(alpha);
+    assert(x);
+    assert(y);
+
     return cublasCaxpy(handle, n, alpha, x, incx, y, incy);
 }
 
@@ -56,6 +66,11 @@ cublasStatus_t cublasAxpy(
     cublasHandle_t handle, size_t n, const cuDoubleComplex* alpha,
     const cuDoubleComplex* x, size_t incx, cuDoubleComplex* y, size_t incy
 ) {
+    assert(n <= INT_MAX);
+    assert(alpha);
+    assert(x);
+    assert(y);
+
     return cublasZaxpy(handle, n, alpha, x, incx, y, incy);
 }
 
@@ -64,6 +79,10 @@ cublasStatus_t cublasCopy(
     cublasHandle_t handle, size_t n, const cuComplex* d_x, size_t incx,
     cuComplex* d_y, size_t incy
 ) {
+    assert(n <= INT_MAX);
+    assert(d_x);
+    assert(d_y);
+
     return cublasCcopy(handle, n, d_x, incx, d_y, incy);
 }
 
@@ -71,6 +90,10 @@ cublasStatus_t cublasCopy(
     cublasHandle_t handle, size_t n, const cuDoubleComplex* d_x, size_t incx,
     cuDoubleComplex* d_y, size_t incy
 ) {
+    assert(n <= INT_MAX);
+    assert(d_x);
+    assert(d_y);
+
     return cublasZcopy(handle, n, d_x, incx, d_y, incy);
 }
 
@@ -81,6 +104,11 @@ cublasStatus_t cublasDot(
     cublasHandle_t handle, size_t n, const float* x, size_t incx,
     const float* y, size_t incy, float* result
 ) {
+    assert(n);
+    assert(x);
+    assert(y);
+    assert(result);
+
     return cublasSdot(handle, n, x, incx, y, incy, result);
 }
 
@@ -88,6 +116,11 @@ cublasStatus_t cublasDot(
     cublasHandle_t handle, size_t n, const double* x, size_t incx,
     const double* y, size_t incy, double* result
 ) {
+    assert(n);
+    assert(x);
+    assert(y);
+    assert(result);
+
     return cublasDdot(handle, n, x, incx, y, incy, result);
 }
 

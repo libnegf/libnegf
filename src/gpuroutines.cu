@@ -29,6 +29,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <type_traits>
+
 #include <libnegf/cublas_v2.h>
 #include <libnegf/cusolverDn.h>
 
@@ -133,6 +135,20 @@ __global__ void initKernel(Number* a, size_t nrow) {
         } else {
             a[i] = zero;
         }
+    }
+}
+
+
+template<typename Number>
+__global__ void initArrayWithOnes(Number* a, size_t nrow) {
+    static_assert(std::is_same_v<Number, typename get_real<Number>::type>);
+
+    assert(a);
+
+    auto i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if(i < nrow) {
+        a[i] = Number{1};
     }
 }
 
@@ -597,7 +613,7 @@ Real trace(
         assert(cudaStatus == cudaSuccess);
     }
 
-    //initKernel<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
+    initArrayWithOnes<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
     traceKernel<<<num_blocks, BLOCK_SIZE>>>(
         d_A, nrow, d_work, d_mask, mask_present
     );
