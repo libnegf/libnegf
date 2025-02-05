@@ -40,9 +40,9 @@ module mpi_globals
 
   contains
 
-    ! Purpose: 
-    ! Set the global variables 'numprocs' and proc 'id' 
-    ! within the energy communicator    
+    ! Purpose:
+    ! Set the global variables 'numprocs' and proc 'id'
+    ! within the energy communicator
     subroutine negf_mpi_init(energyComm, ioProc)
       type(mpifx_comm) :: energyComm
       logical, optional :: ioProc
@@ -94,6 +94,8 @@ module mpi_globals
       integer :: mpierr
 
       if (mod(inComm%size,nk) /=0 ) then
+        print*, 'libNEGF MPI cartesian grid initialization error'
+        print*, 'Communicator size: ',inComm%size,'k-points: ',nk
         error stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
       end if
 

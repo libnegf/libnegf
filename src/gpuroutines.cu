@@ -282,6 +282,12 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
     return err;
 }
 
+extern "C" int cu_cudaGetDevice(int* device) {
+    cudaError_t err = cudaGetDevice(device);
+    assert(err == cudaSuccess);
+    return err;
+}
+
 extern "C" int cu_cudaSetDevice(int count) {
     cudaError_t err = cudaSetDevice(count);
     assert(err == cudaSuccess);

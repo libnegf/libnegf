@@ -162,6 +162,9 @@ module lib_param
 #:if defined("GPU")
    type(cublasHandle) :: hcublas
    type(cusolverDnHandle) :: hcusolver
+   integer :: devnum            ! Device Number
+   integer(C_SIZE_T) :: freemem   ! Amount of free mem on GPU
+   integer(C_SIZE_T) :: totalmem  ! Total memory on GPU
 #:endif
     integer  :: ReadoldDM_SGFs    ! 0: Read 1: compute 2: comp & save
     integer  :: ReadoldT_SGFs     ! 0: Read 1: compute 2: comp & save
@@ -244,7 +247,7 @@ module lib_param
     !Bulk contact density calculation
     logical :: bulk_cont_density                    ! Flag to trigger the calculation
     type(z_DNS) :: cont_bulkG(MAXNCONT)             ! Collection of contact bulk Green's functions
-    type(complArray) :: bulk_diags(MAXNCONT)        ! Diagonals of the bulk Green that contain 
+    type(complArray) :: bulk_diags(MAXNCONT)        ! Diagonals of the bulk Green that contain
                                                     !   the result of the energy integration (one for each contact)
     type(realArray) :: contact_density(MAXNCONT)    ! Final result of the contact density calculation
 
@@ -324,7 +327,7 @@ module lib_param
     !procedure :: destroy_cache_space => destroy_cache_space
 
   end type Tnegf
- 
+
   !-----------------------------------------------------------------------------
   !> Contains all the general parameters to be passed as input to library
   !! which are compatible with iso_c_binding representations
