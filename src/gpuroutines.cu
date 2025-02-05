@@ -141,7 +141,7 @@ __global__ void initKernel(Number* a, size_t nrow) {
 
 template<typename Number>
 __global__ void initArrayWithOnes(Number* a, size_t nrow) {
-    static_assert(std::is_same_v<Number, typename get_real<Number>::type>);
+    static_assert(std::is_same<Number, typename get_real<Number>::type>::value);
 
     assert(a);
 
