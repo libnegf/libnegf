@@ -187,7 +187,7 @@ __global__ void initKernel(Number* a, size_t nrow) {
 
 template<typename Number>
 __global__ void initArrayWithOnes(Number* a, size_t nrow) {
-    static_assert(std::is_same_v<Number, typename get_real<Number>::type>);
+    static_assert(std::is_same<Number, typename get_real<Number>::type>::value);
 
     assert(a);
 
@@ -324,6 +324,12 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
     printf(" TotalMemory: %lu\n", (unsigned long)prop.totalGlobalMem);
     printf(" Shared per block: %lu\n", (unsigned long)prop.sharedMemPerBlock);
 
+    return err;
+}
+
+extern "C" int cu_cudaGetDevice(int* device) {
+    cudaError_t err = cudaGetDevice(device);
+    assert(err == cudaSuccess);
     return err;
 }
 

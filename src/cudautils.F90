@@ -67,12 +67,13 @@ module cudautils
    public :: cusolverInitialize
    public :: cublasFinalize
    public :: cusolverFinalize
-   
+
    public :: getDeviceCount
+   public :: getDevice
    public :: setDevice
-   !public :: getDeviceProperties 
+   !public :: getDeviceProperties
    public :: getDevMemInfo
-     
+
 
    interface createGPU
    #:for PREC in PRECISIONS
@@ -218,7 +219,7 @@ module cudautils
    #:endfor
    end interface dagger_gpu
 
-   interface checksum 
+   interface checksum
    #:for PREC in PRECISIONS
       module procedure checksum_${PREC_ABBREVS[PREC]}$
    #:endfor
@@ -275,7 +276,7 @@ module cudautils
                                           & bind(C, name='cu_cudaGetDeviceProperties')
        use iso_c_binding
        integer(c_int) :: device
-       type(c_ptr) :: prop     
+       type(c_ptr) :: prop
      end function cu_cudaGetDeviceProperties
 
      integer(c_int) function cu_cudaMallocAsync(d_A, siz) bind(C, name='cu_cudaMallocAsync')
@@ -284,6 +285,11 @@ module cudautils
        type(c_ptr) :: d_A
        integer(c_size_t), value :: siz
      end function cu_cudaMallocAsync
+
+     integer(c_int) function cu_cudaGetDevice(device) bind(C, name='cu_cudaGetDevice')
+       use iso_c_binding
+       integer(c_int) :: device
+     end function cu_cudaGetDevice
 
      integer(c_int) function cu_cudaSetDevice(device) bind(C, name='cu_cudaSetDevice')
        use iso_c_binding
@@ -425,7 +431,7 @@ end interface
 
 
  contains
-   
+
 !~-~-~-~-~-~-~-~-~-~-~-~ INIT/FINALIZE ROUTINES  ~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-
    subroutine cublasInitialize(hcublas)
      type(cublasHandle), intent(inout) :: hcublas
@@ -456,6 +462,12 @@ end interface
      integer :: err
      err = cu_cudaGetDeviceCount(count)
    end subroutine getDeviceCount
+
+   subroutine getDevice(dev)
+     integer(4) :: dev
+     integer :: err
+     err = cu_cudaGetDevice(dev)
+   end subroutine getDevice
 
    subroutine setDevice(count)
      integer(4) :: count
@@ -884,15 +896,15 @@ end interface
     type(cublasHandle), intent(in) :: hcublas
     type(${MTYPE}$), intent(in) :: A
     character(*), intent(in) :: nome
-  
+
     real(${KIND}$) :: summ
-  
+
     call asum_gpu(hcublas, A, summ)
-  
+
     if (ieee_is_nan(summ)) then
        write(*,*) 'GPU:   ',trim(nome),summ
     end if
-  
+
   end subroutine checksum_${KIND}$
 #:enddef checksum_template
 

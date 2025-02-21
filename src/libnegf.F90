@@ -133,7 +133,7 @@ module libnegf
  integer, parameter, public :: READ_SGF = 0
  integer, parameter, public :: COMP_SGF = 1
  integer, parameter, public :: COMPSAVE_SGF = 2
-  
+
  !-----------------------------------------------------------------------------
   contains
   !--------------------------------------------------------------------
@@ -148,9 +148,9 @@ module libnegf
     type(Tnegf) :: negf
 
     real(dp) :: kpoints(3,1), kweights(1)
-    integer :: local_kindex(1), ndevs, ii
-    integer(8) :: freemem, totalmem
+    integer :: local_kindex(1), ndevs
 
+    print*,'DEBUG: init_negf'
     call set_defaults(negf)
     negf%form%formatted = .true.
     negf%form%type = "PETSc"
@@ -161,12 +161,8 @@ module libnegf
     if (ndevs == 0) then
        error stop "No GPUs found on host"
     end if
-    do ii = 1, ndevs
-      call setDevice(ii-1)
-      call getDevMemInfo(freemem, totalmem)
-      !print*,'device=',ii-1
-      !print*,'freemem=',freemem/1e6,' MB','  totalmem=',totalmem/1e6,' MB'
-    end do   
+    call getDevice(negf%devnum)
+    call getDevMemInfo(negf%freemem, negf%totalmem)
     call cublasInitialize(negf%hcublas)
     call cusolverInitialize(negf%hcusolver)
 #:endif
@@ -2249,7 +2245,7 @@ module libnegf
 
     el = getelement(i,j,mat)
   end function getel
-  
+
   subroutine aggregate_vec(v_in, thres, v_out, start_idx, end_idx)
     real(dp), dimension(:), intent(in) :: v_in
     real(dp), intent(in) :: thres
