@@ -26,7 +26,7 @@ program test_readHS
 
   call mpifx_init(impierr);
   call globalComm%init();
-  nGroups = 2 
+  nGroups = 1 
 
   pnegf => negf
 
