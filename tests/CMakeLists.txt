@@ -109,7 +109,7 @@ function(setup_f90_mpi_test testname source)
     target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
     add_test(
 	    NAME ${testname}
-	    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_NUMPROCS} ./${testname})
+	    COMMAND env OMP_NUM_THREADS=1 ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_NUMPROCS} ./${testname})
 endfunction()
 
 
