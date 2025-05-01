@@ -7,6 +7,7 @@ set(sources-fpp
   ln_enums.F90
   ln_precision.F90
   mpi_globals.F90
+  ln_messages.F90
   contselfenergy.F90
   inversions.F90
   libnegf.F90

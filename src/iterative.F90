@@ -23,6 +23,7 @@ module iterative
   use ln_precision
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
+  use ln_messages
   use mat_def
   use sparsekit_drv
   use inversions
@@ -437,7 +438,7 @@ CONTAINS
     nbl = negf%str%num_PLs
 
     if (size(curr_mat) .ne. nbl-1) then
-       error stop 'ERROR: curr_mat with wrong size in iterative_layer_current'
+       call error_msg('ERROR: curr_mat with wrong size in iterative_layer_current')
     end if
 
     Ec=cmplx(E,0.0_dp,dp)
@@ -1311,11 +1312,9 @@ CONTAINS
             end do
           endif
           if (y.eq.0) then
-            write(*,*)
-            write(*,*) 'ERROR in Gr_blk2csr: probably wrong PL size',x
-            write(*,*) 'row',i,A%colind(j)
-            write(*,*) 'block indeces:',indblk(1:nbl)
-            error stop
+            call error_msg('ERROR in Gr_blk2csr: probably wrong PL size ',x)
+            !write(*,*) 'row',i,A%colind(j)
+            !write(*,*) 'block indeces:',indblk(1:nbl)
           endif
 
           col = A%colind(j) - indblk(y) + 1
@@ -1432,11 +1431,9 @@ CONTAINS
         endif
 
         if (y.EQ.0) THEN
-          write(*,*)
-          write(*,*) 'ERROR in blk2csr: probably wrong PL size', x
-          write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
-          write(*,*) 'block indeces:',indblk(1:nbl)
-          error stop
+          call error_msg('ERROR in blk2csr: probably wrong PL size', x)
+          !write(*,*) 'row',ii,nrows,Gcsr%colind(jj)
+          !write(*,*) 'block indeces:',indblk(1:nbl)
         endif
 
         col = Gcsr%colind(jj) - indblk(y) + 1
@@ -1993,7 +1990,7 @@ CONTAINS
     if (ierr.ne.0) then
        print*
        print*,'ALLOCATION ERROR # ',ierr
-       error stop 'ALLOCATION ERROR: could not allocate gsm'
+       call error_msg( 'ALLOCATION ERROR: could not allocate gsm')
     end if
   end subroutine allocate_gsm
 
@@ -2007,7 +2004,7 @@ CONTAINS
     if (ierr.ne.0) then
        print*
        print*,'ALLOCATION ERROR # ',ierr
-       error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+       call error_msg( 'ALLOCATION ERROR: could not allocate block-Matrix')
     end if
   end subroutine allocate_blk_dns
 
@@ -2021,7 +2018,7 @@ CONTAINS
     if (ierr.ne.0) then
        print*
        print*,'DEALLOCATION ERROR # ',ierr
-       error stop 'DEALLOCATION ERROR: could not deallocate gsmr'
+       call error_msg( 'DEALLOCATION ERROR: could not deallocate gsmr')
     end if
   end subroutine deallocate_gsm
 
@@ -2035,7 +2032,7 @@ CONTAINS
     if (ierr.ne.0) then
        print*
        print*,'DEALLOCATION ERROR # ',ierr
-       error stop 'DEALLOCATION ERROR of block-Matrix'
+       call error_msg( 'DEALLOCATION ERROR of block-Matrix')
     end if
 
   end subroutine deallocate_blk_dns

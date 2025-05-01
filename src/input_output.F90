@@ -24,6 +24,7 @@ module input_output
   use ln_allocation
   use mat_def
   use sparsekit_drv
+  use ln_messages
   implicit none
   private
 
@@ -190,9 +191,15 @@ subroutine read_H(idR,idI, zmat,fmt)
 
   end if
   
-  if(mati%nrow.ne.matr%nrow) error stop 'nrow Error'  
-  if(matr%nnz.ne.mati%nnz) error stop 'nnz Error' 
-  if(matr%nnz.eq.0) error stop 'nnz Error'   
+  if (mati%nrow.ne.matr%nrow) then
+     call error_msg('nrow Error')
+  end if
+  if (matr%nnz.ne.mati%nnz) then
+     call error_msg('nnz Error')
+  end if
+  if (matr%nnz.eq.0) then
+     call error_msg('nnz Error')  
+  end if
 
   k = 0
   do i=1,nnz
@@ -212,8 +219,8 @@ subroutine read_H(idR,idI, zmat,fmt)
         endif
      endif
 
-     if(mati%index_j(k).ne.matr%index_j(k)) error stop 'Index Error'
-     if(mati%index_i(k).ne.matr%index_i(k)) error stop 'Index Error'
+     if(mati%index_j(k).ne.matr%index_j(k)) call error_msg('Index Error')
+     if(mati%index_i(k).ne.matr%index_i(k)) call error_msg('Index Error')
 
      select case(fmt%fmt)
      case('U','L') 

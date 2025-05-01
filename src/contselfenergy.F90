@@ -39,6 +39,7 @@ module ContSelfEnergy
  use clock
  use mpi_globals
  use ln_cache, only : TMatLabel, get_string_label
+ use ln_messages
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
 #:endif
@@ -407,7 +408,7 @@ contains
     ncont = pnegf%str%num_conts
     avncyc = 0.0_dp
 
-    error stop 'Internal error: HMC has been changed to dns format'
+    call error_msg('Internal error: HMC has been changed to dns format')
     ! -----------------------------------------------------------------------
     !  Calculation of contact self-energies
     ! -----------------------------------------------------------------------

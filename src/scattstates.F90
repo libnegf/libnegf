@@ -23,6 +23,7 @@ module scattstates
   use ln_precision
   use ln_constants
   use ln_allocation
+  use ln_messages
   use mat_def
   use sparsekit_drv
   use contselfenergy, only : surface_green,selfenergy
@@ -254,8 +255,7 @@ contains
           numk1=sum(ones1,mask1)
           
           if(numk1.gt.PLdim1) then
-             write(*,*) 'ERROR: more than PLdim1 states',numk1
-             error stop
+             call error_msg('ERROR: more than PLdim1 states',numk1)
           endif
     
           ! store eigenvales
@@ -330,8 +330,7 @@ contains
           numk2=sum(ones2,mask2)
           
           if(numk2.gt.PLdim2) then
-             write(*,*) 'ERROR: more than PLdim2 states'
-             error stop
+             call error_msg('ERROR: more than PLdim2 states')
           endif
           
           ! store eigenvales
@@ -508,7 +507,7 @@ contains
 
           if(summ(i)%prop_in.ne.summ(i)%prop_out .or. &
                summ(i)%evan_in.ne.summ(i)%evan_out ) &
-               error stop 'ERROR: Asymmetry found betw. IN/OUT states'
+               call error_msg( 'ERROR: Asymmetry found betw. IN/OUT states')
 
           n_prop_states(i) = summ(i)%prop_out
 
@@ -655,7 +654,7 @@ contains
        ! Find transmission t = D     C  = - D    g  T  C
        ! -----------------      12    N      12   R  R  M  -----------
        
-       if(TT(nf)%ncol.ne.PLdim(nf)) error stop 'Error size!'
+       if(TT(nf)%ncol.ne.PLdim(nf)) call error_msg( 'Error size!')
        
        call create(TT2,PLdim(nf),nrhs)
        TT2%val=matmul(conjg(transpose(TT(nf)%val)), &
@@ -1092,7 +1091,7 @@ contains
 
           if(summ(i)%prop_in.ne.summ(i)%prop_out .or. &
                summ(i)%evan_in.ne.summ(i)%evan_out ) &
-               error stop 'ERROR: Asymmetry found betw. IN/OUT states'
+               call error_msg( 'ERROR: Asymmetry found betw. IN/OUT states')
 
           n_prop_states(i) = summ(i)%prop_out
 
@@ -1200,7 +1199,9 @@ contains
 
        call create(RHS,HM%nrow,nrhs)
 
-       if(TT1%nrow.ne.cinde(ni)-cinds(ni)+1) error stop 'wrong size'
+       if (TT1%nrow.ne.cinde(ni)-cinds(ni)+1) then
+          call error_msg( 'wrong size of TT1')
+       end if    
 
        RHS%val = (0.0_dp,0.0_dp)
 

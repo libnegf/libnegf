@@ -24,6 +24,7 @@ module libnegf
  use ln_precision
  use ln_constants
  use ln_allocation
+ use ln_messages
  use lib_param
  use ln_cache
  use globals, only : LST
@@ -158,7 +159,7 @@ module libnegf
 #:if defined("GPU")
     call getDeviceCount(ndevs)
     if (ndevs == 0) then
-       error stop "No GPUs found on host"
+       call error_msg( "No GPUs found on host")
     end if
     call getDevice(negf%devnum)
     !print*,'DEBUG: device #',negf%devnum
@@ -229,7 +230,7 @@ module libnegf
      inquire(file=trim(real_path), exist= doesexist)
      inquire(file=trim(imag_path), exist= doesexist)
      if (.not.doesexist) then
-       error stop "libNEGF error. Matrix files not found"
+       call error_msg( "libNEGF error. Matrix files not found")
      endif
 
      open(401, file=real_path, form=trim(fmtstring))
@@ -245,7 +246,7 @@ module libnegf
        call read_H(401,402,negf%HS(1)%S,fmt)
        negf%S => negf%HS(1)%S
      else
-       error stop "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)"
+       call error_msg( "libNEGF error. Wrong target_matrix: must be 0 (H) or 1 (S)")
      endif
      close(401)
      close(402)
@@ -266,7 +267,7 @@ module libnegf
        if (size(negf%HS) .ne. nHS) then
          print*, "creating HS container with size",nHS
          print*, "HS container already present with size",size(negf%HS)
-         error stop 'ERROR: HS container already created with different size'
+         call error_msg( 'ERROR: HS container already created with different size')
        end if
     end if
 
@@ -285,7 +286,7 @@ module libnegf
        if (size(negf%DM) .ne. nDM) then
          print*, "creating DM container with size",nDM
          print*, "DM container already present with size",size(negf%DM)
-         error stop 'ERROR: DM container already created with different size'
+         call error_msg( 'ERROR: DM container already created with different size')
        end if
     end if
 
@@ -316,7 +317,7 @@ module libnegf
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
-       error stop "Error: set_H with index > allocated array. Call create_HS with correct size"
+       call error_msg( "Error: set_H with index > allocated array. Call create_HS with correct size")
     else
       if (.not.associated(negf%HS(ii)%H)) then
         allocate(negf%HS(ii)%H)
@@ -370,7 +371,7 @@ module libnegf
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
-       error stop "Error: set_S with index > allocated array. Call create_HS with correct size"
+       call error_msg("Error: set_S with index > allocated array. Call create_HS with correct size")
     else
       if (.not.associated(negf%HS(ii)%S)) then
         allocate(negf%HS(ii)%S)
@@ -417,7 +418,7 @@ module libnegf
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
-      error stop "Error: set_S_id with index > allocated array. Call create_HS with correct size"
+      call error_msg( "Error: set_S_id with index > allocated array. Call create_HS with correct size")
     else
       if (.not.associated(negf%HS(ii)%S)) then
         allocate(negf%HS(ii)%S)
@@ -455,7 +456,7 @@ module libnegf
 
     if (ii > ss) then
       print*,'Passing HS index',ii,' HS container with size',ss
-      error stop "Error: pass_HS with index > allocated array. Call create_HS with correct size"
+      call error_msg( "Error: pass_HS with index > allocated array. Call create_HS with correct size")
     endif
 
     negf%HS(ii)%H => H
@@ -490,7 +491,7 @@ module libnegf
     end if
 
     if (ii > size(negf%HS)) then
-       error stop "Error: copy_HS with index > allocated array. Call create_HS with correct size"
+       call error_msg( "Error: copy_HS with index > allocated array. Call create_HS with correct size")
     else
       if (.not.associated(negf%HS(ii)%H)) allocate(negf%HS(ii)%H)
       if (.not.associated(negf%HS(ii)%S)) allocate(negf%HS(ii)%S)
@@ -562,24 +563,24 @@ module libnegf
      ! Make sure we called init_contacts in a consistent way.
      if (size(negf%cont) .ne. ncont) then
        write(*, *) 'size(negf%cont)=',size(negf%cont),'<->  ncont=',ncont
-       error stop "Error in set_structure: ncont not compatible with previous initialization."
+       call error_msg( "Error in set_structure: ncont not compatible with previous initialization.")
      end if
      ! More sanity checks.
      if (size(surfstart) .ne. ncont) then
        write(*, *) 'size(surfstart)=',size(surfstart),'<->  ncont=',ncont
-       error stop "Error in set_structure: surfend and ncont mismatch"
+       call error_msg( "Error in set_structure: surfend and ncont mismatch")
      end if
      if (size(surfend) .ne. ncont) then
        write(*, *) 'size(surfend)=',size(surfend),'<->  ncont=',ncont
-       error stop "Error in set_structure: surfend and ncont mismatch"
+       call error_msg( "Error in set_structure: surfend and ncont mismatch")
      end if
      if (size(contend) .ne. ncont) then
        write(*, *) 'size(contend)=',size(contend),'<->  ncont=',ncont
-       error stop "Error in set_structure: contend and ncont mismatch"
+       call error_msg( "Error in set_structure: contend and ncont mismatch")
      end if
      if (npl .ne. 0 .and. size(plend) .ne. npl) then
        write(*, *) 'size(plend)=',size(plend),'<->  npl=',npl
-       error stop "Error in set_structure: plend and npl mismatch"
+       call error_msg( "Error in set_structure: plend and npl mismatch")
      end if
 
      call create_Tstruct(ncont, npl, plend, surfstart, surfend, contend, cblk, negf%str)
@@ -616,7 +617,7 @@ module libnegf
 
     ! Make sure that the number of contacts is compatible with naming formatting.
     if (ncont .gt. 99) then
-      error stop "Too many contacts. Cannot assign default names."
+      call error_msg( "Too many contacts. Cannot assign default names.")
     end if
     ! Deallocate existing contacts if any, then allocate.
     if (allocated(negf%cont)) then
@@ -664,7 +665,7 @@ module libnegf
     real(dp) :: shift(3)
 
     if (size(kpoints,2) /= size(kweights)) then
-       error stop 'Error: size of kpoints do not match'
+       call error_msg( 'Error: size of kpoints do not match')
     end if
 
     if (allocated(negf%kpoints)) then
@@ -687,7 +688,7 @@ module libnegf
         negf%kpoints(:,ii) = kpoints(:,ii) + shift
       end do
     else
-      error stop "kSamplingType must be either 0 or 1"
+      call error_msg( "kSamplingType must be either 0 or 1")
     end if
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
@@ -709,7 +710,7 @@ module libnegf
 
     if (present(equiv_kpoints)) then
       if (.not. present(equiv_mult)) then
-        error stop "ERROR: equivalent k-points were passed without multiplicity array equiv_mult"
+        call error_msg( "ERROR: equivalent k-points were passed without multiplicity array equiv_mult")
       endif
       call set(negf%equivalent_kpoints, equiv_kpoints, size(kweights), equiv_mult)
 
@@ -924,7 +925,7 @@ module libnegf
 
     if (len(scratchpath)>LST) then
        print*, "ERROR: scratch string longer than",LST
-       error stop 'scratch string too long'
+       call error_msg( 'scratch string too long')
     end if
     !negf%scratch_path = trim(scratchpath)//'/GS/'
     negf%scratch_path = trim(scratchpath)//'/'
@@ -1075,11 +1076,11 @@ module libnegf
 
     if (present(cartComm)) then
        if (.not.present(energyComm) .and. .not.present(kComm)) then
-          error stop "ERROR: cartesian communicator also requires energy and k comm"
+          call error_msg( "ERROR: cartesian communicator also requires energy and k comm")
        end if
        call check_cart_comm(cartComm, err)
        if (err /= 0) then
-         error stop "ERROR: pass non cartesian communicator to negf_mpi_init"
+         call error_msg( "ERROR: pass non cartesian communicator to negf_mpi_init")
        end if
        negf%globalComm = cartComm
        negf%cartComm = cartComm
@@ -1088,7 +1089,7 @@ module libnegf
        id0 = (negf%cartComm%rank == 0)
     else
        if (.not.present(energyComm)) then
-          error stop "ERROR: negf_mpi_init needs at lest the energy communicator"
+          call error_msg( "ERROR: negf_mpi_init needs at lest the energy communicator")
        end if
        negf%globalComm = energyComm
        negf%energyComm = energyComm
@@ -1489,7 +1490,7 @@ module libnegf
     if (present(iKS)) then
       if (allocated(csrDens%nzval)) then
           if (csrDens%nnz /= negf%DM(iKS)%rho%nnz) then
-             error stop 'DM size mismatch'
+             call error_msg( 'DM size mismatch')
           end if
       else
         call create(csrDens, negf%DM(iKS)%rho%nrow, negf%DM(iKS)%rho%ncol, negf%DM(iKS)%rho%nnz)
@@ -1502,7 +1503,7 @@ module libnegf
     else
       if (allocated(csrDens%nzval)) then
          if (csrDens%nnz /= negf%rho%nnz) then
-            error stop 'DM size mismatch'
+            call error_msg( 'DM size mismatch')
          end if
       else
         call create(csrDens, negf%rho%nrow, negf%rho%ncol, negf%rho%nnz)
@@ -1536,7 +1537,7 @@ module libnegf
       s = merge(size(negf%DM),0,allocated(negf%DM))
       if (ii > s) then
         print*,'Passing DM index',iKS,' DM container with size',s
-        error stop "Error: pass_DM with index > allocated array. Call create_DM with correct size"
+        call error_msg("Error: pass_DM with index > allocated array. Call create_DM with correct size")
       endif
     else
       if (.not. allocated(negf%DM)) then
@@ -1565,7 +1566,7 @@ module libnegf
       s = merge(size(negf%DM),0,allocated(negf%DM))
       if (iKS > s) then
         print*,'Passing DM index',iKS,' DM container with size',s
-        error stop "Error: pass_DM with index > allocated array. Call create_DM with correct size"
+        call error_msg("Error: pass_DM with index > allocated array. Call create_DM with correct size") 
       endif
     end if
 
@@ -1697,7 +1698,7 @@ module libnegf
     integer :: k
 
     if (particle /= +1 .and. particle /= -1) then
-       error stop "libNEGF error. In compute_density_efa, unknown particle"
+       call error_msg( "libNEGF error. In compute_density_efa, unknown particle")
     endif
 
     call extract_cont(negf)
@@ -1807,7 +1808,7 @@ module libnegf
     real(dp), dimension(:), allocatable :: q_tmp
 
     if (particle /= +1 .and. particle /= -1) then
-       error stop "libNEGF error. In compute_density_quasiEq, unknown particle"
+       call error_msg( "libNEGF error. In compute_density_quasiEq, unknown particle")
     endif
 
     call log_allocate(q_tmp, size(q))
@@ -1942,7 +1943,7 @@ module libnegf
     real(dp), allocatable, dimension(:) :: occupations
 
     if (negf%str%num_conts .ne. 2) then
-      error stop "Effective transmission is only supported for 2 electrodes"
+      call error_msg( "Effective transmission is only supported for 2 electrodes")
     end if
 
     call tunneling_int_def(negf)
@@ -2218,9 +2219,8 @@ module libnegf
                 write(*,*) "Number of blocks: ",nbl
                 write(*,*) "PL_end: ",PL_end(1:nbl)
                 write(*,*) "Contact interaction: ",cblk(j1)
-                write(*,'(a,i3,a)') " ERROR: contact",j1," interacting with more than one block"
                 write(*,*) "min ",min,"max ",max
-                error stop
+                call error_msg(" ERROR: contact interacting with more than one block", j1)
              end if
 
           end if

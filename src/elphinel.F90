@@ -41,6 +41,7 @@ module elphinel
   use self_energy, only: TMatPointer, selfenergy
   use equiv_kpoints, only : TEqPoint, TEqPointsArray, create, destroy
   use clock
+  use ln_messages, only : error_msg
   implicit none
   private
 
@@ -192,7 +193,7 @@ contains
 
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
-      error stop 'Initialization of PO Phonon called twice' 
+      call error_msg('Initialization of PO Phonon called twice') 
     end if
     allocate(TMatrixCacheMem::this%sigma_r)
     select type(p => this%sigma_r)
@@ -201,7 +202,7 @@ contains
     end select   
 
     if (associated(this%sigma_n)) then
-      error stop 'Initialization of PO Phonon called twice' 
+      call error_msg('Initialization of PO Phonon called twice') 
     end if
     allocate(TMatrixCacheMem::this%sigma_n)
     select type(p => this%sigma_n)
@@ -250,12 +251,12 @@ contains
 
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
-      error stop 'Initialization of non-PO Phonon called twice' 
+      call error_msg('Initialization of non-PO Phonon called twice') 
     end if
     allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
     
     if (associated(this%sigma_n)) then
-      error stop 'Initialization of non-PO Phonon called twice' 
+      call error_msg('Initialization of non-PO Phonon called twice') 
     end if
     allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
 
@@ -867,7 +868,7 @@ contains
     deallocate(pGG)
     deallocate(pSigma)
 #:else
-    error stop "inelastic scattering requires MPI compilation"
+    call error_msg("inelastic scattering requires MPI compilation")
 #:endif
     contains
 
@@ -1043,7 +1044,7 @@ contains
     deallocate(pGG)
     deallocate(pSigma)
 #:else
-    error stop "inelastic scattering requires MPI compilation"
+    call error_msg("inelastic scattering requires MPI compilation")
 #:endif
 
     contains

@@ -29,6 +29,7 @@ module iterative_cpu
   use ln_structure, only : TStruct_Info
   use lib_param, only : MAXNCONT, Tnegf, intarray
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
+  use ln_messages
 
   implicit none
   private
@@ -187,7 +188,7 @@ contains
              call destroy(work2)
           endif
           if (sbl-1.ge.1) then
-             error stop "Error: Gr_tridiag requires gsml"
+             call error_msg("Error: Gr_tridiag requires gsml")
           endif
 
           call create(Gr(sbl,sbl),nrow,nrow)
@@ -217,7 +218,7 @@ contains
           call destroy(work1)
        end do
     ELSE
-       error stop "Error: Gr_tridiag requires gsml"
+       call error_msg("Error: Gr_tridiag requires gsml")
     endif
 
   end subroutine calculate_Gr_tridiag_blocks
@@ -650,7 +651,9 @@ contains
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
+    end if
 
   end subroutine allocate_blk_dns
 
@@ -661,7 +664,9 @@ contains
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
+    if (ierr.ne.0) then
+       call error_msg('DEALLOCATION ERROR: could not deallocate block-Matrix')
+    end if
 
   end subroutine deallocate_blk_dns
 

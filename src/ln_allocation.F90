@@ -25,6 +25,7 @@
 module ln_allocation
   use iso_c_binding, only : c_int64_t
   use ln_precision
+  use ln_messages
   implicit none
   private
 
@@ -75,9 +76,8 @@ module ln_allocation
 contains
 
   subroutine allocError()
-     write(*,*) "ALLOCATION ERROR";
      call writeMemInfo(6)
-     error stop
+     call error_msg("ALLOCATION ERROR")
   end subroutine allocError
 
 
@@ -88,7 +88,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -116,7 +116,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -142,7 +142,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -169,7 +169,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -194,7 +194,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -221,7 +221,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (associated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. associated(array)) then
@@ -247,7 +247,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -272,7 +272,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -297,7 +297,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -322,7 +322,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -347,7 +347,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (ALLOCATED(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not.ALLOCATED(array)) then
@@ -375,7 +375,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -409,7 +409,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -443,7 +443,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -477,7 +477,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -511,7 +511,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -543,7 +543,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -568,7 +568,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -596,7 +596,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -621,7 +621,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -646,7 +646,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -671,7 +671,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -698,7 +698,7 @@ contains
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
-       error stop 'ALLOCATION ERROR: array is already allocated'
+       call error_msg( 'ALLOCATION ERROR: array is already allocated')
     endif
 
     if(.not. allocated(array)) then
@@ -1135,7 +1135,7 @@ contains
     if(iofile.ne.6) then
        open(iofile,file='memory.log',iostat=err)
        if (err.ne.0) then
-          error stop 'Cannot open memory log-file'
+          call error_msg( 'Cannot open memory log-file')
        endif
     endif
     iolog=iofile

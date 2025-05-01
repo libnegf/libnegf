@@ -27,6 +27,7 @@ module iterative_gpu
   use ln_precision
   use ln_constants, only : pi
   use ln_allocation
+  use ln_messages
   use mat_def
   use sparsekit_drv, only : zspectral
   use ln_structure, only : TStruct_Info
@@ -290,7 +291,7 @@ contains
              call deleteGPU_async(work3)
           end if
           if (sbl-1.ge.1) then
-             error stop "Error: Gr_tridiag requires gsml"
+             call error_msg( "Error: Gr_tridiag requires gsml")
           end if
 
           call create(Gr(sbl,sbl), work1%nrow, work1%ncol)
@@ -334,7 +335,7 @@ contains
           call deleteGPU_async(work1)
        end do
     else
-       error stop "Error: Gr_tridiag requires gsml"
+       call error_msg( "Error: Gr_tridiag requires gsml")
     endif
 
   end subroutine calculate_Gr_tridiag_blocks_${KIND}$
@@ -913,8 +914,9 @@ contains
     integer :: nbl, ierr
 
     allocate(blkM(nbl,nbl),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
-
+    if (ierr.ne.0) then
+       call error_msg( 'ALLOCATION ERROR: could not allocate block-Matrix')
+    end if
   end subroutine allocate_blk_dns_${KIND}$
 #:enddef allocate_blk_dns_template
 
@@ -926,8 +928,9 @@ contains
     integer :: ierr
 
     deallocate(blkM,stat=ierr)
-    if (ierr.ne.0) error stop 'DEALLOCATION ERROR: could not deallocate block-Matrix'
-
+    if (ierr.ne.0) then
+       call error_msg( 'DEALLOCATION ERROR: could not deallocate block-Matrix')
+    end if
   end subroutine deallocate_blk_dns_${KIND}$
 #:enddef deallocate_blk_dns_template
 

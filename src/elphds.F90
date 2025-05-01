@@ -31,6 +31,7 @@ module elphds
   use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy
   use sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
+  use ln_messages, only : error_msg
 
   implicit none
   private
@@ -107,7 +108,7 @@ contains
         & "Electron-Phonon dephasing model in overlap masked local oscillator model"
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
-      error stop 'Error: coupling and orbsperatom not compatible'
+      call error_msg('Error: coupling and orbsperatom not compatible')
     end if
 
     this%scba_niter = niter
@@ -129,12 +130,17 @@ contains
     this%wq = 0.0_dp   ! Zero energy mode
 
     allocate(this%sigma_r(this%nummodes), stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate csr_sigma_r'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate csr_sigma_r')
+    end if
     allocate(this%sigma_n(this%nummodes), stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate csr_sigma_n'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate csr_sigma_n')
+    end if   
     allocate(this%couplings(this%nummodes), stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate csr_couplings'
-
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate csr_couplings')
+    end if
     iimode = 0
     do ii = 1, natm
      offset = sum(orbsperatm(1:ii-1))
@@ -181,14 +187,16 @@ contains
     if (this%scba_iter .eq. 0) return
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
-      error stop 'ElphPhonDephB works only with single PL'
+      call error_msg('ElphPhonDephB works only with single PL')
     end if
 
     ! This could be done more performant, but this model won't see much use
     ! so I am leaving this way
     allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1,this%nummodes
-      if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+      if (ierr.ne.0) then
+         call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
+      end if   
       call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         ESH(jj, jj)%val = ESH(jj, jj)%val - tmp_blk(jj, jj)%val
@@ -223,14 +231,16 @@ contains
     if (this%scba_iter .eq. 0) return
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
-      error stop 'ElphPhonDephB works only with single PL'
+      call error_msg('ElphPhonDephB works only with single PL')
     end if
 
     ! This could be done more performant, but this model won't see much use
     ! so I am leaving this way
     allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1,this%nummodes
-      if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+      if (ierr.ne.0) then
+         call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
+      end if   
       call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         sigma(jj, jj)%val = sigma(jj, jj)%val + tmp_blk(jj, jj)%val
@@ -273,7 +283,7 @@ contains
     if (this%scba_iter .eq. 0) return
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
-      error stop 'ElphPhonDephB works only with single PL now'
+      call error_msg('ElphPhonDephB works only with single PL now')
     end if
 
     do n = 1, npl
@@ -286,7 +296,9 @@ contains
 
     allocate(tmp_blk(npl,npl),stat=ierr)
     do ii = 1, this%nummodes
-      if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate block-Matrix'
+      if (ierr.ne.0) then
+         call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
+      end if   
       call zcsr2blk_sod(this%sigma_n(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         blk_sigma_n(jj, jj)%val = blk_sigma_n(jj, jj)%val + tmp_blk(jj, jj)%val
@@ -331,7 +343,7 @@ contains
     !! Now dirty, only working with 1 PL
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
-      error stop 'ElphPhonDephB works only with single PL'
+      call error_msg('ElphPhonDephB works only with single PL')
     end if
     do ii=1,this%nummodes
       if (allocated(this%sigma_r(ii)%rowpnt)) then
@@ -367,7 +379,7 @@ contains
     !! Now dirty, only working without PL
     npl = this%struct%num_PLs
     if (npl .ne. 1) then
-      error stop 'ElphPhonDephB works only with single PL'
+      call error_msg('ElphPhonDephB works only with single PL')
     end if
     do ii=1,this%nummodes
       if (allocated(this%sigma_n(ii)%rowpnt)) then

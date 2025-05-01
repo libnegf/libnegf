@@ -29,6 +29,7 @@ module elphdd
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
   use mat_def, only : c_dns, z_dns, create
+  use ln_messages, only : error_msg
 
   implicit none
   private

@@ -26,6 +26,7 @@ module lib_param
   use globals
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
+  use ln_messages
   use input_output
   use energy_mesh, only : mesh
   use interactions, only : TInteraction, TInteractionList, TInteractionNode
@@ -449,7 +450,7 @@ contains
     type is(ElPhonDephD)
       call elphondephd_init(pInter, negf%str, coupling, niter)
     class default
-      error stop 'ERROR: error of type downcast to ElPhonDephD'
+      call error_msg( 'ERROR: error of type downcast to ElPhonDephD')
     end select
 
   end subroutine set_elph_dephasing
@@ -470,7 +471,7 @@ contains
     type is(ElPhonDephB)
       call elphondephb_init(pInter, negf%str, coupling, orbsperatom, niter)
     class default
-      error stop 'ERROR: error of type downcast to ElPhonDephB'
+      call error_msg( 'ERROR: error of type downcast to ElPhonDephB')
     end select
 
   end subroutine set_elph_block_dephasing
@@ -490,7 +491,7 @@ contains
     type is(ElPhonDephS)
       call elphondephs_init(pInter, negf%str, coupling, orbsperatom, negf%S, niter)
     class default
-      error stop 'ERROR: error of type downcast to ElPhonDephS'
+      call error_msg( 'ERROR: error of type downcast to ElPhonDephS')
     end select
 
   end subroutine set_elph_s_dephasing
@@ -518,10 +519,10 @@ contains
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
 #:else
-      error stop "Inelastic scattering requires MPI"
+      call error_msg( "Inelastic scattering requires MPI")
 #:endif
     class default
-      error stop 'ERROR: error of type downcast to ElPhonInel'
+      call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
 
   end subroutine set_elph_polaroptical
@@ -547,10 +548,10 @@ contains
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
             &  wq, Temp, dz, D0, area, niter, tridiag)
 #:else
-      error stop "Inelastic scattering requires MPI"
+      call error_msg( "Inelastic scattering requires MPI")
 #:endif
     class default
-      error stop 'ERROR: error of type downcast to ElPhonInel'
+      call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
 
   end subroutine set_elph_nonpolaroptical
