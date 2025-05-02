@@ -150,7 +150,6 @@ module libnegf
     real(dp) :: kpoints(3,1), kweights(1)
     integer :: local_kindex(1), ndevs
 
-    print*,'DEBUG: init_negf'
     call set_defaults(negf)
     negf%form%formatted = .true.
     negf%form%type = "PETSc"
@@ -162,7 +161,9 @@ module libnegf
        error stop "No GPUs found on host"
     end if
     call getDevice(negf%devnum)
+    !print*,'DEBUG: device #',negf%devnum
     call getDevMemInfo(negf%freemem, negf%totalmem)
+    !print*,'DEBUG: Memory',negf%freemem/1e9,negf%totalmem/1e9," GB"
     call cublasInitialize(negf%hcublas)
     call cusolverInitialize(negf%hcusolver)
 #:endif
@@ -1104,7 +1105,7 @@ module libnegf
 
     call negf%globalComm%init(mpicomm)
     call negf%energyComm%init(mpicomm)
-    call globals_mpi_init(negf%energyComm)
+    call globals_mpi_init(negf%energyComm, negf%globalComm%rank==0)
 
   end subroutine
 

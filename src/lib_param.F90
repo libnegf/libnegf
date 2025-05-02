@@ -625,7 +625,7 @@ contains
      !negf%internalDM = .true.   ! Internal allocation of D.M.
 
      negf%delta = 1.d-4      ! delta for G.F.
-     negf%dos_delta = 1.d-4  ! delta for DOS
+     negf%dos_delta = 0.0_dp  ! delta for DOS
      negf%deltaModel = 1     ! deltaOmega model
      negf%wmax = 0.009_dp     ! about 2000 cm^-1 cutoff
      negf%Emin = 0.0_dp        ! Tunneling or dos interval
