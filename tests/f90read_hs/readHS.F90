@@ -51,7 +51,7 @@ module readHS
     read(fu2, *) !read # header line
     read(fu1, *) nAtoms
     read(fu2, *) int1
-    write(*,*) 'Number of atoms: ',nAtoms
+    !write(*,*) 'Number of atoms: ',nAtoms
     if (int1 /= nAtoms) then
       error stop "Number of atoms do not match"
     end if
@@ -86,9 +86,9 @@ module readHS
     end do
     orb%mOrb = maxval(orb%nOrbAtom) 
     maxneig = maxval(nNeighbours)
-    write(*,*) 'Max number of orbitals: ',orb%mOrb
-    write(*,*) 'Max number of neighbours: ',maxneig
-    write(*,*) 'Size of allocated sparse: ',matSize
+    !write(*,*) 'Max number of orbitals: ',orb%mOrb
+    !write(*,*) 'Max number of neighbours: ',maxneig
+    !write(*,*) 'Size of allocated sparse: ',matSize
     allocate(H0(matSize))
     allocate(S(matSize))
     allocate(iNeighbour(0:maxneig,nAtoms))
@@ -176,8 +176,8 @@ module readHS
       end do  
     end do
 
-    print*,'imin:',imin
-    print*,'imax:',imax
+    !print*,'imin:',imin
+    !print*,'imax:',imax
 
     ! compute the total number of cells 
     nCells = 1
@@ -185,7 +185,7 @@ module readHS
       nCells = nCells * (imax(ii)-imin(ii)+1)
     end do 
 
-    print*,'nCells',nCells
+    !print*,'nCells',nCells
 
     allocate(iCellVec(3,nCells))
     ! populate cellVec with all cell combinations
@@ -208,10 +208,10 @@ module readHS
          end if
       end do
     end do   
-    print*,'Sorted cells:'
-    do ii = 1, nCells
-      print*, iCellVec(:,ii)
-    end do   
+    !print*,'Sorted cells:'
+    !do ii = 1, nCells
+    !  print*, iCellVec(:,ii)
+    !end do   
 
     ! the index vector is the size of the supercell >> nAtoms 
     allocate( iIndexVec(nAtoms*size(icellVec,2)) )
@@ -334,5 +334,119 @@ module readHS
     close(fd)
 
   end subroutine writeSparse
+   
+
+  !> Writes Diagonal of a sparse matrix to a file.
+  subroutine writeSparseDiagonal(fname, sparse, iNeighbour, nNeighbourSK, iAtomStart, iPair, img2CentCell,&
+      & iCellVec, cellVec)
+
+    !> Name of the file to write the matrix to.
+    character(len=*), intent(in) :: fname
+
+    !> Sparse matrix.
+    real(dp), intent(in) :: sparse(:)
+
+    !> Neighbour list index.
+    integer, intent(in) :: iNeighbour(0:,:)
+
+    !> Number of neighbours.
+    integer, intent(in) :: nNeighbourSK(:)
+
+    !> Offset array in the square matrix.
+    integer, intent(in) :: iAtomStart(:)
+
+    !> Pair indexing array.
+    integer, intent(in) :: iPair(0:,:)
+
+    !> Mapping of the atoms to the central cell.
+    integer, intent(in) :: img2CentCell(:)
+
+    !> Index of the cell translation vectors for each atom.
+    integer, intent(in) :: iCellVec(:)
+
+    !> Cell translation vectors.
+    real(dp), intent(in) :: cellVec(:,:)
+
+    integer :: fd, nAtom
+    integer :: iAt1, iAt2, iAt2f, ii, iOrig, nOrb1, nOrb2
+    character(20) :: strForm
+    real(dp) :: tmp(9,9)
+
+    !if (.not. tIoProc) then
+    !  return
+    !end if
+
+    nAtom = size(nNeighbourSK)
+
+    open(newunit=fd, file=fname, form="formatted", status="replace")
+
+    do iAt1 = 1, nAtom
+      nOrb1 = iAtomStart(iAt1+1) - iAtomStart(iAt1)
+      iOrig = iPair(0,iAt1)
+      !iAt2 = iNeighbour(0, iAt1)
+      !iAt2f = img2CentCell(iAt2)
+      !nOrb2 = iAtomStart(iAt2f+1) - iAtomStart(iAt2f)
+      !if (nOrb1 /= nOrb2) stop
+      tmp(1:nOrb1,1:nOrb1) = reshape( &
+            & sparse(iOrig+1:iOrig+nOrb1*nOrb1),(/nOrb1,nOrb1/) )
+      do ii = 1, nOrb1
+        write(fd, strForm) tmp(ii,ii)
+      end do  
+    end do
+    close(fd)
+
+  end subroutine writeSparseDiagonal
+
+
+  ! Application of a shift H_ij = H_ij + (S_ij V_j + V_i S_ij)/2
+  subroutine apply_shifts(ham, over, shift)
+    real(dp), intent(inout) :: ham(:)
+    real(dp), intent(in) :: over(:)
+    real(dp), intent(in) :: shift(:)
+
+    integer :: nAtom, iAt1, iAt2, iAt2f, iBlk1, iBlk2 
+    integer :: nOrb1, nOrb2, iOrig1, iNeigh, ii
+    real(dp) :: tmpH(orb%mOrb,orb%mOrb), tmpS(orb%mOrb,orb%mOrb)
+    real(dp) :: shiftBlk1(orb%mOrb,orb%mOrb)
+    real(dp) :: shiftBlk2(orb%mOrb,orb%mOrb)
+  
+    nAtom = size(orb%nOrbAtom)
+    shiftBlk1 = 0.0_dp
+    shiftBlk2 = 0.0_dp
+
+    do iAt1 = 1, nAtom
+      nOrb1 = orb%nOrbAtom(iAt1)
+      do iNeigh = 0, nNeighbours(iAt1)
+        iAt2 = iNeighbour(iNeigh, iAt1)
+        iAt2f = img2CentCell(iAt2)
+        nOrb2 = orb%nOrbAtom(iAt2f)
+        iOrig1 = iPair(iNeigh, iAt1)
+        iBlk1 = iAtomStart(iAt1)-1
+        iBlk2 = iAtomStart(iAt2f)-1
+        do ii = 1, nOrb1
+          shiftBlk1(ii,ii) = shift(iBlk1+ii)
+        end do
+        do ii = 1, nOrb2
+          shiftBlk2(ii,ii) = shift(iBlk2+ii)
+        end do
+
+        tmpS(1:nOrb2,1:nOrb1) = reshape( &
+            & over(iOrig1+1:iOrig1+nOrb2*nOrb1),(/nOrb2,nOrb1/) )
+
+        !  H_ij = 1/2 S_ik (delta_kj V_j) + 1/2 (V_i delta_ik) S_kj
+        !  1/2 (S21 V1 + V2 S21)
+        tmpH(1:nOrb2,1:nOrb1) = 0.5_dp * ( &
+            & matmul(tmpS(1:nOrb2,1:nOrb1), shiftBlk1(1:nOrb1,1:nOrb1)) + &
+            & matmul(shiftBlk2(1:nOrb2,1:nOrb2), tmpS(1:nOrb2,1:nOrb1)) )
+
+        ham(iOrig1+1:iOrig1+nOrb2*nOrb1) = &
+            & ham(iOrig1+1:iOrig1+nOrb2*nOrb1) + &
+            & reshape(tmpH(1:nOrb2, 1:nOrb1), (/nOrb2*nOrb1/))
+
+      end do
+    end do
+
+  end subroutine apply_shifts
+
 
 end module readHS
