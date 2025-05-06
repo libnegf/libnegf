@@ -533,11 +533,22 @@ module libnegf
   !! If nbl = 0 the code will try to guess an automatic partitioning and
   !! plend, cblk will be ignored.
   !!
-  !! Example: device goes from 1 to 60. Contacts from 61 to 80 and to
-  !! 81 to 100. Only 1 PL:
+  !! CONTACT DEFINITION
+  !!  ---------------------------------- - - -
+  !!  | S        ||  PL1    |   PL2    |
+  !!  ---------------------------------- - - -
+  !!  surfstart  surfend               contend
+  !!
+  !!  contstart = surfend + 1
+  !!  If S does not exist => surfstart = surfend + 1
+  !! ----------------------------------------------------------------
+  !! Example: device goes from 1 to 60.
+  !! Contactact 1 from 61 to 80 and Contact 2 from 81 to 100.
+  !! Only 1 PL in Device region:
   !!  ncont = 2
-  !!  contend = [80, 100]
-  !!  surfend = [60, 80]
+  !!  surfend   = [60, 80]
+  !!  surfstart = [61, 81]
+  !!  contend   = [80, 100]
   !!  npl = 1
   !!  plend = [60]
   subroutine init_structure(negf, ncont, surfstart, surfend, contend, npl, plend, cblk)
@@ -1916,7 +1927,6 @@ module libnegf
 
     call extract_cont(negf)
     call tunneling_int_def(negf)
-
     call tunneling_and_dos(negf)
 
   end subroutine compute_landauer

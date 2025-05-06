@@ -21,6 +21,9 @@ set(test-directories
         f90int_file
         f90_transmission
         f90elph_deph
+	  f90read_hs
+	  f90Si2x2
+	  f90Si_nin
         )
 
 if(WITH_TRANSPORT_GPU)
@@ -43,6 +46,24 @@ function(transfer_test_data testname)
     add_dependencies(${testname} ${testname}-data-transfer)
 endfunction()
 
+function(unzip_test_data testname)
+    find_program(XZ NAMES xz)
+    if(NOT XZ)
+      message(FATAL_ERROR "cannot run test '${testname}' because xz executable is missing")
+    endif()
+
+    if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
+	  add_custom_target(${testname}-data-unzip)
+    else()
+        add_custom_target(
+            ${testname}-data-unzip
+            COMMENT "unzip ${CMAKE_CURRENT_SOURCE_DIR} for out-of-source build."
+		COMMAND tar -xJf ${CMAKE_CURRENT_SOURCE_DIR}/*.tar.xz -C ${CMAKE_CURRENT_BINARY_DIR})
+    endif()
+    add_dependencies(${testname}-data-unzip ${testname}-data-transfer)
+    add_dependencies(${testname} ${testname}-data-unzip)
+endfunction()
+
 # A function to setup C++ tests.
 function(setup_cpp_test testname source)
     add_executable(${testname} ${source})
@@ -51,7 +72,9 @@ function(setup_cpp_test testname source)
     target_link_libraries(${testname} negf)
     target_link_libraries(${testname} LAPACK::LAPACK)
     target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
-    add_test(${testname} ${testname})
+    add_test(
+	    NAME ${testname}
+	    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ./${testname})
 endfunction()
 
 # A function to setup C tests.
@@ -74,6 +97,19 @@ function(setup_f90_test testname source)
     target_link_libraries(${testname} LAPACK::LAPACK)
     target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
     add_test(${testname} ${testname})
+endfunction()
+
+# A function to setup F90 tests with MPI.
+function(setup_f90_mpi_test testname source)
+    add_executable(${testname} ${source} ${ARGN})
+    transfer_test_data(${testname})
+    target_link_libraries(${testname} MPI::MPI_Fortran)
+    target_link_libraries(${testname} negf)
+    target_link_libraries(${testname} LAPACK::LAPACK)
+    target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
+    add_test(
+      NAME ${testname}
+      COMMAND env OMP_NUM_THREADS=1 ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS} ./${testname})
 endfunction()
 
 
