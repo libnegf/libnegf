@@ -165,7 +165,7 @@ program test
   pot_profile(26*norbs+1:42*norbs) = -bias*0.5_dp
 
   ! This spreads the shell potential into orbitals and add to potential profile
-  if (.not.allocated(orb%nOrbAtom) .or. size(orb%nOrbAtom<nAtoms)) then
+  if (.not.allocated(orb%nOrbAtom) .or. size(orb%nOrbAtom)<nAtoms) then
     write(*,*) 'Error: nOrbAtom not initialized with read_dftb_hs'
     stop
   end if 
