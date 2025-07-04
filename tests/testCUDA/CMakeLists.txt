@@ -1,1 +1,1 @@
-setup_f90_test(testCUDA test.f90)
+setup_f90_test(testCUDA "normal cuda" test.f90)

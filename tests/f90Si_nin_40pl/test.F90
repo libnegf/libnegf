@@ -18,9 +18,12 @@ program test
   integer, allocatable :: surfstart(:), surfend(:), contend(:), plend(:), cblk(:)
   integer, allocatable :: iCellVec(:,:), iKProcs(:)
   real(dp), allocatable :: mu(:), kt(:), tunn_ref(:), pot_profile(:)
+  real(dp), allocatable :: shiftsShell(:,:,:)
   real(dp) :: Ef, current, bias
   real(dp), allocatable :: kPoints(:,:), tunnMat(:,:), tunnMatSK(:,:)
   integer :: ierr, impierr, nPLs, ii, jj, nSteps, nK, nn, nGroups, iKS
+  integer :: nShells, nOrbShell 
+  character(100) :: fShifts
   type(mpifx_Comm) :: globalComm, cartComm, kComm, enComm
   type(z_CSR), target :: csrHam, csrOvr
   type(z_CSR), pointer :: pcsrHam, pcsrOvr
@@ -97,13 +100,15 @@ program test
   ! ----------------------------------------------------------------------------------
   ! Si nin structure definition
   ! ----------------------------------------------------------------------------------
-  nPLs = 10 
-  cblk = [10, 1]
-  surfend   = [10*norbs, 12*norbs]
-  surfstart = [10*norbs+1, 12*norbs+1]
-  contend   = [12*norbs, 14*norbs]
-  plend = [1*norbs, 2*norbs, 3*norbs, 4*norbs, 5*norbs, 6*norbs, 7*norbs, &
-        & 8*norbs, 9*norbs, 10*norbs]
+  nPLs = 40 
+  cblk = [nPLs, 1]
+  surfend   = [nPLs*norbs, (nPLs+2)*norbs]
+  surfstart = [nPLs*norbs+1, (nPLs+2)*norbs+1]
+  contend   = [(nPLs+2)*norbs, (nPLs+4)*norbs]
+  allocate(plend(nPLs))
+  do ii = 1, nPLs
+    plend(ii) = ii*norbs
+  end do
   
   ! Note: number of contacts should be set first
   ! ----------------------------------------------------------------------------------
@@ -116,17 +121,17 @@ program test
   Ef = -3.460512986631902432_dp/eV2Hartree  ! 
   bias = 0.1_dp/eV2Hartree                  ! 
   mu = [(Ef-bias/2.0_dp), (Ef+bias/2.0_dp)] ! now in Hartree
-  kt = [1.0d-5, 1.0d-5]
+  kt = [0.026_dp, 0.026_dp]/eV2Hartree
  
   ! bias window:  -3.51..-3.41 
   ! Here we set the parameters, only the ones different from default
   ! ----------------------------------------------------------------------------------
   call get_params(pnegf, params)
   params%verbose = 100 
-  params%Emin = -3.520_dp/eV2Hartree
-  params%Emax = -3.400_dp/eV2Hartree
-  params%Estep = 0.008_dp/eV2Hartree
-  ! nStep = (-3.400 + 3.520)/0.008 + 1 = 16
+  params%Emin = mu(1)-10.0_dp*kt(1)+0.012_dp  ! -0.298
+  params%Emax = mu(2)+10.0_dp*kt(1)-0.010_dp  ! +0.30
+  params%Estep = 0.002_dp
+  ! nStep = 0.598/0.002 + 1 = 300
   params%delta = 1.e-5_dp  !Already in Hartree
   params%mu(1:2) = mu
   params%kbT_t(1:2) = kt
@@ -136,6 +141,11 @@ program test
   params%kwght = 1.0_dp/nk
   call set_params(pnegf, params)
 
+  ! Add SCC potential shifts of the n-i-n system
+  ! Read shifts from external file
+  fShifts="shifts.dat"
+  call readShifts(fShifts, nAtoms, 1, shiftsShell)
+
   ! ----------------------------------------------------------------------------------
   ! Create a potential profile and add to H 
   ! C     D    C 
@@ -144,15 +154,31 @@ program test
   !   |   \__|__
   ! Potential drops across the barrier or intrinsic part
   ! ----------------------------------------------------------------------------------
-  allocate(pot_profile(14*norbs))
+  allocate(pot_profile((44)*norbs))
   
-  pot_profile(12*norbs+1:14*norbs) = bias*0.5_dp
-  pot_profile(1:2*norbs) = bias*0.5_dp
-  do ii = 2, 7 
-    pot_profile(ii*norbs+1:ii*norbs+norbs/2) = bias*0.5_dp - bias*(ii-1)/6.0 
-    pot_profile(ii*norbs+norbs/2+1:ii*norbs+norbs) = bias*0.5_dp - bias*(ii-1+0.5)/6.0 
+  pot_profile(42*norbs+1:44*norbs) = bias*0.5_dp
+  pot_profile(1:14*norbs) = bias*0.5_dp
+  do ii = 14, 26
+    pot_profile(ii*norbs+1:ii*norbs+norbs/2) = bias*0.5_dp - bias*(ii-1)/12.0 
+    pot_profile(ii*norbs+norbs/2+1:ii*norbs+norbs) = bias*0.5_dp - bias*(ii-1+0.5)/12.0 
   end do
-  pot_profile(8*norbs+1:12*norbs) = -bias*0.5_dp
+  pot_profile(26*norbs+1:42*norbs) = -bias*0.5_dp
+
+  ! This spreads the shell potential into orbitals and add to potential profile
+  if (.not.allocated(orb%nOrbAtom) .or. size(orb%nOrbAtom<nAtoms)) then
+    write(*,*) 'Error: nOrbAtom not initialized with read_dftb_hs'
+    stop
+  end if 
+
+  nn = 0
+  do ii = 1, nAtoms
+    nShells = int(sqrt(1.0*orb%nOrbAtom(ii)))
+    do jj = 1, nShells 
+       nOrbShell = 2*jj-1
+       pot_profile(nn+1:nn+nOrbShell) = pot_profile(nn+1:nn+nOrbShell) + shiftsShell(jj,ii,1) 
+       nn = nn + nOrbShell
+    enddo
+  enddo
 
   call apply_shifts(H0, S, pot_profile)
 

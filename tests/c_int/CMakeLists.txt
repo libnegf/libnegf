@@ -1,1 +1,1 @@
-setup_c_test(c_int hello.c)
+setup_c_test(c_int "normal" hello.c)

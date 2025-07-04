@@ -1,1 +1,1 @@
-setup_f90_test(f90block_partition block_partition.F90)
+setup_f90_test(f90block_partition "normal unit" block_partition.F90)

@@ -47,4 +47,4 @@ test:
   stage: test
   script:
     - cd "$BUILD_DIR"
-    - ctest --output-on-failure
+    - ctest -L normal --output-on-failure

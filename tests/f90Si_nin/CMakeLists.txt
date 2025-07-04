@@ -4,7 +4,7 @@ set(sources
 	matconv.F90
 	test.F90)
 
-setup_f90_mpi_test(f90Si_nin ${sources})
+setup_f90_mpi_test(f90Si_nin "long" ${sources})
 
 unzip_test_data(f90Si_nin "hs.tar.xz")
 

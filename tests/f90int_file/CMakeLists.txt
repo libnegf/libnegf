@@ -1,1 +1,1 @@
-setup_f90_test(f90int_file hello.F90)
+setup_f90_test(f90int_file "normal" hello.F90)

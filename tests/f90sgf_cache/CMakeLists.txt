@@ -1,1 +1,1 @@
-setup_f90_test(f90sgf_cache sgf_cache.F90)
+setup_f90_test(f90sgf_cache sgf_cache.F90 "normal")
