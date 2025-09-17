@@ -22,6 +22,8 @@
 module energy_mesh
 
   use ln_precision
+  use ln_messages, only : error_msg
+
   implicit none
   private
 
@@ -87,11 +89,13 @@ contains
     emesh%maxreflev = reflevel
 
     allocate(emesh%el0(nelem), stat=ierr)
-    if(ierr.ne.0) error stop 'ERROR: Cannot allocate mesh'
-
+    if (ierr.ne.0) then
+      call error_msg('ERROR: Cannot allocate mesh')
+    end if
     allocate(emesh%pactive(2**(emesh%maxreflev-1)*nelem), stat=ierr)
-    if(ierr.ne.0) error stop 'ERROR: Cannot allocate mesh'
-
+    if (ierr.ne.0) then
+      call error_msg('ERROR: Cannot allocate mesh')
+    end if
     do i=1,nelem
       emesh%pactive(i)%pelem => emesh%el0(i)
     enddo
@@ -232,8 +236,9 @@ contains
     integer :: ierr
 
     allocate(el, stat=ierr)
-    if(ierr.ne.0) error stop 'ERROR: Cannot allocate el1'
-
+    if (ierr.ne.0) then
+       call error_msg('ERROR: Cannot allocate el1')
+    end if
     meshmem = meshmem + 10
 
   end subroutine create_el

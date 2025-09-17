@@ -29,7 +29,8 @@ module elphdb
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
   use mat_def, only : c_dns, z_dns, create, destroy
-
+  use ln_messages, only : error_msg
+  
   implicit none
   private
 
@@ -106,7 +107,7 @@ contains
 
     !Check input size
     if (size(coupling).ne.sum(orbsperatm)) then
-      error stop 'Error: coupling and orbsperatom not compatible'
+      call error_msg('Error: coupling and orbsperatom not compatible')
     end if
 
     this%scba_niter = niter
@@ -121,11 +122,17 @@ contains
       this%atmorbstart(ii) = sum(this%orbsperatm(1:ii-1)) + 1
     enddo
     allocate(this%sigma_r(natm),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate sigma_r'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate sigma_r')
+    end if   
     allocate(this%sigma_n(natm),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate sigma_n'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate sigma_n')
+    end if   
     allocate(this%coupling(natm),stat=ierr)
-    if (ierr.ne.0) error stop 'ALLOCATION ERROR: could not allocate coupling'
+    if (ierr.ne.0) then
+       call error_msg('ALLOCATION ERROR: could not allocate coupling')
+    end if
     do ii = 1,natm
       call create(this%sigma_r(ii),orbsperatm(ii),orbsperatm(ii))
       this%sigma_r(ii)%val = (0.0_dp, 0.0_dp)
@@ -161,7 +168,7 @@ contains
     do ii = 1,natm
       if (this%atmpl(ii).eq.0) then
         write(*,*) this%atmpl
-        error stop 'atmpl not correctly set'
+        call error_msg('atmpl not correctly set')
       end if
     end do
 

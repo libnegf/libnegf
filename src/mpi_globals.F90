@@ -96,7 +96,8 @@ module mpi_globals
       if (mod(inComm%size,nk) /=0 ) then
         print*, 'libNEGF MPI cartesian grid initialization error'
         print*, 'Communicator size: ',inComm%size,'k-points: ',nk
-        error stop "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
+        print*, "Error in cart_init: cannot build a 2D cartesian grid with incompatible sizes"
+        error stop 1
       end if
 
       !call check_omp_mpi(inComm, mpierr)

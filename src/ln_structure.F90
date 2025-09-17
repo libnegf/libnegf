@@ -21,6 +21,7 @@
 
 module ln_structure
 use ln_precision
+use ln_messages
 implicit none
 private
 
@@ -207,7 +208,7 @@ contains
     integer :: ii, nn
 
     if (present(basisToMatrix) .and. present(matrixToBasis)) then
-      error stop 'Internal error in create_TBasis: two exclusive optional arrays'
+      call error_msg( 'Internal error in create_TBasis: two exclusive optional arrays')
     end if
 
     allocate(this%x(size(coord,1), size(coord,2)))

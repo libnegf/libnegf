@@ -24,6 +24,7 @@
 module equiv_kpoints
   use ln_precision, only : dp
   use ln_allocation
+  use ln_messages
   implicit none
   private
   
@@ -66,7 +67,7 @@ module equiv_kpoints
     integer :: ii, nk, n_eq
 
     if (allocated(mycontainer)) then
-       error stop "Equivalent k-points container already created"
+       call error_msg("Equivalent k-points container already created")
     end if   
     
     nk = size(equiv_kpoints%EqPoints)

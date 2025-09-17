@@ -21,9 +21,10 @@
 
 
 MODULE sparsekit_drv
-  USE ln_precision
-  USE ln_allocation
-  USE mat_def
+  use ln_precision
+  use ln_allocation
+  use ln_messages, only : messages_error_msg => error_msg
+  use mat_def
   use skit_module
 
   private
@@ -323,7 +324,9 @@ CONTAINS
 
     ENDIF
 
-    if (ierr.ne.0) call error_msg('(rcsrdns_st)',CONVERR)
+    if (ierr.ne.0) then
+       call error_msg('(rcsrdns_st)',CONVERR)
+    end if
 
   END SUBROUTINE rcsrdns_st
   ! -------------------------------------------------------------------------
@@ -358,7 +361,9 @@ CONTAINS
 
     ENDIF
 
-    if (ierr.ne.0) call error_msg('(rdnscsr_st)',CONVERR)
+    if (ierr.ne.0) then
+       call error_msg('(rdnscsr_st)',CONVERR)
+    end if
 
   END SUBROUTINE rdnscsr_st
   ! -------------------------------------------------------------------------
@@ -392,7 +397,9 @@ CONTAINS
               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
               C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) call error_msg('(rmaub_st)',OUTOFBOUND)
+    if (ierr.ne.0) then
+       call error_msg('(rmaub_st)',OUTOFBOUND)
+    end if
 
     call log_deallocate(iw)
 
@@ -446,7 +453,9 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) call error_msg('(rsumcsr)',OUTOFBOUND)
+       if (ierr.ne.0) then
+          call error_msg('(rsumcsr)',OUTOFBOUND)
+       end if
 
        C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
@@ -460,7 +469,9 @@ CONTAINS
             B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
             C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-       if (ierr.ne.0) call error_msg('(rsumcsr)',OUTOFBOUND)
+       if (ierr.ne.0) then
+          call error_msg('(rsumcsr)',OUTOFBOUND)
+       end if
        call log_deallocate(iw)
 
     ENDIF
@@ -510,8 +521,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
     ierr=0
-    if(A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) then
-            call error_msg('(rsumcsrs)',MISMATCH)
+    if (A_csr%nrow.ne.B_csr%nrow .or. A_csr%ncol.ne.B_csr%ncol) then
+       call error_msg('(rsumcsrs)',MISMATCH)
     endif
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
@@ -543,7 +554,9 @@ CONTAINS
               B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
               C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) call error_msg('(rsumcsrs)',OUTOFBOUND)
+    if (ierr.ne.0) then
+       call error_msg('(rsumcsrs)',OUTOFBOUND)
+    end if
 
     C_csr%nnz=C_csr%rowpnt(A_csr%nrow+1)-1
 
@@ -557,9 +570,11 @@ CONTAINS
                B_csr%nzval,B_csr%colind,B_csr%rowpnt,C_csr%nzval,C_csr%colind,&
                C_csr%rowpnt,C_csr%nnz,iw,ierr)
 
-    if (ierr.ne.0) call error_msg('(rsumcsrs)',OUTOFBOUND)
-
-        call log_deallocate(iw)
+    if (ierr.ne.0) then
+       call error_msg('(rsumcsrs)',OUTOFBOUND)
+    end if
+    
+    call log_deallocate(iw)
 
     ENDIF
 
@@ -605,12 +620,16 @@ CONTAINS
   logical, ALLOCATABLE, DIMENSION(:) :: iw
 
   allocate(iw(A%ncol),stat=ierr)
-  IF (ierr.ne.0) call error_msg('(rzmask)',ALLOCERR)
+  if (ierr.ne.0) then
+     call error_msg('(rzmask)',ALLOCERR)
+  end if
 
   CALL amask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
               M%rowpnt,C%nzval,C%colind,C%rowpnt,iw,C%nnz,ierr)
 
-  IF (ierr.GT.1) call error_msg('(rzmask)',CONVERR)
+  if (ierr.GT.1) then
+     call error_msg('(rzmask)',CONVERR)
+  end if
 
   deallocate(iw)
 
@@ -640,12 +659,16 @@ CONTAINS
   logical, ALLOCATABLE, DIMENSION(:) :: iw
 
   allocate(iw(A%ncol),stat=ierr)
-  IF (ierr.ne.0) call error_msg('(zmask)',ALLOCERR)
+  if (ierr.ne.0) then
+     call error_msg('(zmask)',ALLOCERR)
+  end if
 
   CALL amask(A%nrow,A%ncol,A%nzval,A%colind,A%rowpnt,M%colind,&
               M%rowpnt,C%nzval,C%colind,C%rowpnt,iw,C%nnz,ierr)
 
-  IF (ierr.GT.1) call error_msg('(zmask)',CONVERR)
+  if (ierr.GT.1) then
+     call error_msg('(zmask)',CONVERR)
+  end if
 
   deallocate(iw)
 
@@ -835,7 +858,9 @@ CONTAINS
 
     ENDIF
 
-    if (ierr.ne.0) call error_msg('(zcsrdns_st)',CONVERR)
+    if (ierr.ne.0) then
+       call error_msg('(zcsrdns_st)',CONVERR)
+    end if
 
   END SUBROUTINE zcsrdns_st
 
@@ -907,7 +932,9 @@ CONTAINS
        call coocsr(coo%nrow,sp%nnz,coo%nzval,coo%index_i,coo%index_j,sp%nzval,sp%colind,sp%rowpnt)
 
        allocate(iwork(2*sp%nnz), stat=ierr)
-       if (ierr.ne.0) call error_msg('(zcoocsr_st)',ALLOCERR)
+       if (ierr.ne.0) then
+          call error_msg('(zcoocsr_st)',ALLOCERR)
+       end if
        values= .true.
 
        call csort(sp%nrow,sp%nzval,sp%colind,sp%rowpnt,iwork,values)
@@ -1400,8 +1427,8 @@ CONTAINS
       end if
     case('*')
       C_nnz = nnz_mult(A_csr, B_csr)
-     case default
-      error stop "unreachable case C_nnz"
+    case default
+       call messages_error_msg("unreachable case C_nnz")
     end select
 
   end function nnz
@@ -2135,8 +2162,12 @@ CONTAINS
     type(z_CSR) :: A_csr,B_csr,C_csr
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
+    if (A_csr%nrow.ne.B_csr%nrow) then
+       call messages_error_msg('Error in aplb subroutine: nrow differ')
+    end if   
+    if (A_csr%ncol.ne.B_csr%ncol) then
+       call messages_error_msg('Error in aplb subroutine: ncol differ')
+    end if   
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2200,8 +2231,8 @@ CONTAINS
     integer, DIMENSION(:), ALLOCATABLE :: iw
     integer :: ierr,A_ncol
 
-    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) call error_msg( 'Error in aplb subroutine: nrow differ',0)
+    if(A_csr%ncol.ne.B_csr%ncol) call error_msg( 'Error in aplb subroutine: ncol differ',0)
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2274,8 +2305,8 @@ CONTAINS
     integer :: ierr,A_ncol
 
 
-    if(A_csr%nrow.ne.B_csr%nrow) error stop 'Error in aplb subroutine: nrow differ'
-    if(A_csr%ncol.ne.B_csr%ncol) error stop 'Error in aplb subroutine: ncol differ'
+    if(A_csr%nrow.ne.B_csr%nrow) call error_msg( 'Error in aplb subroutine: nrow differ',0)
+    if(A_csr%ncol.ne.B_csr%ncol) call error_msg( 'Error in aplb subroutine: ncol differ',0)
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2433,7 +2464,7 @@ CONTAINS
        print*, 'ERROR (zextract_csr): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       error stop
+       call error_msg('',0)
     ENDIF
 
     nnz = zcheck_nnz(A_csr, i1, i2, j1, j2);
@@ -2463,7 +2494,7 @@ CONTAINS
        print*, 'ERROR (zextract_dns): bad indeces specification';
        print*, 'Trying to extract block from matrix',A_csr%nrow,'x',A_csr%ncol
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
-       error stop
+       call error_msg('',0)
     ENDIF
  
     call create(A_dns,(i2-i1+1),(j2-j1+1),tag=str)
@@ -3046,7 +3077,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+       call error_msg( 'Error in getdiag. D_vec has dimension lower than nrow',0)
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3078,7 +3109,7 @@ CONTAINS
     integer, allocatable, dimension(:) :: idiag
 
     IF(SIZE(D_vec).lt.A_csr%nrow) THEN
-       error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+       call error_msg( 'Error in getdiag. D_vec has dimension lower than nrow',0)
     ENDIF
 
     call log_allocate(idiag,A_csr%nrow)
@@ -3103,7 +3134,7 @@ CONTAINS
    N = A_dns%nrow
 
    IF(SIZE(D_vec).lt.N) THEN
-      error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+      call error_msg( 'Error in getdiag. D_vec has dimension lower than nrow',0)
    ENDIF
 
    do i = 1, N
@@ -3126,7 +3157,7 @@ CONTAINS
    N = A_dns%nrow
 
    IF(SIZE(D_vec).lt.N) THEN
-      error stop 'Error in getdiag. D_vec has dimension lower than nrow'
+      call error_msg( 'Error in getdiag. D_vec has dimension lower than nrow',0)
    ENDIF
 
    do i = 1, N
@@ -3146,7 +3177,7 @@ CONTAINS
 
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          error stop 'Error in ztrace_csr: size(mask) /= nrow'
+          call error_msg( 'Error in ztrace_csr: size(mask) /= nrow',0)
        end if
     end if
 
@@ -3176,7 +3207,7 @@ CONTAINS
     trace = (0.0_dp,0.0_dp)
     if (present(mask)) then
        if (size(mask) /= mat%nrow) then
-          error stop 'Error in ztrace_csr: size(mask) /= nrow'
+          call error_msg( 'Error in ztrace_csr: size(mask) /= nrow',0)
        end if
        do i = 1,mat%nrow
           if (mask(i)) then
@@ -3202,7 +3233,7 @@ CONTAINS
     tr = (0.0_dp, 0.0_dp)
     if (present(mask)) then
        if (size(mask) /= size(mat,1)) then
-          error stop 'Error in ztrace_csr: size(mask) /= nrow'
+          call error_msg('Error in ztrace_csr: size(mask) /= nrow',0)
        end if
        do ii = 1, size(mat,1)
          if (mask(ii)) then
@@ -3356,17 +3387,18 @@ CONTAINS
     integer, intent(in) :: err
     character(*), intent(in) :: string
 
-    write(*,*)
 
     select case(err)
     case(MISMATCH)
-       WRITE(*,*) 'ERROR '//trim(string)//' matrices don''t match'
+       call messages_error_msg('ERROR '//trim(string)//' matrices do not match')
     case(OUTOFBOUND)
-       WRITE(*,*) 'ERROR '//trim(string)//' exceeding nnz of destination matrix'
+       call messages_error_msg('ERROR '//trim(string)//' exceeding nnz of destination matrix')
     case(BADINDEX)
-       WRITE(*,*) 'ERROR '//trim(string)//' bad indeces'
+       call messages_error_msg('ERROR '//trim(string)//' bad indeces')
     case(CONVERR)
-       WRITE(*,*) 'ERROR '//trim(string)//' conversion error'
+       call messages_error_msg('ERROR '//trim(string)//' conversion error')
+    case default
+       call messages_error_msg(trim(string))     
     end select
 
   end subroutine error_msg

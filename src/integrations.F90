@@ -24,6 +24,7 @@ module integrations
  use ln_precision
  use ln_constants
  use ln_allocation
+ use ln_messages
  use lib_param
  use mpi_globals, only : id, numprocs, id0
  use input_output
@@ -1552,7 +1553,10 @@ contains
     real(dp) :: d
     integer :: i
 
-    if (mod(n-1,2).ne.0) error stop 'ERROR: N is not multiple of 2'
+    if (mod(n-1,2).ne.0) then
+       call error_msg('ERROR: N is not multiple of 2')
+    end if
+
 
     d = (x2-x1)/((n-1)*1.0_dp)
 
@@ -1578,7 +1582,9 @@ contains
     real(dp) :: d
     integer :: i
 
-    if (mod(n-1,3).ne.0) error stop 'ERROR: N-1 is not multiple of 3'
+    if (mod(n-1,3).ne.0) then
+       call error_msg('ERROR: N-1 is not multiple of 3')
+    end if   
 
     d = (x2-x1)/((n-1)*1.0_dp)
 
@@ -2459,9 +2465,8 @@ contains
     integer :: size_ni, ii
 
     if (.not.allocated(negf%curr_mat)) then
-      write(*,*) 'Internal error: electron_current_meir_wingreen must be invoked'
-      write(*,*) 'after tunneling calculation'
-      error stop
+      call error_msg('Internal error: electron_current_meir_wingreen must be invoked &
+                &    after tunneling calculation')
     end if
 
     size_ni = size(negf%curr_mat,2)
@@ -2489,7 +2494,8 @@ contains
     complex(dp), dimension(:), allocatable :: temp
 
     if (real_axis .and. .not. present(frm_f)) then
-        error stop "Calculation of contact bulk density at non-equilibrium (real-axis) requires fermi functions"
+        call error_msg( "Calculation of contact bulk density at non-equilibrium (real-axis) &
+               & requires fermi functions")
     endif
 
     do j1 = 1,negf%str%num_conts
@@ -2610,7 +2616,7 @@ contains
        case(DELTA_MINGO)
          delta = negf%delta * (1.0_dp - real(negf%en_grid(i)%Ec)/(negf%wmax+1d-12)) * Ec
        case default
-         error stop "unreachable case libnegf delta"
+         call error_msg("unreachable case libnegf delta")
        end select
 
        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')

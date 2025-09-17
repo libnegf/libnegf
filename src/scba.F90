@@ -25,6 +25,7 @@ module scba
   use ln_inelastic, only : TInelastic
   use mat_def, only : z_CSR, z_DNS, create, destroy
   use sparsekit_drv, only : trace, clone
+  use ln_messages
 
   type TScbaDriver
     !> Keep track of SCBA iteration
@@ -121,7 +122,7 @@ module scba
     type(z_CSR), intent(in) :: Mat
 
     if (.not.allocated(this%Mat_old)) then
-      error stop 'ERROR: TScbaDriver must be initialized first'
+      call error_msg( 'ERROR: TScbaDriver must be initialized first')
     end if
     if (.not.allocated(this%Mat_old%nzval)) then
       call clone(Mat, this%Mat_old)

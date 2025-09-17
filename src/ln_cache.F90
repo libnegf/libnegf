@@ -23,6 +23,7 @@ module ln_cache
   use mat_def, only: z_DNS, c_DNS, x_DNS => z_DNS, destroy, assignment(=)
   use globals
   use outmatrix, only: outmat_c, inmat_c
+  use ln_messages, only: error_msg
 
   implicit none
   private
@@ -223,7 +224,7 @@ contains
     if (.not.allocated(this%MatArray)) then
       allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr)
       if (ierr /= 0) then    
-        error stop "Allocation error of MatArray in init "//trim(this%tagname)
+        call error_msg( "Allocation error of MatArray in init "//trim(this%tagname))
       end if   
     end if
     this%Nblocks = NPL    
@@ -238,22 +239,22 @@ contains
     integer :: r, c
     
     if (.not.allocated(this%MatArray)) then
-      error stop "MatArray not allocated for "//trim(this%tagname)
+      call error_msg( "MatArray not allocated for "//trim(this%tagname))
     end if
     if (label%energy_point < 1 .or. label%energy_point > size(this%MatArray,1)) then
        print*,trim(this%tagname)   
        call print_label(label)
-       error stop "energy_point out of range"
+       call error_msg( "energy_point out of range")
     end if
     if (label%kpoint < 1 .or. label%kpoint > size(this%MatArray,2)) then
        print*,trim(this%tagname)   
        call print_label(label)
-       error stop "k_point out of range"
+       call error_msg( "k_point out of range")
     end if
     if (label%spin < 1 .or. label%spin > size(this%MatArray,4)) then
        print*,trim(this%tagname)   
        call print_label(label)
-       error stop "spin out of range"
+       call error_msg( "spin out of range")
     end if
         
     r = label%row_block
@@ -267,7 +268,7 @@ contains
        print*,trim(this%tagname)   
        call print_label(label)
        print*, "bl=",bl
-       error stop "block out of range"
+       call error_msg( "block out of range")
     end if
   end subroutine checks
 
@@ -332,7 +333,7 @@ contains
       else      
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
-        error stop "Cannot retrieve matrix"
+        call error_msg( "Cannot retrieve matrix")
       end if
     end associate
     
@@ -354,7 +355,7 @@ contains
       else      
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
-        error stop "Cannot retrieve matrix"
+        call error_msg( "Cannot retrieve matrix")
       end if
     end associate
     
@@ -376,7 +377,7 @@ contains
       else      
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
-        error stop "Cannot retrieve matrix"
+        call error_msg( "Cannot retrieve matrix")
       end if
     end associate
 
@@ -397,7 +398,7 @@ contains
       else      
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
-        error stop "Cannot retrieve matrix"
+        call error_msg( "Cannot retrieve matrix")
       end if
     end associate
 
@@ -500,7 +501,7 @@ contains
     inquire (file=trim(this%scratch_path)//filename, EXIST=file_exists)
 
     if (.not. file_exists) then
-      error stop "Cannot retrieve matrix from disk: file not found"
+      call error_msg( "Cannot retrieve matrix from disk: file not found")
     end if
 
     open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
@@ -524,7 +525,7 @@ contains
     type(TMatLabel) :: label
     type(x_DNS), pointer :: pmatrix
     pmatrix => null()
-    error stop "cannot retrieve pointer from disk cache"
+    call error_msg( "cannot retrieve pointer from disk cache")
   end subroutine disk_retrieve_pointer
 
   ! This routine gives error because a pointer cannot be associated
@@ -534,7 +535,7 @@ contains
     type(C_PTR) :: pmatrix
 
     pmatrix = C_NULL_PTR
-    error stop "cannot retrieve pointer from disk cache"
+    call error_msg( "cannot retrieve pointer from disk cache")
 
   end function disk_retrieve_loc
 
@@ -674,7 +675,7 @@ contains
     if (int_label .gt. 9999) write (str_label, '(i5.5)') int_label
     if (int_label .gt. 99999) write (str_label, '(i6.6)') int_label
     if (int_label .gt. 999999) write (str_label, '(i7.7)') int_label
-    if (int_label .gt. 9999999) error stop 'ERROR: label too large (> 9999999)'
+    if (int_label .gt. 9999999) call error_msg( 'ERROR: label too large (> 9999999)')
   end subroutine get_string_label
 
 end module

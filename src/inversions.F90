@@ -29,6 +29,7 @@ Module inversions
 
 use ln_precision
 use ln_allocation 
+use ln_messages 
 use mat_def
 use sparsekit_drv
 private
@@ -677,7 +678,7 @@ SUBROUTINE zINV_PARDISO(A_csr, ndim, INV)
           A_csr%colind, PERM, NRHS, IPARM, MSGLVL, B, X, info)
 
      IF(info.NE.0) THEN
-         error stop 'Error in solve'
+         call error_msg('Error in PARDISO solve')
      ENDIF  
      ! counts all non-zero elements in this column 
      cnt = 0
@@ -752,7 +753,7 @@ subroutine zINV_LAPACK(A_csr, INV)
   call csr2dns(A_csr,A_dns)
 
   if(A_dns%nrow.ne.A_dns%ncol) then
-     error stop 'ERROR: nrow != ncol'
+     call error_msg( 'ERROR: nrow != ncol')
   endif
 
   ndim=A_dns%nrow
@@ -783,9 +784,7 @@ subroutine cinv(inA,A,n)
   call cgetrf( n, n, inA, n, ipiv, info )
 
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in LU factorization (cgetrf)',info
-     error stop
+     call error_msg('ERROR in LU factorization (cgetrf)',info)
   end if
   
   inA = (0.0_sp, 0.0_sp)
@@ -796,9 +795,7 @@ subroutine cinv(inA,A,n)
   call cgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
 
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in INVERSION (cgetrs)',info
-     error stop
+     call error_msg('ERROR in INVERSION (cgetrs)',info)
   end if
 
   call log_deallocate(LU)
@@ -824,9 +821,7 @@ subroutine zinv(inA,A,n)
   call zgetrf( n, n, LU, n, ipiv, info )
 
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in LU factorization (zgetrf)',info
-     error stop
+     call error_msg('ERROR in LU factorization (zgetrf)',info)
   end if
 
   inA = (0.0_dp, 0.0_dp)
@@ -836,9 +831,7 @@ subroutine zinv(inA,A,n)
 
   call zgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in INVERSION (zgetrs)',info
-     error stop
+     call error_msg('ERROR in INVERSION (zgetrs)',info)
   end if
 
   call log_deallocate(LU)
@@ -864,9 +857,7 @@ subroutine rinv(inA,A,n)
   call  dgetrf(n, n, LU, n, ipiv, info )
 
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in LU factorization (dgetrf)',info
-     error stop
+     call error_msg('ERROR in LU factorization (dgetrf)',info)
   end if
   
   inA = 0.0_dp
@@ -876,9 +867,7 @@ subroutine rinv(inA,A,n)
 
   call dgetrs( 'N', n, n, LU, n, ipiv, inA, n, info )
   if (info.ne.0)  then
-     write(*,*)
-     write(*,*) 'ERROR in INVERSION (dgetrs)',info
-     error stop
+     call error_msg('ERROR in INVERSION (dgetrs)',info)
   end if
 
   call log_deallocate(LU)
@@ -1131,9 +1120,7 @@ end subroutine rinv
     call zgetrf( n, n, LU, n, ipiv, info )
   
     if (info.ne.0)  then
-       write(*,*)
-       write(*,*) 'ERROR in INVERSION part 1',info
-       error stop
+       call error_msg('ERROR in INVERSION part 1',info)
     end if
   
     nrhs = size(T,2)
@@ -1143,9 +1130,7 @@ end subroutine rinv
     gT = T
     call zgetrs( 'N', n, nrhs, LU, n, ipiv, gT, n, info )
     if (info.ne.0)  then
-       write(*,*)
-       write(*,*) 'ERROR in INVERSION part 2',info
-       error stop
+       call error_msg('ERROR in INVERSION part 2',info)
     end if
   
     call log_deallocate(work)

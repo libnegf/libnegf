@@ -30,6 +30,7 @@ module cudautils
    use lib_param
    use iso_c_binding, only : c_int, c_loc, c_null_ptr, c_ptr, c_size_t
    use, intrinsic :: ieee_arithmetic
+   use ln_messages
    implicit none
    private
 
@@ -628,7 +629,7 @@ end interface
          istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
                                    & B%d_addr, beta, C%d_addr, 2)
        case default
-         error stop 'Error in matmul_gpu'
+         call error_msg('Error in matmul_gpu')
        end select
      endif
 
