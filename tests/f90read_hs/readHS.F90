@@ -58,8 +58,14 @@ module readHS
     allocate(nNeighbours(nAtoms))
     allocate(iAtomStart(0:nAtoms))
     allocate(cells(nAtoms))
-    allocate(orb%nOrbAtom(nAtoms))
     allocate(img2CentCell(nAtoms))
+    if (allocated(orb%nOrbAtom)) then
+       if (size(orb%nOrbAtom) .ne. nAtoms) then
+          error stop "Incompatible nAtoms between shifs and H,S"
+       end if
+    else
+       allocate(orb%nOrbAtom(nAtoms))
+    end if 
     read(fu1, *) !read # header line  
     read(fu2, *) !read # header line
     ! Read the list of atoms with number of neighbours and orbitals
@@ -448,5 +454,47 @@ module readHS
 
   end subroutine apply_shifts
 
+  !> Read the Hamiltonian potential shifts from file
+  subroutine readShifts(fShifts, nAtom, nSpin, shiftPerL)
+
+    !> filename where shifts are stored
+    character(*), intent(in) :: fShifts
+
+    !> number of atoms and spin blocks
+    integer, intent(in) :: nAtom, nSpin
+
+    !> potential shifts (shell,atom,spin) charge/mag is used
+    real(dp), allocatable, intent(inout) :: shiftPerL(:,:,:)
+
+    integer :: fdH, nAtomSt, nSpinSt, mOrbSt, mShellSt, ii, jj
+
+
+    open(newunit=fdH, file=fShifts, form="formatted")
+    read(fdH, *) nAtomSt, mShellSt, mOrbSt, nSpinSt
+
+    if (nAtom .ne. nAtomSt) then
+       error stop "Incompatible nSpin between shifts and H,S"
+    end if   
+    if (nSpin .ne. nSpinSt) then
+       error stop "Incompatible nSpin between shifts and H,S"
+    end if   
+    if (allocated(orb%nOrbAtom)) then
+       if (size(orb%nOrbAtom) .ne. nAtomSt) then
+          error stop "Incompatible nAtoms between shifs and H,S"
+       end if
+    else
+       allocate(orb%nOrbAtom(nAtomSt))
+    end if 
+
+    allocate(shiftPerL(mShellSt,nAtomSt,nSpinSt))
+    shiftPerL(:,:,:) = 0.0_dp
+
+    do ii = 1, nAtomSt
+      read(fdH, *) orb%nOrbAtom(ii), (shiftPerL(:,ii,jj), jj = 1, nSpinSt)
+    end do
+
+    close(fdH)
+
+  end subroutine readShifts
 
 end module readHS

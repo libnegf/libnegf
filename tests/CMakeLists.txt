@@ -24,6 +24,7 @@ set(test-directories
 	  f90read_hs
 	  f90Si2x2
 	  f90Si_nin
+	  f90Si_nin_40pl
         )
 
 if(WITH_TRANSPORT_GPU)
@@ -65,7 +66,8 @@ function(unzip_test_data testname)
 endfunction()
 
 # A function to setup C++ tests.
-function(setup_cpp_test testname source)
+function(setup_cpp_test testname label source)
+    message(STATUS "add test: " ${testname} "  " ${source} "  " ${label})
     add_executable(${testname} ${source})
     transfer_test_data(${testname})
     target_link_libraries(${testname} MPI::MPI_CXX)
@@ -75,10 +77,12 @@ function(setup_cpp_test testname source)
     add_test(
 	    NAME ${testname}
 	    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ./${testname})
+    set_property(TEST ${testname} PROPERTY LABELS ${label})
 endfunction()
 
 # A function to setup C tests.
-function(setup_c_test testname source)
+function(setup_c_test testname label source)
+    message(STATUS "add test: " ${testname} "  " ${source} "  " ${label})
     add_executable(${testname} ${source} ${ARGN})
     transfer_test_data(${testname})
     target_link_libraries(${testname} MPI::MPI_C)
@@ -86,10 +90,12 @@ function(setup_c_test testname source)
     target_link_libraries(${testname} LAPACK::LAPACK)
     target_include_directories(${testname} PRIVATE ${CMAKE_BINARY_DIR}/src/api)
     add_test(${testname} ${testname})
+    set_property(TEST ${testname} PROPERTY LABELS ${label})
 endfunction()
 
 # A function to setup F90 tests.
-function(setup_f90_test testname source)
+function(setup_f90_test testname label source)
+    message(STATUS "add test: " ${testname} "  " ${source} "  " ${label})
     add_executable(${testname} ${source} ${ARGN})
     transfer_test_data(${testname})
     target_link_libraries(${testname} MPI::MPI_Fortran)
@@ -97,10 +103,12 @@ function(setup_f90_test testname source)
     target_link_libraries(${testname} LAPACK::LAPACK)
     target_include_directories(${testname} PRIVATE ${BUILD_MOD_DIR})
     add_test(${testname} ${testname})
+    set_property(TEST ${testname} PROPERTY LABELS ${label})
 endfunction()
 
 # A function to setup F90 tests with MPI.
-function(setup_f90_mpi_test testname source)
+function(setup_f90_mpi_test testname label source)
+    message(STATUS "add test: " ${testname} "  " ${source} "  " ${label})
     add_executable(${testname} ${source} ${ARGN})
     transfer_test_data(${testname})
     target_link_libraries(${testname} MPI::MPI_Fortran)
@@ -110,6 +118,7 @@ function(setup_f90_mpi_test testname source)
     add_test(
       NAME ${testname}
       COMMAND env OMP_NUM_THREADS=1 ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS} ./${testname})
+    set_property(TEST ${testname} PROPERTY LABELS ${label})
 endfunction()
 
 
