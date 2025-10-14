@@ -892,6 +892,21 @@ contains
      !       real-axis integration.
      call zspectral(TmpMt,TmpMt,0,negf%rho)
 
+#:if defined("MPI")
+     TmpMt%nzval = (0.0_dp, 0.0_dp)
+     !print*,'CPU: ',negf%globalComm%rank,' Size rho: ',size(negf%rho%nzval)
+     call mpifx_barrier(negf%globalComm)
+     if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI E-grid')
+     call mpifx_allreduce(negf%energyComm, negf%rho%nzval, TmpMt%nzval, MPI_SUM)
+     negf%rho%nzval = TmpMt%nzval
+     if (id0.and.negf%verbose.gt.VBT) call write_clock
+     TmpMt%nzval = (0.0_dp, 0.0_dp)
+     call mpifx_barrier(negf%kComm)
+     if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI k-grid')
+     call mpifx_allreduce(negf%kComm, negf%rho%nzval, TmpMt%nzval, MPI_SUM)
+     negf%rho%nzval = TmpMt%nzval
+     if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
      call destroy(TmpMt)
 
   end subroutine contour_int
