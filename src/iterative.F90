@@ -1741,6 +1741,9 @@ CONTAINS
           if (nt.gt.1) then
             call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nt)
           end if
+#:if defined("GPU")
+          call waitForGPU()
+#:endif
         else
           ! When more contacts are present sometimes we can re-use previous GF
           ! if nt1 > nt extend the Gr calculation
@@ -1749,6 +1752,9 @@ CONTAINS
             nt = nt1
           endif
         end if
+#:if defined("GPU")
+        call waitForGPU()
+#:endif
 
         call calculate_single_transmission_N_contacts(negf,nit,nft,ESH,SelfEneR,cblk,negf%tun_proj,gsmr,Gr,tun)
 
