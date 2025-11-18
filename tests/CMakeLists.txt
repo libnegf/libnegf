@@ -15,8 +15,20 @@ endif()
 
 # List of active tets. Each test indicates a subdirectory.
 set(test-directories
-    f90init c_mpi_init cpp_mpi_init c_int c_int_elph_deph c_int_file f90int f90int_file
-    f90_transmission f90elph_deph f90read_hs f90Si2x2 f90Si_nin f90Si_nin_40pl
+    f90init
+    c_mpi_init
+    cpp_mpi_init
+    c_int
+    c_int_elph_deph
+    c_int_file
+    f90int
+    f90int_file
+    f90_transmission
+    f90elph_deph
+    f90read_hs
+    f90Si2x2
+    f90Si_nin
+    f90Si_nin_40pl
 )
 
 if(WITH_TRANSPORT_GPU)
