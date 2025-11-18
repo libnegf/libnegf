@@ -4,8 +4,10 @@
 with section("parse"):
 
   # Specify structure for custom cmake functions
-  additional_commands = { 'foo': { 'flags': ['BAR', 'BAZ'],
-             'kwargs': {'DEPENDS': '*', 'HEADERS': '*', 'SOURCES': '*'}}}
+  additional_commands = {
+    'setup_test': { 'kwargs': {'GPUONLY': '0', 'LABELS': '+', 'MPI': '0', 'SOURCES': '+'},
+                    'pargs': {'flags': ['2'], 'nargs': '0'}},
+  }
 
   # Override configurations per-command where available
   override_spec = {}
@@ -49,7 +51,7 @@ with section("format"):
 
   # If a positional argument group contains more than this many arguments, then
   # force it to a vertical layout.
-  max_pargs_hwrap = 99
+  max_pargs_hwrap = 6
 
   # If a cmdline positional group consumes more than this many lines without
   # nesting, then invalidate the layout (and nest)
