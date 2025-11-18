@@ -37,6 +37,28 @@ Running the tests additionally requires git-lfs for downloading test inputs.
 The extension of test input files is `.dat`.
 
 
+== Running the Tests on a Supercomputer
+
+On some HPC systems (e.g., LUMI), front-end nodes do not feature GPUs or the front-end nodes may
+have an instruction set architecture different from compute nodes (e.g., on Fugaku with its Intel
+front-end and Arm64FX compute nodes). On these systems, it is best to submit all tests to the batch scheduler.
+
+This can be achieved with the following steps. First, determine the account name and a queue (or _partition_) for job submission. Next, select a time limit. Tests that do not possess the label `long` run quickly even on personal computers. Therefore, we suggest a time limit of at most five minutes (this is per task). Finally, determine the number of MPI tasks within the job. Our recommendation is to run on at most one node with one job per NUMA domain.
+
+CAUTION: Avoid large numbers of MPI tasks (e.g., by launching one task per virtual CPU core). The tests may not scale very well.
+
+With the values above in mind, set `MPIEXEC_EXECUTABLE` to the absolute path to the batch scheduler executable and have `MPIEXEC_PREFLAGS` contain all the batch scheduler arguments. Here is an example for Slurm:
+```sh
+cmake \
+  -DLIBNEGF_TEST_WITH_MPIEXEC=ON \
+  -DMPIEXEC_EXECUTABLE="$(which srun)" \
+  -DMPIEXEC_NUMPROC_FLAG='--ntasks' \
+  -DMPIEXEC_MAX_NUMPROCS=4 \
+  -DMPIEXEC_PREFLAGS='--account=jsc1 --partition=dev --nodes=1 --time=5m' \
+  ...
+```
+
+
 
 == Generating libNEGF Input
 
