@@ -1,1 +1,1 @@
-setup_f90_test(f90init "normal" f90init.F90)
+setup_test(f90init f90init.F90)
