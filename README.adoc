@@ -48,7 +48,9 @@ This can be achieved with the following steps. First, determine the account name
 CAUTION: Avoid large numbers of MPI tasks (e.g., by launching one task per virtual CPU core). The tests may not scale very well.
 
 With the values above in mind, set `MPIEXEC_EXECUTABLE` to the absolute path to the batch scheduler executable and have `MPIEXEC_PREFLAGS` contain all the batch scheduler arguments as a CMake list; in a CMake list, list items are separated by a semicolon. Here is an example for Slurm:
-```sh
+
+[source,shell,linenums]
+----
 cmake \
   -DLIBNEGF_TEST_WITH_MPIEXEC=ON \
   -DMPIEXEC_EXECUTABLE="$(which srun)" \
@@ -56,7 +58,7 @@ cmake \
   -DMPIEXEC_MAX_NUMPROCS=4 \
   -DMPIEXEC_PREFLAGS='--account=mat4energy;--partition=develbooster;--nodes=1;--gpus-per-task=1;--time=1' \
   ...
-```
+----
 
 Note the following:
 
