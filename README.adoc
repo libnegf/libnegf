@@ -47,16 +47,22 @@ This can be achieved with the following steps. First, determine the account name
 
 CAUTION: Avoid large numbers of MPI tasks (e.g., by launching one task per virtual CPU core). The tests may not scale very well.
 
-With the values above in mind, set `MPIEXEC_EXECUTABLE` to the absolute path to the batch scheduler executable and have `MPIEXEC_PREFLAGS` contain all the batch scheduler arguments. Here is an example for Slurm:
+With the values above in mind, set `MPIEXEC_EXECUTABLE` to the absolute path to the batch scheduler executable and have `MPIEXEC_PREFLAGS` contain all the batch scheduler arguments as a CMake list; in a CMake list, list items are separated by a semicolon. Here is an example for Slurm:
 ```sh
 cmake \
   -DLIBNEGF_TEST_WITH_MPIEXEC=ON \
   -DMPIEXEC_EXECUTABLE="$(which srun)" \
   -DMPIEXEC_NUMPROC_FLAG='--ntasks' \
   -DMPIEXEC_MAX_NUMPROCS=4 \
-  -DMPIEXEC_PREFLAGS='--account=jsc1 --partition=dev --nodes=1 --time=5m' \
+  -DMPIEXEC_PREFLAGS='--account=mat4energy;--partition=develbooster;--nodes=1;--gpus-per-task=1;--time=1' \
   ...
 ```
+
+Note the following:
+
+* A time limit of one minutes is sufficient for tests without `long` tag on JUWELS Booster and LUMI.
+* The time limit of the job and the time limit of test CMake test submitting the job are two different things.
+* Redirecting the output (e.g., with Slurm with `--output=stdout.txt`) to files breaks the mpifx tests because these tests examine the standard output instead of the exit status.
 
 
 
