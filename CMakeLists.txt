@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.31)
+  cmake_policy(SET CMP0177 NEW)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(LibNegfUtils)
 libnegf_load_build_settings()
