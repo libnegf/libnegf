@@ -64,6 +64,8 @@ cmake \
   -DMPIEXEC_PREFLAGS='--account=mat4energy;--partition=develbooster;--nodes=1;--gpus-per-task=1;--time=1' \
   ...
 ----
+For faster execution, the tests can be run in an existing job allocation, e.g.,
+by calling `salloc` (for Slurm) or by using a reservation. Within the allocation, just call `ctest`.
 
 Note the following:
 
