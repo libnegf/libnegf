@@ -130,8 +130,12 @@ function(setup_test testname source_main)
         # per core and one OpenMP thread per task and per core (the default). The restriction below
         # aims to avoid this scenario.
         #
-        # env is wrapping the call to mpiexec/mpirun to avoid the job name `env` when
-        # ${MPIEXEC_EXECUTABLE} is a batch scheduler.
+        # `env` is wrapping the call to mpiexec/mpirun to avoid the job name `env` when
+        # ${MPIEXEC_EXECUTABLE} is a batch scheduler. This works with Slurm but some batch
+        # schedulers (e.g., OAR) filter the set of environment variables (the OAR documentation [1]
+        # even mentions `OMP_NUM_THREADS` explicitly).
+        #
+        # [1] https://oar.imag.fr/wiki:passing_environment_variables_to_openmpi_nodes
         env
         OMP_NUM_THREADS=1
         ${MPIEXEC_EXECUTABLE}
