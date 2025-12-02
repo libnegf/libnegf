@@ -1,10 +1,7 @@
-set(sources
-	constants.F90
-	readHS.F90
-	matconv.F90
-	test.F90)
-
-setup_f90_mpi_test(f90Si_nin_40pl "long" ${sources})
-
+setup_test(
+  f90Si_nin_40pl test.F90
+  MPI
+  SOURCES constants.F90 matconv.F90 readHS.F90
+  LABELS long
+)
 unzip_test_data(f90Si_nin_40pl "hs.tar.xz")
-
