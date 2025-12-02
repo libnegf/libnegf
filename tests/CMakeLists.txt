@@ -126,15 +126,18 @@ function(setup_test testname source_main)
   if(${LIBNEGF_TEST_MPI})
     set(num_procs ${MPIEXEC_MAX_NUMPROCS})
     set(cmd
+        # When running on a user's PC, it is possible to thrash the machine by having one MPI task
+        # per core and one OpenMP thread per task and per core (the default). The restriction below
+        # aims to avoid this scenario.
+        #
+        # env is wrapping the call to mpiexec/mpirun to avoid the job name `env` when
+        # ${MPIEXEC_EXECUTABLE} is a batch scheduler.
+        env
+        OMP_NUM_THREADS=1
         ${MPIEXEC_EXECUTABLE}
         ${MPIEXEC_NUMPROC_FLAG}
         ${num_procs}
         ${MPIEXEC_PREFLAGS}
-        env
-        # When running on a user's PC, it is possible to thrash the machine by having one MPI task
-        # per core and one OpenMP thread per task and per core (the default). The restriction below
-        # aims to avoid this scenario.
-        OMP_NUM_THREADS=1
         ./${testname}
         ${MPIEXEC_POSTFLAGS}
     )
