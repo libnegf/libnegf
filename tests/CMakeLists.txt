@@ -164,3 +164,8 @@ endfunction()
 foreach(test-directory IN LISTS test-directories)
   add_subdirectory(${test-directory})
 endforeach()
+
+
+add_executable(ext_system_test ext_system_test.f90)
+target_link_libraries(ext_system_test syscalls_objlib)
+add_test(ext_system_test ext_system_test)

@@ -4,7 +4,7 @@ program test
 
   character(100) :: folder
 
-  folder = "testfolder"
+  folder = "ext_system_testfolder"
 
   call create_directory(trim(folder))
 
@@ -12,9 +12,9 @@ program test
   write(101, *) 'test', 101
   close(101)
 
-  !call remove_file(trim(folder)//'/afile')
+  call remove_file(trim(folder)//'/afile')
 
-  !call remove_directory(folder)
+  call remove_directory(folder)
 
 
 end program test
