@@ -234,7 +234,7 @@ contains
     logical, intent(in) :: tridiag
 
     this%descriptor = &
-        & "Electron-Phonon inelastic model for polar-optical phonons"
+        & "Electron-Phonon inelastic model for non-PO phonons"
 
     this%cart_comm = comm
     this%scba_niter = niter
