@@ -234,7 +234,7 @@ contains
     logical, intent(in) :: tridiag
 
     this%descriptor = &
-        & "Electron-Phonon inelastic model for polar-optical phonons"
+        & "Electron-Phonon inelastic model for non-PO phonons"
 
     this%cart_comm = comm
     this%scba_niter = niter
@@ -326,6 +326,8 @@ contains
     integer :: transDir
     type(TEqPoint) :: eqv_points_iQ
 
+    n_eq = -1
+
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
 
@@ -394,6 +396,11 @@ contains
       endif
 
     end do iQloop
+
+    print*, "PO phonon"
+    print*, "iK", size(this%kweight)
+    print*, "nDeltaZ", nDeltaZ
+    error stop "INFO"
 
     deallocate(kpoint)
     !print*,'debug print Kmat'
