@@ -253,8 +253,8 @@ traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
     }
 }
 
-__device__ inline float absval(cuComplex z)  { return sqrtf(z.x*z.x+z.y*z.y); }
-__device__ inline double absval(cuDoubleComplex z){ return sqrt(z.x*z.x+z.y*z.y); }
+__device__ inline float absval(cuComplex z)  { return cuCabsf(z); }
+__device__ inline double absval(cuDoubleComplex z){ return cuCabs(z); }
 
 __device__ __forceinline__ float atomicMaxAbsFloat(float* addr, float value) {
     // assumes value >= 0
