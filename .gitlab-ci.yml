@@ -19,6 +19,18 @@
     MALLOC_PERTURB_: 1
 
 
+check-format:
+  stage: .pre
+  image: $CI_REGISTRY/nexgf/libnegf/check-format
+  script:
+    - >-
+      find . -name CMakeLists.txt -print0
+      | xargs -0 -L1 -- cmake-format --check --
+    - >-
+      find . -iname '*.cu' -o -iname '*.cpp' -print0
+      | xargs -0 -L1 -- clang-format --dry-run -Werror --
+
+
 build:
   extends: .setup
   stage: build
