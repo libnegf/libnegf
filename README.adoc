@@ -69,7 +69,7 @@ by calling `salloc` (for Slurm) or by using a reservation. Within the allocation
 
 Note the following:
 
-* A time limit of one minutes is sufficient for tests without `long` tag on JUWELS Booster and LUMI.
+* A time limit of one minute is sufficient for tests without `long` tag on JUWELS Booster and LUMI.
 * The time limit of the job and the time limit of test CMake test submitting the job are two different things.
 * Redirecting the output to files (e.g., with Slurm with `--output=stdout.txt`) breaks the mpifx tests because these tests examine the standard output instead of the exit status.
 
