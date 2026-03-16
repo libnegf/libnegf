@@ -1,5 +1,4 @@
-libNEGF
-=======
+= libNEGF
 
 libNEGF is a general library for Non Equilibrium Green's Functions.
 
@@ -72,6 +71,23 @@ Note the following:
 * A time limit of one minute is sufficient for tests without `long` tag on JUWELS Booster and LUMI.
 * The time limit of the job and the time limit of test CMake test submitting the job are two different things.
 * Redirecting the output to files (e.g., with Slurm with `--output=stdout.txt`) breaks the mpifx tests because these tests examine the standard output instead of the exit status.
+
+
+
+== Contributing
+
+libNEGF enforces a coding style in C, C++, and CMake. Ideally, all committed code should contain only code adhering to the style guidelines. To support contributors in this regard, a sample git pre-commit hook checking the format is provided in link:git-pre-commit-hook.sh[`git-pre-commit-hook.sh`]. To install the file, append its contents to `.git/hooks/pre-commit` and make the latter file executable; the script requires cmake-format and clang-format to be installed. See the https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks[Git Book: _Customizing Git - Git Hooks_] or https://man7.org/linux/man-pages/man5/githooks.5.html[`man 5 githooks`] for more detailed instructions. The pre-commit script requires clang-format and cmake-format to be installed.
+
+[NOTE]
+====
+Given the same source code and configuration, clang-format does _not_ promise to create the same formatting across different versions. The following clang-format major releases were tested in libnegf#117 and generate the same output unless noted otherwise:
+
+* 11 (Debian 11, *not* working)
+* 14 (Debian 12)
+* 18 (JUWELS Booster, Stages/2025)
+* 19 (Debian 13)
+* 20 (JUWELS Booster, Stages/2026)
+====
 
 
 
