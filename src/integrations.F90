@@ -643,6 +643,20 @@ contains
        end if
     end if
 
+#:if defined("MPI")
+    ! Gather partial results over the energy grid
+    call mpifx_barrier(negf%energyComm)
+    if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI E-grid')
+    if (inelastic) then
+      do iK = 1, size(negf%local_k_index)
+        call mpifx_allreduceip(negf%energyComm, negf%DM(iK)%rho%nzval, MPI_SUM)
+      end do
+    else
+      call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
+    end if
+    if (id0.and.negf%verbose.gt.VBT) call write_clock
+#:endif
+
   end subroutine contour_driver
   !---------------------------------------------------------------------------------
   !-----------------------------------------------------------------------
@@ -892,21 +906,6 @@ contains
      !       real-axis integration.
      call zspectral(TmpMt,TmpMt,0,negf%rho)
 
-#:if defined("MPI")
-     TmpMt%nzval = (0.0_dp, 0.0_dp)
-     !print*,'CPU: ',negf%globalComm%rank,' Size rho: ',size(negf%rho%nzval)
-     call mpifx_barrier(negf%globalComm)
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI E-grid')
-     call mpifx_allreduce(negf%energyComm, negf%rho%nzval, TmpMt%nzval, MPI_SUM)
-     negf%rho%nzval = TmpMt%nzval
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-     TmpMt%nzval = (0.0_dp, 0.0_dp)
-     call mpifx_barrier(negf%kComm)
-     if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI k-grid')
-     call mpifx_allreduce(negf%kComm, negf%rho%nzval, TmpMt%nzval, MPI_SUM)
-     negf%rho%nzval = TmpMt%nzval
-     if (id0.and.negf%verbose.gt.VBT) call write_clock
-#:endif
      call destroy(TmpMt)
 
   end subroutine contour_int
@@ -1185,7 +1184,6 @@ contains
     endif
 
     call destroy(TmpMt)
-
     call log_deallocate(frm_f)
 
   end subroutine real_axis_int
@@ -1297,10 +1295,10 @@ contains
           call destroy(G)
           ! Perform integration of diag(GBulk) in the contacts
           ! TODO: generalize negf%contact_density(:) with k-dependence
-         !  if (negf%bulk_cont_density) then
-         !    real_axis = .true.; contour = .false.
-         !    call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
-         !  end if
+          ! if (negf%bulk_cont_density) then
+          !   real_axis = .true.; contour = .false.
+          !   call integrate_contact_density(negf, zt, real_axis, contour, frm_f)
+          ! end if
         enddo enloop
 
         associate(rho => negf%DM(iK)%rho)
@@ -1321,8 +1319,9 @@ contains
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      !Check SCBA convergence on layer currents.
-      call negf%scbaDriverInelastic%check_Mat_convergence(TmpMt)
+      !Check SCBA convergence on the DM. Why TmpMt and not negf%rho ?
+      !We should gather and compute complete rho (must include kwghts)
+      call negf%scbaDriverInelastic%check_Mat_convergence(negf%DM(1)%rho)
 
       if (negf%cartComm%rank == 0) then
         scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
@@ -1599,7 +1598,7 @@ contains
 
     if (mod(n-1,3).ne.0) then
        call error_msg('ERROR: N-1 is not multiple of 3')
-    end if   
+    end if
 
     d = (x2-x1)/((n-1)*1.0_dp)
 
@@ -2531,14 +2530,14 @@ contains
       end if
       if (contour) then
         b_diag(:) = b_diag(:) + temp(:) * weight ! Fermi function already present in weight
-      end if 
+      end if
 
       call log_deallocate(temp)
       call destroy(negf%cont_bulkG(j1))
 
       end associate
       end associate
-    end do    
+    end do
 
   end subroutine integrate_contact_density
 

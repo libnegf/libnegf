@@ -75,14 +75,16 @@ module lib_param
   type TMatrixArrayHS
     type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
     type(z_CSR), pointer :: S => null()
+    integer    :: iS = 1                   ! spin-index (global)
     logical    :: isSid = .false.          ! True if overlap S == Id
     logical    :: internalHS = .true.      ! tells HS are internally allocated
   end type TMatrixArrayHS
 
   ! Array used to store the k-dependent matrices
   type TMatrixArrayDM
-    type(z_CSR), pointer :: rho => null()      ! Holding output Matrix
-    logical    :: internalDM = .true.          ! tells DM is internally allocated
+    type(z_CSR), pointer :: rho => null()  ! Holding output Matrix
+    integer    :: iS = 1                   ! spin-index (global)
+    logical    :: internalDM = .true.      ! tells DM is internally allocated
   end type TMatrixArrayDM
 
 #:if defined("GPU")
@@ -236,8 +238,8 @@ module lib_param
 
     !! Note: H,S are partitioned immediately after input, therefore they are
     !! built runtime from input variable
-    class(TMatrixArrayHS), allocatable :: HS(:)
-    class(TMatrixArrayDM), allocatable :: DM(:)
+    class(TMatrixArrayHS), allocatable :: HS(:)     ! local K and Spin
+    class(TMatrixArrayDM), allocatable :: DM(:)     ! local K and Spin
     ! Ponters of current working Hamiltonian
     type(z_CSR), pointer :: H => null()
     type(z_CSR), pointer :: S => null()
