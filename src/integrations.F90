@@ -631,7 +631,7 @@ contains
     if (realaxis) then
        call real_axis_int_def(negf)
        if (inelastic) then
-          call real_axis_int_inel(negf, dm_c)
+          call real_axis_int_inel(negf)
           do iK = 1, size(negf%local_k_index)
             call concat(negf%DM(iK)%rho, dm_c(iK)%rho, 1, 1)
             call destroy(dm_c(iK)%rho)
@@ -1192,20 +1192,24 @@ contains
   ! Real axis integral with inelastic scattering
   !-----------------------------------------------------------------------
   !    g     /
-  ! ------   | Gn(E) dE
+  ! ------   | Gn(E) dE   .OR.   Gp(E) dE  (depending on negf%particle) 
   ! 2*pi*j   /
+  !
+  ! Notes:
+  ! Currently Gp is not properly computed because of Sigma^p
+  ! Convergence of the SCBA loop is controlled by computing layer-currents
+  ! Important: At least 2 PLs are needed
   !-----------------------------------------------------------------------
-  subroutine real_axis_int_inel(negf, dm_c)
+  subroutine real_axis_int_inel(negf)
     type(Tnegf) :: negf
-     type(TMatrixArrayDM) :: dm_c(:)
 
     integer :: Npoints
     integer :: scba_iter, scba_niter_ela, scba_niter_inela
-    integer :: iE, j1, iK, outer, ncont, ref_bk
+    integer :: iE, j1, iK, outer, ncont, ref_bk, nbl
     integer :: particle
     type(z_CSR) :: G, TmpMt
 
-    real(dp), DIMENSION(:), allocatable :: frm_f
+    real(dp), DIMENSION(:), allocatable :: curr_mat, frm_f
     real(dp) :: Er, scba_elastic_error, scba_inelastic_error
     complex(dp) :: zt, Ec
 
@@ -1220,6 +1224,17 @@ contains
     negf%refcont = ncont + 1
     call log_allocate(frm_f,ncont+1)
     frm_f = 0.0_dp
+
+    nbl = negf%str%num_PLs
+    ! Sanity check that nbl>1
+    if (nbl < 2) then
+      call error_msg('ERROR: nbl < 2 is not allowed for the inelastic DM')
+    end if
+
+    ! Allocating curr_mat to nbl-1 so we compute L->L+1 currents
+    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat)
+    call log_allocate(negf%curr_mat, Npoints, nbl-1)
+    call log_allocate(curr_mat, nbl-1)
 
     call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
     call initialize(TmpMt)
@@ -1248,6 +1263,7 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
+      negf%curr_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -1281,13 +1297,24 @@ contains
             frm_f(j1)=fermi(Er,negf%cont(j1)%mu,negf%cont(j1)%kbT_dm)
           enddo
 
+          ! Avoids cleanup of block-dense Gn for layer currents
+          negf%tDestroyGn = .false.
           if (particle == 1) then
             call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
           else
             call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
           endif
 
-          zt = negf%en_grid(iE)%wght !* negf%kwght
+          ! ---------------------------------------------------------------------
+          ! Compute layer-to-layer currents and release memory
+          ! ---------------------------------------------------------------------
+          negf%tDestroyGn = .true.
+          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
+          call iterative_layer_current(negf, Er, curr_mat)
+          negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
+          if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+          zt = negf%en_grid(iE)%wght
           if (negf%DorE.eq.'E') zt = zt * Er
 
           call concat(TmpMt,zt,G,1,1)
@@ -1319,9 +1346,15 @@ contains
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      !Check SCBA convergence on the DM. Why TmpMt and not negf%rho ?
-      !We should gather and compute complete rho (must include kwghts)
-      call negf%scbaDriverInelastic%check_Mat_convergence(negf%DM(1)%rho)
+      ! Integrate energy-resolved currents 
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      call gather_currents(negf)
+#:endif
+
+      !Check SCBA convergence on layer currents.
+      call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
 
       if (negf%cartComm%rank == 0) then
         scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
@@ -1336,10 +1369,17 @@ contains
       scba_iter = scba_iter + 1
 
     end do scba
+      
+    if (id0.and.negf%verbose.gt.30) then
+      do j1 = 1, nbl-1
+         write(*,*) "J(",j1,",",j1+1,")=",negf%currents(j1)
+      end do        
+    end if
 
     call destroy(TmpMt)
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(frm_f)
+    call log_deallocate(curr_mat)
 
   end subroutine real_axis_int_inel
 
@@ -1832,9 +1872,8 @@ contains
     negf%readOldSGF = negf%readOldT_SGFs
     outer = 0
 
-    if (.not. allocated(negf%curr_mat)) then
-      call log_allocate(negf%curr_mat,Npoints,ncont)
-    end if
+    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat) 
+    call log_allocate(negf%curr_mat,Npoints,ncont)
     call log_allocate(curr_mat, ncont)
 
     ! Clean up caches of G_r and G_n
@@ -1950,10 +1989,7 @@ contains
       call electron_current_meir_wingreen(negf)
 
 #:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      call mpifx_reduceip(negf%energyComm, negf%currents, MPI_SUM)
-      call mpifx_reduceip(negf%kComm, negf%currents, MPI_SUM)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call gather_currents(negf)
 #:endif
 
       !Check SCBA convergence on layer currents.
@@ -2001,10 +2037,8 @@ contains
     real(dp) :: Er, scba_elastic_tol, scba_elastic_error
     real(dp) :: scba_inelastic_error
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
-    real(dp), dimension(:), allocatable :: tmp_currents
-    real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
     complex(dp) :: Ec
-    type(z_CSR) :: G, TmpMt
+    type(z_CSR) :: G
 
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
@@ -2012,20 +2046,19 @@ contains
     negf%readOldSGF = negf%readOldT_SGFs
     outer = negf%outer_blocks
 
+    ! Sanity check that nbl>1
+    if (nbl < 2) then
+      call error_msg('ERROR: nbl < 2 is not allowed in layer_current')
+    end if    
     ! Allocating curr_mat to nbl-1 so we compute L->L+1 currents
-    if (.not. allocated(negf%curr_mat)) then
-      call log_allocate(negf%curr_mat, Npoints, nbl-1)
-    end if
+    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat) 
+    call log_allocate(negf%curr_mat, Npoints, nbl-1)
     call log_allocate(curr_mat, nbl-1)
 
     ! Allocating ldos_mat to nbl
-    if (.not. allocated(negf%ldos_mat)) then
-      call log_allocate(negf%ldos_mat, Npoints, nbl)
-    end if
+    if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat) 
+    call log_allocate(negf%ldos_mat, Npoints, nbl)
     call log_allocate(ldos_mat, nbl)
-
-    call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
-    call initialize(TmpMt)
 
     ! Clean up caches of G_r and G_n
     call negf%G_r%destroy()
@@ -2069,8 +2102,6 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
-      ! Density matrix initialization
-      TmpMt%nzval = (0.0_dp, 0.0_dp)
       negf%curr_mat = 0.0_dp
       negf%ldos_mat = 0.0_dp
       ! Loop over local k-points
@@ -2106,6 +2137,7 @@ contains
 
           call compute_Gn(negf, outer, ncont, Ec, frm, G, scba_elastic_error)
 
+          call destroy(G)
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
@@ -2117,8 +2149,6 @@ contains
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
           negf%ldos_mat(iE,:) = negf%ldos_mat(iE,:) + ldos_mat(:) * negf%kwght
-
-          call destroy(G)
 
         end do enloop
 
@@ -2136,28 +2166,7 @@ contains
       call electron_current_meir_wingreen(negf)
 
 #:if defined("MPI")
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-      allocate(tmp_currents, mold=negf%currents)
-      allocate(tmp_ldos_mat, mold=negf%ldos_mat)
-
-      ! Work around because of MPI error with TiberCAD (MPI_IN_PLACE flag is not recognized)
-      tmp_currents = 0.0_dp
-      call mpifx_reduce(negf%energyComm, negf%currents, tmp_currents, MPI_SUM)
-      negf%currents = tmp_currents
-      tmp_currents = 0.0_dp
-      call mpifx_reduce(negf%kComm, negf%currents, tmp_currents, MPI_SUM)
-      negf%currents = tmp_currents
-
-      tmp_ldos_mat = 0.0_dp
-      call mpifx_reduce(negf%energyComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
-      negf%ldos_mat = tmp_ldos_mat
-      tmp_ldos_mat = 0.0_dp
-      call mpifx_reduce(negf%kComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
-      negf%ldos_mat = tmp_ldos_mat
-
-      deallocate(tmp_currents)
-      deallocate(tmp_ldos_mat)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call gather_currents(negf)
 #:endif
 
       !Check SCBA convergence on layer currents.
@@ -2177,15 +2186,51 @@ contains
 
     end do scba
 
-    call destroy(TmpMt)
     call negf%scbaDriverInelastic%destroy()
+    call log_deallocate(frm)
     call log_deallocate(curr_mat)
     call log_deallocate(ldos_mat)
-    call log_deallocate(frm)
     negf%refcont = ref_bk
 
   end subroutine layer_current
 
+  !---------------------------------------------------------------------------
+#:if defined("MPI")
+  subroutine gather_currents(negf)
+    type(Tnegf) :: negf
+
+    real(dp), dimension(:), allocatable :: tmp_currents
+    real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
+
+    if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+    
+    ! Work around because of MPI error with TiberCAD 
+    ! (MPI_IN_PLACE flag is not recognized ?!)
+    if (allocated(negf%currents)) then
+      allocate(tmp_currents, mold=negf%currents)
+      tmp_currents = 0.0_dp
+      call mpifx_reduce(negf%energyComm, negf%currents, tmp_currents, MPI_SUM)
+      negf%currents = tmp_currents
+      tmp_currents = 0.0_dp
+      call mpifx_reduce(negf%kComm, negf%currents, tmp_currents, MPI_SUM)
+      negf%currents = tmp_currents
+      deallocate(tmp_currents)
+    end if
+
+    if (allocated(negf%ldos_mat)) then
+      allocate(tmp_ldos_mat, mold=negf%ldos_mat)
+      tmp_ldos_mat = 0.0_dp
+      call mpifx_reduce(negf%energyComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
+      negf%ldos_mat = tmp_ldos_mat
+      tmp_ldos_mat = 0.0_dp
+      call mpifx_reduce(negf%kComm, negf%ldos_mat, tmp_ldos_mat, MPI_SUM)
+      negf%ldos_mat = tmp_ldos_mat
+      deallocate(tmp_ldos_mat)
+    end if
+
+    if (id0.and.negf%verbose.gt.VBT) call write_clock    
+  end subroutine gather_currents
+#:endif
 
   !---------------------------------------------------------------------------
   subroutine interaction_prepare(negf)
@@ -2349,7 +2394,6 @@ contains
     do i1=1,ncont
       call destroy(Tlc(i1),Tcl(i1),SelfEneR(i1),GS(i1))
     enddo
-
 
   end subroutine compute_Gr
 
@@ -3069,11 +3113,9 @@ contains
        call getdiag(Gr,diag)
 
        do nr = 1,Nz
-          !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
-             ff = fermi(Ez, mu_n(nr), kbT)
-             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
-             temp(nr) = temp(nr) + diag(nr)*ww
-          !endif
+         ff = fermi(Ez, mu_n(nr), kbT)
+         ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
+         temp(nr) = temp(nr) + diag(nr)*ww
        enddo
 
        call log_deallocate(diag)
@@ -3199,11 +3241,9 @@ contains
        call getdiag(Gr,diag)
 
        do nr = 1,Nz
-          !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
-             ff = fermi(-Ez, -mu_p(nr), kbT)
-             ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
-             temp(nr) = temp(nr) + diag(nr)*ww
-          !endif
+         ff = fermi(-Ez, -mu_p(nr), kbT)
+         ww = - negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
+         temp(nr) = temp(nr) + diag(nr)*ww
        enddo
 
        call log_deallocate(diag)
