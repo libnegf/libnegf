@@ -30,8 +30,16 @@ program test
 
   call mpifx_init(impierr);
   call globalComm%init();
-  nGroups = 1 
 
+  if (globalComm%size < 4) then
+    if (globalComm%lead) then
+      write(*,*) 'ERROR: this test is designed to run on at least 4 processes'
+    end if
+    stop
+  else
+    nGroups = 4    
+  end if  
+  
   pnegf => negf
 
   if (globalComm%lead) write(*,*) 'Initializing libNEGF'
@@ -127,10 +135,20 @@ program test
   ! Here we set the parameters, only the ones different from default
   ! ----------------------------------------------------------------------------------
   call get_params(pnegf, params)
-  params%verbose = 100 
-  params%Emin = mu(1)-10.0_dp*kt(1)+0.012_dp  ! -0.298
-  params%Emax = mu(2)+10.0_dp*kt(1)-0.010_dp  ! +0.30
-  params%Estep = 0.002_dp
+  params%verbose = 100
+  ! The following parameters are good for benchmarks (300 Epoints) 
+  !params%Emin = mu(1)-10.0_dp*kt(1)+0.012_dp/eV2Hartree  ! -0.298
+  !params%Emax = mu(2)+10.0_dp*kt(1)-0.010_dp/eV2Hartree  ! +0.30
+  !params%Estep = 0.002_dp/eV2Hartree
+
+  ! The following parameters are used for testing (20 Epoints) 
+  params%Emax = mu(1)+10.0_dp*kt(1)        ! mu+0.26
+  params%Emin = mu(1)-0.12_dp/eV2Hartree  ! mu-0.13
+  params%Estep = 0.02_dp/eV2Hartree
+  
+  if (globalComm%lead) then
+     write(*,*) 'nPoints=',(params%Emax-params%Emin)/params%Estep + 1
+  end if
   ! nStep = 0.598/0.002 + 1 = 300
   params%delta = 1.e-5_dp  !Already in Hartree
   params%mu(1:2) = mu
