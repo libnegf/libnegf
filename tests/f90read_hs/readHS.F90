@@ -415,7 +415,7 @@ module readHS
     real(dp) :: tmpH(orb%mOrb,orb%mOrb), tmpS(orb%mOrb,orb%mOrb)
     real(dp) :: shiftBlk1(orb%mOrb,orb%mOrb)
     real(dp) :: shiftBlk2(orb%mOrb,orb%mOrb)
-  
+
     nAtom = size(orb%nOrbAtom)
     shiftBlk1 = 0.0_dp
     shiftBlk2 = 0.0_dp
@@ -427,8 +427,8 @@ module readHS
         iAt2f = img2CentCell(iAt2)
         nOrb2 = orb%nOrbAtom(iAt2f)
         iOrig1 = iPair(iNeigh, iAt1)
-        iBlk1 = iAtomStart(iAt1)-1
-        iBlk2 = iAtomStart(iAt2f)-1
+        iBlk1 = iAtomStart(iAt1-1)-1
+        iBlk2 = iAtomStart(iAt2f-1)-1
         do ii = 1, nOrb1
           shiftBlk1(ii,ii) = shift(iBlk1+ii)
         end do

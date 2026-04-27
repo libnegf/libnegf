@@ -59,4 +59,5 @@ test:
   stage: test
   script:
     - cd "$BUILD_DIR"
-    - ctest -LE long --output-on-failure
+    - ctest --output-on-failure -LE long
+    - ctest --output-on-failure -L long
