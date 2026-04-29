@@ -83,7 +83,7 @@ module ContSelfEnergy
     #:set CBIND_CMPLX = ISO_C_BIND_TYPES['complex'][PREC]
     #:set CBIND_REAL = ISO_C_BIND_TYPES['real'][PREC]
     integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, tf32, ncyc, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
+                     & n, ncyc, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
         use iso_c_binding
         import cublasHandle
         import cusolverDnHandle
@@ -96,7 +96,6 @@ module ContSelfEnergy
         type(c_ptr), value :: h_Co_in
         integer(c_size_t), value :: n
         type(c_ptr), value :: ncyc
-        integer(c_int), value :: tf32
         real(${CBIND_REAL}$) :: SGFACC
     end function
   #:endfor
@@ -209,7 +208,7 @@ contains
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(transpose(Co))
 #:if defined("GPU")
-          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,.false.,ncyc)
+          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc)
 #:else
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
 #:endif
@@ -344,24 +343,18 @@ contains
 #:if defined("GPU")
 #:def decimation_gpu_template(KIND, CTYPE)
 
-  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, tf32, ncyc)
+  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc)
     implicit none
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: n
     complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
     complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
-    logical, intent(in) :: tf32
     integer, intent(out), target :: ncyc
 
-    integer :: istat, tf
+    integer :: istat
     type(cublasHandle) :: hh
     type(cusolverDnHandle) :: hhsol
 
-    if (tf32) then
-       tf = 1
-    else
-       tf = 0
-    endif
     hh = negf%hcublas
     hhsol = negf%hcusolver
 
@@ -372,8 +365,7 @@ contains
       n_size = int(n, kind=c_size_t)
 
       istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
-                                     c_loc(Co_in), n_size, tf, c_loc(ncyc), &
-                                     real(SGFACC,${KIND}$)*n*n)
+                                     c_loc(Co_in), n_size, c_loc(ncyc), real(SGFACC,${KIND}$))
     end block
 
   end subroutine decimation_gpu_${KIND}$
