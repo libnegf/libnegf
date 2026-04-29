@@ -124,7 +124,7 @@ function(setup_test testname source_main)
 
   # determine how to execute the test
   if(${LIBNEGF_TEST_MPI})
-    set(num_procs ${MPIEXEC_MAX_NUMPROCS})
+    set(num_procs ${TEST_NUM_PROCS})
     set(cmd
         # When running on a user's PC, it is possible to thrash the machine by having one MPI task
         # per core and one OpenMP thread per task and per core (the default). The restriction below
@@ -137,7 +137,7 @@ function(setup_test testname source_main)
         #
         # [1] https://oar.imag.fr/wiki:passing_environment_variables_to_openmpi_nodes
         env
-        OMP_NUM_THREADS=1
+        OMP_NUM_THREADS=${TEST_NUM_THREADS}
         ${MPIEXEC_EXECUTABLE}
         ${MPIEXEC_NUMPROC_FLAG}
         ${num_procs}
