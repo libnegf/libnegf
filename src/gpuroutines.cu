@@ -131,15 +131,15 @@ struct get_real<cuDoubleComplex> {
 template<typename Number>
 __global__ void addKernel(
     Number* c, Number alpha, const Number* a, Number beta, const Number* b,
-    size_t size
+    size_t num_elements
 ) {
     ENFORCE(c);
     ENFORCE(a);
     ENFORCE(b);
 
-    auto i = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i < size) {
+    if(i < num_elements) {
         c[i].x = (alpha.x * a[i].x - alpha.y * a[i].y) +
                  (beta.x * b[i].x - beta.y * b[i].y);
         c[i].y = (alpha.x * a[i].y + alpha.y * a[i].x) +
@@ -178,17 +178,18 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
  * Initializes a square complex matrix as the identity matrix.
  */
 template<typename Number>
-__global__ void initKernel(Number* a, size_t nrow) {
+__global__ void initKernel(Number* a, int32_t nrow) {
     using Real = typename get_real<Number>::type;
 
     ENFORCE(a);
 
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t i = blockDim.x * blockIdx.x + threadIdx.x;
     auto one = Number{Real{1}};
     auto zero = Number{Real{0}};
 
-    if(i < size) {
+    if(i < num_elements) {
         if(i % (nrow + 1) == 0) {
             a[i] = one;
         } else {
@@ -199,7 +200,7 @@ __global__ void initKernel(Number* a, size_t nrow) {
 
 
 template<typename Number>
-__global__ void initArrayWithOnes(Number* a, size_t nrow) {
+__global__ void initArrayWithOnes(Number* a, int32_t nrow) {
     static_assert(std::is_same<Number, typename get_real<Number>::type>::value);
 
     assert(a);
@@ -211,47 +212,38 @@ __global__ void initArrayWithOnes(Number* a, size_t nrow) {
     }
 }
 
-
-/**
- * Computes the trace of a matrix A.
- *
- * Optionally, a bit mask can be passed to the function. If a mask is present,
- * then a diagonal element (i,i) is only considered for the trace computation
- * if the i-th value in mask is nonzero.
- *
- * @param[in] mask A bitmask of length nrow indicating which rows to ignore
- * (zero means ignore).
+/* ***************************************************************
+ * Simple trace kernel with a mask
+ * ***************************************************************
  */
-template<typename Number, typename Real = typename get_real<Number>::type>
-__global__ void
-traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
-    ENFORCE(a);
-    ENFORCE(trace);
+template<typename Number>
+__global__ void traceKernel(const Number* A, int32_t nrow, Number* result,
+                           bool* mask, int mask_present)
+{
+    ENFORCE(A);
+    ENFORCE(result);
     ENFORCE(mask || mask_present == 0);
     ENFORCE(mask_present == 0 || mask_present == 1);
 
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(mask_present == 0) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                trace[i % nrow] = a[i].x;
-            }
-        }
+      if (i < nrow) {
+        Number val = A[i * nrow + i];
+        atomicAdd(&((*result).x), val.x);
+        atomicAdd(&((*result).y), val.y);
+      }
     }
-    if(mask_present == 1) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                if(mask[i % nrow]) {
-                    trace[i % nrow] = a[i].x;
-                } else {
-                    trace[i % nrow] = 0.0;
-                }
-            }
-        }
+    else
+    {
+      if (i < nrow && mask[i]) {
+        Number val = A[i * nrow + i];
+        atomicAdd(&((*result).x), val.x);
+        atomicAdd(&((*result).y), val.y);
+      }
     }
 }
+
 
 __device__ inline float absval(cuComplex z)  { return cuCabsf(z); }
 __device__ inline double absval(cuDoubleComplex z){ return cuCabs(z); }
@@ -316,7 +308,7 @@ __global__ void maxabs_kernel(const Number* __restrict__ data,
 extern "C" int cu_createMat(void** d_A, size_t bytecount) {
     ENFORCE(d_A);
     cudaError_t err = cudaMalloc(d_A, bytecount);
-    //printf("create mat at GPU Address: %p \n",*d_A);
+    CUDA_CHECK(err);
     return err;
 }
 
@@ -332,7 +324,6 @@ extern "C" int cu_cudaFreeAsync(void** d_A) {
 extern "C" int cu_cudaMallocAsync(void** d_A, size_t bytecount) {
     ENFORCE(d_A);
     cudaError_t err = cudaMallocAsync(d_A, bytecount, 0);
-    //printf("create mat at GPU Address: %p \n",*d_A);
     CUDA_CHECK(err);
     return err;
 }
@@ -340,15 +331,14 @@ extern "C" int cu_cudaMallocAsync(void** d_A, size_t bytecount) {
 extern "C" int cu_copyMatH2D(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-    // printf("copy %p to %p\n",h_A,d_A);
     cudaError_t err = cudaMemcpy(d_A, h_A, bytecount, cudaMemcpyHostToDevice);
+    CUDA_CHECK(err);
     return err;
 }
 
 extern "C" int cu_copyMatH2D_async(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-    // printf("copy %p to %p\n",h_A,d_A);
     cudaError_t err =
         cudaMemcpyAsync(d_A, h_A, bytecount, cudaMemcpyHostToDevice);
     return err;
@@ -357,8 +347,24 @@ extern "C" int cu_copyMatH2D_async(void* h_A, void* d_A, size_t bytecount) {
 extern "C" int cu_copyMatD2H(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-
     cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToHost);
+    CUDA_CHECK(err);
+    return err;
+}
+
+extern "C" int cu_copyMatD2D_async(void* h_A, void* d_A, size_t bytecount) {
+    ENFORCE(h_A);
+    ENFORCE(d_A);
+    cudaError_t err =
+        cudaMemcpyAsync(d_A, h_A, bytecount, cudaMemcpyDeviceToDevice);
+    return err;
+}
+
+extern "C" int cu_copyMatD2D(void* h_A, void* d_A, size_t bytecount) {
+    ENFORCE(h_A);
+    ENFORCE(d_A);
+    cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToDevice);
+    CUDA_CHECK(err);
     return err;
 }
 
@@ -471,7 +477,7 @@ extern "C" int cu_cusolverFinalize(void *hpsolver) {
  */
 template<typename Number>
 int cu_multMat(
-    void *hpblas, size_t m, size_t n, size_t k, const Number* alpha,
+    void *hpblas, int32_t m, int32_t n, int32_t k, const Number* alpha,
     const Number* d_A, const Number* d_B, const Number* beta, Number* d_C,
     int dagger
 ) {
@@ -507,7 +513,7 @@ int cu_multMat(
 }
 
 extern "C" int cu_CmultMat(
-    void* hpblas, size_t m, size_t n, size_t k,
+    void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuComplex* alpha, const cuComplex* d_A, const cuComplex* d_B,
     const cuComplex* beta, cuComplex* d_C, int dagger
 ) {
@@ -515,7 +521,7 @@ extern "C" int cu_CmultMat(
 }
 
 extern "C" int cu_ZmultMat(
-    void* hpblas, size_t m, size_t n, size_t k,
+    void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuDoubleComplex* alpha, const cuDoubleComplex* d_A,
     const cuDoubleComplex* d_B, const cuDoubleComplex* beta,
     cuDoubleComplex* d_C, int dagger
@@ -528,11 +534,11 @@ extern "C" int cu_ZmultMat(
 template<typename Number>
 int cu_kernelsum(
     Number* d_C, Number* alpha, Number* d_A, Number* beta, Number* d_B,
-    size_t size
+    size_t num_elements
 ) {
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, size);
+    addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, num_elements);
     CUDA_CHECK(cudaGetLastError());
 
     return 0;
@@ -541,16 +547,16 @@ int cu_kernelsum(
 
 extern "C" int cu_Ckernelsum(
     cuComplex* d_C, cuComplex* alpha, cuComplex* d_A, cuComplex* beta,
-    cuComplex* d_B, size_t size
+    cuComplex* d_B, size_t num_elements
 ) {
-    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, num_elements);
 }
 
 extern "C" int cu_Zkernelsum(
     cuDoubleComplex* d_C, cuDoubleComplex* alpha, cuDoubleComplex* d_A,
-    cuDoubleComplex* beta, cuDoubleComplex* d_B, size_t size
+    cuDoubleComplex* beta, cuDoubleComplex* d_B, size_t num_elements
 ) {
-    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, num_elements);
 }
 
 
@@ -569,7 +575,7 @@ extern "C" int cu_Zkernelsum(
  */
 template<typename Number>
 int cu_matsum(
-    void *hpblas, size_t m, size_t n, const Number* alpha,
+    void *hpblas, int32_t m, int32_t n, const Number* alpha,
     const Number* d_A, const Number* beta, const Number* d_B, Number* d_C,
     int dagger
 ) {
@@ -578,7 +584,6 @@ int cu_matsum(
     ENFORCE(d_C);
     ENFORCE(d_A != d_C || dagger == 0 || dagger == 2);
     ENFORCE(d_B != d_C || dagger == 1);
-
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cublasStatus_t err;
     if(dagger == 0) {
@@ -605,7 +610,7 @@ int cu_matsum(
 }
 
 extern "C" int cu_Cmatsum(
-    void *hpblas, size_t m, size_t n, const cuComplex* alpha,
+    void *hpblas, int32_t m, int32_t n, const cuComplex* alpha,
     const cuComplex* d_A, const cuComplex* beta, const cuComplex* d_B,
     cuComplex* d_C, int dagger
 ) {
@@ -613,17 +618,18 @@ extern "C" int cu_Cmatsum(
 }
 
 extern "C" int cu_Zmatsum(
-    void *hpblas, size_t m, size_t n, const cuDoubleComplex* alpha,
+    void *hpblas, int32_t m, int32_t n, const cuDoubleComplex* alpha,
     const cuDoubleComplex* d_A, const cuDoubleComplex* beta,
     const cuDoubleComplex* d_B, cuDoubleComplex* d_C, int dagger
 ) {
     return cu_matsum(hpblas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
 }
 
-extern "C" int cu_Cinitmat(cuComplex* d_A, size_t nrow) {
+extern "C" int cu_Cinitmat(cuComplex* d_A, int32_t nrow) {
     ENFORCE(d_A);
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
     CUDA_CHECK(cudaGetLastError());
@@ -631,73 +637,68 @@ extern "C" int cu_Cinitmat(cuComplex* d_A, size_t nrow) {
     return 0;
 }
 
-extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, size_t nrow) {
+extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, int32_t nrow) {
     ENFORCE(d_A);
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
     CUDA_CHECK(cudaGetLastError());
 
     return 0;
 }
+
 
 
 template<typename Number, typename Real = typename get_real<Number>::type>
 Real trace(
-    void *hpblas, Number* d_A, size_t nrow, void* h_mask,
+    Number* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    Real* d_work;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(Real));
-    Real* d_iden;
-    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(Real));
-    CUDA_CHECK(cudaStatus);
+    cudaError_t cudaStatus;
+
     bool* d_mask;
-    cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
+    cudaStatus = cudaMalloc((void**)&d_mask, n64 * sizeof(bool));
     CUDA_CHECK(cudaStatus);
-    if(h_mask) {
-        cudaStatus = cudaMemcpy(
-            d_mask, h_mask, nrow * sizeof(bool), cudaMemcpyHostToDevice
-        );
-        CUDA_CHECK(cudaStatus);
+    if (h_mask) {
+       cu_copyMatH2D(d_mask, h_mask, n64*sizeof(bool));
     }
 
-    initArrayWithOnes<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
-    traceKernel<<<num_blocks, BLOCK_SIZE>>>(
-        d_A, nrow, d_work, d_mask, mask_present
-    );
+    Number h_result;
+    Number *d_result;
+    cudaStatus = cudaMalloc(&d_result, sizeof(Number));
+    cudaStatus = cudaMemset(static_cast<void*>(d_result), 0, sizeof(Number));
+    CUDA_CHECK(cudaStatus);
 
-    Real result;
-    cublasStatus_t err =
-        libnegf::cublasDot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
-    ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+    traceKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow, d_result, d_mask, mask_present);
 
-    cudaStatus = cudaFree(d_work);
-    cudaStatus = cudaFree(d_iden);
+    cudaStatus = cudaMemcpy(&h_result, d_result, sizeof(Number), cudaMemcpyDeviceToHost);
+
     cudaStatus = cudaFree(d_mask);
+    cudaStatus = cudaFree(d_result);
 
-    return result;
+    return h_result.x;
 }
 
 extern "C" float cu_Ctrace(
-    void *hpblas, cuComplex* d_A, size_t nrow, void* h_mask,
+    void *hpblas, cuComplex* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    return trace(hpblas, d_A, nrow, h_mask, mask_present);
+    return trace(d_A, nrow, h_mask, mask_present);
 }
 
 
 extern "C" double cu_Ztrace(
-    void *hpblas, cuDoubleComplex* d_A, size_t nrow, void* h_mask,
+    void *hpblas, cuDoubleComplex* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    return trace(hpblas, d_A, nrow, h_mask, mask_present);
+    return trace(d_A, nrow, h_mask, mask_present);
 }
 
 
@@ -730,7 +731,7 @@ extern "C" int cu_Zmatcopy(
 }
 
 extern "C" int
-cu_Casum(void *hpblas, void* d_A, float* summ, size_t n) {
+cu_Casum(void *hpblas, void* d_A, float* summ, int32_t n) {
     cuComplex* pdA = (cuComplex*)d_A;
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -740,7 +741,7 @@ cu_Casum(void *hpblas, void* d_A, float* summ, size_t n) {
 }
 
 extern "C" int
-cu_Zasum(void *hpblas, void* d_A, double* summ, size_t n) {
+cu_Zasum(void *hpblas, void* d_A, double* summ, int32_t n) {
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -755,18 +756,22 @@ cu_Zasum(void *hpblas, void* d_A, double* summ, size_t n) {
  */
 
 template<typename Number>
-int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, size_t n
+int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, int32_t n
 ) {
     ENFORCE(hpsolver);
     ENFORCE(d_A);
     ENFORCE(d_Ainv);
+
+    size_t n64 = static_cast<size_t>(n);
+    size_t num_elements = n64 * n64;
+    size_t bytecount = num_elements * sizeof(Number);
 
     cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
 
     cusolverStatus_t cusolverStatus;
     cudaError_t cudaStatus;
 
-    // compute buffer size and prep . memory
+    // compute buffer msize and prep . memory
     int lwork;
     cusolverStatus =
         libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
@@ -774,21 +779,21 @@ int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, size_t n
 
     // prepare memory on the device
     Number* d_LU;
-    cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_LU, bytecount);
     CUDA_CHECK(cudaStatus);
 
     int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_pivot, n64 * sizeof(int));
     CUDA_CHECK(cudaStatus);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
     CUDA_CHECK(cudaStatus);
     // copy d_LU <- pdA
-    cudaStatus = cudaMemcpy(d_LU, d_A, n * n * sizeof(Number), cudaMemcpyHostToHost);
-    CUDA_CHECK(cudaStatus);
+    cu_copyMatD2D(d_LU, d_A, bytecount);
 
     Number* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
+    size_t lwork_size = static_cast<size_t>(lwork) * sizeof(Number);
+    cudaStatus = cudaMalloc((void**)&d_work, lwork_size);
     CUDA_CHECK(cudaStatus);
 
     // LU factorization of d_A , with partial pivoting and row
@@ -821,14 +826,14 @@ int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, size_t n
 
 extern "C" int cu_Cinverse(
     void* hpsolver, cuComplex* d_A,
-    cuComplex* d_Ainv, size_t n
+    cuComplex* d_Ainv, int32_t n
 ) {
     return inverse(hpsolver, d_A, d_Ainv, n);
 }
 
 extern "C" int cu_Zinverse(
     void * hpsolver, cuDoubleComplex* d_A,
-    cuDoubleComplex* d_Ainv, size_t n
+    cuDoubleComplex* d_Ainv, int32_t n
 ) {
     return inverse(hpsolver, d_A, d_Ainv, n);
 }
@@ -840,8 +845,8 @@ extern "C" int cu_Zinverse(
 template<typename Number, typename Real = typename get_real<Number>::type>
 int decimation(
     void* hpblas, void* hpsolver, Number* h_Go_out,
-    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n, 
-    int* ncyc, Real accuracy
+    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, int32_t n,
+    int* ncyc, Real accuracy, bool log
 ) {
     ENFORCE(h_Go_out);
     ENFORCE(h_Ao_in);
@@ -849,62 +854,55 @@ int decimation(
     ENFORCE(h_Co_in);
     ENFORCE(ncyc);
     ENFORCE(accuracy > 0.0);
-    
+
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
 
     cudaError_t cudaStatus;
     cublasStatus_t err;
 
-    auto num_elements = n * n;
-    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    size_t n64 = static_cast<size_t>(n);
+    size_t num_elements = n64 * n64;
+    size_t bytecount = num_elements * sizeof(Number);
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     auto one = Number{Real{1}};
     auto mone = Number{-Real{1}};
     auto zero = Number{Real{0}};
 
     Number* d_Ao;
-    cudaStatus = cudaMalloc((void**)&d_Ao, num_elements * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Ao, bytecount);
     CUDA_CHECK(cudaStatus);
 
     Number* d_Bo;
-    cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Bo, bytecount);
     CUDA_CHECK(cudaStatus);
 
     Number* d_Co;
-    cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Co, bytecount);
     CUDA_CHECK(cudaStatus);
 
-    cudaStatus = cudaMemcpy(
-        d_Ao, h_Ao_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    CUDA_CHECK(cudaStatus);
-    cudaStatus = cudaMemcpy(
-        d_Bo, h_Bo_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    CUDA_CHECK(cudaStatus);
-    cudaStatus = cudaMemcpy(
-        d_Co, h_Co_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    CUDA_CHECK(cudaStatus);
+    cu_copyMatH2D(d_Ao, h_Ao_in, bytecount);
+    cu_copyMatH2D(d_Bo, h_Bo_in, bytecount);
+    cu_copyMatH2D(d_Co, h_Co_in, bytecount);
 
     Number* d_Ao_s;
-    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Ao_s, bytecount);
     CUDA_CHECK(cudaStatus);
     Number* d_C1;
-    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_C1, bytecount);
     CUDA_CHECK(cudaStatus);
     Number* d_Go;
-    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Go, bytecount);
     CUDA_CHECK(cudaStatus);
     int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&d_pivot, n64 * sizeof(int));
     CUDA_CHECK(cudaStatus);
     Number* d_T;
-    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_T, bytecount);
     CUDA_CHECK(cudaStatus);
     Number* d_Self;
-    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(Number));
+    cudaStatus = cudaMalloc((void**)&d_Self, bytecount);
     CUDA_CHECK(cudaStatus);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
@@ -915,16 +913,13 @@ int decimation(
 
     int lwork;
     cusolverStatus_t cusolverStatus =
-        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
+            libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     Number* d_work;
     cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
     CUDA_CHECK(cudaStatus);
 
-    err = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
-    ENFORCE(err == CUBLAS_STATUS_SUCCESS);
-    //cudaStatus = cudaMemcpy(d_Ao_h, h_Ao, n * n * sizeof(Number), cudaMemcpyHostToHost);
-    //CUDA_CHECK(cudaStatus);
+    cu_copyMatD2D(d_Ao_s, d_Ao, bytecount);
 
     constexpr auto MAX_NUM_ITERATIONS = 300;
     bool okCo = false;
@@ -934,8 +929,7 @@ int decimation(
         // Compute Go = Ao^-1
         initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
-        err = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
-        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+        cu_copyMatD2D(d_Self, d_Ao, bytecount);
 
         cusolverStatus = libnegf::cusolverDngetrf(
             hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
@@ -970,7 +964,7 @@ int decimation(
         CUDA_CHECK(cudaGetLastError());
         Real h_norm;
         cudaStatus = cudaMemcpy(&h_norm, d_norm, sizeof(Real), cudaMemcpyDeviceToHost);
-        //printf("loop it= %d , maxval|C1|= %g \n ", i1, h_norm);
+        if (log){printf("loop it= %d , maxval|C1|= %g \n ", i1, h_norm);}
 
         if(h_norm <= accuracy) {
             if(okCo) {
@@ -1011,8 +1005,7 @@ int decimation(
         ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
         // Co = C1
-        err = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Co, 1);
-        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+        cu_copyMatD2D(d_Co, d_C1, bytecount);
 
         // compute C1 = Bo Go Bo
         err = libnegf::cublasGemm(
@@ -1022,16 +1015,14 @@ int decimation(
         ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
         // compute Bo = C1
-        err = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
-        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+        cu_copyMatD2D(d_Bo, d_C1, bytecount);
     }
 
     ENFORCE(*ncyc < MAX_NUM_ITERATIONS);
 
     // compute Go = Ao_s^-1
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
-    err = libnegf::cublasCopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
-    ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+    cu_copyMatD2D(d_Self, d_Ao_s, bytecount);
     cusolverStatus = libnegf::cusolverDngetrf(
         hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
     );
@@ -1044,10 +1035,7 @@ int decimation(
     LIBNEGF_CHECK_INFO(d_info);
 
     // copy to output to host
-    cudaStatus = cudaMemcpy(
-        h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
-    );
-    CUDA_CHECK(cudaStatus);
+    cu_copyMatD2H(h_Go_out, d_Go, bytecount);
 
     cudaStatus = cudaFree(d_pivot);
     CUDA_CHECK(cudaStatus);
@@ -1080,31 +1068,31 @@ int decimation(
 
 extern "C" int cu_Cdecimation(
     void* hcublas, void* hcusolver, cuComplex* h_Go_out,
-    cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
-    int* ncyc, float accuracy
+    cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, int32_t n,
+    int* ncyc, float accuracy, bool log = false
 ) {
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
-        accuracy
+        accuracy, log
     );
 }
 
 extern "C" int cu_Zdecimation(
     void* hcublas, void* hcusolver,
     cuDoubleComplex* h_Go_out, cuDoubleComplex* h_Ao_in,
-    cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n,
-    int* ncyc, double accuracy
+    cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, int32_t n,
+    int* ncyc, double accuracy, bool log = false
 ) {
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
-        accuracy
+        accuracy, log
     );
 }
 
 
 extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
     //auto cudaStatus = cudaDeviceSynchronize();
-    //printf("STATUS: %d\n",cudaStatus);  
+    //printf("STATUS: %d\n",cudaStatus);
     //CUDA_CHECK(cudaStatus);
     auto cudaStatus = cudaMemGetInfo(freemem, totalmem);
     CUDA_CHECK(cudaStatus);
