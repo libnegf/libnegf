@@ -255,7 +255,7 @@ contains
     ! Add contact self-energies
     do j=1,ncont
       frmdiff = frm(j) - frm(ref)
-      if (j.NE.ref .AND. ABS(frmdiff).GT.EPS) THEN
+      if (j.NE.ref .AND. ABS(frmdiff).GT.EPS10) THEN
         cb=struct%cblk(j) ! block corresponding to contact j
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
         Sigma_n(cb,cb)%val = Sigma_n(cb,cb)%val + frmdiff*Gam%val

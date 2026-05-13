@@ -445,7 +445,6 @@ contains
     ncont = struct%num_conts
     nbl = struct%num_PLs
     hh = negf%hcublas
-
     !build Sigma_n from SelfEneR
     call allocate_blk_dns(Sigma_n, nbl)
     call init_tridiag_blk(Sigma_n, ESH)
@@ -457,7 +456,7 @@ contains
     ! Add contact self-energies
     do j=1,ncont
       frmdiff = cmplx(frm(j) - frm(ref), 0.0, ${KIND}$)
-      if (j.NE.ref .AND. ABS(frmdiff).GT.EPS) THEN
+      if (j.ne.ref .and. abs(frmdiff).gt.EPS10) then
         cb=struct%cblk(j) ! block corresponding to contact j
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
         call createGPU(Gam)
@@ -468,7 +467,7 @@ contains
     end do
 
     call calculate_sigma_n()
-
+    ! Gr * Sigma_n * Gr^+
     call createAll(work1,Sigma_n(1,1)%nrow, Gr(1,1)%nrow)
     call matmul_gpu(hh, one, Sigma_n(1,1), Gr(1,1), zero, work1, 'dag_2nd')
     call matmul_gpu(hh, one, Gr(1,1), work1, zero, Gn(1,1))

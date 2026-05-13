@@ -22,7 +22,7 @@
 module lib_param
 
   use iso_c_binding
-  use ln_precision, only : dp
+  use ln_precision, only : dp, EPS15, set_drop
   use globals
   use mat_def
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
@@ -665,6 +665,8 @@ contains
      ! Initialize the cache space for Gr and Gn
      call init_cache_space(negf, 'G_r')
      call init_cache_space(negf, 'G_n')
+
+     call set_drop(EPS15)
 
    end subroutine set_defaults
 
