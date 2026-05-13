@@ -240,6 +240,61 @@ traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
     }
 }
 
+__device__ inline float absval(cuComplex z)  { return sqrtf(z.x*z.x+z.y*z.y); }
+__device__ inline double absval(cuDoubleComplex z){ return sqrt(z.x*z.x+z.y*z.y); }
+
+__device__ __forceinline__ float atomicMaxAbsFloat(float* addr, float value) {
+    // assumes value >= 0
+    return __int_as_float(atomicMax((int*)addr, __float_as_int(value)));
+}
+
+__device__ __forceinline__ double atomicMaxAbsDouble(double* addr, double value)
+{
+    // assumes value >= 0
+    return __longlong_as_double(
+        atomicMax((unsigned long long*)addr, __double_as_longlong(value))
+    );
+}
+
+
+/* ------------------------------------------------------------------------
+ * Kernel to find maxval(abs(A))
+ * ------------------------------------------------------------------------
+ */
+template<typename Number, typename Real = typename get_real<Number>::type>
+__global__ void maxabs_kernel(const Number* __restrict__ data,
+                              size_t n,
+                              Real* __restrict__ norm)
+{
+    extern __shared__ unsigned char smem[];
+    Real* sdata = reinterpret_cast<Real*>(smem);
+
+    unsigned int tid = threadIdx.x;
+    size_t i = blockDim.x * blockIdx.x + tid;
+
+    Real val = 0;
+    if (i < n) val = absval(data[i]);
+
+    sdata[tid] = val;
+
+    __syncthreads();
+
+    // reduction to find block maximum
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
+    {
+        if (tid < s)
+            sdata[tid] = fmax(sdata[tid], sdata[tid + s]);
+        __syncthreads();
+    }
+
+    // final block max reduced atomically to global result
+    if (tid == 0) {
+        if constexpr (std::is_same<Real, float>::value)
+            atomicMaxAbsFloat(norm, sdata[0]);
+        else
+            atomicMaxAbsDouble(norm, sdata[0]);
+    }
+}
 
 /*
  * DATA MOVEMENT ROUTINES
