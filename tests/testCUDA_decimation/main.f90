@@ -75,10 +75,10 @@ program test1
   call init_negf(negf)
 
   call system_clock(t1, cr, cm)
-  call decimation_gpu(negf, G0, A0, B0, C0, N, .false., ncyc)
+  call decimation_gpu(negf, G0, A0, B0, C0, N, ncyc)
   call system_clock(t2, cr, cm)
 
-  write(*,*) "decimation_cpu time: ",(t2-t1)*1.0/cr,"sec"
+  write(*,*) "decimation_gpu time: ",(t2-t1)*1.0/cr,"sec"
   print*,'converged in',ncyc,' iterations'
   
   deallocate(A0,B0,C0,G0)
