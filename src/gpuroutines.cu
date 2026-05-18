@@ -352,18 +352,18 @@ extern "C" int cu_copyMatD2H(void* h_A, void* d_A, size_t bytecount) {
     return err;
 }
 
-extern "C" int cu_copyMatD2D_async(void* h_A, void* d_A, size_t bytecount) {
-    ENFORCE(h_A);
+extern "C" int cu_copyMatD2D_async(void* d_A, void* d_A_in, size_t bytecount) {
     ENFORCE(d_A);
+    ENFORCE(d_A_in);
     cudaError_t err =
-        cudaMemcpyAsync(d_A, h_A, bytecount, cudaMemcpyDeviceToDevice);
+        cudaMemcpyAsync(d_A, d_A_in, bytecount, cudaMemcpyDeviceToDevice);
     return err;
 }
 
-extern "C" int cu_copyMatD2D(void* h_A, void* d_A, size_t bytecount) {
-    ENFORCE(h_A);
+extern "C" int cu_copyMatD2D(void* d_A, void* d_A_in, size_t bytecount) {
     ENFORCE(d_A);
-    cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToDevice);
+    ENFORCE(d_A_in);
+    cudaError_t err = cudaMemcpy(d_A, d_A_in, bytecount, cudaMemcpyDeviceToDevice);
     CUDA_CHECK(err);
     return err;
 }
@@ -882,9 +882,9 @@ int decimation(
     cudaStatus = cudaMalloc((void**)&d_Co, bytecount);
     CUDA_CHECK(cudaStatus);
 
-    cu_copyMatH2D(d_Ao, h_Ao_in, bytecount);
-    cu_copyMatH2D(d_Bo, h_Bo_in, bytecount);
-    cu_copyMatH2D(d_Co, h_Co_in, bytecount);
+    cu_copyMatH2D(h_Ao_in, d_Ao, bytecount);
+    cu_copyMatH2D(h_Bo_in, d_Bo, bytecount);
+    cu_copyMatH2D(h_Co_in, d_Co, bytecount);
 
     Number* d_Ao_s;
     cudaStatus = cudaMalloc((void**)&d_Ao_s, bytecount);

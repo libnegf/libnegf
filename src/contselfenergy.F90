@@ -174,7 +174,7 @@ contains
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(transpose(Co))
 #:if defined("GPU")
-          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc,SGFACC)
+          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc,SGFACC,loginfo=.false.)
 #:else
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
 #:endif

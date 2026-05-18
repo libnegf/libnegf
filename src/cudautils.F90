@@ -28,7 +28,8 @@ module cudautils
    use ln_precision
    use mat_def
    use lib_param
-   use iso_c_binding, only : c_int, c_int32_t, c_int64_t, c_loc, c_null_ptr, c_ptr, c_size_t
+   use iso_c_binding, only : c_int, c_int32_t, c_int64_t, c_size_t, &
+                           & c_loc, c_null_ptr, c_ptr, c_bool
    use, intrinsic :: ieee_arithmetic
    use ln_messages
    implicit none
@@ -422,7 +423,7 @@ module cudautils
 
      integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, &
                      & h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, ncyc, accuracy) bind(C, name='cu_${CTYPE}$decimation')
+                     & n, ncyc, accuracy, loginfo) bind(C, name='cu_${CTYPE}$decimation')
         use iso_c_binding
         import cublasHandle
         import cusolverDnHandle
@@ -436,6 +437,7 @@ module cudautils
         integer(c_int32_t), value :: n
         type(c_ptr), value :: ncyc
         real(${C_BIND_REAL}$), value :: accuracy
+        logical(kind=c_bool), value :: loginfo
     end function
 
    #:endfor
@@ -948,7 +950,7 @@ end interface
 #:enddef checksum_template
 
 #:def decimation_gpu_template(KIND, CTYPE)
-  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, accuracy)
+  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, accuracy, loginfo)
     implicit none
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: n
@@ -956,6 +958,7 @@ end interface
     complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
     integer, intent(out), target :: ncyc
     real(${KIND}$), intent(in) :: accuracy
+    logical, intent(in) :: loginfo 
 
     integer :: istat
     type(cublasHandle) :: hh
@@ -966,12 +969,14 @@ end interface
 
     block
       integer(c_int32_t) :: nrows
+      logical(kind=c_bool) :: logg 
 
       @:ASSERT(n >= 0)
       nrows = int(n, kind=c_int32_t)
+      logg = logical(loginfo, kind=c_bool)
 
       istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
-                                     c_loc(Co_in), nrows, c_loc(ncyc), accuracy)
+                                     c_loc(Co_in), nrows, c_loc(ncyc), accuracy, logg)
     end block
 
   end subroutine decimation_gpu_${KIND}$
