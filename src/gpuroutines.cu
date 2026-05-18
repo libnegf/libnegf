@@ -429,20 +429,20 @@ int cu_multMat(
 }
 
 extern "C" int cu_CmultMat(
-    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+    void* hpblas, size_t m, size_t n, size_t k,
     const cuComplex* alpha, const cuComplex* d_A, const cuComplex* d_B,
     const cuComplex* beta, cuComplex* d_C, int dagger
 ) {
-    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_multMat(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
 extern "C" int cu_ZmultMat(
-    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+    void* hpblas, size_t m, size_t n, size_t k,
     const cuDoubleComplex* alpha, const cuDoubleComplex* d_A,
     const cuDoubleComplex* d_B, const cuDoubleComplex* beta,
     cuDoubleComplex* d_C, int dagger
 ) {
-    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_multMat(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
 
