@@ -27,16 +27,11 @@ program test
   print*,'found ',ndevs,' GPUs'
   call getDevice(ii)
   print*,'current device number: ',ii
-  call getDeviceProperties(ii)
   
-  !do ii = 1, ndevs
-  !  call setDevice(ii)
-  !  call getDeviceProperties(ii)
-  !  call getDevMemInfo(freemem, totalmem)
-  !  print*, 'Total device memory: ',totalmem
-  !  print*, ' Free device memory: ',freemem 
-  !end do
-
+  call getDevMemInfo(freemem, totalmem)
+  print*, 'Total device memory: ',totalmem
+  print*, ' Free device memory: ',freemem 
+  
   call cublasInitialize(hblas)
   call cusolverInitialize(hsolver)
 

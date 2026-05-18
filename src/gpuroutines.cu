@@ -333,7 +333,7 @@ extern "C" int cu_cudaMallocAsync(void** d_A, size_t bytecount) {
     ENFORCE(d_A);
     cudaError_t err = cudaMallocAsync(d_A, bytecount, 0);
     //printf("create mat at GPU Address: %p \n",*d_A);
-    ENFORCE(err == cudaSuccess);
+    CHECK_CUDA(err);
     return err;
 }
 
@@ -379,7 +379,7 @@ extern "C" int cu_deleteMat(void** d_A) {
 extern "C" int cu_cudaGetDeviceCount(int* count) {
     ENFORCE(count);
     cudaError_t err = cudaGetDeviceCount(count);
-    ENFORCE(err == cudaSuccess);
+    CHECK_CUDA(err);
     return err;
 }
 
@@ -397,7 +397,7 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
 
 extern "C" int cu_cudaGetDevice(int* device) {
     cudaError_t err = cudaGetDevice(device);
-    ENFORCE(err == cudaSuccess);
+    CHECK_CUDA(err);
     return err;
 }
 
@@ -533,7 +533,7 @@ int cu_kernelsum(
     auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, size);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    CHECK_CUDA(cudaGetLastError());
 
     return 0;
 }
@@ -626,7 +626,7 @@ extern "C" int cu_Cinitmat(cuComplex* d_A, size_t nrow) {
     auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    CHECK_CUDA(cudaGetLastError());
 
     return 0;
 }
@@ -637,7 +637,7 @@ extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, size_t nrow) {
     auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    CHECK_CUDA(cudaGetLastError());
 
     return 0;
 }
@@ -657,15 +657,15 @@ Real trace(
     cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(Real));
     Real* d_iden;
     cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(Real));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     bool* d_mask;
     cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     if(h_mask) {
         cudaStatus = cudaMemcpy(
             d_mask, h_mask, nrow * sizeof(bool), cudaMemcpyHostToDevice
         );
-        ENFORCE(cudaStatus == cudaSuccess);
+        CHECK_CUDA(cudaStatus);
     }
 
     initArrayWithOnes<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
@@ -775,21 +775,21 @@ int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, size_t n
     // prepare memory on the device
     Number* d_LU;
     cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     int* d_pivot;
     cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     // copy d_LU <- pdA
     cudaStatus = cudaMemcpy(d_LU, d_A, n * n * sizeof(Number), cudaMemcpyHostToHost);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     Number* d_work;
     cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     // LU factorization of d_A , with partial pivoting and row
     // interchanges ; row i is interchanged with row d_pivot ( i );
@@ -808,13 +808,13 @@ int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, size_t n
     LIBNEGF_CHECK_INFO(d_info);
 
     cudaStatus = cudaFree(d_pivot);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_info);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_work);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_LU);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     return cudaStatus;
 }
@@ -840,17 +840,16 @@ extern "C" int cu_Zinverse(
 template<typename Number, typename Real = typename get_real<Number>::type>
 int decimation(
     void* hpblas, void* hpsolver, Number* h_Go_out,
-    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n,
-    int* ncyc, float SGFACC
+    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n, 
+    int* ncyc, Real accuracy
 ) {
     ENFORCE(h_Go_out);
     ENFORCE(h_Ao_in);
     ENFORCE(h_Bo_in);
     ENFORCE(h_Co_in);
     ENFORCE(ncyc);
-    std::fprintf(stderr,"DEBUG in decimation SGFACC= %g \n",SGFACC);
-    ENFORCE(SGFACC > 0.0);
-
+    ENFORCE(accuracy > 0.0);
+    
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
 
@@ -866,53 +865,53 @@ int decimation(
 
     Number* d_Ao;
     cudaStatus = cudaMalloc((void**)&d_Ao, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     Number* d_Bo;
     cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     Number* d_Co;
     cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     cudaStatus = cudaMemcpy(
         d_Ao, h_Ao_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaMemcpy(
         d_Bo, h_Bo_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaMemcpy(
         d_Co, h_Co_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     Number* d_Ao_s;
     cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     Number* d_C1;
     cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     Number* d_Go;
     cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     int* d_pivot;
     cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     Number* d_T;
     cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     Number* d_Self;
     cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     Real* d_norm;
     cudaStatus = cudaMalloc((void**)&d_norm, sizeof(Real));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     int lwork;
     cusolverStatus_t cusolverStatus =
@@ -920,12 +919,12 @@ int decimation(
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     Number* d_work;
     cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     err = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
     //cudaStatus = cudaMemcpy(d_Ao_h, h_Ao, n * n * sizeof(Number), cudaMemcpyHostToHost);
-    //ENFORCE(cudaStatus == cudaSuccess);
+    //CHECK_CUDA(cudaStatus);
 
     constexpr auto MAX_NUM_ITERATIONS = 300;
     bool okCo = false;
@@ -964,16 +963,16 @@ int decimation(
 
         // convergence check on |C1| < tol
         cudaStatus = cudaMemset(d_norm, 0, sizeof(Real));
-        ENFORCE(cudaStatus == cudaSuccess);
+        CHECK_CUDA(cudaStatus);
 
         maxabs_kernel<<<num_blocks, BLOCK_SIZE, BLOCK_SIZE*sizeof(Real)>>>
                                                        (d_C1, n * n, d_norm);
-        ENFORCE(cudaGetLastError() == cudaSuccess);
+        CHECK_CUDA(cudaGetLastError());
         Real h_norm;
         cudaStatus = cudaMemcpy(&h_norm, d_norm, sizeof(Real), cudaMemcpyDeviceToHost);
         //printf("loop it= %d , maxval|C1|= %g \n ", i1, h_norm);
 
-        if(h_norm <= SGFACC) {
+        if(h_norm <= accuracy) {
             if(okCo) {
                 break;
             } else {
@@ -1048,32 +1047,32 @@ int decimation(
     cudaStatus = cudaMemcpy(
         h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
     );
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     cudaStatus = cudaFree(d_pivot);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_info);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Ao);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Bo);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Co);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Go);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Ao_s);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_C1);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_T);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_Self);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_work);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     cudaStatus = cudaFree(d_norm);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
 
     return cudaStatus;
 }
@@ -1082,12 +1081,11 @@ int decimation(
 extern "C" int cu_Cdecimation(
     void* hcublas, void* hcusolver, cuComplex* h_Go_out,
     cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
-    int* ncyc, float SGFACC
+    int* ncyc, float accuracy
 ) {
-    std::fprintf(stderr,"DEBUG in Cdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
-        SGFACC
+        accuracy
     );
 }
 
@@ -1095,12 +1093,11 @@ extern "C" int cu_Zdecimation(
     void* hcublas, void* hcusolver,
     cuDoubleComplex* h_Go_out, cuDoubleComplex* h_Ao_in,
     cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n,
-    int* ncyc, double SGFACC
+    int* ncyc, double accuracy
 ) {
-    std::fprintf(stderr,"DEBUG in Zdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
-        SGFACC
+        accuracy
     );
 }
 
@@ -1110,6 +1107,6 @@ extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
     //printf("STATUS: %d\n",cudaStatus);
     //ENFORCE(cudaStatus == cudaSuccess);
     auto cudaStatus = cudaMemGetInfo(freemem, totalmem);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CHECK_CUDA(cudaStatus);
     return cudaStatus;
 }
