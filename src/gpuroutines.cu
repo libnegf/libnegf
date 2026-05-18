@@ -824,7 +824,7 @@ extern "C" int cu_Zinverse(
  *  Sanchez-Sanchez algorithm
  * ****************************************************************
  */
-template<typename Number>
+template<typename Number, typename Real = typename get_real<Number>::type>
 int decimation(
     void* hpblas, void* hpsolver, Number* h_Go_out,
     Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n,
@@ -835,6 +835,7 @@ int decimation(
     ENFORCE(h_Bo_in);
     ENFORCE(h_Co_in);
     ENFORCE(ncyc);
+    printf(stderr,"DEBUG in decimation SGFACC= %g \n",SGFACC);
     ENFORCE(SGFACC > 0.0);
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -846,7 +847,6 @@ int decimation(
     auto num_elements = n * n;
     auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    using Real = typename get_real<Number>::type;
     auto one = Number{Real{1}};
     auto mone = Number{-Real{1}};
     auto zero = Number{Real{0}};
@@ -1067,10 +1067,11 @@ int decimation(
 
 
 extern "C" int cu_Cdecimation(
-    void * hcublas, void * hcusolver, cuComplex* h_Go_out,
+    void* hcublas, void* hcusolver, cuComplex* h_Go_out,
     cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
     int* ncyc, float SGFACC
 ) {
+    printf(stderr,"DEBUG Zdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
         SGFACC
@@ -1078,11 +1079,12 @@ extern "C" int cu_Cdecimation(
 }
 
 extern "C" int cu_Zdecimation(
-    void * hcublas, void * hcusolver,
+    void* hcublas, void* hcusolver,
     cuDoubleComplex* h_Go_out, cuDoubleComplex* h_Ao_in,
     cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n,
     int* ncyc, double SGFACC
 ) {
+    printf(stderr,"DEBUG Zdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
         SGFACC
