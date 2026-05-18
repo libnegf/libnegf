@@ -88,11 +88,11 @@ module lib_param
 #:if defined("GPU")
   !Type definition of cublas and cusolver handles (no module defs?)
   type, bind(C) :: cublasHandle
-    type(c_ptr) :: handle
+    type(c_ptr) :: ptr
   end type cublasHandle
 
   type, bind(C) :: cusolverDnHandle
-    type(c_ptr) :: handle
+    type(c_ptr) :: ptr
   end type cusolverDnHandle
 
   public :: cusolverDnHandle

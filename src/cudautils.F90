@@ -236,26 +236,22 @@ module cudautils
    interface
      integer(c_int) function cu_cublasInit(hcublas) bind(C, name='cu_cublasInit')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle) :: hcublas
+       type(c_ptr) :: hcublas
      end function cu_cublasInit
 
      integer(c_int) function cu_cublasFinalize(hcublas) bind(C, name='cu_cublasFinalize')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
      end function cu_cublasFinalize
 
      integer(c_int) function cu_cusolverInit(hcusolver) bind(C, name='cu_cusolverInit')
        use iso_c_binding
-       import cusolverDnHandle
-       type(cusolverDnHandle) :: hcusolver
+       type(c_ptr) :: hcusolver
      end function cu_cusolverInit
 
      integer(c_int) function cu_cusolverFinalize(hcusolver) bind(C, name='cu_cusolverFinalize')
        use iso_c_binding
-       import cusolverDnHandle
-       type(cusolverDnHandle), value :: hcusolver
+       type(c_ptr), value :: hcusolver
      end function cu_cusolverFinalize
      
      integer(c_int) function cudaDeviceSynchronize() bind(C, name='cudaDeviceSynchronize')
@@ -348,8 +344,7 @@ module cudautils
      integer(c_int) function cu_${CTYPE}$multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger) &
                   &   bind(C, name='cu_${CTYPE}$multMat')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
        integer(c_size_t), value :: m
        integer(c_size_t), value :: n
        integer(c_size_t), value :: k
@@ -361,13 +356,10 @@ module cudautils
        integer(c_int), value :: dagger
      end function cu_${CTYPE}$multMat
 
-     integer(c_int) function cu_${CTYPE}$inverse(hcublas, hcusolver, d_A, d_Ainv, N) &
+     integer(c_int) function cu_${CTYPE}$inverse(hcusolver, d_A, d_Ainv, N) &
                   &   bind(C, name='cu_${CTYPE}$inverse')
        use iso_c_binding
-       import cublasHandle
-       import cusolverDnHandle
-       type(cusolverDnHandle), value :: hcusolver
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcusolver
        integer(c_size_t), value :: N
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_Ainv
@@ -376,8 +368,7 @@ module cudautils
      integer(c_int) function cu_${CTYPE}$matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger) &
                   &   bind(C, name='cu_${CTYPE}$matsum')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
        integer(c_size_t), value :: m
        integer(c_size_t), value :: n
        integer(c_int), value :: dagger
@@ -398,8 +389,7 @@ module cudautils
      real(${C_BIND_REAL}$) function cu_${CTYPE}$trace(hcublas, d_A, nrow, h_tun, mask_present) &
                   &   bind(C, name='cu_${CTYPE}$trace')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
        type(c_ptr), value :: d_A
        type(c_ptr), value :: h_tun
        integer(c_size_t), value :: nrow
@@ -409,8 +399,7 @@ module cudautils
      integer(c_int) function cu_${CTYPE}$matcopy(hcublas, d_A, d_B, msize) &
                   &   bind(C, name='cu_${CTYPE}$matcopy')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
        type(c_ptr), value :: d_A
        type(c_ptr), value :: d_B
        integer(c_size_t), value :: msize
@@ -419,8 +408,7 @@ module cudautils
      integer(c_int) function cu_${CTYPE}$asum(hcublas, d_A, summ, N) &
                   &   bind(C, name='cu_${CTYPE}$asum')
        use iso_c_binding
-       import cublasHandle
-       type(cublasHandle), value :: hcublas
+       type(c_ptr), value :: hcublas
        type(c_ptr), value :: d_A
        real(${C_BIND_REAL}$) :: summ
        integer(c_size_t), value :: N
@@ -437,25 +425,25 @@ end interface
    subroutine cublasInitialize(hcublas)
      type(cublasHandle), intent(inout) :: hcublas
      integer :: err
-     err = cu_cublasInit(hcublas)
+     err = cu_cublasInit(hcublas%ptr)
    end subroutine cublasInitialize
 
    subroutine cublasFinalize(hcublas)
      type(cublasHandle), intent(inout) :: hcublas
      integer :: err
-     err = cu_cublasFinalize(hcublas)
+     err = cu_cublasFinalize(hcublas%ptr)
    end subroutine cublasFinalize
 
    subroutine cusolverInitialize(hcusolver)
      type(cusolverDnHandle), intent(inout) :: hcusolver
      integer :: err
-     err = cu_cusolverInit(hcusolver)
+     err = cu_cusolverInit(hcusolver%ptr)
    end subroutine cusolverInitialize
 
    subroutine cusolverFinalize(hcusolver)
      type(cusolverDnHandle), intent(inout) :: hcusolver
      integer :: err
-     err = cu_cusolverFinalize(hcusolver)
+     err = cu_cusolverFinalize(hcusolver%ptr)
    end subroutine cusolverFinalize
 
    subroutine getDeviceCount(count)
@@ -618,15 +606,15 @@ end interface
      nrow_C = int(C%nrow, kind=c_size_t)
 
      if (.not.present(dagger)) then
-     istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+     istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
                                & B%d_addr, beta, C%d_addr, 0)
      else
        select case(dagger)
        case('dag_1st')
-         istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, nrow_B, alpha, A%d_addr, &
+         istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, nrow_B, alpha, A%d_addr, &
                                    & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
-         istat = cu_${CTYPE}$multMat(hcublas, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+         istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
                                    & B%d_addr, beta, C%d_addr, 2)
        case default
          call error_msg('Error in matmul_gpu')
@@ -651,7 +639,7 @@ end interface
 
      @:ASSERT(A%nrow >= 0)
      nrow = int(A%nrow, kind=c_size_t)
-     istat = cu_${CTYPE}$inverse(hcublas,hcusolver, A%d_addr, Ainv%d_addr, nrow)
+     istat = cu_${CTYPE}$inverse(hcusolver%ptr, A%d_addr, Ainv%d_addr, nrow)
      err = istat
 
    end subroutine inverse_gpu_${KIND}$
@@ -693,15 +681,15 @@ end interface
      nrow_C = int(C%nrow, kind=c_size_t)
 
      if (.not.present(dagger)) then
-       istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+       istat = cu_${CTYPE}$matsum(hcublas%ptr, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
                                 & C%d_addr, 0)
      else
        if (dagger == 'dag_1st') then
-         istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+         istat = cu_${CTYPE}$matsum(hcublas%ptr, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
                                   & C%d_addr, 1)
        endif
        if (dagger == 'dag_2nd') then
-         istat = cu_${CTYPE}$matsum(hcublas, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
+         istat = cu_${CTYPE}$matsum(hcublas%ptr, nrow_C, ncol_C, alpha, A%d_addr, beta, B%d_addr, &
                                   & C%d_addr, 2)
        endif
      endif
@@ -754,9 +742,9 @@ end interface
       nrow = int(A%nrow, kind=c_size_t)
 
       if (.not.present(tun_mask)) then
-         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, nrow, dummy, 0)
+         trace = cu_${CTYPE}$trace(hcublas%ptr, A%d_addr, nrow, dummy, 0)
       else
-         trace = cu_${CTYPE}$trace(hcublas, A%d_addr, nrow, c_loc(tun_mask), 1)
+         trace = cu_${CTYPE}$trace(hcublas%ptr, A%d_addr, nrow, c_loc(tun_mask), 1)
       endif
 
    end subroutine trace_gpu_${KIND}$
@@ -774,7 +762,7 @@ end interface
       @:ASSERT(A%ncol >= 0)
       @:ASSERT(A%nrow >= 0)
       n = int(A%ncol, kind=c_size_t) * int(A%nrow, kind=c_size_t)
-      istat = cu_${CTYPE}$matcopy(hcublas, A%d_addr, Acopy%d_addr, n)
+      istat = cu_${CTYPE}$matcopy(hcublas%ptr, A%d_addr, Acopy%d_addr, n)
 
    end subroutine copy_mat_gpu_${KIND}$
 #:enddef copy_mat_gpu_template
@@ -791,7 +779,7 @@ end interface
       @:ASSERT(A%ncol >= 0)
       @:ASSERT(A%nrow >= 0)
       n = int(A%ncol, kind=c_size_t) * int(A%nrow, kind=c_size_t)
-      istat = cu_${CTYPE}$asum(hcublas, A%d_addr, summ, n)
+      istat = cu_${CTYPE}$asum(hcublas%ptr, A%d_addr, summ, n)
 
    end subroutine asum_gpu_${KIND}$
 #:enddef asum_gpu_template
