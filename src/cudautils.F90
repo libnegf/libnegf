@@ -422,7 +422,7 @@ module cudautils
 
      integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, &
                      & h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, ncyc, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
+                     & n, ncyc, accuracy) bind(C, name='cu_${CTYPE}$decimation')
         use iso_c_binding
         import cublasHandle
         import cusolverDnHandle
@@ -435,7 +435,7 @@ module cudautils
         type(c_ptr), value :: h_Co_in
         integer(c_size_t), value :: n
         type(c_ptr), value :: ncyc
-        real(${C_BIND_REAL}$) :: SGFACC
+        real(${C_BIND_REAL}$), value :: accuracy
     end function
 
    #:endfor
@@ -928,14 +928,14 @@ end interface
 #:enddef checksum_template
 
 #:def decimation_gpu_template(KIND, CTYPE)
-  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, acc)
+  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, accuracy)
     implicit none
     type(Tnegf), intent(in) :: negf
     integer, intent(in) :: n
     complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
     complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
     integer, intent(out), target :: ncyc
-    real(${KIND}$), intent(in) :: acc
+    real(${KIND}$), intent(in) :: accuracy
 
     integer :: istat
     type(cublasHandle) :: hh
@@ -951,7 +951,7 @@ end interface
       n_size = int(n, kind=c_size_t)
 
       istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
-                                     c_loc(Co_in), n_size, c_loc(ncyc), acc)
+                                     c_loc(Co_in), n_size, c_loc(ncyc), accuracy)
     end block
 
   end subroutine decimation_gpu_${KIND}$
