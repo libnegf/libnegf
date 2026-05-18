@@ -21,6 +21,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
 
 #include <cassert>
 #include <climits>
@@ -213,9 +214,33 @@ __global__ void initArrayWithOnes(Number* a, int32_t nrow) {
 }
 
 /* ***************************************************************
+ * Extract diagonal from a square matrix
+ * ***************************************************************
+ */
+
+template<typename Number, typename Real = typename get_real<Number>::type>
+__global__ void getdiagKernel(const Number* A, int n, Real* out,
+                              const bool* mask, int mask_present)
+{
+    ENFORCE(A);
+    ENFORCE(out);
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < n) {
+        if (mask_present == 0 || mask[i]) {
+            out[i] = A[i * n + i].x;
+        } else {
+            out[i] = 0;
+        }
+    }
+}
+
+/* ***************************************************************
  * Simple trace kernel with a mask
  * ***************************************************************
  */
+/*
 template<typename Number>
 __global__ void traceKernel(const Number* A, int32_t nrow, Number* result,
                            bool* mask, int mask_present)
@@ -243,7 +268,7 @@ __global__ void traceKernel(const Number* A, int32_t nrow, Number* result,
       }
     }
 }
-
+*/
 
 __device__ inline float absval(cuComplex z)  { return cuCabsf(z); }
 __device__ inline double absval(cuDoubleComplex z){ return cuCabs(z); }
@@ -667,23 +692,37 @@ Real trace(
     cudaStatus = cudaMalloc((void**)&d_mask, n64 * sizeof(bool));
     CUDA_CHECK(cudaStatus);
     if (h_mask) {
-       cu_copyMatH2D(d_mask, h_mask, n64*sizeof(bool));
+       cu_copyMatH2D(h_mask, d_mask, n64*sizeof(bool));
     }
 
-    Number h_result;
-    Number *d_result;
-    cudaStatus = cudaMalloc(&d_result, sizeof(Number));
-    cudaStatus = cudaMemset(static_cast<void*>(d_result), 0, sizeof(Number));
+    Real h_result;
+    Real *d_result;
+    Real *d_real_diag;
+    void *d_temp = nullptr;
+    size_t temp_bytes = 0;
+    cudaStatus = cudaMalloc(&d_result, sizeof(Real));
+    cudaStatus = cudaMemset(static_cast<void*>(d_result), 0, sizeof(Real));
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaMalloc(&d_real_diag, n64*sizeof(Real));
     CUDA_CHECK(cudaStatus);
 
-    traceKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow, d_result, d_mask, mask_present);
+    getdiagKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow, d_real_diag, d_mask, mask_present);
 
-    cudaStatus = cudaMemcpy(&h_result, d_result, sizeof(Number), cudaMemcpyDeviceToHost);
+    cub::DeviceReduce::Sum(nullptr, temp_bytes, d_real_diag, d_result, nrow);
+
+    cudaStatus = cudaMalloc(&d_temp, temp_bytes);
+    CUDA_CHECK(cudaStatus);
+
+    cub::DeviceReduce::Sum(d_temp, temp_bytes, d_real_diag, d_result, nrow);
+
+    cudaStatus = cudaMemcpy(&h_result, d_result, sizeof(Real), cudaMemcpyDeviceToHost);
 
     cudaStatus = cudaFree(d_mask);
     cudaStatus = cudaFree(d_result);
+    cudaStatus = cudaFree(d_temp);
+    cudaStatus = cudaFree(d_real_diag);
 
-    return h_result.x;
+    return h_result;
 }
 
 extern "C" float cu_Ctrace(
