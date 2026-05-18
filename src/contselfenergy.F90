@@ -57,9 +57,6 @@ module ContSelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
   public :: decimation
-#:if defined("GPU")
-  public :: decimation_gpu
-#:endif
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
@@ -76,37 +73,6 @@ module ContSelfEnergy
      module procedure compute_contacts_dns
   end interface
 
-#:if defined("GPU")
-  interface
-  #:for PREC in PRECISIONS       
-    #:set CTYPE = CHAR_ABBREVS['complex'][PREC]
-    #:set CBIND_CMPLX = ISO_C_BIND_TYPES['complex'][PREC]
-    #:set CBIND_REAL = ISO_C_BIND_TYPES['real'][PREC]
-    integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, &
-                     & n, ncyc, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
-        use iso_c_binding
-        import cublasHandle
-        import cusolverDnHandle
-
-        type(cublasHandle), value :: hcublas
-        type(cusolverDnHandle), value :: hcusolver
-        type(c_ptr), value :: h_Go_out
-        type(c_ptr), value :: h_Ao_in
-        type(c_ptr), value :: h_Bo_in
-        type(c_ptr), value :: h_Co_in
-        integer(c_size_t), value :: n
-        type(c_ptr), value :: ncyc
-        real(${CBIND_REAL}$) :: SGFACC
-    end function
-  #:endfor
-  end interface
-
-  interface decimation_gpu
-  #:for PREC in PRECISIONS       
-     module procedure decimation_gpu_${PREC_ABBREVS[PREC]}$
-  #:endfor   
-  end interface
-#:endif
 contains
   !--------------------------------------------------------------------
   ! SURFACE GREEN's FUNCTION USING THE DECIMATION ITERATION
@@ -208,7 +174,7 @@ contains
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(transpose(Co))
 #:if defined("GPU")
-          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc)
+          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc,SGFACC)
 #:else
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
 #:endif
@@ -337,50 +303,6 @@ contains
     call log_deallocate(Ao_s)
 
   end subroutine decimation
-
-!-------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------
-#:if defined("GPU")
-#:def decimation_gpu_template(KIND, CTYPE)
-
-  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc)
-    implicit none
-    type(Tnegf), intent(in) :: negf
-    integer, intent(in) :: n
-    complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
-    complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
-    integer, intent(out), target :: ncyc
-
-    integer :: istat
-    type(cublasHandle) :: hh
-    type(cusolverDnHandle) :: hhsol
-
-    hh = negf%hcublas
-    hhsol = negf%hcusolver
-
-    block
-      integer(c_size_t) :: n_size
-
-      @:ASSERT(n >= 0)
-      n_size = int(n, kind=c_size_t)
-
-      istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
-                                     c_loc(Co_in), n_size, c_loc(ncyc), real(SGFACC,${KIND}$))
-    end block
-
-  end subroutine decimation_gpu_${KIND}$
-
-#:enddef decimation_gpu_template
-
-#:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC]
-     #:set CTYPE = CHAR_ABBREVS['complex'][PREC]
-
-     $:decimation_gpu_template(KIND,CTYPE)      
-#:endfor
-
-
-#:endif
 
 !-------------------------------------------------------------------------------
 

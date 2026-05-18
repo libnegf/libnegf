@@ -58,6 +58,19 @@
         } \
     } while(false)
 #endif
+#define CUDA_CHECK(error) \
+    do { \
+        if(!(error == cudaSuccess)) { \
+            std::fprintf( \
+                stderr, "CUDA error in %s line %u \n", __FILE__, \
+                __LINE__ \
+		    ); \
+            std::fprintf( \
+                stderr, "ERROR \n %s \n", cudaGetErrorString(error) \
+		    ); \
+            std::exit(EXIT_FAILURE); \
+        } \
+    } while(false)
 
 
 #define LIBNEGF_CHECK_INFO(info_var) \
@@ -373,7 +386,7 @@ extern "C" int cu_cudaGetDeviceCount(int* count) {
 extern "C" int cu_cudaGetDeviceProperties(int device) {
     cudaDeviceProp prop;
     cudaError_t err = cudaGetDeviceProperties(&prop, device);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
 
     printf(" Found GPU: Device Name: %s\n", prop.name);
     printf(" TotalMemory: %lu\n", (unsigned long)prop.totalGlobalMem);
@@ -384,13 +397,13 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
 
 extern "C" int cu_cudaGetDevice(int* device) {
     cudaError_t err = cudaGetDevice(device);
-    assert(err == cudaSuccess);
+    ENFORCE(err == cudaSuccess);
     return err;
 }
 
 extern "C" int cu_cudaSetDevice(int count) {
     cudaError_t err = cudaSetDevice(count);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
     return err;
 }
 
@@ -835,7 +848,7 @@ int decimation(
     ENFORCE(h_Bo_in);
     ENFORCE(h_Co_in);
     ENFORCE(ncyc);
-    printf(stderr,"DEBUG in decimation SGFACC= %g \n",SGFACC);
+    std::fprintf(stderr,"DEBUG in decimation SGFACC= %g \n",SGFACC);
     ENFORCE(SGFACC > 0.0);
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -1071,7 +1084,7 @@ extern "C" int cu_Cdecimation(
     cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
     int* ncyc, float SGFACC
 ) {
-    printf(stderr,"DEBUG Zdecimation SGFACC= %g \n",SGFACC);
+    std::fprintf(stderr,"DEBUG in Cdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
         SGFACC
@@ -1084,7 +1097,7 @@ extern "C" int cu_Zdecimation(
     cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n,
     int* ncyc, double SGFACC
 ) {
-    printf(stderr,"DEBUG Zdecimation SGFACC= %g \n",SGFACC);
+    std::fprintf(stderr,"DEBUG in Zdecimation SGFACC= %g \n",SGFACC);
     return decimation(
         hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
         SGFACC

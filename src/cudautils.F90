@@ -61,6 +61,7 @@ module cudautils
    public :: copy_mat_gpu
    public :: asum_gpu
    public :: dagger_gpu
+   public :: decimation_gpu
 
    public :: checksum
 
@@ -72,7 +73,7 @@ module cudautils
    public :: getDeviceCount
    public :: getDevice
    public :: setDevice
-   !public :: getDeviceProperties
+   public :: getDeviceProperties
    public :: getDevMemInfo
 
 
@@ -220,6 +221,12 @@ module cudautils
    #:endfor
    end interface dagger_gpu
 
+   interface decimation_gpu
+   #:for PREC in PRECISIONS
+      module procedure decimation_gpu_${PREC_ABBREVS[PREC]}$
+   #:endfor
+   end interface decimation_gpu
+
    interface checksum
    #:for PREC in PRECISIONS
       module procedure checksum_${PREC_ABBREVS[PREC]}$
@@ -269,11 +276,10 @@ module cudautils
        integer(c_int) :: count
      end function cu_cudaGetDeviceCount
 
-     integer(c_int) function cu_cudaGetDeviceProperties(device,prop) &
+     integer(c_int) function cu_cudaGetDeviceProperties(device) &
                                           & bind(C, name='cu_cudaGetDeviceProperties')
        use iso_c_binding
        integer(c_int) :: device
-       type(c_ptr) :: prop
      end function cu_cudaGetDeviceProperties
 
      integer(c_int) function cu_cudaMallocAsync(d_A, siz) bind(C, name='cu_cudaMallocAsync')
@@ -414,6 +420,24 @@ module cudautils
        integer(c_size_t), value :: N
      end function cu_${CTYPE}$asum
 
+     integer(c_int) function cu_${CTYPE}$decimation(hcublas, hcusolver, h_Go_out, &
+                     & h_Ao_in, h_Bo_in, h_Co_in, &
+                     & n, ncyc, SGFACC) bind(C, name='cu_${CTYPE}$decimation')
+        use iso_c_binding
+        import cublasHandle
+        import cusolverDnHandle
+
+        type(cublasHandle), value :: hcublas
+        type(cusolverDnHandle), value :: hcusolver
+        type(c_ptr), value :: h_Go_out
+        type(c_ptr), value :: h_Ao_in
+        type(c_ptr), value :: h_Bo_in
+        type(c_ptr), value :: h_Co_in
+        integer(c_size_t), value :: n
+        type(c_ptr), value :: ncyc
+        real(${C_BIND_REAL}$) :: SGFACC
+    end function
+
    #:endfor
 
 end interface
@@ -469,6 +493,12 @@ end interface
      integer :: err
      err = cu_meminfo(freemem, totalmem)
    end subroutine getDevMemInfo
+
+   subroutine getDeviceProperties(dev)
+     integer(4) :: dev
+     integer :: err
+     err = cu_cudaGetDeviceProperties(dev)
+   end subroutine getDeviceProperties
 
    subroutine waitForGPU()
      integer :: err
@@ -897,6 +927,36 @@ end interface
   end subroutine checksum_${KIND}$
 #:enddef checksum_template
 
+#:def decimation_gpu_template(KIND, CTYPE)
+  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, acc)
+    implicit none
+    type(Tnegf), intent(in) :: negf
+    integer, intent(in) :: n
+    complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
+    complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
+    integer, intent(out), target :: ncyc
+    real(${KIND}$), intent(in) :: acc
+
+    integer :: istat
+    type(cublasHandle) :: hh
+    type(cusolverDnHandle) :: hhsol
+
+    hh = negf%hcublas
+    hhsol = negf%hcusolver
+
+    block
+      integer(c_size_t) :: n_size
+
+      @:ASSERT(n >= 0)
+      n_size = int(n, kind=c_size_t)
+
+      istat = cu_${CTYPE}$decimation(hh, hhsol, c_loc(Go_out), c_loc(Ao_in), c_loc(Bo_in), &
+                                     c_loc(Co_in), n_size, c_loc(ncyc), acc)
+    end block
+
+  end subroutine decimation_gpu_${KIND}$
+
+#:enddef decimation_gpu_template
 
 #:for PREC in PRECISIONS
      #:set KIND = PREC_ABBREVS[PREC]
@@ -954,5 +1014,6 @@ end interface
 
      $:checksum_template(KIND, CTYPE, MTYPE, CUDATYPE)
 
+     $:decimation_gpu_template(KIND, CTYPE)
  #:endfor
 end module cudautils

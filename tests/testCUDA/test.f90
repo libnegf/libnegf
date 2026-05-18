@@ -18,17 +18,27 @@ program test
   complex(dp) :: alpha, beta
   real(dp), allocatable :: R(:,:)
   real(dp) :: tr1, tr2
-  integer :: istat, ii
+  integer :: istat, ii, ndevs
   integer(8) :: totalmem, freemem
   type(cublasHandle) :: hblas
   type(cusolverDnHandle) :: hsolver
  
+  call getDeviceCount(ndevs)
+  print*,'found ',ndevs,' GPUs'
+  call getDevice(ii)
+  print*,'current device number: ',ii
+  call getDeviceProperties(ii)
+  
+  !do ii = 1, ndevs
+  !  call setDevice(ii)
+  !  call getDeviceProperties(ii)
+  !  call getDevMemInfo(freemem, totalmem)
+  !  print*, 'Total device memory: ',totalmem
+  !  print*, ' Free device memory: ',freemem 
+  !end do
+
   call cublasInitialize(hblas)
   call cusolverInitialize(hsolver)
-
-  call getDevMemInfo(freemem, totalmem)
-  print*, 'Total device memory: ',totalmem
-  print*, ' Free device memory: ',freemem 
 
   allocate(A(Npl,Npl))
   print*,'create A11'
