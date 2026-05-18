@@ -383,9 +383,9 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  *
  * op(.) indicates if the matrix or its complex-conjugate is used. The allowed
  * values for dagger are:
- * * `dagger == 0`: compute C ≔ α A · B + β C
- * * `dagger == 1`: compute C ≔ α A^* · B + β C
- * * `dagger == 2`: compute C ≔ α A · B^* + β C
+ * * `dagger == 0`: compute C = α A · B + β C
+ * * `dagger == 1`: compute C = α A^* · B + β C
+ * * `dagger == 2`: compute C = α A · B^* + β C
  *
  * @param[in] m The number of rows of C and op(A).
  * @param[in] n The number of columns of C and op(B).
@@ -446,81 +446,6 @@ extern "C" int cu_ZmultMat(
 }
 
 
-template<typename Number>
-int inverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* d_A,
-    Number* d_Ainv, size_t n
-) {
-    ENFORCE(hcusolver);
-    ENFORCE(d_A);
-    ENFORCE(d_Ainv);
-
-    // compute buffer size and prep . memory
-    int lwork;
-    cusolverStatus_t cusolverStatus =
-        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    // prepare memory on the device
-    Number* d_LU;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
-    int* d_info;
-    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
-    // copy d_LU <- pdA
-    auto cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    Number* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    // LU factorization of d_A , with partial pivoting and row
-    // interchanges ; row i is interchanged with row d_pivot ( i );
-    cusolverStatus = libnegf::cusolverDngetrf(
-        hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
-    );
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-    LIBNEGF_CHECK_INFO(d_info);
-
-    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
-    // the solution overwrites d_Ainv
-    cusolverStatus = libnegf::cusolverDngetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
-    );
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-    LIBNEGF_CHECK_INFO(d_info);
-
-    cudaStatus = cudaFree(d_pivot);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_info);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_work);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_LU);
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    return cudaStatus;
-}
-
-extern "C" int cu_Cinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* d_A,
-    cuComplex* d_Ainv, size_t n
-) {
-    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
-}
-
-extern "C" int cu_Zinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuDoubleComplex* d_A,
-    cuDoubleComplex* d_Ainv, size_t n
-) {
-    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
-}
 
 template<typename Number>
 int cu_kernelsum(
@@ -556,9 +481,9 @@ extern "C" int cu_Zkernelsum(
  * or its complex-conjugate is used.
  *
  * The possible options are:
- * * `dagger == 0`: compute C ≔ α A + β B
- * * `dagger == 1`: compute C ≔ α A^* + β B
- * * `dagger == 2`: compute C ≔ α A + B^*
+ * * `dagger == 0`: compute C = α A + β B
+ * * `dagger == 1`: compute C = α A^* + β B
+ * * `dagger == 2`: compute C = α A + B^*
  *
  * @param[in] m The number of rows of op(A) and op(B).
  * @param[in] n The number of columns of op(A) and op(B).
@@ -739,6 +664,84 @@ cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, size_t n) {
 }
 
 
+
+
+template<typename Number>
+int inverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* d_A,
+    Number* d_Ainv, size_t n
+) {
+    ENFORCE(hcusolver);
+    ENFORCE(d_A);
+    ENFORCE(d_Ainv);
+
+    // compute buffer size and prep . memory
+    int lwork;
+    cusolverStatus_t cusolverStatus =
+        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+
+    // prepare memory on the device
+    Number* d_LU;
+    cudaError_t cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
+    ENFORCE(cudaStatus == cudaSuccess);
+
+    int* d_pivot;
+    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
+    ENFORCE(cudaStatus == cudaSuccess);
+    int* d_info;
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
+    ENFORCE(cudaStatus == cudaSuccess);
+    // copy d_LU <- pdA
+    auto cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
+    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+
+    Number* d_work;
+    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
+    ENFORCE(cudaStatus == cudaSuccess);
+
+    // LU factorization of d_A , with partial pivoting and row
+    // interchanges ; row i is interchanged with row d_pivot ( i );
+    cusolverStatus = libnegf::cusolverDngetrf(
+        hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
+    );
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
+
+    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
+    // the solution overwrites d_Ainv
+    cusolverStatus = libnegf::cusolverDngetrs(
+        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
+    );
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
+
+    cudaStatus = cudaFree(d_pivot);
+    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaFree(d_info);
+    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaFree(d_work);
+    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaFree(d_LU);
+    ENFORCE(cudaStatus == cudaSuccess);
+
+    return cudaStatus;
+}
+
+extern "C" int cu_Cinverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* d_A,
+    cuComplex* d_Ainv, size_t n
+) {
+    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
+}
+
+extern "C" int cu_Zinverse(
+    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuDoubleComplex* d_A,
+    cuDoubleComplex* d_Ainv, size_t n
+) {
+    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
+}
+
 template<typename Number>
 int decimation(
     cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* h_Go_out,
@@ -786,15 +789,6 @@ int decimation(
         d_Co, h_Co_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
     );
     ENFORCE(cudaStatus == cudaSuccess);
-
-    cublasStatus_t cublasStatus =
-        cublasSetPointerMode(hcublas, CUBLAS_POINTER_MODE_HOST);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    if(tf32 == 1) {
-        cublasStatus = cublasSetMathMode(hcublas, CUBLAS_TENSOR_OP_MATH);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-    }
 
     Number* d_Ao_s;
     cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(Number));
@@ -930,6 +924,7 @@ int decimation(
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     LIBNEGF_CHECK_INFO(d_info);
 
+    // copy to output to host
     cudaStatus = cudaMemcpy(
         h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
     );
