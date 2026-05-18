@@ -51,98 +51,98 @@ module iterative_gpu
 
   interface calculate_gsmr_blocks
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure  calculate_gsmr_blocks_${KIND}$
    #:endfor
   end interface calculate_gsmr_blocks
 
   interface calculate_Gr_tridiag_blocks
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure calculate_Gr_tridiag_blocks_${KIND}$
    #:endfor
   end interface calculate_Gr_tridiag_blocks
 
   interface calculate_Gn_tridiag_blocks
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure calculate_Gn_tridiag_blocks_${KIND}$
    #:endfor
   end interface calculate_Gn_tridiag_blocks
 
   interface calculate_single_transmission_2_contacts
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure calculate_single_transmission_2_contacts_${KIND}$
    #:endfor
   end interface calculate_single_transmission_2_contacts
 
   interface calculate_single_transmission_N_contacts
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure calculate_single_transmission_N_contacts_${KIND}$
    #:endfor
   end interface calculate_single_transmission_N_contacts
 
   interface get_tun_mask
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure get_tun_mask_${KIND}$
    #:endfor
   end interface get_tun_mask
 
   interface check_convergence_trid
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure check_convergence_trid_${KIND}$
    #:endfor
   end interface check_convergence_trid
 
   interface check_convergence_vec
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure check_convergence_vec_${KIND}$
    #:endfor
   end interface check_convergence_vec
 
-  interface add_sigma_n 
+  interface add_sigma_n
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure add_sigma_n_${KIND}$
    #:endfor
   end interface add_sigma_n
 
-  interface init_tridiag_blk 
+  interface init_tridiag_blk
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure init_tridiag_blk_${KIND}$
    #:endfor
   end interface init_tridiag_blk
 
-  interface destroy_tridiag_blk 
+  interface destroy_tridiag_blk
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure destroy_tridiag_blk_${KIND}$
    #:endfor
   end interface destroy_tridiag_blk
 
   interface allocate_blk_dns
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure allocate_blk_dns_${KIND}$
    #:endfor
   end interface allocate_blk_dns
 
   interface deallocate_blk_dns
    #:for PREC in PRECISIONS
-     #:set KIND = PREC_ABBREVS[PREC] 
+     #:set KIND = PREC_ABBREVS[PREC]
      module procedure deallocate_blk_dns_${KIND}$
    #:endfor
   end interface deallocate_blk_dns
 
 contains
 
-      
+
 #:def calculate_gsmr_blocks_template(KIND, CTYPE, MTYPE, CUDATYPE)
   subroutine calculate_gsmr_blocks_${KIND}$(negf,ESH,sbl,ebl,gsmr,keep_gsmr)
 
@@ -158,9 +158,9 @@ contains
     !Work
     type(CublasHandle) :: hh
     type(CusolverDnHandle) :: hhsol
-    complex(${KIND}$), parameter :: one = cmplx(1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: mone = cmplx(-1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: zero = cmplx(0.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: mone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
     type(${MTYPE}$) :: work1, work2
     integer :: nrow
     integer :: i, nbl, istat
@@ -239,9 +239,9 @@ contains
     type(CusolverDnHandle) ::hhsol
     integer :: i,nbl
     type(${MTYPE}$), target :: work1, work2, work3
-    complex(${KIND}$), parameter :: one = cmplx(1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: mone = cmplx(-1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: zero = cmplx(0.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: mone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
     integer :: istat
 
     nbl = size(ESH,1)
@@ -433,9 +433,9 @@ contains
 
     !Work
     type(CublasHandle) :: hh
-    complex(${KIND}$), parameter :: one = cmplx(1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: minusone = cmplx(-1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: zero = cmplx(0.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: minusone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
     type(${MTYPE}$), dimension(:,:), allocatable :: Sigma_n
     type(${MTYPE}$) :: work1, Gam
     complex(${KIND}$) :: frmdiff
@@ -606,7 +606,7 @@ contains
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
-    
+
     do while (associated(it))
       call it%inter%add_sigma_n(sigma_n, negf%iEloc, negf%iKloc, negf%spin)
       it => it%next
@@ -631,11 +631,11 @@ contains
     type(CublasHandle) :: hh
     Integer :: ct1, bl1
     Type(${MTYPE}$) :: work1, work2, GAM1_dns, TRS, AA
-    complex(${KIND}$), parameter :: j = cmplx(0.0, 1.0, ${KIND}$)  ! CMPX unity
-    complex(${KIND}$), parameter :: mj = cmplx(0.0, -1.0, ${KIND}$)
-    complex(${KIND}$), parameter :: one = cmplx(1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: mone = cmplx(-1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: zero = cmplx(0.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: j = cmplx(0.0, 1.0, ${KIND}$)  ! CMPX unity
+    complex(${KIND}$) :: mj = cmplx(0.0, -1.0, ${KIND}$)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: mone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
 
     if (size(cblk).gt.2) then
        write(*,*) "ERROR: calculate_single_transmission_2_contacts is valid only for 2 contacts"
@@ -713,9 +713,9 @@ contains
     Integer :: ct1, ct2, bl1, bl2, i, nbl
     Type(${MTYPE}$) :: work1, work2, GAM1_dns, GAM2_dns, TRS
     Real(${KIND}$) :: max
-    complex(${KIND}$), parameter :: one = cmplx(1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: mone = cmplx(-1.0, 0.0, ${KIND}$)
-    complex(${KIND}$), parameter :: zero = cmplx(0.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: one = cmplx(1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: mone = cmplx(-1.0, 0.0, ${KIND}$)
+    complex(${KIND}$) :: zero = cmplx(0.0, 0.0, ${KIND}$)
 
     !Arrange contacts in way that order between first and second is always the
     !same (always ct1 < ct2)
@@ -890,7 +890,7 @@ contains
     nbl=size(M,1)
 
     do i=1,nbl
-      if (allocated(M(i,i)%val)) then    
+      if (allocated(M(i,i)%val)) then
         call destroyAll(M(i,i))
       end if
     end do
