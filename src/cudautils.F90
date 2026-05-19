@@ -261,7 +261,7 @@ module cudautils
        use iso_c_binding
        type(c_ptr), value :: hcusolver
      end function cu_cusolverFinalize
-     
+
      integer(c_int) function cudaDeviceSynchronize() bind(C, name='cudaDeviceSynchronize')
        use iso_c_binding
      end function cudaDeviceSynchronize
@@ -515,7 +515,7 @@ end interface
      type(${MTYPE}$), intent(in) :: A
 
      integer :: err
-     integer(c_size_t) :: bytecount 
+     integer(c_size_t) :: bytecount
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
      err = cu_createMat(A%d_addr, bytecount)
    end subroutine createGPU_${KIND}$
@@ -555,11 +555,11 @@ end interface
      integer :: err
      integer(c_size_t) :: bytecount
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
-     err = cu_copyMatH2D(c_loc(A%val), A%d_addr, bytecount)
+     err = cu_copyMatH2D(c_loc(A%val(1,1)), A%d_addr, bytecount)
      if (err /= 0) then
-       print*, 'COPY ',c_loc(A%val), 'TO ', A%d_addr, bytecount    
+       print*, 'COPY ',c_loc(A%val(1,1)), 'TO ', A%d_addr, bytecount
        error stop 'COPY ERROR !!'
-     end if  
+     end if
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
 
@@ -571,11 +571,11 @@ end interface
      integer :: err
      integer(c_size_t) :: bytecount
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
-     err = cu_copyMatH2D_async(c_loc(A%val), A%d_addr, bytecount)
+     err = cu_copyMatH2D_async(c_loc(A%val(1,1)), A%d_addr, bytecount)
      if (err /= 0) then
-       print*, 'COPY ',c_loc(A%val), 'TO ', A%d_addr, bytecount    
+       print*, 'COPY ',c_loc(A%val(1,1)), 'TO ', A%d_addr, bytecount
        error stop 'COPY ERROR !!'
-     end if  
+     end if
    end subroutine copyToGPU_async_${KIND}$
 #:enddef copyToGPU_async_template
 
@@ -586,7 +586,7 @@ end interface
      integer :: err
      integer(c_size_t) :: bytecount
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
-     err = cu_copyMatD2H(c_loc(A%val), A%d_addr, bytecount)
+     err = cu_copyMatD2H(c_loc(A%val(1,1)), A%d_addr, bytecount)
    end subroutine copyFromGPU_${KIND}$
 #:enddef copyFromGPU_template
 
@@ -706,7 +706,7 @@ end interface
 
      integer :: istat
      integer(c_size_t) :: nelems
-     
+
      nelems = int(A%val,kind=c_size_t)
      istat = cu_${CTYPE}$kernelsum(C%d_addr, alpha, A%d_addr, beta, B%d_addr, nelems)
 
@@ -958,7 +958,7 @@ end interface
     complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
     integer, intent(out), target :: ncyc
     real(${KIND}$), intent(in) :: accuracy
-    logical, intent(in) :: loginfo 
+    logical, intent(in) :: loginfo
 
     integer :: istat
     type(cublasHandle) :: hh
@@ -969,7 +969,7 @@ end interface
 
     block
       integer(c_int32_t) :: nrows
-      logical(kind=c_bool) :: logg 
+      logical(kind=c_bool) :: logg
 
       @:ASSERT(n >= 0)
       nrows = int(n, kind=c_int32_t)
