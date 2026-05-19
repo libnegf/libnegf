@@ -212,7 +212,9 @@ program test
 
   !/////////////////////////////////////////////////////////////////////
   print*
-  print*,'7. TEST matsum GPU'
+  print*,'7. TEST matsum GPU C = A + B'
+  alpha = cmplx(1.0,0.0,dp)
+  beta = cmplx(1.0,0.0,dp)
   call matsum_gpu(hblas, alpha, A(1,1), beta, A(2,2), work1) 
   print*,'copy Back'
   call copyFromGPU(work1)
@@ -224,8 +226,24 @@ program test
   else    
     print*,'TEST Ok'
   end if
+  print*,'-------------------------'
+  
+  !/////////////////////////////////////////////////////////////////////
+  print*
+  print*,'7b. TEST matsum in-place GPU C = C + B'
+  call matsum_gpu(hblas, alpha, work1, beta, A(2,2), work1) 
+  print*,'copy Back'
+  call copyFromGPU(work1)
+  print*,'TEST check'
+  if (any(abs(work1%val-A(1,1)%val-2.0_dp*A(2,2)%val) > 1e-10)) then
+    print*,'TEST failed'
+    istat = 1007
+  else    
+    print*,'TEST Ok'
+  end if
   call destroyAll(A(2,2))
   print*,'-------------------------'
+
 
   !/////////////////////////////////////////////////////////////////////
   print*, '8. TEST spectral as C = i[A - A^H]' 
