@@ -501,7 +501,7 @@ extern "C" int cu_cusolverFinalize(void *hpsolver) {
  * @param[in] dagger A shorthand for various combinations of op(A), op(B).
  */
 template<typename Number>
-int cu_multMat(
+int cu_matmul(
     void *hpblas, int32_t m, int32_t n, int32_t k, const Number* alpha,
     const Number* d_A, const Number* d_B, const Number* beta, Number* d_C,
     int dagger
@@ -537,21 +537,21 @@ int cu_multMat(
     return err;
 }
 
-extern "C" int cu_CmultMat(
+extern "C" int cu_Cmatmul(
     void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuComplex* alpha, const cuComplex* d_A, const cuComplex* d_B,
     const cuComplex* beta, cuComplex* d_C, int dagger
 ) {
-    return cu_multMat(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_matmul(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
-extern "C" int cu_ZmultMat(
+extern "C" int cu_Zmatmul(
     void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuDoubleComplex* alpha, const cuDoubleComplex* d_A,
     const cuDoubleComplex* d_B, const cuDoubleComplex* beta,
     cuDoubleComplex* d_C, int dagger
 ) {
-    return cu_multMat(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_matmul(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
 

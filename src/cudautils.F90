@@ -348,8 +348,8 @@ module cudautils
      #:set C_BIND_CMPLX = ISO_C_BIND_TYPES['complex'][PREC]
      #:set C_BIND_REAL = ISO_C_BIND_TYPES['real'][PREC]
      ! C = alpha*A*B + beta*C
-     integer(c_int) function cu_${CTYPE}$multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger) &
-                  &   bind(C, name='cu_${CTYPE}$multMat')
+     integer(c_int) function cu_${CTYPE}$matmul(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger) &
+                  &   bind(C, name='cu_${CTYPE}$matmul')
        use iso_c_binding
        type(c_ptr), value :: hcublas
        integer(c_int32_t), value :: m
@@ -361,7 +361,7 @@ module cudautils
        complex(${C_BIND_CMPLX}$) :: beta
        type(c_ptr), value :: d_C
        integer(c_int), value :: dagger
-     end function cu_${CTYPE}$multMat
+     end function cu_${CTYPE}$matmul
 
      integer(c_int) function cu_${CTYPE}$inverse(hcusolver, d_A, d_Ainv, N) &
                   &   bind(C, name='cu_${CTYPE}$inverse')
@@ -657,15 +657,15 @@ end interface
      nrow_C = int(C%nrow, kind=c_int32_t)
 
      if (.not.present(dagger)) then
-     istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+     istat = cu_${CTYPE}$matmul(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
                                & B%d_addr, beta, C%d_addr, 0)
      else
        select case(dagger)
        case('dag_1st')
-         istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, nrow_B, alpha, A%d_addr, &
+         istat = cu_${CTYPE}$matmul(hcublas%ptr, nrow_C, ncol_C, nrow_B, alpha, A%d_addr, &
                                    & B%d_addr, beta, C%d_addr, 1)
        case('dag_2nd')
-         istat = cu_${CTYPE}$multMat(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
+         istat = cu_${CTYPE}$matmul(hcublas%ptr, nrow_C, ncol_C, ncol_A, alpha, A%d_addr, &
                                    & B%d_addr, beta, C%d_addr, 2)
        case default
          call error_msg('Error in matmul_gpu')
