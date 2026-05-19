@@ -452,19 +452,18 @@ contains
     ! Add interaction self-energies
     call add_sigma_n(negf, Sigma_n)
 
-    call copy_trid_toGPU(Sigma_n)
     ! Add contact self-energies
     do j=1,ncont
       frmdiff = cmplx(frm(j) - frm(ref), 0.0, ${KIND}$)
       if (j.ne.ref .and. abs(frmdiff).gt.EPS10) then
         cb=struct%cblk(j) ! block corresponding to contact j
         call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
-        call createGPU(Gam)
-        call copyToGPU(Gam)
-        call matsum_gpu(hh, one, Sigma_n(cb,cb), frmdiff, Gam, Sigma_n(cb,cb))
-        call destroyAll(Gam)
+        Sigma_n(cb,cb)%val = Sigma_n(cb,cb)%val + frmdiff * Gam%val
+        call destroy(Gam)
       endif
     end do
+
+    call copy_trid_toGPU(Sigma_n)
 
     call calculate_sigma_n()
     ! Gr * Sigma_n * Gr^+
