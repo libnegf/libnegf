@@ -2,14 +2,14 @@ program test1
   use ln_precision
   use libnegf
   use random
-  use contselfenergy, only : decimation_gpu 
+  use cudautils, only : decimation_gpu 
   implicit none
   complex(dp), dimension(:,:), allocatable :: H00, H01
   complex(dp), dimension(:,:), allocatable :: S00, S01
   complex(dp), dimension(:,:), allocatable, target :: A0, B0, C0, G0
   character(10) :: arg
   integer :: N, ncyc, fu, t1, t2, cr, cm, stat
-  real(dp) :: delta, En
+  real(dp) :: delta, En, acc=1e-12_dp
   complex(dp) :: z
   logical :: readfiles
 
@@ -75,10 +75,10 @@ program test1
   call init_negf(negf)
 
   call system_clock(t1, cr, cm)
-  call decimation_gpu(negf, G0, A0, B0, C0, N, .false., ncyc)
+  call decimation_gpu(negf, G0, A0, B0, C0, N, ncyc, acc, loginfo=.true.)
   call system_clock(t2, cr, cm)
 
-  write(*,*) "decimation_cpu time: ",(t2-t1)*1.0/cr,"sec"
+  write(*,*) "decimation_gpu time: ",(t2-t1)*1.0/cr,"sec"
   print*,'converged in',ncyc,' iterations'
   
   deallocate(A0,B0,C0,G0)

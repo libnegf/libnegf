@@ -31,7 +31,7 @@ namespace libnegf {
 // the deprecated cuSolver function of the same name.
 
 cusolverStatus_t cusolverDngetrf(
-    cusolverDnHandle_t handle, size_t m, size_t n, cuComplex* A, size_t lda, cuComplex* workspace, int *d_ipiv, int* d_info)
+    cusolverDnHandle_t handle, int32_t m, int32_t n, cuComplex* A, int32_t lda, cuComplex* workspace, int *d_ipiv, int* d_info)
 {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -45,7 +45,7 @@ cusolverStatus_t cusolverDngetrf(
 }
 
 cusolverStatus_t cusolverDngetrf(
-    cusolverDnHandle_t handle, size_t m, size_t n, cuDoubleComplex* A, size_t lda, cuDoubleComplex* workspace, int *d_ipiv, int* d_info)
+    cusolverDnHandle_t handle, int32_t m, int32_t n, cuDoubleComplex* A, int32_t lda, cuDoubleComplex* workspace, int *d_ipiv, int* d_info)
 {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -60,7 +60,7 @@ cusolverStatus_t cusolverDngetrf(
 
 
 cusolverStatus_t cusolverDngetrs(
-    cusolverDnHandle_t handle, cublasOperation_t trans, size_t n, size_t nrhs, const cuComplex* A, size_t lda, const int* d_ipiv, cuComplex* B, size_t ldb, int* d_info)
+    cusolverDnHandle_t handle, cublasOperation_t trans, int32_t n, int32_t nrhs, const cuComplex* A, int32_t lda, const int* d_ipiv, cuComplex* B, int32_t ldb, int* d_info)
 {
 	assert(n <= INT_MAX);
 	assert(nrhs <= INT_MAX);
@@ -73,7 +73,7 @@ cusolverStatus_t cusolverDngetrs(
 }
 
 cusolverStatus_t cusolverDngetrs(
-    cusolverDnHandle_t handle, cublasOperation_t trans, size_t n, size_t nrhs, const cuDoubleComplex* A, size_t lda, const int* d_ipiv, cuDoubleComplex* B, size_t ldb, int* d_info)
+    cusolverDnHandle_t handle, cublasOperation_t trans, int32_t n, int32_t nrhs, const cuDoubleComplex* A, int32_t lda, const int* d_ipiv, cuDoubleComplex* B, int32_t ldb, int* d_info)
 {
 	assert(n <= INT_MAX);
 	assert(nrhs <= INT_MAX);
@@ -87,7 +87,7 @@ cusolverStatus_t cusolverDngetrs(
 
 
 cusolverStatus_t cusolverDngetrf_bufferSize(
-    cusolverDnHandle_t handle, size_t m, size_t n, cuComplex* A, size_t lda,
+    cusolverDnHandle_t handle, int32_t m, int32_t n, cuComplex* A, int32_t lda,
     int* lwork
 ) {
     assert(m <= INT_MAX);
@@ -100,8 +100,8 @@ cusolverStatus_t cusolverDngetrf_bufferSize(
 }
 
 cusolverStatus_t cusolverDngetrf_bufferSize(
-    cusolverDnHandle_t handle, size_t m, size_t n, cuDoubleComplex* A,
-    size_t lda, int* lwork
+    cusolverDnHandle_t handle, int32_t m, int32_t n, cuDoubleComplex* A,
+    int32_t lda, int* lwork
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);

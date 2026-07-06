@@ -32,7 +32,7 @@
 namespace libnegf {
 
 cublasStatus_t cublasAsum(
-    cublasHandle_t handle, size_t n, const cuComplex* x, size_t incx,
+    cublasHandle_t handle, int32_t n, const cuComplex* x, int32_t incx,
     float* result
 ) {
     assert(n <= INT_MAX);
@@ -41,7 +41,7 @@ cublasStatus_t cublasAsum(
 }
 
 cublasStatus_t cublasAsum(
-    cublasHandle_t handle, size_t n, const cuDoubleComplex* x, size_t incx,
+    cublasHandle_t handle, int32_t n, const cuDoubleComplex* x, int32_t incx,
     double* result
 ) {
     assert(n <= INT_MAX);
@@ -51,8 +51,8 @@ cublasStatus_t cublasAsum(
 
 
 cublasStatus_t cublasAxpy(
-    cublasHandle_t handle, size_t n, const cuComplex* alpha, const cuComplex* x,
-    size_t incx, cuComplex* y, size_t incy
+    cublasHandle_t handle, int32_t n, const cuComplex* alpha, const cuComplex* x,
+    int32_t incx, cuComplex* y, int32_t incy
 ) {
     assert(n <= INT_MAX);
     assert(alpha);
@@ -63,8 +63,8 @@ cublasStatus_t cublasAxpy(
 }
 
 cublasStatus_t cublasAxpy(
-    cublasHandle_t handle, size_t n, const cuDoubleComplex* alpha,
-    const cuDoubleComplex* x, size_t incx, cuDoubleComplex* y, size_t incy
+    cublasHandle_t handle, int32_t n, const cuDoubleComplex* alpha,
+    const cuDoubleComplex* x, int32_t incx, cuDoubleComplex* y, int32_t incy
 ) {
     assert(n <= INT_MAX);
     assert(alpha);
@@ -76,8 +76,8 @@ cublasStatus_t cublasAxpy(
 
 
 cublasStatus_t cublasCopy(
-    cublasHandle_t handle, size_t n, const cuComplex* d_x, size_t incx,
-    cuComplex* d_y, size_t incy
+    cublasHandle_t handle, int32_t n, const cuComplex* d_x, int32_t incx,
+    cuComplex* d_y, int32_t incy
 ) {
     assert(n <= INT_MAX);
     assert(d_x);
@@ -87,8 +87,8 @@ cublasStatus_t cublasCopy(
 }
 
 cublasStatus_t cublasCopy(
-    cublasHandle_t handle, size_t n, const cuDoubleComplex* d_x, size_t incx,
-    cuDoubleComplex* d_y, size_t incy
+    cublasHandle_t handle, int32_t n, const cuDoubleComplex* d_x, int32_t incx,
+    cuDoubleComplex* d_y, int32_t incy
 ) {
     assert(n <= INT_MAX);
     assert(d_x);
@@ -101,8 +101,8 @@ cublasStatus_t cublasCopy(
 // cublasXdot
 
 cublasStatus_t cublasDot(
-    cublasHandle_t handle, size_t n, const float* x, size_t incx,
-    const float* y, size_t incy, float* result
+    cublasHandle_t handle, int32_t n, const float* x, int32_t incx,
+    const float* y, int32_t incy, float* result
 ) {
     assert(n);
     assert(x);
@@ -113,8 +113,8 @@ cublasStatus_t cublasDot(
 }
 
 cublasStatus_t cublasDot(
-    cublasHandle_t handle, size_t n, const double* x, size_t incx,
-    const double* y, size_t incy, double* result
+    cublasHandle_t handle, int32_t n, const double* x, int32_t incx,
+    const double* y, int32_t incy, double* result
 ) {
     assert(n);
     assert(x);
@@ -129,8 +129,8 @@ cublasStatus_t cublasDot(
 
 cublasStatus_t cublasGeam(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, const float* alpha, const float* A, size_t lda,
-    const float* beta, const float* B, size_t ldb, float* C, size_t ldc
+    int32_t m, int32_t n, const float* alpha, const float* A, int32_t lda,
+    const float* beta, const float* B, int32_t ldb, float* C, int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -144,8 +144,8 @@ cublasStatus_t cublasGeam(
 
 cublasStatus_t cublasGeam(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, const double* alpha, const double* A, size_t lda,
-    const double* beta, const double* B, size_t ldb, double* C, size_t ldc
+    int32_t m, int32_t n, const double* alpha, const double* A, int32_t lda,
+    const double* beta, const double* B, int32_t ldb, double* C, int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -159,9 +159,9 @@ cublasStatus_t cublasGeam(
 
 cublasStatus_t cublasGeam(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, const cuComplex* alpha, const cuComplex* A, size_t lda,
-    const cuComplex* beta, const cuComplex* B, size_t ldb, cuComplex* C,
-    size_t ldc
+    int32_t m, int32_t n, const cuComplex* alpha, const cuComplex* A, int32_t lda,
+    const cuComplex* beta, const cuComplex* B, int32_t ldb, cuComplex* C,
+    int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -175,9 +175,9 @@ cublasStatus_t cublasGeam(
 
 cublasStatus_t cublasGeam(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, const cuDoubleComplex* alpha, const cuDoubleComplex* A,
-    size_t lda, const cuDoubleComplex* beta, const cuDoubleComplex* B,
-    size_t ldb, cuDoubleComplex* C, size_t ldc
+    int32_t m, int32_t n, const cuDoubleComplex* alpha, const cuDoubleComplex* A,
+    int32_t lda, const cuDoubleComplex* beta, const cuDoubleComplex* B,
+    int32_t ldb, cuDoubleComplex* C, int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -194,9 +194,9 @@ cublasStatus_t cublasGeam(
 
 cublasStatus_t cublasGemm(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, size_t k, const float* alpha, const float* A,
-    size_t lda, const float* B, size_t ldb, const float* beta, float* C,
-    size_t ldc
+    int32_t m, int32_t n, int32_t k, const float* alpha, const float* A,
+    int32_t lda, const float* B, int32_t ldb, const float* beta, float* C,
+    int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -211,9 +211,9 @@ cublasStatus_t cublasGemm(
 
 cublasStatus_t cublasGemm(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, size_t k, const double* alpha, const double* A,
-    size_t lda, const double* B, size_t ldb, const double* beta, double* C,
-    size_t ldc
+    int32_t m, int32_t n, int32_t k, const double* alpha, const double* A,
+    int32_t lda, const double* B, int32_t ldb, const double* beta, double* C,
+    int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -228,9 +228,9 @@ cublasStatus_t cublasGemm(
 
 cublasStatus_t cublasGemm(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, size_t k, const cuComplex* alpha, const cuComplex* A,
-    size_t lda, const cuComplex* B, size_t ldb, const cuComplex* beta,
-    cuComplex* C, size_t ldc
+    int32_t m, int32_t n, int32_t k, const cuComplex* alpha, const cuComplex* A,
+    int32_t lda, const cuComplex* B, int32_t ldb, const cuComplex* beta,
+    cuComplex* C, int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);
@@ -245,9 +245,9 @@ cublasStatus_t cublasGemm(
 
 cublasStatus_t cublasGemm(
     cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-    size_t m, size_t n, size_t k, const cuDoubleComplex* alpha,
-    const cuDoubleComplex* A, size_t lda, const cuDoubleComplex* B, size_t ldb,
-    const cuDoubleComplex* beta, cuDoubleComplex* C, size_t ldc
+    int32_t m, int32_t n, int32_t k, const cuDoubleComplex* alpha,
+    const cuDoubleComplex* A, int32_t lda, const cuDoubleComplex* B, int32_t ldb,
+    const cuDoubleComplex* beta, cuDoubleComplex* C, int32_t ldc
 ) {
     assert(m <= INT_MAX);
     assert(n <= INT_MAX);

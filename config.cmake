@@ -39,6 +39,22 @@ set(INSTALL_INCLUDE_DIR "" CACHE PATH
 set(INSTALL_MOD_DIR "${INSTALL_INCLUDE_DIR}/modfiles" CACHE PATH
   "Installation directory for Fortran module files (within standard include folder)")
 
+# Parallel tests are launched with the command:
+# env OMP_NUM_THREADS=${TEST_NUM_THREADS} 
+#     ${MPIEXEC_EXECUTABLE}
+#     ${MPIEXEC_NUMPROC_FLAG} 
+#     ${TEST_NUM_PROCS} ${MPIEXEC_PREFLAGS}
+#       ./${testname}  ${MPIEXEC_POSTFLAGS}
+#
+# To run ctest in a HPC cluster set:
+#set(MPIEXEC_EXECUTABLE "srun" CACHE STRING "Define the executable")
+#set(MPIEXEC_NUMPROC_FLAG "--ntasks" CACHE STRING "Define parallel flag")
+#set(MPIEXEC_PREFLAGS "" CACHE STRING "Define prepend flags")
+#set(MPIEXEC_POSTFLAGS "" CACHE STRING "Define postpend flags")
+
+set(TEST_NUM_PROCS ${MPIEXEC_MAX_NUMPROCS} CACHE STRING "Define number of tasks for tests")
+set(TEST_NUM_THREADS "1" CACHE STRING "Define OMP_NUM_THREADS for tests")
+
 #######################################################################################
 # Fortran and C compilers, manual setting example
 #######################################################################################

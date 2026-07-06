@@ -21,6 +21,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
 
 #include <cassert>
 #include <climits>
@@ -58,6 +59,19 @@
         } \
     } while(false)
 #endif
+#define CUDA_CHECK(error) \
+    do { \
+        if(!(error == cudaSuccess)) { \
+            std::fprintf( \
+                stderr, "CUDA error in %s line %u \n", __FILE__, \
+                __LINE__ \
+		    ); \
+            std::fprintf( \
+                stderr, "ERROR \n %s \n", cudaGetErrorString(error) \
+		    ); \
+            std::exit(EXIT_FAILURE); \
+        } \
+    } while(false)
 
 
 #define LIBNEGF_CHECK_INFO(info_var) \
@@ -118,15 +132,15 @@ struct get_real<cuDoubleComplex> {
 template<typename Number>
 __global__ void addKernel(
     Number* c, Number alpha, const Number* a, Number beta, const Number* b,
-    size_t size
+    size_t num_elements
 ) {
     ENFORCE(c);
     ENFORCE(a);
     ENFORCE(b);
 
-    auto i = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i < size) {
+    if(i < num_elements) {
         c[i].x = (alpha.x * a[i].x - alpha.y * a[i].y) +
                  (beta.x * b[i].x - beta.y * b[i].y);
         c[i].y = (alpha.x * a[i].y + alpha.y * a[i].x) +
@@ -165,17 +179,18 @@ __global__ void hermitian(cuComplex *odata, const cuComplex *idata)
  * Initializes a square complex matrix as the identity matrix.
  */
 template<typename Number>
-__global__ void initKernel(Number* a, size_t nrow) {
+__global__ void initKernel(Number* a, int32_t nrow) {
     using Real = typename get_real<Number>::type;
 
     ENFORCE(a);
 
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t i = blockDim.x * blockIdx.x + threadIdx.x;
     auto one = Number{Real{1}};
     auto zero = Number{Real{0}};
 
-    if(i < size) {
+    if(i < num_elements) {
         if(i % (nrow + 1) == 0) {
             a[i] = one;
         } else {
@@ -186,7 +201,7 @@ __global__ void initKernel(Number* a, size_t nrow) {
 
 
 template<typename Number>
-__global__ void initArrayWithOnes(Number* a, size_t nrow) {
+__global__ void initArrayWithOnes(Number* a, int32_t nrow) {
     static_assert(std::is_same<Number, typename get_real<Number>::type>::value);
 
     assert(a);
@@ -198,48 +213,118 @@ __global__ void initArrayWithOnes(Number* a, size_t nrow) {
     }
 }
 
-
-/**
- * Computes the trace of a matrix A.
- *
- * Optionally, a bit mask can be passed to the function. If a mask is present,
- * then a diagonal element (i,i) is only considered for the trace computation
- * if the i-th value in mask is nonzero.
- *
- * @param[in] mask A bitmask of length nrow indicating which rows to ignore
- * (zero means ignore).
+/* ***************************************************************
+ * Extract diagonal from a square matrix
+ * ***************************************************************
  */
+
 template<typename Number, typename Real = typename get_real<Number>::type>
-__global__ void
-traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
-    ENFORCE(a);
-    ENFORCE(trace);
-    ENFORCE(mask || mask_present == 0);
-    ENFORCE(mask_present == 0 || mask_present == 1);
+__global__ void getdiagKernel(const Number* A, int n, Real* out,
+                              const bool* mask, int mask_present)
+{
+    ENFORCE(A);
+    ENFORCE(out);
 
-    auto size = nrow * nrow;
-    auto i = blockDim.x * blockIdx.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(mask_present == 0) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                trace[i % nrow] = a[i].x;
-            }
-        }
-    }
-    if(mask_present == 1) {
-        if(i < size) {
-            if(i % (nrow + 1) == 0) {
-                if(mask[i % nrow]) {
-                    trace[i % nrow] = a[i].x;
-                } else {
-                    trace[i % nrow] = 0.0;
-                }
-            }
+    if (i < n) {
+        if (mask_present == 0 || mask[i]) {
+            out[i] = A[i * n + i].x;
+        } else {
+            out[i] = 0;
         }
     }
 }
 
+/* ***************************************************************
+ * Simple trace kernel with a mask
+ * ***************************************************************
+ */
+/*
+template<typename Number>
+__global__ void traceKernel(const Number* A, int32_t nrow, Number* result,
+                           bool* mask, int mask_present)
+{
+    ENFORCE(A);
+    ENFORCE(result);
+    ENFORCE(mask || mask_present == 0);
+    ENFORCE(mask_present == 0 || mask_present == 1);
+
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(mask_present == 0) {
+      if (i < nrow) {
+        Number val = A[i * nrow + i];
+        atomicAdd(&((*result).x), val.x);
+        atomicAdd(&((*result).y), val.y);
+      }
+    }
+    else
+    {
+      if (i < nrow && mask[i]) {
+        Number val = A[i * nrow + i];
+        atomicAdd(&((*result).x), val.x);
+        atomicAdd(&((*result).y), val.y);
+      }
+    }
+}
+*/
+
+__device__ inline float absval(cuComplex z)  { return cuCabsf(z); }
+__device__ inline double absval(cuDoubleComplex z){ return cuCabs(z); }
+
+__device__ __forceinline__ float atomicMaxAbsFloat(float* addr, float value) {
+    // assumes value >= 0
+    return __int_as_float(atomicMax((int*)addr, __float_as_int(value)));
+}
+
+__device__ __forceinline__ double atomicMaxAbsDouble(double* addr, double value)
+{
+    // assumes value >= 0
+    return __longlong_as_double(
+        atomicMax((unsigned long long*)addr, __double_as_longlong(value))
+    );
+}
+
+
+/* ------------------------------------------------------------------------
+ * Kernel to find maxval(abs(A))
+ * ------------------------------------------------------------------------
+ */
+template<typename Number, typename Real = typename get_real<Number>::type>
+__global__ void maxabs_kernel(const Number* __restrict__ data,
+                              size_t n,
+                              Real* __restrict__ norm)
+{
+    extern __shared__ unsigned char smem[];
+    Real* sdata = reinterpret_cast<Real*>(smem);
+
+    unsigned int tid = threadIdx.x;
+    size_t i = blockDim.x * blockIdx.x + tid;
+
+    Real val = 0;
+    if (i < n) val = absval(data[i]);
+
+    sdata[tid] = val;
+
+    __syncthreads();
+
+    // reduction to find block maximum
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1)
+    {
+        if (tid < s)
+            sdata[tid] = fmax(sdata[tid], sdata[tid + s]);
+        __syncthreads();
+    }
+
+    // final block max reduced atomically to global result
+    if (tid == 0) {
+        if constexpr (std::is_same<Real, float>::value)
+            atomicMaxAbsFloat(norm, sdata[0]);
+        else
+            atomicMaxAbsDouble(norm, sdata[0]);
+    }
+}
 
 /*
  * DATA MOVEMENT ROUTINES
@@ -248,7 +333,7 @@ traceKernel(Number* a, size_t nrow, Real* trace, bool* mask, int mask_present) {
 extern "C" int cu_createMat(void** d_A, size_t bytecount) {
     ENFORCE(d_A);
     cudaError_t err = cudaMalloc(d_A, bytecount);
-    //printf("create mat at GPU Address: %p \n",*d_A);
+    CUDA_CHECK(err);
     return err;
 }
 
@@ -264,23 +349,21 @@ extern "C" int cu_cudaFreeAsync(void** d_A) {
 extern "C" int cu_cudaMallocAsync(void** d_A, size_t bytecount) {
     ENFORCE(d_A);
     cudaError_t err = cudaMallocAsync(d_A, bytecount, 0);
-    //printf("create mat at GPU Address: %p \n",*d_A);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
     return err;
 }
 
 extern "C" int cu_copyMatH2D(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-    // printf("copy %p to %p\n",h_A,d_A);
     cudaError_t err = cudaMemcpy(d_A, h_A, bytecount, cudaMemcpyHostToDevice);
+    CUDA_CHECK(err);
     return err;
 }
 
 extern "C" int cu_copyMatH2D_async(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-    // printf("copy %p to %p\n",h_A,d_A);
     cudaError_t err =
         cudaMemcpyAsync(d_A, h_A, bytecount, cudaMemcpyHostToDevice);
     return err;
@@ -289,8 +372,24 @@ extern "C" int cu_copyMatH2D_async(void* h_A, void* d_A, size_t bytecount) {
 extern "C" int cu_copyMatD2H(void* h_A, void* d_A, size_t bytecount) {
     ENFORCE(h_A);
     ENFORCE(d_A);
-
     cudaError_t err = cudaMemcpy(h_A, d_A, bytecount, cudaMemcpyDeviceToHost);
+    CUDA_CHECK(err);
+    return err;
+}
+
+extern "C" int cu_copyMatD2D_async(void* d_A, void* d_A_in, size_t bytecount) {
+    ENFORCE(d_A);
+    ENFORCE(d_A_in);
+    cudaError_t err =
+        cudaMemcpyAsync(d_A, d_A_in, bytecount, cudaMemcpyDeviceToDevice);
+    return err;
+}
+
+extern "C" int cu_copyMatD2D(void* d_A, void* d_A_in, size_t bytecount) {
+    ENFORCE(d_A);
+    ENFORCE(d_A_in);
+    cudaError_t err = cudaMemcpy(d_A, d_A_in, bytecount, cudaMemcpyDeviceToDevice);
+    CUDA_CHECK(err);
     return err;
 }
 
@@ -311,14 +410,14 @@ extern "C" int cu_deleteMat(void** d_A) {
 extern "C" int cu_cudaGetDeviceCount(int* count) {
     ENFORCE(count);
     cudaError_t err = cudaGetDeviceCount(count);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
     return err;
 }
 
 extern "C" int cu_cudaGetDeviceProperties(int device) {
     cudaDeviceProp prop;
     cudaError_t err = cudaGetDeviceProperties(&prop, device);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
 
     printf(" Found GPU: Device Name: %s\n", prop.name);
     printf(" TotalMemory: %lu\n", (unsigned long)prop.totalGlobalMem);
@@ -329,45 +428,54 @@ extern "C" int cu_cudaGetDeviceProperties(int device) {
 
 extern "C" int cu_cudaGetDevice(int* device) {
     cudaError_t err = cudaGetDevice(device);
-    assert(err == cudaSuccess);
+    CUDA_CHECK(err);
     return err;
 }
 
 extern "C" int cu_cudaSetDevice(int count) {
     cudaError_t err = cudaSetDevice(count);
-    ENFORCE(err == cudaSuccess);
+    CUDA_CHECK(err);
     return err;
 }
 
-extern "C" int cu_cublasInit(cublasHandle_t* hcublas) {
-    ENFORCE(hcublas);
-    cublasStatus_t err = cublasCreate(hcublas);
+extern "C" int cu_cublasInit(void** hpblas) {
+    ENFORCE(hpblas);
+
+    cublasHandle_t hb;
+    cublasStatus_t err = cublasCreate(&hb);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
     if(err != CUBLAS_STATUS_SUCCESS) {
         printf("cublas create error: %d\n", err);
     }
     // printf("hcublas Addr: %p \n",*hcublas);
+    *hpblas = hb;
     return err;
 }
 
-extern "C" int cu_cublasFinalize(cublasHandle_t hcublas) {
+extern "C" int cu_cublasFinalize(void *hpblas) {
+    ENFORCE(hpblas);
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cublasStatus_t err = cublasDestroy(hcublas);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
-extern "C" int cu_cusolverInit(cusolverDnHandle_t* hcusolver) {
-    ENFORCE(hcusolver);
-    cusolverStatus_t err = cusolverDnCreate(hcusolver);
+extern "C" int cu_cusolverInit(void** hpsolver) {
+    ENFORCE(hpsolver);
+    cusolverDnHandle_t hs;
+    cusolverStatus_t err = cusolverDnCreate(&hs);
     ENFORCE(err == CUSOLVER_STATUS_SUCCESS);
     if(err != 0) {
         printf("cusolver create error: %d\n", err);
     }
     // printf("hcusolver Addr: %p \n",*hcusolver);
+    *hpsolver = hs;
     return err;
 }
 
-extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
+extern "C" int cu_cusolverFinalize(void *hpsolver) {
+    ENFORCE(hpsolver);
+    cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
     cusolverStatus_t err = cusolverDnDestroy(hcusolver);
     ENFORCE(err == CUSOLVER_STATUS_SUCCESS);
     return err;
@@ -383,9 +491,9 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  *
  * op(.) indicates if the matrix or its complex-conjugate is used. The allowed
  * values for dagger are:
- * * `dagger == 0`: compute C ≔ α A · B + β C
- * * `dagger == 1`: compute C ≔ α A^* · B + β C
- * * `dagger == 2`: compute C ≔ α A · B^* + β C
+ * * `dagger == 0`: compute C = α A · B + β C
+ * * `dagger == 1`: compute C = α A^* · B + β C
+ * * `dagger == 2`: compute C = α A · B^* + β C
  *
  * @param[in] m The number of rows of C and op(A).
  * @param[in] n The number of columns of C and op(B).
@@ -393,8 +501,8 @@ extern "C" int cu_cusolverFinalize(cusolverDnHandle_t hcusolver) {
  * @param[in] dagger A shorthand for various combinations of op(A), op(B).
  */
 template<typename Number>
-int cu_multMat(
-    cublasHandle_t hcublas, size_t m, size_t n, size_t k, const Number* alpha,
+int cu_matmul(
+    void *hpblas, int32_t m, int32_t n, int32_t k, const Number* alpha,
     const Number* d_A, const Number* d_B, const Number* beta, Number* d_C,
     int dagger
 ) {
@@ -404,6 +512,7 @@ int cu_multMat(
     ENFORCE(beta);
     ENFORCE(dagger == 0 || dagger == 1 || dagger == 2);
 
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cublasStatus_t err;
     if(dagger == 0) {
         err = libnegf::cublasGemm(
@@ -428,109 +537,34 @@ int cu_multMat(
     return err;
 }
 
-extern "C" int cu_CmultMat(
-    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+extern "C" int cu_Cmatmul(
+    void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuComplex* alpha, const cuComplex* d_A, const cuComplex* d_B,
     const cuComplex* beta, cuComplex* d_C, int dagger
 ) {
-    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_matmul(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
-extern "C" int cu_ZmultMat(
-    cublasHandle_t hcublas, size_t m, size_t n, size_t k,
+extern "C" int cu_Zmatmul(
+    void* hpblas, int32_t m, int32_t n, int32_t k,
     const cuDoubleComplex* alpha, const cuDoubleComplex* d_A,
     const cuDoubleComplex* d_B, const cuDoubleComplex* beta,
     cuDoubleComplex* d_C, int dagger
 ) {
-    return cu_multMat(hcublas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
+    return cu_matmul(hpblas, m, n, k, alpha, d_A, d_B, beta, d_C, dagger);
 }
 
 
-template<typename Number>
-int inverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* d_A,
-    Number* d_Ainv, size_t n
-) {
-    ENFORCE(hcusolver);
-    ENFORCE(d_A);
-    ENFORCE(d_Ainv);
-
-    // compute buffer size and prep . memory
-    int lwork;
-    cusolverStatus_t cusolverStatus =
-        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-
-    // prepare memory on the device
-    Number* d_LU;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_LU, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
-    int* d_info;
-    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
-    // copy d_LU <- pdA
-    auto cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_A, 1, d_LU, 1);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    Number* d_work;
-    cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    // LU factorization of d_A , with partial pivoting and row
-    // interchanges ; row i is interchanged with row d_pivot ( i );
-    cusolverStatus = libnegf::cusolverDngetrf(
-        hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
-    );
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-    LIBNEGF_CHECK_INFO(d_info);
-
-    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
-    // the solution overwrites d_Ainv
-    cusolverStatus = libnegf::cusolverDngetrs(
-        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
-    );
-    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
-    LIBNEGF_CHECK_INFO(d_info);
-
-    cudaStatus = cudaFree(d_pivot);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_info);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_work);
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaFree(d_LU);
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    return cudaStatus;
-}
-
-extern "C" int cu_Cinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* d_A,
-    cuComplex* d_Ainv, size_t n
-) {
-    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
-}
-
-extern "C" int cu_Zinverse(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuDoubleComplex* d_A,
-    cuDoubleComplex* d_Ainv, size_t n
-) {
-    return inverse(hcublas, hcusolver, d_A, d_Ainv, n);
-}
 
 template<typename Number>
 int cu_kernelsum(
     Number* d_C, Number* alpha, Number* d_A, Number* beta, Number* d_B,
-    size_t size
+    size_t num_elements
 ) {
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, size);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    addKernel<<<num_blocks, BLOCK_SIZE>>>(d_C, *alpha, d_A, *beta, d_B, num_elements);
+    CUDA_CHECK(cudaGetLastError());
 
     return 0;
 }
@@ -538,16 +572,16 @@ int cu_kernelsum(
 
 extern "C" int cu_Ckernelsum(
     cuComplex* d_C, cuComplex* alpha, cuComplex* d_A, cuComplex* beta,
-    cuComplex* d_B, size_t size
+    cuComplex* d_B, size_t num_elements
 ) {
-    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, num_elements);
 }
 
 extern "C" int cu_Zkernelsum(
     cuDoubleComplex* d_C, cuDoubleComplex* alpha, cuDoubleComplex* d_A,
-    cuDoubleComplex* beta, cuDoubleComplex* d_B, size_t size
+    cuDoubleComplex* beta, cuDoubleComplex* d_B, size_t num_elements
 ) {
-    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, size);
+    return cu_kernelsum(d_C, alpha, d_A, beta, d_B, num_elements);
 }
 
 
@@ -556,9 +590,9 @@ extern "C" int cu_Zkernelsum(
  * or its complex-conjugate is used.
  *
  * The possible options are:
- * * `dagger == 0`: compute C ≔ α A + β B
- * * `dagger == 1`: compute C ≔ α A^* + β B
- * * `dagger == 2`: compute C ≔ α A + B^*
+ * * `dagger == 0`: compute C = α A + β B
+ * * `dagger == 1`: compute C = α A^* + β B
+ * * `dagger == 2`: compute C = α A + B^*
  *
  * @param[in] m The number of rows of op(A) and op(B).
  * @param[in] n The number of columns of op(A) and op(B).
@@ -566,7 +600,7 @@ extern "C" int cu_Zkernelsum(
  */
 template<typename Number>
 int cu_matsum(
-    cublasHandle_t hcublas, size_t m, size_t n, const Number* alpha,
+    void *hpblas, int32_t m, int32_t n, const Number* alpha,
     const Number* d_A, const Number* beta, const Number* d_B, Number* d_C,
     int dagger
 ) {
@@ -575,7 +609,7 @@ int cu_matsum(
     ENFORCE(d_C);
     ENFORCE(d_A != d_C || dagger == 0 || dagger == 2);
     ENFORCE(d_B != d_C || dagger == 1);
-
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     cublasStatus_t err;
     if(dagger == 0) {
         err = libnegf::cublasGeam(
@@ -601,106 +635,120 @@ int cu_matsum(
 }
 
 extern "C" int cu_Cmatsum(
-    cublasHandle_t hcublas, size_t m, size_t n, const cuComplex* alpha,
+    void *hpblas, int32_t m, int32_t n, const cuComplex* alpha,
     const cuComplex* d_A, const cuComplex* beta, const cuComplex* d_B,
     cuComplex* d_C, int dagger
 ) {
-    return cu_matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
+    return cu_matsum(hpblas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
 }
 
 extern "C" int cu_Zmatsum(
-    cublasHandle_t hcublas, size_t m, size_t n, const cuDoubleComplex* alpha,
+    void *hpblas, int32_t m, int32_t n, const cuDoubleComplex* alpha,
     const cuDoubleComplex* d_A, const cuDoubleComplex* beta,
     const cuDoubleComplex* d_B, cuDoubleComplex* d_C, int dagger
 ) {
-    return cu_matsum(hcublas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
+    return cu_matsum(hpblas, m, n, alpha, d_A, beta, d_B, d_C, dagger);
 }
 
-extern "C" int cu_Cinitmat(cuComplex* d_A, size_t nrow) {
+extern "C" int cu_Cinitmat(cuComplex* d_A, int32_t nrow) {
     ENFORCE(d_A);
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    CUDA_CHECK(cudaGetLastError());
 
     return 0;
 }
 
-extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, size_t nrow) {
+extern "C" int cu_Zinitmat(cuDoubleComplex* d_A, int32_t nrow) {
     ENFORCE(d_A);
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow);
-    ENFORCE(cudaGetLastError() == cudaSuccess);
+    CUDA_CHECK(cudaGetLastError());
 
     return 0;
 }
+
 
 
 template<typename Number, typename Real = typename get_real<Number>::type>
 Real trace(
-    cublasHandle_t hcublas, Number* d_A, size_t nrow, void* h_mask,
+    Number* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    auto size = nrow * nrow;
-    auto num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    Real* d_work;
-    cudaError_t cudaStatus = cudaMalloc((void**)&d_work, nrow * sizeof(Real));
-    Real* d_iden;
-    cudaStatus = cudaMalloc((void**)&d_iden, nrow * sizeof(Real));
-    ENFORCE(cudaStatus == cudaSuccess);
+
+    size_t n64 = static_cast<size_t>(nrow);
+    size_t num_elements = n64 * n64;
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+    cudaError_t cudaStatus;
+
     bool* d_mask;
-    cudaStatus = cudaMalloc((void**)&d_mask, nrow * sizeof(bool));
-    ENFORCE(cudaStatus == cudaSuccess);
-    if(h_mask) {
-        cudaStatus = cudaMemcpy(
-            d_mask, h_mask, nrow * sizeof(bool), cudaMemcpyHostToDevice
-        );
-        ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_mask, n64 * sizeof(bool));
+    CUDA_CHECK(cudaStatus);
+    if (h_mask) {
+       cu_copyMatH2D(h_mask, d_mask, n64*sizeof(bool));
     }
 
-    initArrayWithOnes<<<num_blocks, BLOCK_SIZE>>>(d_iden, nrow);
-    traceKernel<<<num_blocks, BLOCK_SIZE>>>(
-        d_A, nrow, d_work, d_mask, mask_present
-    );
+    Real h_result;
+    Real *d_result;
+    Real *d_real_diag;
+    void *d_temp = nullptr;
+    size_t temp_bytes = 0;
+    cudaStatus = cudaMalloc(&d_result, sizeof(Real));
+    cudaStatus = cudaMemset(static_cast<void*>(d_result), 0, sizeof(Real));
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaMalloc(&d_real_diag, n64*sizeof(Real));
+    CUDA_CHECK(cudaStatus);
 
-    Real result;
-    cublasStatus_t err =
-        libnegf::cublasDot(hcublas, nrow, d_iden, 1, d_work, 1, &result);
-    ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+    getdiagKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow, d_real_diag, d_mask, mask_present);
 
-    cudaStatus = cudaFree(d_work);
-    cudaStatus = cudaFree(d_iden);
+    cub::DeviceReduce::Sum(nullptr, temp_bytes, d_real_diag, d_result, nrow);
+
+    cudaStatus = cudaMalloc(&d_temp, temp_bytes);
+    CUDA_CHECK(cudaStatus);
+
+    cub::DeviceReduce::Sum(d_temp, temp_bytes, d_real_diag, d_result, nrow);
+
+    cudaStatus = cudaMemcpy(&h_result, d_result, sizeof(Real), cudaMemcpyDeviceToHost);
+
     cudaStatus = cudaFree(d_mask);
+    cudaStatus = cudaFree(d_result);
+    cudaStatus = cudaFree(d_temp);
+    cudaStatus = cudaFree(d_real_diag);
 
-    return result;
+    return h_result;
 }
 
 extern "C" float cu_Ctrace(
-    cublasHandle_t hcublas, cuComplex* d_A, size_t nrow, void* h_mask,
+    void *hpblas, cuComplex* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    return trace(hcublas, d_A, nrow, h_mask, mask_present);
+    return trace(d_A, nrow, h_mask, mask_present);
 }
 
 
 extern "C" double cu_Ztrace(
-    cublasHandle_t hcublas, cuDoubleComplex* d_A, size_t nrow, void* h_mask,
+    void *hpblas, cuDoubleComplex* d_A, int32_t nrow, void* h_mask,
     int mask_present
 ) {
-    return trace(hcublas, d_A, nrow, h_mask, mask_present);
+    return trace(d_A, nrow, h_mask, mask_present);
 }
 
 
 extern "C" int cu_Cmatcopy(
-    cublasHandle_t hcublas, const cuComplex* d_A, cuComplex* d_B,
+    void *hpblas, const cuComplex* d_A, cuComplex* d_B,
     size_t num_elements
 ) {
     ENFORCE(d_A);
     ENFORCE(d_B);
     ENFORCE(num_elements <= INT_MAX);
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
 
     auto err = cublasCcopy(hcublas, num_elements, d_A, 1, d_B, 1);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
@@ -708,12 +756,13 @@ extern "C" int cu_Cmatcopy(
 }
 
 extern "C" int cu_Zmatcopy(
-    cublasHandle_t hcublas, cuDoubleComplex* d_A, cuDoubleComplex* d_B,
+    void *hpblas, cuDoubleComplex* d_A, cuDoubleComplex* d_B,
     size_t num_elements
 ) {
     ENFORCE(d_A);
     ENFORCE(d_B);
     ENFORCE(num_elements <= INT_MAX);
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
 
     auto err = cublasZcopy(hcublas, num_elements, d_A, 1, d_B, 1);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
@@ -721,123 +770,205 @@ extern "C" int cu_Zmatcopy(
 }
 
 extern "C" int
-cu_Casum(cublasHandle_t hcublas, void* d_A, float* summ, size_t n) {
+cu_Casum(void *hpblas, void* d_A, float* summ, int32_t n) {
     cuComplex* pdA = (cuComplex*)d_A;
 
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     auto err = cublasScasum(hcublas, n, pdA, 1, summ);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
 extern "C" int
-cu_Zasum(cublasHandle_t hcublas, void* d_A, double* summ, size_t n) {
+cu_Zasum(void *hpblas, void* d_A, double* summ, int32_t n) {
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
     auto err = cublasDzasum(hcublas, n, pdA, 1, summ);
     ENFORCE(err == CUBLAS_STATUS_SUCCESS);
     return err;
 }
 
+/* **************************************************************************
+ * Matrix inversion  A^-1
+ * **************************************************************************
+ */
 
 template<typename Number>
+int inverse(void* hpsolver, Number* d_A, Number* d_Ainv, int32_t n
+) {
+    ENFORCE(hpsolver);
+    ENFORCE(d_A);
+    ENFORCE(d_Ainv);
+
+    size_t n64 = static_cast<size_t>(n);
+    size_t num_elements = n64 * n64;
+    size_t bytecount = num_elements * sizeof(Number);
+
+    cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
+
+    cusolverStatus_t cusolverStatus;
+    cudaError_t cudaStatus;
+
+    // compute buffer msize and prep . memory
+    int lwork;
+    cusolverStatus =
+        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_A, n, &lwork);
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+
+    // prepare memory on the device
+    Number* d_LU;
+    cudaStatus = cudaMalloc((void**)&d_LU, bytecount);
+    CUDA_CHECK(cudaStatus);
+
+    int* d_pivot;
+    cudaStatus = cudaMalloc((void**)&d_pivot, n64 * sizeof(int));
+    CUDA_CHECK(cudaStatus);
+    int* d_info;
+    cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
+    CUDA_CHECK(cudaStatus);
+    // copy d_LU <- pdA
+    cu_copyMatD2D(d_LU, d_A, bytecount);
+
+    Number* d_work;
+    size_t lwork_size = static_cast<size_t>(lwork) * sizeof(Number);
+    cudaStatus = cudaMalloc((void**)&d_work, lwork_size);
+    CUDA_CHECK(cudaStatus);
+
+    // LU factorization of d_A , with partial pivoting and row
+    // interchanges ; row i is interchanged with row d_pivot ( i );
+    cusolverStatus = libnegf::cusolverDngetrf(
+        hcusolver, n, n, d_LU, n, d_work, d_pivot, d_info
+    );
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
+
+    // use the LU factorization to solve the system d_LU * x = d_Ainv ;
+    // the solution overwrites d_Ainv
+    cusolverStatus = libnegf::cusolverDngetrs(
+        hcusolver, CUBLAS_OP_N, n, n, d_LU, n, d_pivot, d_Ainv, n, d_info
+    );
+    ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
+    LIBNEGF_CHECK_INFO(d_info);
+
+    cudaStatus = cudaFree(d_pivot);
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaFree(d_info);
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaFree(d_work);
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaFree(d_LU);
+    CUDA_CHECK(cudaStatus);
+
+    return cudaStatus;
+}
+
+extern "C" int cu_Cinverse(
+    void* hpsolver, cuComplex* d_A,
+    cuComplex* d_Ainv, int32_t n
+) {
+    return inverse(hpsolver, d_A, d_Ainv, n);
+}
+
+extern "C" int cu_Zinverse(
+    void * hpsolver, cuDoubleComplex* d_A,
+    cuDoubleComplex* d_Ainv, int32_t n
+) {
+    return inverse(hpsolver, d_A, d_Ainv, n);
+}
+
+/* ***************************************************************
+ *  Sanchez-Sanchez algorithm
+ * ****************************************************************
+ */
+template<typename Number, typename Real = typename get_real<Number>::type>
 int decimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, Number* h_Go_out,
-    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, size_t n, int tf32,
-    int* ncyc, float SGFACC
+    void* hpblas, void* hpsolver, Number* h_Go_out,
+    Number* h_Ao_in, Number* h_Bo_in, Number* h_Co_in, int32_t n,
+    int* ncyc, Real accuracy, bool log
 ) {
     ENFORCE(h_Go_out);
     ENFORCE(h_Ao_in);
     ENFORCE(h_Bo_in);
     ENFORCE(h_Co_in);
-    ENFORCE(tf32 == 0 || tf32 == 1);
     ENFORCE(ncyc);
-    ENFORCE(SGFACC > 0.0);
+    ENFORCE(accuracy > 0.0);
 
-    auto num_elements = n * n;
-    auto num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
+    cusolverDnHandle_t hcusolver = static_cast<cusolverDnHandle_t>(hpsolver);
 
-    using Real = typename get_real<Number>::type;
+    cudaError_t cudaStatus;
+    cublasStatus_t err;
+
+    size_t n64 = static_cast<size_t>(n);
+    size_t num_elements = n64 * n64;
+    size_t bytecount = num_elements * sizeof(Number);
+    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
     auto one = Number{Real{1}};
     auto mone = Number{-Real{1}};
     auto zero = Number{Real{0}};
 
     Number* d_Ao;
-    cudaError_t cudaStatus =
-        cudaMalloc((void**)&d_Ao, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Ao, bytecount);
+    CUDA_CHECK(cudaStatus);
 
     Number* d_Bo;
-    cudaStatus = cudaMalloc((void**)&d_Bo, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Bo, bytecount);
+    CUDA_CHECK(cudaStatus);
 
     Number* d_Co;
-    cudaStatus = cudaMalloc((void**)&d_Co, num_elements * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Co, bytecount);
+    CUDA_CHECK(cudaStatus);
 
-    cudaStatus = cudaMemcpy(
-        d_Ao, h_Ao_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaMemcpy(
-        d_Bo, h_Bo_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    ENFORCE(cudaStatus == cudaSuccess);
-    cudaStatus = cudaMemcpy(
-        d_Co, h_Co_in, n * n * sizeof(Number), cudaMemcpyHostToDevice
-    );
-    ENFORCE(cudaStatus == cudaSuccess);
-
-    cublasStatus_t cublasStatus =
-        cublasSetPointerMode(hcublas, CUBLAS_POINTER_MODE_HOST);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-
-    if(tf32 == 1) {
-        cublasStatus = cublasSetMathMode(hcublas, CUBLAS_TENSOR_OP_MATH);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-    }
+    cu_copyMatH2D(h_Ao_in, d_Ao, bytecount);
+    cu_copyMatH2D(h_Bo_in, d_Bo, bytecount);
+    cu_copyMatH2D(h_Co_in, d_Co, bytecount);
 
     Number* d_Ao_s;
-    cudaStatus = cudaMalloc((void**)&d_Ao_s, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Ao_s, bytecount);
+    CUDA_CHECK(cudaStatus);
     Number* d_C1;
-    cudaStatus = cudaMalloc((void**)&d_C1, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_C1, bytecount);
+    CUDA_CHECK(cudaStatus);
     Number* d_Go;
-    cudaStatus = cudaMalloc((void**)&d_Go, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Go, bytecount);
+    CUDA_CHECK(cudaStatus);
     int* d_pivot;
-    cudaStatus = cudaMalloc((void**)&d_pivot, n * sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_pivot, n64 * sizeof(int));
+    CUDA_CHECK(cudaStatus);
     Number* d_T;
-    cudaStatus = cudaMalloc((void**)&d_T, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_T, bytecount);
+    CUDA_CHECK(cudaStatus);
     Number* d_Self;
-    cudaStatus = cudaMalloc((void**)&d_Self, n * n * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    cudaStatus = cudaMalloc((void**)&d_Self, bytecount);
+    CUDA_CHECK(cudaStatus);
     int* d_info;
     cudaStatus = cudaMalloc((void**)&d_info, sizeof(int));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
+    Real* d_norm;
+    cudaStatus = cudaMalloc((void**)&d_norm, sizeof(Real));
+    CUDA_CHECK(cudaStatus);
 
     int lwork;
     cusolverStatus_t cusolverStatus =
-        libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
+            libnegf::cusolverDngetrf_bufferSize(hcusolver, n, n, d_Self, n, &lwork);
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     Number* d_work;
     cudaStatus = cudaMalloc((void**)&d_work, lwork * sizeof(Number));
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
 
-    cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Ao_s, 1);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+    cu_copyMatD2D(d_Ao_s, d_Ao, bytecount);
 
     constexpr auto MAX_NUM_ITERATIONS = 300;
     bool okCo = false;
     for(int i1 = 1; i1 <= MAX_NUM_ITERATIONS; i1++) {
         *ncyc = i1;
 
+        // Compute Go = Ao^-1
         initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
 
-        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao, 1, d_Self, 1);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        cu_copyMatD2D(d_Self, d_Ao, bytecount);
 
         cusolverStatus = libnegf::cusolverDngetrf(
             hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
@@ -850,24 +981,31 @@ int decimation(
         ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
         LIBNEGF_CHECK_INFO(d_info);
 
-        cublasStatus = libnegf::cublasGemm(
+        // compute C1 = Co Go Co
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Co, n,
             &zero, d_T, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        cublasStatus = libnegf::cublasGemm(
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Co, n, d_T, n,
             &zero, d_C1, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        Real summ;
-        cublasStatus = libnegf::cublasAsum(hcublas, n * n, d_C1, 1, &summ);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-        // printf("loop it= %d , summ= %f \n ", i1, summ);
+        // convergence check on |C1| < tol
+        cudaStatus = cudaMemset(d_norm, 0, sizeof(Real));
+        CUDA_CHECK(cudaStatus);
 
-        if(summ <= SGFACC) {
+        maxabs_kernel<<<num_blocks, BLOCK_SIZE, BLOCK_SIZE*sizeof(Real)>>>
+                                                       (d_C1, n * n, d_norm);
+        CUDA_CHECK(cudaGetLastError());
+        Real h_norm;
+        cudaStatus = cudaMemcpy(&h_norm, d_norm, sizeof(Real), cudaMemcpyDeviceToHost);
+        if (log){printf("loop it= %d , maxval|C1|= %g \n ", i1, h_norm);}
+
+        if(h_norm <= accuracy) {
             if(okCo) {
                 break;
             } else {
@@ -877,48 +1015,53 @@ int decimation(
             okCo = false;
         }
 
-        cublasStatus = libnegf::cublasGemm(
+        // compute Self = Bo Go Co
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
             &zero, d_Self, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        cublasStatus =
-            libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao_s, 1);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-        cublasStatus =
-            libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao, 1);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        // compute Ao_s = Ao_s - Self
+        err = libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao_s, 1);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        cublasStatus = libnegf::cublasGemm(
+	  // compute Ao = Ao - Self
+        err = libnegf::cublasAxpy(hcublas, n * n, &mone, d_Self, 1, d_Ao, 1);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+
+        // compute Ao = Ao - Co Go Bo
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Go, n, d_Bo, n,
             &zero, d_T, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
-        cublasStatus = libnegf::cublasGemm(
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
+
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &mone, d_Co, n, d_T, n,
             &one, d_Ao, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Co, 1);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        // Co = C1
+        cu_copyMatD2D(d_Co, d_C1, bytecount);
 
-        cublasStatus = libnegf::cublasGemm(
+        // compute C1 = Bo Go Bo
+        err = libnegf::cublasGemm(
             hcublas, CUBLAS_OP_N, CUBLAS_OP_N, n, n, n, &one, d_Bo, n, d_T, n,
             &zero, d_C1, n
         );
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        ENFORCE(err == CUBLAS_STATUS_SUCCESS);
 
-        cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_C1, 1, d_Bo, 1);
-        ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+        // compute Bo = C1
+        cu_copyMatD2D(d_Bo, d_C1, bytecount);
     }
 
     ENFORCE(*ncyc < MAX_NUM_ITERATIONS);
 
+    // compute Go = Ao_s^-1
     initKernel<<<num_blocks, BLOCK_SIZE>>>(d_Go, n);
-    cublasStatus = libnegf::cublasCopy(hcublas, n * n, d_Ao_s, 1, d_Self, 1);
-    ENFORCE(cublasStatus == CUBLAS_STATUS_SUCCESS);
+    cu_copyMatD2D(d_Self, d_Ao_s, bytecount);
     cusolverStatus = libnegf::cusolverDngetrf(
         hcusolver, n, n, d_Self, n, d_work, d_pivot, d_info
     );
@@ -930,58 +1073,58 @@ int decimation(
     ENFORCE(cusolverStatus == CUSOLVER_STATUS_SUCCESS);
     LIBNEGF_CHECK_INFO(d_info);
 
-    cudaStatus = cudaMemcpy(
-        h_Go_out, d_Go, n * n * sizeof(Number), cudaMemcpyDeviceToHost
-    );
-    ENFORCE(cudaStatus == cudaSuccess);
+    // copy to output to host
+    cu_copyMatD2H(h_Go_out, d_Go, bytecount);
 
     cudaStatus = cudaFree(d_pivot);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_info);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Ao);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Bo);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Co);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Go);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Ao_s);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_C1);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_T);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_Self);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_work);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
+    cudaStatus = cudaFree(d_norm);
+    CUDA_CHECK(cudaStatus);
 
     return cudaStatus;
 }
 
 
 extern "C" int cu_Cdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver, cuComplex* h_Go_out,
-    cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, size_t n,
-    int tf32, int* ncyc, float SGFACC
+    void* hcublas, void* hcusolver, cuComplex* h_Go_out,
+    cuComplex* h_Ao_in, cuComplex* h_Bo_in, cuComplex* h_Co_in, int32_t n,
+    int* ncyc, float accuracy, bool log = false
 ) {
     return decimation(
-        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, tf32, ncyc,
-        SGFACC
+        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
+        accuracy, log
     );
 }
 
 extern "C" int cu_Zdecimation(
-    cublasHandle_t hcublas, cusolverDnHandle_t hcusolver,
+    void* hcublas, void* hcusolver,
     cuDoubleComplex* h_Go_out, cuDoubleComplex* h_Ao_in,
-    cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, size_t n, int tf32,
-    int* ncyc, double SGFACC
+    cuDoubleComplex* h_Bo_in, cuDoubleComplex* h_Co_in, int32_t n,
+    int* ncyc, double accuracy, bool log = false
 ) {
     return decimation(
-        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, tf32, ncyc,
-        SGFACC
+        hcublas, hcusolver, h_Go_out, h_Ao_in, h_Bo_in, h_Co_in, n, ncyc,
+        accuracy, log
     );
 }
 
@@ -989,8 +1132,8 @@ extern "C" int cu_Zdecimation(
 extern "C" int cu_meminfo(size_t* freemem, size_t* totalmem) {
     //auto cudaStatus = cudaDeviceSynchronize();
     //printf("STATUS: %d\n",cudaStatus);
-    //ENFORCE(cudaStatus == cudaSuccess);
+    //CUDA_CHECK(cudaStatus);
     auto cudaStatus = cudaMemGetInfo(freemem, totalmem);
-    ENFORCE(cudaStatus == cudaSuccess);
+    CUDA_CHECK(cudaStatus);
     return cudaStatus;
 }
