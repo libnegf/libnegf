@@ -428,7 +428,7 @@ CONTAINS
     type(Tnegf), intent(inout) :: negf
     real(dp), intent(in) :: E
     real(dp), dimension(:), intent(inout) :: curr_mat
-    real(dp), dimension(:), intent(inout) :: ldos_mat
+    real(dp), dimension(:), intent(inout), optional :: ldos_mat
 
     integer :: nbl, ii
     type(z_DNS) :: work1
@@ -452,10 +452,13 @@ CONTAINS
       call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
       curr_mat(ii) = real(i_unit*trace(work1))
       call destroy(work1)
-      ldos_mat(ii) = trace(Gn(ii,ii))
+      if (present(ldos_mat)) then
+        ldos_mat(ii) = trace(Gn(ii,ii))
+      end if  
     end do
-    ldos_mat(nbl) = trace(Gn(nbl,nbl))
-
+    if (present(ldos_mat)) then
+      ldos_mat(nbl) = trace(Gn(nbl,nbl))
+    end if
     call destroy_all_blk(negf)
 
   end subroutine iterative_layer_current

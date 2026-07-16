@@ -255,6 +255,7 @@ module libnegf
 
   !-------------------------------------------------------------------
   !> Create the HS container for k-dependent H(k) and S(k)
+  !> Note that nHS is the local number of processed K,S points
   !
   subroutine create_HS(negf, nHS)
     type(Tnegf) :: negf
@@ -275,6 +276,7 @@ module libnegf
 
   !-------------------------------------------------------------------
   !> Create the DM container for k-dependent rho(k) and rhoE(k)
+  !> Note that nDM is the local number of processed K,S points
   !
   subroutine create_DM(negf, nDM)
     type(Tnegf) :: negf
@@ -300,20 +302,22 @@ module libnegf
   !! @param[in] colind: column indexes
   !! @param[in] rowpnt: row pointers
   !! @param[in] iKS: k-index of H
-  subroutine set_H(negf, nrow, nzval, colind, rowpnt, iKS)
+  subroutine set_H(negf, nrow, nzval, colind, rowpnt, iKS, iS)
     type(Tnegf) :: negf
     integer :: nrow
     complex(dp) :: nzval(*)
     integer :: colind(*)
     integer :: rowpnt(*)
     integer, optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: nnz, i, base, ii
+    integer :: nnz, i, base, ii=1, iiS=1
 
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -341,6 +345,7 @@ module libnegf
       negf%HS(ii)%H%rowpnt(i) = rowpnt(i) + base
     enddo
     negf%HS(ii)%internalHS=.true.
+    negf%HS(ii)%iS = iiS
     ! set the default working pointer in case there is only one H
     negf%H => negf%HS(ii)%H
 
@@ -354,20 +359,22 @@ module libnegf
   !! @param[in] colind: column indexes
   !! @param[in] rowpnt: row pointers
   !! @param[in] iKS: k-index of S
-  subroutine set_S(negf, nrow, nzval, colind, rowpnt, iKS)
+  subroutine set_S(negf, nrow, nzval, colind, rowpnt, iKS, iS)
     type(Tnegf) :: negf
     integer :: nrow
     complex(dp) :: nzval(*)
     integer :: colind(*)
     integer :: rowpnt(*)
     integer, optional :: iKS
+    integer, optional :: iS
 
-    integer :: nnz, i, base, ii
+    integer :: nnz, i, base, ii=1, iiS=1
 
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -395,6 +402,7 @@ module libnegf
       negf%HS(ii)%S%rowpnt(i) = rowpnt(i) + base
     enddo
     negf%HS(ii)%internalHS=.true.
+    negf%HS(ii)%iS = iiS
     ! set the default working pointer in case there is only one S
     negf%S => negf%HS(ii)%S
 
@@ -405,16 +413,19 @@ module libnegf
   !! @param[in] negf: libnegf container instance
   !! @param[in] nrow: number of rows
   !! @param[in] iKS: k-index of S
-  subroutine set_S_id(negf, nrow, iKS)
+  subroutine set_S_id(negf, nrow, iKS, iS)
     type(Tnegf) :: negf
     integer, intent(in) :: nrow
     integer, intent(in), optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: ii
+    integer :: ii=1, iiS=1
+
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -429,6 +440,7 @@ module libnegf
 
     call create_id(negf%HS(ii)%S, nrow)
     negf%HS(ii)%isSid = .true.
+    negf%HS(ii)%iS = iiS
     negf%S => negf%HS(ii)%S
 
   end subroutine set_S_id
@@ -438,18 +450,22 @@ module libnegf
   !! @param [in]  negf: libnegf container instance
   !! @param [in] H: target z_CSR hamiltonian
   !! @param [in] S: target z_CSR overlap (optional, default to identity)
-  !! @param[in] iKS: k-index of H and S
-  subroutine pass_HS(negf,H,S,iKS)
+  !! @param[in] iKS: local (K,S)-index of H and S
+  !! @param[in] iS: global spin-index of H
+  subroutine pass_HS(negf,H,S,iKS,iS)
     type(Tnegf) :: negf
     type(z_CSR), target, intent(in) :: H
     type(z_CSR), target, intent(in), optional :: S
     integer, intent(in), optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: ii, ss
+    integer :: ii=1, iiS=1, ss
+
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     ss = merge(size(negf%HS),0,allocated(negf%HS))
@@ -468,6 +484,7 @@ module libnegf
        call create_id(negf%HS(ii)%S,negf%HS(ii)%H%nrow)
     endif
     negf%HS(ii)%internalHS = .false.
+    negf%HS(ii)%iS = iiS
     ! set the default working pointers in case there is only one H, S
     negf%H => negf%HS(ii)%H
     negf%S => negf%HS(ii)%S
@@ -477,17 +494,20 @@ module libnegf
   ! -----------------------------------------------------
   !  Allocate and copy H,S
   ! -----------------------------------------------------
-  subroutine copy_HS(negf,H,S,iKS)
+  subroutine copy_HS(negf,H,S,iKS,iS)
     type(Tnegf) :: negf
     type(z_CSR), intent(in) :: H
     type(z_CSR), intent(in), optional :: S
     integer, intent(in), optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: ii
+    integer :: ii=1, iiS=1
+
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     if (ii > size(negf%HS)) then
@@ -499,6 +519,7 @@ module libnegf
 
     negf%HS(ii)%H = H
     negf%HS(ii)%internalHS = .true.
+    negf%HS(ii)%iS = iiS
 
     if (present(S)) then
        negf%HS(ii)%isSid=.false.
@@ -924,10 +945,8 @@ module libnegf
     character(*), intent(in) :: scratchpath
 
     if (len(scratchpath)>LST) then
-       print*, "ERROR: scratch string longer than",LST
-       call error_msg( 'scratch string too long')
+       call error_msg('Scratch string too long. Check LST')
     end if
-    !negf%scratch_path = trim(scratchpath)//'/GS/'
     negf%scratch_path = trim(scratchpath)//'/'
 
     ! Update the cache object if needed.
@@ -1076,11 +1095,11 @@ module libnegf
 
     if (present(cartComm)) then
        if (.not.present(energyComm) .and. .not.present(kComm)) then
-          call error_msg( "ERROR: cartesian communicator also requires energy and k comm")
+          call error_msg("ERROR: cartesian communicator also requires energy and k comm")
        end if
        call check_cart_comm(cartComm, err)
        if (err /= 0) then
-         call error_msg( "ERROR: pass non cartesian communicator to negf_mpi_init")
+         call error_msg("ERROR: pass non cartesian communicator to negf_mpi_init")
        end if
        negf%globalComm = cartComm
        negf%cartComm = cartComm
@@ -1089,7 +1108,7 @@ module libnegf
        id0 = (negf%cartComm%rank == 0)
     else
        if (.not.present(energyComm)) then
-          call error_msg( "ERROR: negf_mpi_init needs at lest the energy communicator")
+          call error_msg("ERROR: negf_mpi_init needs at lest the energy communicator")
        end if
        negf%globalComm = energyComm
        negf%energyComm = energyComm
@@ -1482,28 +1501,35 @@ module libnegf
 
   !> Get density matrix CSR sparse arrays by copy
   !! @param [in] negf: negf container
+  !! @param [in] iKS:  local (K,S) DM index
   subroutine get_DM(negf, csrDens, iKS)
     type(TNegf), intent(in)  :: negf
     type(z_CSR), intent(inout) :: csrDens
     integer, intent(in), optional :: iKS
 
+    integer :: ii=1, s
+
+    if (present(iKS)) then
+      ii = iKS
+    end if
+
     if (present(iKS)) then
       if (allocated(csrDens%nzval)) then
-          if (csrDens%nnz /= negf%DM(iKS)%rho%nnz) then
-             call error_msg( 'DM size mismatch')
+          if (csrDens%nnz /= negf%DM(ii)%rho%nnz) then
+             call error_msg('DM size mismatch')
           end if
       else
-        call create(csrDens, negf%DM(iKS)%rho%nrow, negf%DM(iKS)%rho%ncol, negf%DM(iKS)%rho%nnz)
+        call create(csrDens, negf%DM(ii)%rho%nrow, negf%DM(ii)%rho%ncol, negf%DM(ii)%rho%nnz)
       end if
-      csrDens%nnz = negf%DM(iKS)%rho%nnz
-      csrDens%nrow = negf%DM(iKS)%rho%nrow
-      csrDens%ncol = negf%DM(iKS)%rho%ncol
-      csrDens%nzval = negf%DM(iKS)%rho%nzval
-      csrDens%sorted = negf%DM(iKS)%rho%sorted
+      csrDens%nnz = negf%DM(ii)%rho%nnz
+      csrDens%nrow = negf%DM(ii)%rho%nrow
+      csrDens%ncol = negf%DM(ii)%rho%ncol
+      csrDens%nzval = negf%DM(ii)%rho%nzval
+      csrDens%sorted = negf%DM(ii)%rho%sorted
     else
       if (allocated(csrDens%nzval)) then
          if (csrDens%nnz /= negf%rho%nnz) then
-            call error_msg( 'DM size mismatch')
+            call error_msg('DM size mismatch')
          end if
       else
         call create(csrDens, negf%rho%nrow, negf%rho%ncol, negf%rho%nnz)
@@ -1520,24 +1546,26 @@ module libnegf
   ! -----------------------------------------------------
   !  Allocate and copy Density Matrix or E-weighted DM
   ! -----------------------------------------------------
-  subroutine copy_DM(negf, rho, iKS)
+  subroutine copy_DM(negf, rho, iKS, iS)
     type(Tnegf) :: negf
     type(z_CSR), intent(in) :: rho
     integer, intent(in), optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: s, ii
+    integer :: ii=1, iiS=1, s
 
     if (present(iKS)) then
       ii = iKS
-    else
-      ii = 1
+    end if
+    if (present(iS)) then
+      iiS = iS
     end if
 
     if (ii > 1) then
       s = merge(size(negf%DM),0,allocated(negf%DM))
       if (ii > s) then
-        print*,'Passing DM index',iKS,' DM container with size',s
-        call error_msg("Error: pass_DM with index > allocated array. Call create_DM with correct size")
+        print*,'Passing DM index',ii,' to DM container with size',s
+        call error_msg("Pass_DM with index > allocated array. Call create_DM with correct size")
       endif
     else
       if (.not. allocated(negf%DM)) then
@@ -1548,6 +1576,7 @@ module libnegf
     if (.not.associated(negf%DM(ii)%rho)) allocate(negf%DM(ii)%rho)
     negf%DM(ii)%rho = rho
     negf%DM(ii)%internalDM = .true.
+    negf%DM(ii)%iS = iiS
     negf%rho => negf%DM(ii)%rho
 
   end subroutine copy_DM
@@ -1555,28 +1584,37 @@ module libnegf
   ! -----------------------------------------------------
   !  Pass an externally allocated density matrix
   ! -----------------------------------------------------
-  subroutine pass_DM(negf, rho, iKS)
+  subroutine pass_DM(negf, rho, iKS, iS)
     type(Tnegf) :: negf
     type(z_CSR), target, intent(in) :: rho
     integer, intent(in), optional :: iKS
+    integer, intent(in), optional :: iS
 
-    integer :: s
+    integer :: ii=1, iiS=1, s
+
+    if (present(iKS)) then
+      ii = iKS
+    end if
+    if (present(iS)) then
+      iiS = iS
+    end if
 
     if (present(iKS)) then
       s = merge(size(negf%DM),0,allocated(negf%DM))
-      if (iKS > s) then
+      if (ii > s) then
         print*,'Passing DM index',iKS,' DM container with size',s
-        call error_msg("Error: pass_DM with index > allocated array. Call create_DM with correct size") 
+        call error_msg("Pass_DM with index > allocated array. Call create_DM with correct size")
       endif
     end if
 
     if (present(iKS)) then
-      negf%DM(iKS)%rho => rho
+      negf%DM(ii)%rho => rho
       ! This destroy here is needed as the matrix is created later
-      if (allocated(negf%DM(iKS)%rho%nzval)) then
-         call destroy(negf%DM(iKS)%rho)
+      if (allocated(negf%DM(ii)%rho%nzval)) then
+         call destroy(negf%DM(ii)%rho)
       endif
       negf%DM(iKS)%internalDM = .false.
+      negf%DM(iKS)%iS = iiS
     else
       negf%rho => rho
     endif
