@@ -59,6 +59,7 @@ module libnegf
  public :: set_bp_dephasing
  public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
  public :: set_elph_polaroptical, set_elph_nonpolaroptical, destroy_interactions
+ public :: set_elphoton
  public :: interaction_models, integration_type
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
@@ -77,7 +78,8 @@ module libnegf
  public :: lnParams
  public :: init_negf, destroy_negf
  public :: init_contacts, init_structure, init_basis
- public :: get_params, set_params, set_scratch, set_outpath, create_scratch, set_scba_tolerances
+ public :: get_params, set_params, set_scratch, set_outpath, create_scratch
+ public :: get_scba_tolerances, set_scba_tolerances
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
  public :: create_HS, destroy_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
@@ -815,6 +817,7 @@ module libnegf
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%SGFcache = get_surface_green_cache_type(negf)
+    params%dump_matrices = negf%dump_matrices
 
   end subroutine get_params
 
@@ -878,6 +881,7 @@ module libnegf
     negf%Emax = params%Emax
     negf%Estep = params%Estep
     negf%Estep_coarse = params%Estep_coarse
+    negf%dump_matrices = params%dump_matrices
     if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
     allocate(negf%ni(nn))
@@ -939,6 +943,14 @@ module libnegf
     negf%scba_elastic_tol = elastic_tol
     negf%scba_inelastic_tol = inelastic_tol
   end subroutine set_scba_tolerances
+  !----------------------------------------------------------
+  subroutine get_scba_tolerances(negf, elastic_tol, inelastic_tol)
+    type(Tnegf) :: negf
+    real(dp), intent(out) :: elastic_tol
+    real(dp), intent(out) :: inelastic_tol
+    elastic_tol = negf%scba_elastic_tol
+    inelastic_tol = negf%scba_inelastic_tol
+  end subroutine get_scba_tolerances
   !----------------------------------------------------------
   subroutine set_scratch(negf, scratchpath)
     type(Tnegf) :: negf
@@ -2331,35 +2343,34 @@ module libnegf
 
  end subroutine aggregate_vec
 
-!-------------------------------------------------------------------
-!> Pass CSR vectors to create z_CSR type
-!! @param[in] nrow: number of rows
-!! @param[in] nzval: number of non zero values
-!! @param[in] colind: column indexes
-!! @param[in] rowpnt: row pointers
-!! @param[inout] mat: the z_CSR matrix
- subroutine get_CSR_matrix(nrow, nzval, colind, rowpnt, mat)
-  integer :: nrow
-  complex(dp) :: nzval(*)
-  integer :: colind(*)
-  integer :: rowpnt(*)
-  type(z_CSR) :: mat
 
-  integer :: nnz, i, base
+subroutine write_matrix_to_file(matrix, rows, cols, filename)
+  implicit none
+  ! Arguments
+  integer, intent(in) :: rows, cols
+  complex(dp), intent(in) :: matrix(rows, cols)
+  character(len=*), intent(in) :: filename
 
-  base = 0
-  if (rowpnt(1) == 0) base = 1
+  integer :: i, j
+  integer :: unit_number
 
-  nnz = rowpnt(nrow+1)-rowpnt(1)
-  call create(mat,nrow,nrow,nnz)
+  ! Open the file for writing
+  unit_number = 10 ! Assign a file unit number (can be any number not in use)
+  open(unit=unit_number, file=filename, status='replace')
 
-  do i = 1, nnz
-    mat%nzval(i) = nzval(i)
-    mat%colind(i) = colind(i) + base
-  enddo
-  do i = 1,nrow+1
-    mat%rowpnt(i) = rowpnt(i) + base
-  enddo
-end subroutine get_CSR_matrix
+  ! Write the matrix to the file
+  do i = 1, rows
+      do j = 1, cols
+          write(unit_number, '(F8.4)', advance='no') matrix(i, j)
+          if (j < cols) then
+              write(unit_number, '(A)', advance='no') ' ' ! Space between columns
+          endif
+      end do
+      write(unit_number, *) ! New line after each row
+  end do
+
+  ! Close the file
+  close(unit_number)
+end subroutine write_matrix_to_file
 
 end module libnegf

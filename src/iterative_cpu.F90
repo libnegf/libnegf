@@ -22,7 +22,7 @@ module iterative_cpu
   use ln_precision
   use ln_constants, only : pi, minusOne
   use ln_allocation
-  use mat_def
+  use mat_def, only: create, destroy, z_DNS
   use sparsekit_drv
   use inversions
   use ln_enums 

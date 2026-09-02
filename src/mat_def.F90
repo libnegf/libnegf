@@ -20,10 +20,11 @@
 
 
 Module mat_def
-  use iso_c_binding
   use ln_precision
   use ln_allocation
-  use ln_messages
+  use ln_structure, only: Tstruct_Info
+  use iso_c_binding
+  use mpi_globals
   implicit none
   private
 
@@ -38,6 +39,7 @@ public :: createp, destroyp
 public :: assignment(=)
 
 public :: cross_product, volume
+public :: init_tridiag_blk, destroy_tridiag_blk, blk2dns, dns2blk, destroy_full_blk!, dns2trid_blk, trid_blk2dns
 
 interface create
    module procedure zcreate_CSR
@@ -70,6 +72,11 @@ end interface
 interface recreate
    module procedure zrecreate_CSR
    module procedure rrecreate_CSR
+end interface
+
+interface set_CSR
+   module procedure set_zCSR
+   module procedure set_cCSR
 end interface
 
 interface initialize
@@ -129,6 +136,11 @@ end interface
 
 interface writemem
    module procedure zwriteMem_CSR
+end interface
+
+interface destroy_tridiag_blk
+   module procedure destroy_tridiag_blk_2d
+   module procedure destroy_tridiag_blk_3d
 end interface
 
 ! Compressed Sparse Row
@@ -329,9 +341,7 @@ subroutine zcreate_pCSR(mat,nrow,ncol,nnz)
   integer :: ierr
 
   allocate(mat,stat=ierr)
-  if (ierr.ne.0) then
-    call error_msg( 'ERROR: pointer zCSR not allocated')
-  end if
+  if(ierr.ne.0) error stop 'ERROR: pointer zCSR not allocated'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -372,9 +382,7 @@ subroutine zinit_CSR(mat)
 
   integer :: k
 
-  if (mat%nnz.ne.mat%nrow) then
-    call error_msg( 'cannot initialize matrix (nnz != nrow)')
-  end if
+  if(mat%nnz.ne.mat%nrow) error stop 'cannot initialize matrix (nnz != nrow)'
 
   do k=1,Mat%nrow
      Mat%nzval(k)=(0.0_dp, 0.0_dp)
@@ -474,6 +482,61 @@ subroutine zrecreate_CSR(mat)
 
 end subroutine zrecreate_CSR
 ! ------------------------------------------------------------------
+!> Pass CSR vectors to create z_CSR type
+!! @param[in] nrow: number of rows
+!! @param[in] nzval: number of non zero values
+!! @param[in] colind: column indexes
+!! @param[in] rowpnt: row pointers
+!! @param[inout] mat: the z_CSR matrix
+ subroutine set_zCSR(nrow, nzval, colind, rowpnt, mat)
+  integer :: nrow
+  complex(dp) :: nzval(*)
+  integer :: colind(*)
+  integer :: rowpnt(*)
+  type(z_CSR) :: mat
+
+  integer :: nnz, i, base
+
+  base = 0
+  if (rowpnt(1) == 0) base = 1
+
+  nnz = rowpnt(nrow+1)-rowpnt(1)
+  call create(mat,nrow,nrow,nnz)
+
+  do i = 1, nnz
+    mat%nzval(i) = nzval(i)
+    mat%colind(i) = colind(i) + base
+  enddo
+  do i = 1,nrow+1
+    mat%rowpnt(i) = rowpnt(i) + base
+  enddo
+end subroutine set_zCSR
+
+subroutine set_cCSR(nrow, nzval, colind, rowpnt, mat)
+  integer :: nrow
+  complex(sp) :: nzval(*)
+  integer :: colind(*)
+  integer :: rowpnt(*)
+  type(c_CSR) :: mat
+
+  integer :: nnz, i, base
+
+  base = 0
+  if (rowpnt(1) == 0) base = 1
+
+  nnz = rowpnt(nrow+1)-rowpnt(1)
+  call create(mat,nrow,nrow,nnz)
+
+  do i = 1, nnz
+    mat%nzval(i) = nzval(i)
+    mat%colind(i) = colind(i) + base
+  enddo
+  do i = 1,nrow+1
+    mat%rowpnt(i) = rowpnt(i) + base
+  enddo
+end subroutine set_cCSR
+
+!-------------------------------------------------------------------
 subroutine zdestroy_CSR(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
   type(z_CSR) :: mat1
@@ -588,7 +651,7 @@ subroutine zdestroy_pCSR(mat1)
   type(z_CSR), pointer :: mat1
 
   if (.not.associated(mat1)) then
-      call error_msg( 'ERROR: zCSR pointer not associated')
+      error stop 'ERROR: zCSR pointer not associated'
   end if
 
   mat1%nnz=0
@@ -711,9 +774,7 @@ subroutine zcreate_CSC(mat,nrow,ncol,nnz)
   type(z_CSC) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_CSC) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_CSC) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -857,9 +918,7 @@ subroutine zcreate_MSR(mat,nrow,ncol,nnz)
   type(z_MSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_MSR) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_MSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -905,9 +964,7 @@ subroutine zcreate_COO(mat,nrow,ncol,nnz)
   type(z_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-     call error_msg( 'ERROR: (zcreate_COO) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1069,9 +1126,7 @@ subroutine zcreate_EXT_COO(mat,nrow,ncol,nnz)
   type(z_EXT_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_EXT_COO) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_EXT_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1106,36 +1161,30 @@ subroutine zdestroy_EXT_COO(mat)
 end subroutine zdestroy_EXT_COO
 ! ------------------------------------------------------------------
 
-subroutine zcreate_DNS(mat,nrow,ncol,tag)
+subroutine zcreate_DNS(mat,nrow,ncol)
 
   type(z_DNS) :: mat
   integer :: nrow, ncol
-  character(len=*), optional :: tag
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_DNS) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS) nrow or ncol = 0'
+
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol,tag)
+  call log_allocate(mat%val,nrow,ncol)
 
 end subroutine zcreate_DNS
 ! ------------------------------------------------------------------
 
-subroutine ccreate_DNS(mat,nrow,ncol,tag)
+subroutine ccreate_DNS(mat,nrow,ncol)
 
   type(c_DNS) :: mat
   integer :: nrow, ncol
-  character(len=*), optional :: tag
 
-
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (ccreate_DNS) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (ccreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol,tag)
+  call log_allocate(mat%val,nrow,ncol)
 
 end subroutine ccreate_DNS
 ! ------------------------------------------------------------------
@@ -1143,9 +1192,7 @@ subroutine rcreate_DNS3(mat,nrow,ncol,npoints)
   type(r_DNS3) :: mat
   integer :: nrow, ncol, npoints
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_DNS3) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
@@ -1158,9 +1205,7 @@ subroutine zcreate_DNS3(mat,nrow,ncol,npoints)
   type(z_DNS3) :: mat
   integer :: nrow, ncol, npoints
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_DNS3) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
@@ -1173,9 +1218,7 @@ subroutine ccreate_DNS3(mat,nrow,ncol,npoints)
   type(c_DNS3) :: mat
   integer :: nrow, ncol, npoints
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (ccreate_DNS3) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (ccreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
@@ -1218,24 +1261,23 @@ end subroutine cdestroy_DNS3
 ! ------------------------------------------------------------------
 ! ------------------------------------------------------------------
 
-subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
+subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
   type(z_DNS) :: mat1
   type(z_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
-  character(len=*), optional :: tag
 
   mat1%nrow=0
   mat1%ncol=0
 
   if (allocated(mat1%val)) then
-     call log_deallocate(mat1%val,tag)
+     call log_deallocate(mat1%val)
   end if
 
   if (present(mat2)) then
      mat2%nrow=0
      mat2%ncol=0
      if (allocated(mat2%val)) then
-        call log_deallocate(mat2%val,tag)
+        call log_deallocate(mat2%val)
      end if
   else
      return
@@ -1245,7 +1287,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat3%nrow=0
      mat3%ncol=0
      if (allocated(mat3%val)) then
-        call log_deallocate(mat3%val,tag)
+        call log_deallocate(mat3%val)
      end if
   else
      return
@@ -1255,7 +1297,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat4%nrow=0
      mat4%ncol=0
      if (allocated(mat4%val)) then
-        call log_deallocate(mat4%val,tag)
+        call log_deallocate(mat4%val)
      endif
   else
      return
@@ -1265,7 +1307,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat5%nrow=0
      mat5%ncol=0
      if (allocated(mat5%val)) then
-        call log_deallocate(mat5%val,tag)
+        call log_deallocate(mat5%val)
      end if
   else
      return
@@ -1275,7 +1317,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat6%nrow=0
      mat6%ncol=0
      if (allocated(mat6%val)) then
-        call log_deallocate(mat6%val,tag)
+        call log_deallocate(mat6%val)
      end if
   else
      return
@@ -1285,7 +1327,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat7%nrow=0
      mat7%ncol=0
      if (allocated(mat7%val)) then
-        call log_deallocate(mat7%val,tag)
+        call log_deallocate(mat7%val)
      endif
   else
      return
@@ -1295,7 +1337,7 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat8%nrow=0
      mat8%ncol=0
      if (allocated(mat8%val)) then
-        call log_deallocate(mat8%val,tag)
+        call log_deallocate(mat8%val)
      endif
   else
      return
@@ -1304,24 +1346,23 @@ subroutine zdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
 end subroutine zdestroy_DNS
 
 
-subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
+subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
   type(c_DNS) :: mat1
   type(c_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
-  character(len=*), optional :: tag
 
   mat1%nrow=0
   mat1%ncol=0
 
   if (allocated(mat1%val)) then
-     call log_deallocate(mat1%val,tag)
+     call log_deallocate(mat1%val)
   end if
 
   if (present(mat2)) then
      mat2%nrow=0
      mat2%ncol=0
      if (allocated(mat2%val)) then
-       call log_deallocate(mat2%val,tag)
+       call log_deallocate(mat2%val)
      end if
   else
      return
@@ -1331,7 +1372,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat3%nrow=0
      mat3%ncol=0
      if (allocated(mat3%val)) then
-       call log_deallocate(mat3%val,tag)
+       call log_deallocate(mat3%val)
      end if
   else
      return
@@ -1341,7 +1382,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat4%nrow=0
      mat4%ncol=0
      if (allocated(mat4%val)) then
-       call log_deallocate(mat4%val,tag)
+       call log_deallocate(mat4%val)
      endif
   else
      return
@@ -1351,7 +1392,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat5%nrow=0
      mat5%ncol=0
      if (allocated(mat5%val)) then
-       call log_deallocate(mat5%val,tag)
+       call log_deallocate(mat5%val)
      end if
   else
      return
@@ -1361,7 +1402,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat6%nrow=0
      mat6%ncol=0
      if (allocated(mat6%val)) then
-       call log_deallocate(mat6%val,tag)
+       call log_deallocate(mat6%val)
      end if
   else
      return
@@ -1371,7 +1412,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat7%nrow=0
      mat7%ncol=0
      if (allocated(mat7%val)) then
-        call log_deallocate(mat7%val,tag)
+        call log_deallocate(mat7%val)
      endif
   else
      return
@@ -1381,7 +1422,7 @@ subroutine cdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
      mat8%nrow=0
      mat8%ncol=0
      if (allocated(mat8%val)) then
-       call log_deallocate(mat8%val,tag)
+       call log_deallocate(mat8%val)
      endif
   else
      return
@@ -1401,9 +1442,7 @@ subroutine rcreate_CSR(mat,nrow,ncol,nnz)
   type(r_CSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_CSR) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_CSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1581,9 +1620,7 @@ subroutine rcreate_CSC(mat,nrow,ncol,nnz)
   type(r_CSC) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (rcreate_CSC) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (rcreate_CSC) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1631,9 +1668,7 @@ subroutine rcreate_MSR(mat,nrow,ncol,nnz)
   type(r_MSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (rcreate_MSR) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (rcreate_MSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1676,9 +1711,7 @@ subroutine rcreate_COO(mat,nrow,ncol,nnz)
   type(r_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-     call error_msg( 'ERROR: (rcreate_COO) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (rcreate_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1808,9 +1841,7 @@ subroutine rcreate_DNS(mat,nrow,ncol)
  integer :: nrow, ncol
 
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (rcreate_DNS) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (rcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
@@ -1937,7 +1968,10 @@ subroutine rassign_CSR(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1951,7 +1985,10 @@ subroutine zassign_CSR(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1968,8 +2005,13 @@ subroutine rassign_DNS(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -1982,11 +2024,16 @@ subroutine zassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -1999,11 +2046,16 @@ subroutine cassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2016,11 +2068,16 @@ subroutine zcassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2035,11 +2092,16 @@ subroutine czassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = cmplx(real(m_rhs%val(:,cc)), aimag(m_rhs%val(:,cc)), sp)
   end do
@@ -2053,7 +2115,10 @@ subroutine rassign_COO(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
@@ -2066,7 +2131,10 @@ subroutine zassign_COO(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
@@ -2120,12 +2188,201 @@ end subroutine cross_product
 function volume(vec1, vec2, vec3) result (vol)
    real(dp), dimension(3), intent(in) :: vec1, vec2, vec3
    real(dp) :: vol
-   
+
    real(dp), dimension(3) :: cross_prod
 
    call cross_product(vec2, vec3, cross_prod)
    vol = dot_product(vec1, cross_prod)
-   
+
 end function volume
+
+subroutine destroy_tridiag_blk_2d(M)
+   type(z_DNS), dimension(:,:), allocatable :: M
+
+   integer :: i, nbl
+
+   if (.not.allocated(M)) return
+
+   nbl=size(M,1)
+
+   do i=1,nbl
+     if (allocated(M(i,i)%val)) then
+       call destroy(M(i,i))
+     end if
+   end do
+   do i=2,nbl
+     if (allocated(M(i-1,i)%val)) then
+       call destroy(M(i-1,i))
+     end if
+     if (allocated(M(i,i-1)%val)) then
+       call destroy(M(i,i-1))
+     end if
+   end do
+
+ end subroutine destroy_tridiag_blk_2d
+
+ subroutine destroy_tridiag_blk_3d(M)
+   type(z_DNS), dimension(:,:,:), allocatable :: M
+
+   integer :: i, k, nbl, nK
+
+   if (.not.allocated(M)) return
+
+   nbl=size(M,2)
+   nK=size(M,1)
+
+   do k = 1,nK
+      do i=1,nbl
+      if (allocated(M(k,i,i)%val)) then
+         call destroy(M(k,i,i))
+      end if
+      end do
+      do i=2,nbl
+      if (allocated(M(k,i-1,i)%val)) then
+         call destroy(M(k,i-1,i))
+      end if
+      if (allocated(M(k,i,i-1)%val)) then
+         call destroy(M(k,i,i-1))
+      end if
+      end do
+   end do
+
+ end subroutine destroy_tridiag_blk_3d
+
+ subroutine destroy_full_blk(M)
+   type(z_DNS), dimension(:,:), allocatable :: M
+
+   integer :: i, j, nbl
+
+   if (.not.allocated(M)) return
+
+   nbl=size(M,1)
+
+   do i=1,nbl
+     do j=1,nbl
+       if (allocated(M(i,j)%val)) then
+         call destroy(M(i,j))
+       end if
+     end do
+   end do
+
+ end subroutine destroy_full_blk
+
+ subroutine init_tridiag_blk(Matrix,S)
+   type(z_DNS), dimension(:,:) :: Matrix,S
+
+   integer :: nbl, j
+
+   nbl = SIZE(Matrix,1)
+
+#:if defined("GPU")
+   call createAll(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
+   Matrix(1,1)%val=(0.0_dp,0.0_dp)
+   if (nbl.gt.1) then
+      do j=2,nbl
+        call createAll(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
+        Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
+        call createAll(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
+        Matrix(j,j)%val=(0.0_dp,0.0_dp)
+        call createAll(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
+        Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
+      end do
+   endif
+#:else
+   ! if (allocated(Matrix(1,1)%val)) call destroy(Matrix(1,1))
+   call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
+   Matrix(1,1)%val=(0.0_dp,0.0_dp)
+   if (nbl.gt.1) then
+      do j=2,nbl
+      !   if (allocated(Matrix(j-1,j)%val)) call destroy(Matrix(j-1,j))
+        call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
+        Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
+      !   if (allocated(Matrix(j,j)%val)) call destroy(Matrix(j,j))
+        call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
+        Matrix(j,j)%val=(0.0_dp,0.0_dp)
+      !   if (allocated(Matrix(j,j-1)%val)) call destroy(Matrix(j,j-1))
+        call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
+        Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
+      end do
+   endif
+#:endif
+ end subroutine init_tridiag_blk
+
+ ! TRIDIAG blk-sparse to dense conversion
+ ! CAREFUL! Does not work for generic blk matrices,
+ ! but only if the dimensions of Gdns are the same as str%central_dim = nrow(H) = ncol(H)
+ subroutine blk2dns(G,str,Gdns)
+   type(z_DNS), dimension(:,:), intent(in) :: G
+   type(Tstruct_info), intent(in) :: str
+   type(z_DNS) :: Gdns
+
+   integer :: n, m, ii, jj, pl_start1, pl_end1, pl_start2, pl_end2, nbl, nrows
+
+   nbl = str%num_PLs
+   nrows = str%central_dim
+   call create(Gdns,nrows,nrows)
+
+   do n = 1, nbl
+     do m= 1, nbl
+        pl_start1 = str%mat_PL_start(n)
+        pl_end1 = str%mat_PL_end(n)
+        pl_start2 = str%mat_PL_start(m)
+        pl_end2 = str%mat_PL_end(m)
+
+        if (allocated(G(n,m)%val)) then
+          do ii = 1, pl_end1 - pl_start1 + 1
+            do jj = 1, pl_end2 - pl_start2 + 1
+                  ! if (id0) print*, "DEBUG: check2.5"
+               Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = G(n,m)%val(ii,jj)
+            end do
+          end do
+        else
+         do ii = 1, pl_end1 - pl_start1 + 1
+            do jj = 1, pl_end2 - pl_start2 + 1
+               Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = 0.0_dp
+            end do
+          end do
+        end if
+
+     end do
+   end do
+
+ end subroutine blk2dns
+
+ ! dense to blk-sparse conversion
+ ! CAREFUL! Does not work for generic tri-diagonal blk matrices,
+ ! but only if the dimensions of G are the same as str%central_dim = nrow(H) = ncol(H)
+ ! Also, it does not work with tridiagonal blocks, but only with fully allocated blk matrices
+ subroutine dns2blk(Gdns,str,Gblk)
+   type(z_DNS), intent(in) :: Gdns
+   type(Tstruct_info), intent(in) :: str
+   type(z_DNS), allocatable, dimension(:,:) :: Gblk
+
+   integer :: n, m, ii, jj, pl_start1, pl_end1, pl_start2, pl_end2, nbl, nrows
+
+   nbl = str%num_PLs
+   nrows = str%central_dim
+   allocate(Gblk(nbl,nbl))
+   ! call create(Gdns,nrows,nrows)
+
+   do n = 1, nbl
+     do m= 1, nbl
+        pl_start1 = str%mat_PL_start(n)
+        pl_end1 = str%mat_PL_end(n)
+        pl_start2 = str%mat_PL_start(m)
+        pl_end2 = str%mat_PL_end(m)
+
+        if (allocated(Gblk(n,m)%val)) call destroy(Gblk(n,m))
+        call create(Gblk(n,m), pl_end1-pl_start1+1, pl_end2-pl_start2+1)
+
+        do ii = 1, pl_end1 - pl_start1 + 1
+          do jj = 1, pl_end2 - pl_start2 + 1
+            Gblk(n,m)%val(ii,jj) = Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1)
+          end do
+        end do
+     end do
+   end do
+ end subroutine dns2blk
+
 
 end module mat_def

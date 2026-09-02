@@ -24,7 +24,9 @@ module iterative
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
   use ln_messages
-  use mat_def
+  use mat_def, only : z_DNS, z_CSR, r_CSR
+  use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
+  use block_3_diag, only : csr2blk3diag
   use sparsekit_drv
   use inversions
   use ln_structure, only : TStruct_Info
@@ -35,6 +37,7 @@ module iterative
   use ln_cache
   use ln_elastic
   use ln_inelastic
+  use elptinel, only: ElPhoton
 #:if defined("GPU")
   use cudautils
   use iterative_gpu
@@ -218,6 +221,7 @@ CONTAINS
     associate (cblk=>negf%str%cblk, indblk=>negf%str%mat_PL_start)
 
     Ec = cmplx(E,0.0_dp,dp)
+
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
@@ -240,7 +244,6 @@ CONTAINS
     call set_Gr_ela(negf, Gr)
 
     !Computing device G_n
-
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 
@@ -444,7 +447,7 @@ CONTAINS
     Ec=cmplx(E,0.0_dp,dp)
     call prealloc_sum(negf%H, negf%S, minusOne, Ec, ESH_tot)
     call allocate_blk_dns(ESH,nbl)
-    call zcsr2blk_sod(ESH_tot, ESH, negf%str%mat_PL_start)
+    call csr2blk3diag(ESH_tot, ESH, negf%str%mat_PL_start)
     call destroy(ESH_tot)
 
     do ii = 1, nbl-1
@@ -456,9 +459,17 @@ CONTAINS
         ldos_mat(ii) = trace(Gn(ii,ii))
       end if  
     end do
-    if (present(ldos_mat)) then
-      ldos_mat(nbl) = trace(Gn(nbl,nbl))
-    end if
+    call blk2dns(Gn, negf%str, Gn_dns)
+    call log_allocate(diag, size(ldos_mat, 1))
+    call getdiag(Gn_dns, diag)
+    call destroy(Gn_dns)
+
+    ! Not exactly ldos, more like a spectral carrier density
+    ldos_mat = real(diag/(2*pi))
+
+    call log_deallocate(diag)
+    ! ldos_mat(nbl) = trace(Gn(nbl,nbl))
+
     call destroy_all_blk(negf)
 
   end subroutine iterative_layer_current
@@ -857,54 +868,7 @@ CONTAINS
   !DAR end
   !------------------------------------------------------------------------------!
 
-  !**********************************************************************
-  subroutine init_tridiag_blk(Matrix,S)
-    type(z_DNS), dimension(:,:) :: Matrix,S
-
-    integer :: nbl, j
-
-    nbl = SIZE(Matrix,1)
-
-#:if defined("GPU")
-    call createAll(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
-    Matrix(1,1)%val=(0.0_dp,0.0_dp)
-    if (nbl.gt.1) then
-       do j=2,nbl
-         call createAll(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
-         Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
-         call createAll(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
-         Matrix(j,j)%val=(0.0_dp,0.0_dp)
-         call createAll(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
-         Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
-       end do
-    endif
-#:else
-    call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
-    Matrix(1,1)%val=(0.0_dp,0.0_dp)
-    if (nbl.gt.1) then
-       do j=2,nbl
-         call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
-         Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
-         call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
-         Matrix(j,j)%val=(0.0_dp,0.0_dp)
-         call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
-         Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
-       end do
-    endif
-#:endif
-  end subroutine init_tridiag_blk
-
-  !**********************************************************************
-  ! Wrapper code that conditionally deallocates block-arrays
-  ! depending on negf%tDestroyTAG   TAG = Gn, Gr, ESH
-  !
-  ! NOTE: We always remove from GPU
-  ! destroy_tridiag_blk: destroy only from CPU
-  ! delete_trid_fromGPU: destroy only from GPU
-  ! detroy_blk: destroy from both CPU and GPU
-  ! deallocate_blk_dns: deallocation wrapper with error checking
-  !
-  !**********************************************************************
+  !---------------------------------------------------------------------
   subroutine destroy_all_blk(negf)
     type(Tnegf), intent(in) :: negf
 
@@ -1009,51 +973,6 @@ CONTAINS
     end do
 #:endif
   end subroutine destroy_blk
-
-  !**********************************************************************
-  subroutine destroy_tridiag_blk(M, str)
-    type(z_DNS), dimension(:,:), allocatable :: M
-    character(len=*), intent(in), optional :: str
-
-    integer :: i, nbl
-
-    if (.not.allocated(M)) return
-
-    nbl=size(M,1)
-
-#:if defined("GPU")
-    do i=1,nbl
-      if (allocated(M(i,i)%val)) then    
-        call destroyAll(M(i,i))
-      end if
-    end do
-    do i=2,nbl
-      if (allocated(M(i-1,i)%val)) then
-        call destroyAll(M(i-1,i))
-      end if
-      if (allocated(M(i,i-1)%val)) then
-        call destroyAll(M(i,i-1))
-      end if
-    end do
-#:else
-    do i=1,nbl
-      if (allocated(M(i,i)%val)) then    
-        call destroy(M(i,i))
-      end if
-    end do
-    do i=2,nbl
-      if (allocated(M(i-1,i)%val)) then
-        call destroy(M(i-1,i))
-      end if
-      if (allocated(M(i,i-1)%val)) then
-        call destroy(M(i,i-1))
-      end if
-    end do
-#:endif
-
-  end subroutine destroy_tridiag_blk
-
-
 
   !***********************************************************************
   !
@@ -1338,36 +1257,6 @@ CONTAINS
     endif
 
   end subroutine Gr_blk2csr
-
-  ! blk-sparse to dense converision
-  subroutine blk2dns(G,str,Gdns)
-    type(z_DNS), dimension(:,:), intent(in) :: G
-    type(Tstruct_info), intent(in) :: str
-    type(z_DNS) :: Gdns
-
-    integer :: n, m, ii, jj, pl_start1, pl_end1, pl_start2, pl_end2, nbl, nrows
-
-    nbl = str%num_PLs
-    nrows = str%central_dim
-    call create(Gdns,nrows,nrows)
-
-    do n = 1, nbl
-      do m= 1, nbl
-         pl_start1 = str%mat_PL_start(n)
-         pl_end1 = str%mat_PL_end(n)
-         pl_start2 = str%mat_PL_start(m)
-         pl_end2 = str%mat_PL_end(m)
-
-         do ii = 1, pl_end1 - pl_start1 + 1
-           do jj = 1, pl_end2 - pl_start2 + 1
-               Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = G(n,m)%val(ii,jj)
-           end do
-         end do
-      end do
-    end do
-
-  end subroutine blk2dns
-
 
   !Concatenation for every contact in G_n. Performs a sum on elements, not a replacement
   !Similar to calculate_GreenR2, except for sum of elements
@@ -1964,6 +1853,9 @@ CONTAINS
     integer, intent(in) :: nbl
     type(z_DNS), dimension(:,:), allocatable :: ESH
 
+    type(z_DNS), dimension(:,:), allocatable :: H_debug_blk
+    type(z_DNS) :: H_debug_dns
+
     Type(z_CSR) :: ESH_tot
     integer :: i
 
@@ -1973,7 +1865,17 @@ CONTAINS
 
       call allocate_blk_dns(ESH, nbl)
 
-      call zcsr2blk_sod(ESH_tot,ESH, negf%str%mat_PL_start,"ESH")
+      !DEBUG routine
+      ! call allocate_blk_dns(H_debug_blk, nbl)
+      ! call csr2blk3diag(negf%H, H_debug_blk, negf%str%mat_PL_start)
+      ! call blk2dns(H_debug_blk, negf%str, H_debug_dns)
+      ! call destroy_blk(H_debug_blk)
+      ! deallocate(H_debug_blk)
+      ! call dump_mat(H_debug_dns)
+      ! call destroy(H_debug_dns)
+      !END DEBUG routine
+
+      call csr2blk3diag(ESH_tot,ESH, negf%str%mat_PL_start)
 
       call destroy(ESH_tot)
 
@@ -1984,6 +1886,52 @@ CONTAINS
 
    end subroutine build_ESH
   !---------------------------------------------------
+
+   subroutine dump_mat(matrix)
+    type(z_DNS), intent(in) :: matrix
+
+    character(len=200) :: filename
+    type(z_DNS), dimension(:,:), allocatable :: blk
+    real(dp) :: real_part, imag_part
+
+    complex(dp), dimension(:), allocatable :: diag
+
+    ! Local variables
+    integer :: i, j, iE, ibl, nbl, PL_start, Np
+    integer :: unit_number_imag, unit_number_real, rows, cols
+
+    write(filename, '("H")')
+
+    unit_number_real = 10 ! Assign a file unit number (can be any number not in use)
+    unit_number_imag = 20 ! Assign a file unit number (can be any number not in use)
+
+    rows = matrix%nrow
+    cols = matrix%ncol
+
+    open(unit=unit_number_imag, file=trim(filename)//"_imag.dat", status='replace')
+    open(unit=unit_number_real, file=trim(filename)//"_real.dat", status='replace')
+    ! Write the matrix to the file
+    do i = 1, rows
+        do j = 1, cols
+
+            real_part = real(matrix%val(i, j)) ! Extract real part
+            imag_part = aimag(matrix%val(i, j)) ! Extract imaginary part
+
+            write(unit_number_imag, '(E20.8)', advance='no') imag_part
+            write(unit_number_real, '(E20.8)', advance='no') real_part
+            if (j < cols) then
+                write(unit_number_imag, '(A)', advance='no') ', ' ! Space between columns
+                write(unit_number_real, '(A)', advance='no') ', '
+            endif
+        end do
+        write(unit_number_imag, *) ! New line after each row
+        write(unit_number_real, *)
+    end do
+    ! Close the file
+    close(unit_number_real)
+    close(unit_number_imag)
+
+  end subroutine dump_mat
 
 
   subroutine allocate_gsm(gsm,nbl)

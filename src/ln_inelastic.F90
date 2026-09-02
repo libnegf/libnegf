@@ -41,13 +41,29 @@ module ln_inelastic
 
     procedure, non_overridable :: set_Gr_pointer
     procedure, non_overridable :: set_Gn_pointer
+    procedure(abst_init_Sigma_r), deferred :: init_Sigma_r
+    procedure(abst_init_Sigma_n), deferred :: init_Sigma_n
 
   end type TInelastic
 
   contains
 
+  !>  Init Sigma_r : necessary for inelastic
+  subroutine abst_init_Sigma_r(this, spin)
+    import :: TInelastic
+    class(TInelastic) :: this
+    integer, intent(in), optional :: spin
+  end subroutine abst_init_Sigma_r
 
-  !> Set the Gr pointe
+  !>  Init Sigma_n : necessary for inelastic
+  subroutine abst_init_Sigma_n(this, spin)
+    import :: TInelastic
+    class(TInelastic) :: this
+    integer, intent(in), optional :: spin
+  end subroutine abst_init_Sigma_n
+
+
+  !> Set the Gr pointer
   subroutine set_Gr_pointer(this, Gr)
     class(TInelastic), intent(inout) :: this
     class(TMatrixCache), pointer :: Gr

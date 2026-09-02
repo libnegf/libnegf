@@ -29,8 +29,13 @@ module ln_constants
   
   real(dp), parameter    :: pi = 3.1415926535897932384_dp ! Greek p real
   real(dp), parameter    :: hh = 4.135667525931100d-15  ! eV s
+  real(dp), parameter    :: hbar = hh/(2*pi)            ! eV s
   real(dp), parameter    :: ee = 1.60217656d-19         ! C  
   real(dp), parameter    :: a0 = 0.529177249_dp         ! Ang
+  real(dp), parameter    :: c = 299792458               ! m/s
+  real(dp), parameter    :: eps0 = 8.854187871e-12      ! C^2 J^-1 m^-1
+  real(dp), parameter    :: esq_ov_eps0 = 18.095128168  ! eV nm. ratio between elementary charge squared and eps0.
+                                                        ! Comes from the fine-structure constant
 
   real(dp), parameter    :: eovh= 1.054181532603995d-3  ! A/H
   real(dp), parameter    :: Kb = 3.166811389002312d-6   ! H/K

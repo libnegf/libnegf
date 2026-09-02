@@ -34,7 +34,6 @@ MODULE sparsekit_drv
   public :: prealloc_sum, prealloc_mult
   public :: check_nnz, nzdrop, getdiag, trace, getelement
   public :: check_if_hermitian
-  public :: zcsr2blk_sod
 
   public :: zsumcsr1
   public :: ramub_st
@@ -742,17 +741,11 @@ CONTAINS
     CALL create(sp_out,sp_in%nrow,sp_in%ncol,sp_in%nnz)
 
     IF (sp_in%nnz.NE.0) THEN
-
-       DO i=1,sp_in%nnz
-          sp_out%nzval(i) = sp_in%nzval(i)
-          sp_out%colind(i) = sp_in%colind(i)
-       ENDDO
-
+      sp_out%nzval = sp_in%nzval
+      sp_out%colind = sp_in%colind
     ENDIF
 
-    DO i=1,sp_in%nrow+1
-       sp_out%rowpnt(i) = sp_in%rowpnt(i)
-    ENDDO
+    sp_out%rowpnt = sp_in%rowpnt
 
   END SUBROUTINE zclone_st
 
@@ -3402,38 +3395,6 @@ CONTAINS
     end select
 
   end subroutine error_msg
-
-  !------------------------------------------------------------
-  !> Convert a CSR in a block dense matrix, only taking the
-  !  diagonal and sub/over diag
-  subroutine zcsr2blk_sod(Acsr,Ablk,indblk,str)
-    INTEGER :: i
-    TYPE(z_CSR) :: Acsr
-    INTEGER :: nbl
-    TYPE(z_DNS), DIMENSION(:,:) :: Ablk
-    INTEGER, DIMENSION(:) :: indblk
-    character(len=*),intent(in),optional :: str
-
-    character(1) :: si1, si2
-    nbl = size(Ablk,1)
-
-    DO i=1,nbl
-      write(si1,'(I1)') i
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,Ablk(i,i),str//"("//si1//","//si1//")")
-
-    END DO
-
-    DO i=2,nbl
-
-      write(si1,'(I1)') i
-      write(si2,'(I1)') i-1
-      CALL extract(Acsr,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,Ablk(i-1,i),str//"("//si2//","//si1//")")
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,Ablk(i,i-1),str//"("//si1//","//si2//")")
-
-    END DO
-
-
-  end subroutine zcsr2blk_sod
 
 
 end module sparsekit_drv

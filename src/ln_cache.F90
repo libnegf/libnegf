@@ -237,7 +237,7 @@ contains
     integer, intent(out) :: bl
 
     integer :: r, c
-    
+
     if (.not.allocated(this%MatArray)) then
       call error_msg( "MatArray not allocated for "//trim(this%tagname))
     end if
@@ -252,7 +252,7 @@ contains
        call error_msg( "k_point out of range")
     end if
     if (label%spin < 1 .or. label%spin > size(this%MatArray,4)) then
-       print*,trim(this%tagname)   
+       print*,trim(this%tagname)
        call print_label(label)
        call error_msg( "spin out of range")
     end if
@@ -262,10 +262,10 @@ contains
     if (c >= r) then
        bl = (c-r)*this%Nblocks + c
     else
-       bl = 2*(r-c)*this%Nblocks + r   
+       bl = 2*(r-c)*this%Nblocks + r
     end if
     if (bl < 1 .or. bl > size(this%MatArray,3)) then
-       print*,trim(this%tagname)   
+       print*,trim(this%tagname)
        call print_label(label)
        print*, "bl=",bl
        call error_msg( "block out of range")
@@ -288,7 +288,7 @@ contains
          call destroy(p%matrix)
       else
          allocate(p%matrix)
-      end if   
+      end if
       p%matrix = matrix
     end associate
 
@@ -310,7 +310,7 @@ contains
          call destroy(p%matrix)
       else
          allocate(p%matrix)
-      end if   
+      end if
       p%matrix = matrix
     end associate
 
@@ -328,9 +328,9 @@ contains
     call checks(this, label, b) 
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        call destroy(matrix)    
-        matrix = p%matrix 
-      else      
+        call destroy(matrix)
+        matrix = p%matrix
+      else
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
         call error_msg( "Cannot retrieve matrix")
@@ -350,9 +350,9 @@ contains
     call checks(this, label, b) 
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        call destroy(matrix)    
-        matrix = p%matrix 
-      else      
+        call destroy(matrix)
+        matrix = p%matrix
+      else
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
         call error_msg( "Cannot retrieve matrix")
@@ -373,8 +373,8 @@ contains
     call checks(this, label, b) 
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        pmatrix => p%matrix 
-      else      
+        pmatrix => p%matrix
+      else
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
         call error_msg( "Cannot retrieve matrix")
@@ -394,8 +394,8 @@ contains
     call checks(this, label, b) 
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        pmatrix = c_loc(p%matrix%val) 
-      else      
+        pmatrix = c_loc(p%matrix%val)
+      else
         print*, 'Retrieve matrix for '//trim(this%tagname)
         call print_label(label)
         call error_msg( "Cannot retrieve matrix")
@@ -411,12 +411,12 @@ contains
 
     integer :: b
     
-    call checks(this, label, b) 
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-         val = .true. 
-      else      
-         val = .false. 
+         val = .true.
+      else
+         val = .false.
       end if
     end associate
   

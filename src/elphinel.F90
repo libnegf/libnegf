@@ -25,7 +25,8 @@
 module elphinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : sp, dp, lp => dp
-  use mat_def, only : z_csr, c_dns, z_dns, x_dns => z_dns, create, destroy, cross_product, volume
+  use mat_def, only : z_csr, c_dns, z_dns, x_dns => z_dns, create, destroy
+  use ln_math, only : cross_product, volume
   use ln_constants, only : pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
@@ -98,6 +99,8 @@ module elphinel
     procedure :: get_sigma_n_mat
     procedure :: set_Gr
     procedure :: set_Gn
+    procedure :: init_sigma_r
+    procedure :: init_sigma_n
     procedure :: compute_sigma_r
     procedure :: compute_sigma_n
     procedure :: destroy_sigma_r
@@ -199,7 +202,7 @@ contains
     select type(p => this%sigma_r)
     type is(TMatrixCacheMem)
       p%tagname = 'Sigma_r'
-    end select   
+    end select
 
     if (associated(this%sigma_n)) then
       call error_msg('Initialization of PO Phonon called twice') 
@@ -208,7 +211,7 @@ contains
     select type(p => this%sigma_n)
     type is(TMatrixCacheMem)
       p%tagname = 'Sigma_n'
-    end select   
+    end select
 
   end subroutine ElPhonPO_init
 
@@ -254,7 +257,7 @@ contains
       call error_msg('Initialization of non-PO Phonon called twice') 
     end if
     allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
-    
+
     if (associated(this%sigma_n)) then
       call error_msg('Initialization of non-PO Phonon called twice') 
     end if
@@ -722,6 +725,169 @@ contains
     integer, intent(in), optional  :: spin
   end subroutine set_Gn
 
+  subroutine init_sigma_r(this, spin)
+    class(ElPhonInel) :: this
+    integer, intent(in), optional :: spin
+
+    integer :: nbl, nEloc, nKloc, iK, iE, ibl
+    integer :: PL_start, Np, Mp
+    type(TMatLabel) :: label
+    type(x_DNS) :: tmp
+
+    nbl = this%struct%num_PLs
+    NEloc = this%nE_local
+    NKloc = size(this%local_kindex)
+
+    label%spin = 1
+    if (present(spin)) then
+       label%spin = spin
+    end if
+
+    select type(p => this%sigma_r)
+    class is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          if (this%tTridiagonal) then
+            call p%init(nEloc, nKloc, nbl, 3, 1)
+          else
+            call p%init(nEloc, nKloc, nbl, 1, 1)
+          end if
+       end if
+    end select
+
+    ! Init blocks of Sigma_r
+    do iK = 1, NKloc
+      do iE = 1, NEloc
+        label%kpoint = iK
+        label%energy_point = iE
+
+        do ibl = 1, nbl
+          PL_start = this%struct%mat_PL_start(ibl)
+          Np = this%struct%mat_PL_end(ibl) - PL_start + 1
+          associate(Sigma_r => this%Sigma_r)
+
+          ! Diag blocks
+          label%row_block = ibl
+          label%col_block = ibl
+          if (.not.Sigma_r%is_cached(label)) then
+            call create(tmp,Np,Np)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_r%add(tmp, label)
+            call destroy(tmp)
+          end if
+
+          if (this%tTridiagonal .and. ibl < nbl) then
+            PL_start = this%struct%mat_PL_start(ibl+1)
+            Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
+
+            ! Subdiag blocks
+            label%row_block = ibl
+            label%col_block = ibl + 1
+            if (.not.Sigma_r%is_cached(label)) then
+              call create(tmp,Np,Mp)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_r%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+            ! Overdiag blocks
+            label%row_block = ibl + 1
+            label%col_block = ibl
+            if (.not.Sigma_r%is_cached(label)) then
+              call create(tmp,Mp,Np)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_r%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+          end if
+          end associate
+        end do
+      end do
+    end do
+
+  end subroutine init_sigma_r
+
+  subroutine init_sigma_n(this, spin)
+    class(ElPhonInel) :: this
+    integer, intent(in), optional :: spin
+
+    integer :: nbl, nEloc, nKloc, iK, iE, ibl
+    integer :: PL_start, Np, Mp
+    type(TMatLabel) :: label
+    type(x_DNS) :: tmp
+
+    nbl = this%struct%num_PLs
+    NEloc = this%nE_local
+    NKloc = size(this%local_kindex)
+
+    label%spin = 1
+    if (present(spin)) then
+       label%spin = spin
+    end if
+
+    select type(p => this%sigma_n)
+    class is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          if (this%tTridiagonal) then
+            call p%init(nEloc, nKloc, nbl, 3, 1)
+          else
+            call p%init(nEloc, nKloc, nbl, 1, 1)
+          end if
+       end if
+    end select
+
+    ! Init blocks of Sigma_n
+    do iK = 1, NKloc
+      do iE = 1, NEloc
+        label%kpoint = iK
+        label%energy_point = iE
+
+        do ibl = 1, nbl
+          PL_start = this%struct%mat_PL_start(ibl)
+          Np = this%struct%mat_PL_end(ibl) - PL_start + 1
+          associate(Sigma_n => this%Sigma_n)
+
+          ! Diag blocks
+          label%row_block = ibl
+          label%col_block = ibl
+          if (.not.Sigma_n%is_cached(label)) then
+            call create(tmp,Np,Np)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_n%add(tmp, label)
+            call destroy(tmp)
+          end if
+
+          if (this%tTridiagonal .and. ibl < nbl) then
+            PL_start = this%struct%mat_PL_start(ibl+1)
+            Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
+
+            ! Subdiag blocks
+            label%row_block = ibl
+            label%col_block = ibl + 1
+            if (.not.Sigma_n%is_cached(label)) then
+              call create(tmp,Np,Mp)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_n%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+            ! Overdiag blocks
+            label%row_block = ibl + 1
+            label%col_block = ibl
+            if (.not.Sigma_n%is_cached(label)) then
+              call create(tmp,Mp,Np)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_n%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+          end if
+          end associate
+        end do
+      end do
+    end do
+
+  end subroutine init_sigma_n
 
   !--------------------------------------------------------------------------
   !> Give the Gn at given energy point to the interaction

@@ -25,6 +25,7 @@ module lib_param
   use ln_precision, only : dp, EPS15, set_drop
   use globals
   use mat_def
+  use ln_types
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use ln_messages
   use input_output
@@ -35,6 +36,7 @@ module lib_param
   use elphds, only : ElPhonDephS, ElPhonDephS_create, ElPhonDephS_init
   use elphinel, only : ElPhonPolarOptical, ElPhonPO_create, ElPhonPO_init
   use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
+  use elptinel, only : ElPhoton, ElPhoton_create, ElPhoton_init, set_Pmat
   use equiv_kpoints, only : TEqPointsArray
   use scba
   use ln_cache
@@ -45,7 +47,9 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, lnParams, intArray, complArray, realArray, TEnGrid, TInteractionList
+  public :: Tnegf, lnParams, TInteractionList
+  public :: TEnGrid
+  public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
   public :: destroy_interactions
@@ -56,36 +60,10 @@ module lib_param
   public :: set_elph_s_dephasing
   public :: set_elph_polaroptical
   public :: set_elph_nonpolaroptical
+  public :: set_elphoton
   integer, public, parameter :: MAXNCONT=10
   integer, public, parameter :: MAXNLAYERS=10000
 
-  type intArray
-    integer, dimension(:), allocatable :: indexes
-  end type intArray
-
-  type complArray
-    complex(dp), dimension(:), allocatable :: array
-  end type complArray
-
-  type realArray
-    real(dp), dimension(:), allocatable :: array
-  end type realArray
-
-  ! Array used to store the k-dependent matrices
-  type TMatrixArrayHS
-    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
-    type(z_CSR), pointer :: S => null()
-    integer    :: iS = 1                   ! spin-index (global)
-    logical    :: isSid = .false.          ! True if overlap S == Id
-    logical    :: internalHS = .true.      ! tells HS are internally allocated
-  end type TMatrixArrayHS
-
-  ! Array used to store the k-dependent matrices
-  type TMatrixArrayDM
-    type(z_CSR), pointer :: rho => null()  ! Holding output Matrix
-    integer    :: iS = 1                   ! spin-index (global)
-    logical    :: internalDM = .true.      ! tells DM is internally allocated
-  end type TMatrixArrayDM
 
 #:if defined("GPU")
   !Type definition of cublas and cusolver handles (no module defs?)
@@ -100,26 +78,6 @@ module lib_param
   public :: cusolverDnHandle
   public :: cublasHandle
 #:endif
-
-  !! Structure used to define energy points for the integration
-  !! For every point we define
-  !!     path (1,2 or 3): the energy point belongs to a real axis
-  !!     integration (1), a complex plane integration (2) or a
-  !!     pole summation (3)
-  !!     pt_path: relative point number within a single path
-  !!     pt: absolute point number along the whole integration path
-  !!     cpu: cpu assigned to the calculation of the given energy point
-  !!     Ec: energy value
-  !!     wght: a weight used in final summation to evaluate integrals
-  type TEnGrid
-     integer :: path
-     integer :: pt_path
-     integer :: pt
-     integer :: pt_cpu
-     integer :: cpu
-     complex(dp) :: Ec
-     complex(dp) :: wght
-  end type TEnGrid
 
   !-----------------------------------------------------------------------------
   ! Buttiker probe dephasing
@@ -221,6 +179,7 @@ module lib_param
     !! Runtime variables: used internally by the library
     type(format) :: form          ! Form of file-Hamiltonian
     logical  :: dumpHS            ! Used for debug
+    logical :: dump_matrices      ! Used for debug. Dumps Gn and A = i(Gr - Ga) for each iteration of the SCBA loop (in layer_currents)
     real(dp) :: muref             ! reference elec.chem potential
     real(dp) :: E                 ! Holding variable
     real(dp) :: dos               ! Holding variable
@@ -306,6 +265,7 @@ module lib_param
     logical :: tDestroyGr = .true.
     logical :: tDestroyGn = .true.
     logical :: tDestroyESH = .true.
+    logical :: tPhotonAbs = .false.
     ! Buttiker Probes dephasing
     logical :: tDephasingBP = .false.
     logical :: tDephasingVE = .false.
@@ -421,6 +381,7 @@ module lib_param
     !> Reference contact is set to maximum or minimum Fermi level
     integer(c_int) :: min_or_max
     logical(c_bool) :: is_s_is;
+    logical(c_bool) :: dump_matrices
   end type lnparams
 
 contains
@@ -558,6 +519,42 @@ contains
 
   end subroutine set_elph_nonpolaroptical
 
+  ! Setup electron-photon interactions
+  subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir,&
+    & niter, tridiag, deb_id, Pcsr)
+    type(Tnegf), intent(inout) :: negf
+    real(dp), intent(in) :: coupling
+    real(dp), intent(in) :: cell_volume
+    real(dp), intent(in) :: nr
+    real(dp), intent(in) :: Ephot
+    real(dp), intent(in) :: intens
+    integer, intent(in) :: poldir
+    integer, intent(in) :: niter
+    logical, intent(in) :: tridiag
+    integer, intent(in) :: deb_id
+    type(z_CSR), intent(in), allocatable, optional :: Pcsr(:)
+
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphoton_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhoton)
+#:if defined("MPI")
+    negf%tPhotonAbs = .true.
+    call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
+       &  nr, Ephot, intens, poldir, niter, tridiag, deb_id)
+    if (present(Pcsr)) then
+       call set_Pmat(pInter, Pcsr)
+    end if
+#:else
+    error stop "Inelastic scattering requires MPI"
+#:endif
+    class default
+    error stop 'ERROR: error of type downcast to ElPhonInel'
+    end select
+
+  end subroutine set_elphoton
+
 
   !> clean interactions objects
   subroutine destroy_interactions(negf)
@@ -650,6 +647,7 @@ contains
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer_blocks = 2   ! Compute full D.M. L,U extra
      negf%dumpHS = .false.
+     negf%dump_matrices = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
      negf%scba_elastic_tol = 1.d-7

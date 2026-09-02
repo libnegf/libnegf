@@ -52,6 +52,7 @@ struct lnparams {
   char dore[1];
   int min_or_max;
   bool is_s_is;
+  bool dump_matrices;
   };
 
 #endif

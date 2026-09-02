@@ -42,6 +42,7 @@ module integrations
  use ln_elastic
  use ln_inelastic
  use elphinel
+ use elptinel, only : ElPhoton, set_Pmat
  use ln_enums, only : integration_type
 #:if defined("MPI")
   use libmpifx_module
@@ -1912,6 +1913,73 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
+      call EKloop()
+
+      ! ---------------------------------------------------------------------
+      ! COMPUTE SELF-ENERGIES
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      call compute_Sigmas_inelastic(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      call gather_currents(negf)
+#:endif
+
+      !Check SCBA convergence on layer currents.
+      !In MPI runs only root has a meaningful result => Bcast the result
+      call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+      if (negf%cartComm%rank == 0) then
+        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
+        call write_real_info(negf%verbose, VBT, 'scba inelastic error',scba_inelastic_error)
+      end if
+#:if defined("MPI")
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
+
+      scba_iter = scba_iter + 1
+
+    end do scba
+
+    if (negf%tPhotonAbs) then
+      call photon_absorption()
+    end if
+
+    !call interaction_cleanup(negf)
+    call negf%scbaDriverInelastic%destroy()
+    call log_deallocate(curr_mat)
+    call log_deallocate(frm)
+    negf%refcont = ref_bk
+
+    contains
+
+    subroutine photon_absorption()
+
+      ! ---------------------------------------------------------------------
+      ! COMPUTE PHOTON SELF-ENERGY
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+      call compute_sigmas_photon(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' PHOTON SCBA ITERATION')
+      end if
+
+      ! Call E-k loop to update Gn after photon absorption
+      call EKloop()
+
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      call gather_currents(negf)
+#:endif
+
+    end subroutine photon_absorption
+
+    subroutine EKloop()
       negf%curr_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
@@ -1978,40 +2046,7 @@ contains
         call destroy_contact_matrices(negf)
 
       end do kloop
-
-      ! ---------------------------------------------------------------------
-      ! COMPUTE SELF-ENERGIES
-      ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      call compute_Sigmas_inelastic(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-      call electron_current_meir_wingreen(negf)
-
-#:if defined("MPI")
-      call gather_currents(negf)
-#:endif
-
-      !Check SCBA convergence on layer currents.
-      !In MPI runs only root has a meaningful result => Bcast the result
-      call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
-      if (negf%cartComm%rank == 0) then
-        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
-        call write_real_info(negf%verbose, VBT, 'scba inelastic error',scba_inelastic_error)
-      end if
-#:if defined("MPI")
-      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
-#:endif
-
-      scba_iter = scba_iter + 1
-
-    end do scba
-
-    !call interaction_cleanup(negf)
-    call negf%scbaDriverInelastic%destroy()
-    call log_deallocate(curr_mat)
-    call log_deallocate(frm)
-    negf%refcont = ref_bk
+    end subroutine EKloop
 
   end subroutine meir_wingreen
 
@@ -2039,6 +2074,9 @@ contains
     real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
     complex(dp) :: Ec
     type(z_CSR) :: G
+    type(z_CSR) :: Gr, A                                  ! DEBUG variable
+    complex(dp), dimension(:), allocatable :: diag        ! DEBUG variable
+    complex(dp), dimension(:,:), allocatable :: A_diags   ! DEBUG variable
 
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
@@ -2058,7 +2096,7 @@ contains
     ! Allocating ldos_mat to nbl
     if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat) 
     call log_allocate(negf%ldos_mat, Npoints, nbl)
-    call log_allocate(ldos_mat, nbl)
+    call log_allocate(ldos_mat, negf%str%central_dim)
 
     ! Clean up caches of G_r and G_n
     call negf%G_r%destroy()
@@ -2096,11 +2134,108 @@ contains
 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
+      !DEBUG routine
+      if (negf%dump_matrices) then
+        call log_allocate(A_diags, Npoints, negf%str%central_dim)
+        A_diags = 0.0_dp
+      end if
+
       if (negf%cartComm%rank == 0) then
         call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
       end if
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
+
+      call EKloop()
+
+      ! ---------------------------------------------------------------------
+      ! COMPUTE SELF-ENERGIES
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      call compute_Sigmas_inelastic(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      call gather_currents(negf)
+#:endif
+
+      !Check SCBA convergence on layer currents.
+      call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
+
+      if (negf%cartComm%rank == 0) then
+        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
+        call write_real_info(negf%verbose, 30, 'SCBA inelastic error',scba_inelastic_error)
+      end if
+
+#:if defined("MPI")
+      !In MPI runs only root has a meaningful result => Bcast the result
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
+
+      !DEBUG routine
+      if (negf%dump_matrices) then
+        call dump_ldos_mat_and_A(negf, A_diags, scba_iter)
+        call log_deallocate(A_diags)
+      end if
+
+      scba_iter = scba_iter + 1
+
+    end do scba
+
+    if (negf%tPhotonAbs) then
+      call photon_absorption()
+    end if
+
+    call negf%scbaDriverInelastic%destroy()
+    call log_deallocate(frm)
+    call log_deallocate(curr_mat)
+    call log_deallocate(ldos_mat)
+    negf%refcont = ref_bk
+
+    contains
+
+    subroutine photon_absorption()
+
+      ! ---------------------------------------------------------------------
+      ! COMPUTE PHOTON SELF-ENERGY
+      ! ---------------------------------------------------------------------
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+      call compute_sigmas_photon(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
+
+      !DEBUG routine
+      if (negf%dump_matrices) then
+        call log_allocate(A_diags, Npoints, negf%str%central_dim)
+        A_diags = 0.0_dp
+      end if
+
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' PHOTON SCBA ITERATION')
+      end if
+
+      ! Call E-k loop to update Gn after photon absorption
+      call EKloop()
+
+      call electron_current_meir_wingreen(negf)
+
+#:if defined("MPI")
+      call gather_currents(negf)
+
+      !In MPI runs only root has a meaningful result => Bcast the result
+      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+#:endif
+
+      !DEBUG routine
+      if (negf%dump_matrices) then
+        call dump_ldos_mat_and_A(negf, A_diags, scba_iter)
+        call log_deallocate(A_diags)
+      end if
+
+    end subroutine photon_absorption
+
+    subroutine EKloop()
 
       negf%curr_mat = 0.0_dp
       negf%ldos_mat = 0.0_dp
@@ -2135,7 +2270,17 @@ contains
           ! Avoids cleanup of block-dense Gn for layer currents (ESH is recomputed)
           negf%tDestroyGn = .false.
 
-          call compute_Gn(negf, outer, ncont, Ec, frm, G, scba_elastic_error)
+          call compute_Gn(negf, outer, ncont, Ec, frm, G, scba_elastic_error, Gr)
+
+          !DEBUG ROUTINE
+          if (negf%dump_matrices) then
+            call zspectral(Gr, Gr, 0, A)
+            call log_allocate(diag, negf%H%nrow)
+            call getdiag(A, diag)
+            A_diags(iE, :) = A_diags(iE, :) + diag(:)*negf%kwght
+            call log_deallocate(diag)
+            call destroy(Gr, A)
+          end if
 
           call destroy(G)
           ! ---------------------------------------------------------------------
@@ -2156,41 +2301,7 @@ contains
 
       end do kloop
 
-      ! ---------------------------------------------------------------------
-      ! COMPUTE SELF-ENERGIES
-      ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      call compute_Sigmas_inelastic(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-      call electron_current_meir_wingreen(negf)
-
-#:if defined("MPI")
-      call gather_currents(negf)
-#:endif
-
-      !Check SCBA convergence on layer currents.
-      call negf%scbaDriverInelastic%check_J_convergence(negf%currents)
-
-      if (negf%cartComm%rank == 0) then
-        scba_inelastic_error = negf%scbaDriverInelastic%scba_error()
-        call write_real_info(negf%verbose, 30, 'SCBA inelastic error',scba_inelastic_error)
-      end if
-
-#:if defined("MPI")
-      !In MPI runs only root has a meaningful result => Bcast the result
-      call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
-#:endif
-
-      scba_iter = scba_iter + 1
-
-    end do scba
-
-    call negf%scbaDriverInelastic%destroy()
-    call log_deallocate(frm)
-    call log_deallocate(curr_mat)
-    call log_deallocate(ldos_mat)
-    negf%refcont = ref_bk
+    end subroutine EKloop
 
   end subroutine layer_current
 
@@ -2253,6 +2364,14 @@ contains
           call pInter%set_kpoints(negf%kpoints, negf%kweights, negf%local_k_index)
         end if
         call pInter%prepare()
+
+      class is(ElPhoton)
+        deltaE = real(negf%en_grid(2)%Ec - negf%en_grid(1)%Ec)
+        call pInter%set_EnGrid(deltaE, size(negf%en_grid), negf%local_en_points)
+        if (.not.pInter%is_Pmat_set()) then
+           call set_Pmat(pInter, negf%HS)
+        end if
+        call pInter%prepare()
       end select
       it => it%next
     end do
@@ -2269,14 +2388,45 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (TInelastic)
-        call pInter%destroy_Sigma_n()
-        call pInter%compute_Sigma_n(spin=negf%spin)
-        call pInter%destroy_Sigma_r()
-        call pInter%compute_Sigma_r(spin=negf%spin)
+
+        if (pInter%scba_niter .eq. 0) then
+          call pInter%init_Sigma_n(spin=negf%spin)
+          call pInter%init_Sigma_r(spin=negf%spin)
+
+        else if (pInter%scba_iter < pInter%scba_niter) then
+          call pInter%destroy_Sigma_n()
+          call pInter%init_Sigma_n(spin=negf%spin)
+          call pInter%compute_Sigma_n(spin=negf%spin)
+          call pInter%destroy_Sigma_r()
+          call pInter%init_Sigma_r(spin=negf%spin)
+          call pInter%compute_Sigma_r(spin=negf%spin)
+        end if
+
       end select
       it => it%next
     end do
   end subroutine compute_sigmas_inelastic
+
+  subroutine compute_sigmas_photon(negf)
+    type(TNegf) :: negf
+
+    type(TInteractionNode), pointer :: it
+    it => negf%interactList%first
+
+    do while (associated(it))
+      select type(pInter => it%inter)
+      class is (ElPhoton)
+        call pInter%destroy_Sigma_n()
+        call pInter%init_Sigma_n(spin=negf%spin)
+        call pInter%compute_Sigma_n(spin=negf%spin)
+        call pInter%destroy_Sigma_r()
+        call pInter%init_Sigma_r(spin=negf%spin)
+        ! We don't compute Sigma_r
+
+      end select
+      it => it%next
+    end do
+  end subroutine compute_sigmas_photon
 
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_elastic(negf)
@@ -3113,9 +3263,11 @@ contains
        call getdiag(Gr,diag)
 
        do nr = 1,Nz
-         ff = fermi(Ez, mu_n(nr), kbT)
-         ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
-         temp(nr) = temp(nr) + diag(nr)*ww
+          !if (real(Ez) > minE(nr) .and. real(Ez) < maxE(nr)) then
+             ff = fermi(Ez, mu_n(nr), kbT)
+             ww = negf%g_spin * negf%kwght * wght(i) * z_diff * ff/(2.0_dp*pi)
+             temp(nr) = temp(nr) + diag(nr)*ww
+          !endif
        enddo
 
        call log_deallocate(diag)
@@ -3310,6 +3462,55 @@ contains
     deallocate(temp)
 
   end subroutine quasiEq_int_p
+
+  subroutine dump_ldos_mat_and_A(negf, A, iter)
+    type(TNegf) :: negf
+    complex(dp), dimension(:,:) :: A
+    integer :: iter
+
+    integer :: iE, ix, nE, nx
+    character(200) :: filename1, filename2
+
+    if (id0) then
+      associate(ldos => negf%ldos_mat)
+
+      nE = size(ldos, 1)
+      nx = size(ldos, 2)
+
+      ! Open the file for writing
+      write(filename1, '("Gn_it_",I0,".dat")') iter
+      write(filename2, '("LDOS_it_",I0,".dat")') iter
+      open(unit=10, file=trim(filename1), status='replace')
+      open(unit=20, file=trim(filename2), status='replace')
+
+      do iE = 1,nE
+        do ix = 1,nx
+          if (ldos(iE,ix)>0.0_dp) then
+            write(10, '(E15.8)', advance='no') ldos(iE, ix)
+          else
+            write(10, '(E15.8)', advance='no') 0.0_dp
+          end if
+          if (real(A(iE,ix))>0.0_dp) then
+            write(20, '(E15.8)', advance='no') real(A(iE, ix))
+          else
+            write(20, '(E15.8)', advance='no') 0.0_dp
+          end if
+          if (ix < nx) then
+            write(10, '(A)', advance='no') ', '
+            write(20, '(A)', advance='no') ', '
+          end if
+
+        end do
+        write(10, *) ! newline
+        write(20, *) ! newline
+      end do
+
+      end associate
+      close(10)
+      close(20)
+    end if
+
+  end subroutine dump_ldos_mat_and_A
 
 end module integrations
 

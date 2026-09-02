@@ -1307,6 +1307,8 @@ subroutine negf_set_elph_dephasing(handler, coupling, coupling_size, scba_niter)
 
   call set_elph_dephasing(LIB%pNEGF, coupling_tmp, scba_niter)
 
+  deallocate(coupling_tmp)
+
 end subroutine negf_set_elph_dephasing
 
 
@@ -1337,6 +1339,9 @@ subroutine negf_set_elph_block_dephasing(handler, coupling, coupling_size, orbsp
 
   call set_elph_block_dephasing(LIB%pNEGF, coupling_tmp, orbsperatm_tmp, scba_niter)
 
+  deallocate(coupling_tmp)
+  deallocate(orbsperatm_tmp)
+
 end subroutine negf_set_elph_block_dephasing
 
 
@@ -1366,6 +1371,9 @@ subroutine negf_set_elph_s_dephasing(handler, coupling, coupling_size, orbsperat
   orbsperatm_tmp(:) = orbsperatm(1:orbsperatm_size)
 
   call set_elph_s_dephasing(LIB%pNEGF, coupling_tmp, orbsperatm_tmp, scba_niter)
+
+  deallocate(coupling_tmp)
+  deallocate(orbsperatm_tmp)
 
 end subroutine negf_set_elph_s_dephasing
 
@@ -1402,6 +1410,8 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
 
   call set_elph_polaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, eps_r, eps_inf, q0, cell_area, scba_niter, trid_tmp)
 
+  deallocate(coupling_tmp)
+
 end subroutine negf_set_elph_polaroptical
 
 
@@ -1434,7 +1444,61 @@ subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, 
 
   call set_elph_nonpolaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, D0, cell_area, scba_niter, trid_tmp)
 
+  deallocate(coupling_tmp)
+
 end subroutine negf_set_elph_nonpolaroptical
+
+
+subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, intens, nK, nrow, nnz, IP, JP, P, poldir, &
+  &  scba_niter, trid, deb_id) bind(c)
+  use iso_c_binding, only : c_int, c_double, c_bool, c_double_complex ! if:mod:use
+  use libnegfAPICommon  ! if:mod:use
+  use libnegf   ! if:mod:use
+  use ln_precision      ! if:mod:use
+  use lib_param      ! if:mod:use
+  use mat_def, only: z_CSR, destroy, set_CSR  ! if:mod:use
+  implicit none
+  integer(c_int) :: handler(DAC_handlerSize)            ! if:var:in
+  integer(c_int), intent(in), value :: coup_size        ! if:var:in
+  real(c_double), intent(in) :: coupling(coup_size)     ! if:var:in
+  real(c_double), intent(in), value :: cell_vol             ! if:var:in
+  real(c_double), intent(in), value :: nr               ! if:var:in
+  real(c_double), intent(in), value :: Ephot               ! if:var:in
+  real(c_double), intent(in), value :: intens           ! if:var:in
+  integer(c_int), intent(in), value :: nK               ! if:var:in
+  integer(c_int), intent(in), value :: nrow             ! if:var:in
+  integer(c_int), intent(in), value :: nnz              ! if:var:in
+  integer(c_int), intent(in) :: IP(nK,nrow+1)           ! if:var:in
+  integer(c_int), intent(in) :: JP(nK,nnz)              ! if:var:in
+  complex(c_double_complex), intent(in) :: P(nK,nnz)    ! if:var:in
+  integer(c_int), intent(in), value :: poldir       ! if:var:in
+  integer(c_int), intent(in), value :: scba_niter       ! if:var:in
+  logical(c_bool), intent(in) :: trid                   ! if:var:in
+  integer(c_int), intent(in), value :: deb_id       ! if:var:in
+
+  type(NEGFpointers) :: LIB
+  logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
+  type(z_CSR), dimension(:), allocatable :: Pcsr
+  type(z_CSR) :: Pk
+  integer :: iK
+
+  LIB = transfer(handler, LIB)
+  allocate(Pcsr(nK))
+  trid_tmp = logical(trid)
+
+  do iK = 1,nK
+    call set_CSR(nrow, P(iK,:), JP(iK,:), IP(iK,:), Pcsr(iK))
+  end do
+
+  call set_elphoton(LIB%pNEGF, coupling(1), cell_vol, nr, Ephot, intens, poldir, &
+                      & scba_niter, trid_tmp, deb_id, Pcsr)
+
+  do iK = 1,nK
+    call destroy(Pcsr(iK))
+  end do
+  deallocate(Pcsr)
+
+end subroutine negf_set_elphot
 
 
 subroutine negf_set_scba_tolerances(handler, elastic_tol, inelastic_tol) bind(c)
