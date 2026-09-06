@@ -36,7 +36,6 @@ set(sources-fpp
     elphds.F90
     elphinel.F90
     elptinel.F90
-    self_energy.F90
     scba.F90
     sparskit/skit_blassm.F90
     sparskit/skit_formats.F90

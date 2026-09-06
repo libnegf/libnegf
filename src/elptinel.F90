@@ -57,6 +57,10 @@ module elptinel
     module procedure :: set_Pmat_struct
   end interface set_Pmat
 
+  type, public :: TMatPointer
+    type(x_DNS), pointer :: pMat
+  end type TMatPointer
+
   type, extends(TInelastic) :: ElPhoton
     private
     !> communicator of the cartesian grid
