@@ -356,13 +356,11 @@ contains
     class(ElPhonPolarOptical) :: this
 
     integer :: iZ, iQ, eQ, iK, nDeltaZ, nCentralAtoms, n_eq
-    real(dp) :: kq(3), kk(3), ekp(3), QQ(3), Q2, bb, z_mn, Kf
-    real(dp) :: zmin, zmax, err
-
-    integer :: transDir, r2, nG, iG, nKpoints
-    type(TEqPoint) :: eqv_points_iQ
+    real(dp) :: kq(3), dk(3), QQ(3), Q2, bb, z_mn, Kf
+    real(dp) :: zmin, zmax
     real(dp), allocatable :: myKmat(:,:)
-    logical :: converged
+    integer :: transDir, nKpoints, iG
+    type(TEqPoint) :: eqv_points_iQ
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
@@ -392,10 +390,9 @@ contains
     ! {G} = rVec2Pi * {(1,0,0),(0,1,0),(-1,0,0),(0,-1,0),(1,1,0),(1,-1,0),...}
     ! ISSUE: The G summation does not converge, so we restrict to first BZ
     iQloop: do iQ = 1, nKpoints
-
-       do iK = 1, nKpoints
-         !QQ = kpoint(:, iK) - kpoint(:, iQ) + Gpoint(:, iG)
-         call fold_into_BZ(this%kpoint(:,iK)-this%kpoint(:,iQ), kQ)
+       iKloop: do iK = 1, nKpoints
+         dk(:) = this%kpoint(:,iK)-this%kpoint(:,iQ)
+         call fold_into_BZ(dk, kQ)
          ! We now get QQ in absolute coordinates
          QQ = matmul(this%recVecs2p, kQ)
          Q2 = dot_product(QQ, QQ)
@@ -405,6 +402,8 @@ contains
            z_mn = iZ * this%dz
            myKmat(iZ+1,iK) = myKmat(iZ+1,iK) + & 
                  & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+           !Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+           !this%Kmat(iZ+1,iK,iQ) = this%Ce * this%kweight(iQ) * Kf
          end do
 
          ! Add contribution of kpoints equivalent to iQ
@@ -414,8 +413,8 @@ contains
            n_eq = size(eqv_points_iQ%points, 2)
 
            do eQ = 1, n_eq
-             !QQ = kpoint(:, iK) - ekpoints(:, eQ) + Gpoint(:, iG)
-             call fold_into_BZ(this%kpoint(:,iK)-eqv_points_iQ%points(:,eQ), kQ)
+             dk(:) = this%kpoint(:,iK)-eqv_points_iQ%points(:,eQ)
+             call fold_into_BZ(dk, kQ)
              QQ = matmul(this%recVecs2p, kQ)
              Q2 = dot_product(QQ, QQ)
              bb = sqrt(this%q0*this%q0 + Q2)
@@ -426,7 +425,7 @@ contains
              end do
            end do
          end if
-       end do !Loop over iK
+       end do iKloop 
        this%Kmat(:,:,iQ) = myKmat(:,:) * this%Ce * this%kweight(iQ)
     end do iQloop
 
