@@ -32,18 +32,17 @@ public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 public :: c_DNS, s_CSR, c_CSR! single precision defs
 public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
+public :: set_CSR
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 public :: createp, destroyp
 public :: assignment(=)
 
-public :: cross_product, volume
-public :: init_tridiag_blk, destroy_tridiag_blk, blk2dns, dns2blk, destroy_full_blk!, dns2trid_blk, trid_blk2dns
-
 interface create
    module procedure zcreate_CSR
    module procedure rcreate_CSR
+   module procedure ccreate_CSR
    module procedure zcreate_CSC
    module procedure rcreate_CSC
    module procedure zcreate_MSR
@@ -136,11 +135,6 @@ end interface
 
 interface writemem
    module procedure zwriteMem_CSR
-end interface
-
-interface destroy_tridiag_blk
-   module procedure destroy_tridiag_blk_2d
-   module procedure destroy_tridiag_blk_3d
 end interface
 
 ! Compressed Sparse Row
@@ -375,6 +369,25 @@ subroutine zcreate_CSR(mat,nrow,ncol,nnz)
   call log_allocate(mat%rowpnt,nrow+1)
 
 end subroutine zcreate_CSR
+! ------------------------------------------------------------------
+
+subroutine ccreate_CSR(mat,nrow,ncol,nnz)
+  type(c_CSR) :: mat
+  integer :: nrow, ncol, nnz
+
+  mat%nnz=nnz
+  mat%nrow=nrow
+  mat%ncol=ncol
+  mat%sorted = .false.
+
+  if(nnz.ne.0) then
+     call log_allocate(mat%nzval,nnz)
+     call log_allocate(mat%colind,nnz)
+  endif
+
+  call log_allocate(mat%rowpnt,nrow+1)
+
+end subroutine ccreate_CSR
 ! ------------------------------------------------------------------
 
 subroutine zinit_CSR(mat)
@@ -1161,69 +1174,74 @@ subroutine zdestroy_EXT_COO(mat)
 end subroutine zdestroy_EXT_COO
 ! ------------------------------------------------------------------
 
-subroutine zcreate_DNS(mat,nrow,ncol)
+subroutine zcreate_DNS(mat,nrow,ncol,tag)
 
   type(z_DNS) :: mat
   integer :: nrow, ncol
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag=tag)
 
 end subroutine zcreate_DNS
 ! ------------------------------------------------------------------
 
-subroutine ccreate_DNS(mat,nrow,ncol)
+subroutine ccreate_DNS(mat,nrow,ncol,tag)
 
   type(c_DNS) :: mat
   integer :: nrow, ncol
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (ccreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag=tag)
 
 end subroutine ccreate_DNS
 ! ------------------------------------------------------------------
-subroutine rcreate_DNS3(mat,nrow,ncol,npoints)
+subroutine rcreate_DNS3(mat,nrow,ncol,npoints,tag)
   type(r_DNS3) :: mat
   integer :: nrow, ncol, npoints
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
   mat%npoints=npoints
-  call log_allocate(mat%val,nrow,ncol,npoints)
+  call log_allocate(mat%val,nrow,ncol,npoints,tag=tag)
 end subroutine rcreate_DNS3
 ! ------------------------------------------------------------------
 
-subroutine zcreate_DNS3(mat,nrow,ncol,npoints)
+subroutine zcreate_DNS3(mat,nrow,ncol,npoints,tag)
   type(z_DNS3) :: mat
   integer :: nrow, ncol, npoints
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
   mat%npoints=npoints
-  call log_allocate(mat%val,nrow,ncol,npoints)
+  call log_allocate(mat%val,nrow,ncol,npoints,tag=tag)
 end subroutine zcreate_DNS3
 ! ------------------------------------------------------------------
 
-subroutine ccreate_DNS3(mat,nrow,ncol,npoints)
+subroutine ccreate_DNS3(mat,nrow,ncol,npoints,tag)
   type(c_DNS3) :: mat
   integer :: nrow, ncol, npoints
+  character(len=*), optional :: tag
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (ccreate_DNS3) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
   mat%npoints=npoints
-  call log_allocate(mat%val,nrow,ncol,npoints)
+  call log_allocate(mat%val,nrow,ncol,npoints,tag=tag)
 end subroutine ccreate_DNS3
 ! ------------------------------------------------------------------
 
@@ -1835,17 +1853,18 @@ end subroutine rdestroy_COO
 
 ! ------------------------------------------------------------------
 
-subroutine rcreate_DNS(mat,nrow,ncol)
+subroutine rcreate_DNS(mat,nrow,ncol,tag)
 
- type(r_DNS) :: mat
- integer :: nrow, ncol
+  type(r_DNS) :: mat
+  integer :: nrow, ncol
+  character(len=*), optional :: tag
 
 
   if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (rcreate_DNS) nrow or ncol = 0'
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag=tag)
 
 end subroutine rcreate_DNS
 ! ------------------------------------------------------------------
@@ -2172,217 +2191,5 @@ subroutine zPrint_DNS(id, A, fmt)
     enddo
   endif
 end subroutine zPrint_DNS
-
-subroutine cross_product(vec1, vec2, vec3)
-   real(dp), dimension(3), intent(in) :: vec1, vec2
-   real(dp), dimension(3), intent(out) :: vec3
-
-   vec3 = 0.0_dp
-
-   vec3(1) = vec1(2) * vec2(3) - vec1(3) * vec2(2)
-   vec3(2) = vec1(3) * vec2(1) - vec1(1) * vec2(3)
-   vec3(3) = vec1(1) * vec2(2) - vec1(2) * vec2(1)
-
-end subroutine cross_product
-
-function volume(vec1, vec2, vec3) result (vol)
-   real(dp), dimension(3), intent(in) :: vec1, vec2, vec3
-   real(dp) :: vol
-
-   real(dp), dimension(3) :: cross_prod
-
-   call cross_product(vec2, vec3, cross_prod)
-   vol = dot_product(vec1, cross_prod)
-
-end function volume
-
-subroutine destroy_tridiag_blk_2d(M)
-   type(z_DNS), dimension(:,:), allocatable :: M
-
-   integer :: i, nbl
-
-   if (.not.allocated(M)) return
-
-   nbl=size(M,1)
-
-   do i=1,nbl
-     if (allocated(M(i,i)%val)) then
-       call destroy(M(i,i))
-     end if
-   end do
-   do i=2,nbl
-     if (allocated(M(i-1,i)%val)) then
-       call destroy(M(i-1,i))
-     end if
-     if (allocated(M(i,i-1)%val)) then
-       call destroy(M(i,i-1))
-     end if
-   end do
-
- end subroutine destroy_tridiag_blk_2d
-
- subroutine destroy_tridiag_blk_3d(M)
-   type(z_DNS), dimension(:,:,:), allocatable :: M
-
-   integer :: i, k, nbl, nK
-
-   if (.not.allocated(M)) return
-
-   nbl=size(M,2)
-   nK=size(M,1)
-
-   do k = 1,nK
-      do i=1,nbl
-      if (allocated(M(k,i,i)%val)) then
-         call destroy(M(k,i,i))
-      end if
-      end do
-      do i=2,nbl
-      if (allocated(M(k,i-1,i)%val)) then
-         call destroy(M(k,i-1,i))
-      end if
-      if (allocated(M(k,i,i-1)%val)) then
-         call destroy(M(k,i,i-1))
-      end if
-      end do
-   end do
-
- end subroutine destroy_tridiag_blk_3d
-
- subroutine destroy_full_blk(M)
-   type(z_DNS), dimension(:,:), allocatable :: M
-
-   integer :: i, j, nbl
-
-   if (.not.allocated(M)) return
-
-   nbl=size(M,1)
-
-   do i=1,nbl
-     do j=1,nbl
-       if (allocated(M(i,j)%val)) then
-         call destroy(M(i,j))
-       end if
-     end do
-   end do
-
- end subroutine destroy_full_blk
-
- subroutine init_tridiag_blk(Matrix,S)
-   type(z_DNS), dimension(:,:) :: Matrix,S
-
-   integer :: nbl, j
-
-   nbl = SIZE(Matrix,1)
-
-#:if defined("GPU")
-   call createAll(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
-   Matrix(1,1)%val=(0.0_dp,0.0_dp)
-   if (nbl.gt.1) then
-      do j=2,nbl
-        call createAll(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
-        Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
-        call createAll(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
-        Matrix(j,j)%val=(0.0_dp,0.0_dp)
-        call createAll(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
-        Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
-      end do
-   endif
-#:else
-   ! if (allocated(Matrix(1,1)%val)) call destroy(Matrix(1,1))
-   call create(Matrix(1,1),S(1,1)%nrow,S(1,1)%ncol)
-   Matrix(1,1)%val=(0.0_dp,0.0_dp)
-   if (nbl.gt.1) then
-      do j=2,nbl
-      !   if (allocated(Matrix(j-1,j)%val)) call destroy(Matrix(j-1,j))
-        call create(Matrix(j-1,j),S(j-1,j)%nrow,S(j-1,j)%ncol)
-        Matrix(j-1,j)%val=(0.0_dp,0.0_dp)
-      !   if (allocated(Matrix(j,j)%val)) call destroy(Matrix(j,j))
-        call create(Matrix(j,j),S(j,j)%nrow,S(j,j)%ncol)
-        Matrix(j,j)%val=(0.0_dp,0.0_dp)
-      !   if (allocated(Matrix(j,j-1)%val)) call destroy(Matrix(j,j-1))
-        call create(Matrix(j,j-1),S(j,j-1)%nrow,S(j,j-1)%ncol)
-        Matrix(j,j-1)%val=(0.0_dp,0.0_dp)
-      end do
-   endif
-#:endif
- end subroutine init_tridiag_blk
-
- ! TRIDIAG blk-sparse to dense conversion
- ! CAREFUL! Does not work for generic blk matrices,
- ! but only if the dimensions of Gdns are the same as str%central_dim = nrow(H) = ncol(H)
- subroutine blk2dns(G,str,Gdns)
-   type(z_DNS), dimension(:,:), intent(in) :: G
-   type(Tstruct_info), intent(in) :: str
-   type(z_DNS) :: Gdns
-
-   integer :: n, m, ii, jj, pl_start1, pl_end1, pl_start2, pl_end2, nbl, nrows
-
-   nbl = str%num_PLs
-   nrows = str%central_dim
-   call create(Gdns,nrows,nrows)
-
-   do n = 1, nbl
-     do m= 1, nbl
-        pl_start1 = str%mat_PL_start(n)
-        pl_end1 = str%mat_PL_end(n)
-        pl_start2 = str%mat_PL_start(m)
-        pl_end2 = str%mat_PL_end(m)
-
-        if (allocated(G(n,m)%val)) then
-          do ii = 1, pl_end1 - pl_start1 + 1
-            do jj = 1, pl_end2 - pl_start2 + 1
-                  ! if (id0) print*, "DEBUG: check2.5"
-               Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = G(n,m)%val(ii,jj)
-            end do
-          end do
-        else
-         do ii = 1, pl_end1 - pl_start1 + 1
-            do jj = 1, pl_end2 - pl_start2 + 1
-               Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1) = 0.0_dp
-            end do
-          end do
-        end if
-
-     end do
-   end do
-
- end subroutine blk2dns
-
- ! dense to blk-sparse conversion
- ! CAREFUL! Does not work for generic tri-diagonal blk matrices,
- ! but only if the dimensions of G are the same as str%central_dim = nrow(H) = ncol(H)
- ! Also, it does not work with tridiagonal blocks, but only with fully allocated blk matrices
- subroutine dns2blk(Gdns,str,Gblk)
-   type(z_DNS), intent(in) :: Gdns
-   type(Tstruct_info), intent(in) :: str
-   type(z_DNS), allocatable, dimension(:,:) :: Gblk
-
-   integer :: n, m, ii, jj, pl_start1, pl_end1, pl_start2, pl_end2, nbl, nrows
-
-   nbl = str%num_PLs
-   nrows = str%central_dim
-   allocate(Gblk(nbl,nbl))
-   ! call create(Gdns,nrows,nrows)
-
-   do n = 1, nbl
-     do m= 1, nbl
-        pl_start1 = str%mat_PL_start(n)
-        pl_end1 = str%mat_PL_end(n)
-        pl_start2 = str%mat_PL_start(m)
-        pl_end2 = str%mat_PL_end(m)
-
-        if (allocated(Gblk(n,m)%val)) call destroy(Gblk(n,m))
-        call create(Gblk(n,m), pl_end1-pl_start1+1, pl_end2-pl_start2+1)
-
-        do ii = 1, pl_end1 - pl_start1 + 1
-          do jj = 1, pl_end2 - pl_start2 + 1
-            Gblk(n,m)%val(ii,jj) = Gdns%val(pl_start1 + ii - 1,pl_start2 + jj - 1)
-          end do
-        end do
-     end do
-   end do
- end subroutine dns2blk
-
 
 end module mat_def

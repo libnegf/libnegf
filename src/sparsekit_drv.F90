@@ -572,7 +572,7 @@ CONTAINS
     if (ierr.ne.0) then
        call error_msg('(rsumcsrs)',OUTOFBOUND)
     end if
-    
+
     call log_deallocate(iw)
 
     ENDIF
@@ -736,7 +736,6 @@ CONTAINS
     IMPLICIT NONE
 
     TYPE(z_CSR) :: sp_in,sp_out
-    INTEGER :: i
 
     CALL create(sp_out,sp_in%nrow,sp_in%ncol,sp_in%nnz)
 
@@ -1810,7 +1809,7 @@ CONTAINS
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
         call error_msg('(zmultccsr)',MISMATCH)
     ENDIF
-        
+
     !Comment: routine "bandwidth()" does not longer accept argument bndav as integer, so it has been defined as real(dp)
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -2157,10 +2156,10 @@ CONTAINS
 
     if (A_csr%nrow.ne.B_csr%nrow) then
        call messages_error_msg('Error in aplb subroutine: nrow differ')
-    end if   
+    end if
     if (A_csr%ncol.ne.B_csr%ncol) then
        call messages_error_msg('Error in aplb subroutine: ncol differ')
-    end if   
+    end if
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2489,8 +2488,8 @@ CONTAINS
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
        call error_msg('',0)
     ENDIF
- 
-    call create(A_dns,(i2-i1+1),(j2-j1+1),tag=str)
+
+    call create(A_dns,(i2-i1+1),(j2-j1+1),str)
     A_dns%val=(0.0_dp,0.0_dp)
 
     do i = i1, i2
@@ -2881,8 +2880,8 @@ CONTAINS
     endif
 
   end subroutine zspectral_dns
-  
-  
+
+
   subroutine cspectral_dns(GreenR1,GreenR2,flagR,A)
     implicit none
 
@@ -3391,7 +3390,7 @@ CONTAINS
     case(CONVERR)
        call messages_error_msg('ERROR '//trim(string)//' conversion error')
     case default
-       call messages_error_msg(trim(string))     
+       call messages_error_msg(trim(string))
     end select
 
   end subroutine error_msg

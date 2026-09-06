@@ -24,7 +24,7 @@ module iterative
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
   use ln_messages
-  use mat_def, only : z_DNS, z_CSR, r_CSR
+  use mat_def, only : z_DNS, z_CSR, r_CSR, create, destroy
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use sparsekit_drv
@@ -382,12 +382,12 @@ CONTAINS
   ! The subroutine assumes that Gr and Gn are available
   ! set negf%tDestroyGr,Gn = .false. when computing Gn
   !---------------------------------------------------------------------
-  subroutine iterative_meir_wingreen(negf,E,SelfEneR,frm,curr_mat)
+  subroutine iterative_meir_wingreen(negf,E,SelfEneR,frm,ecurr)
     type(Tnegf), intent(inout) :: negf
     real(dp) :: E
     type(z_DNS), dimension(:) :: SelfEneR
     real(dp), dimension(:) :: frm
-    real(dp), dimension(:) :: curr_mat
+    real(dp), dimension(:) :: ecurr
 
     !Work
     complex(dp) :: tmp
@@ -405,7 +405,7 @@ CONTAINS
       call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
       tmp = cmplx(-frm(lead),0.0_dp, dp)
       call prealloc_mult(Gam, A, tmp, work1)
-      curr_mat(ii) = -real(trace(work1))
+      ecurr(ii) = -real(trace(work1))
 
       call destroy(work1)
       call destroy(Gam)
@@ -427,21 +427,22 @@ CONTAINS
   ! Note : ESH(ii,ii+1) are not changed by diagonal Sigma^r
   !        With non-diagonal sigma^r ESH must be recomputed
   !
-  subroutine iterative_layer_current(negf,E,curr_mat,ldos_mat)
+  subroutine iterative_layer_current(negf,E,ecurr,ledos)
     type(Tnegf), intent(inout) :: negf
     real(dp), intent(in) :: E
-    real(dp), dimension(:), intent(inout) :: curr_mat
-    real(dp), dimension(:), intent(inout), optional :: ldos_mat
+    real(dp), dimension(:), intent(inout) :: ecurr
+    real(dp), dimension(:), intent(inout), optional :: ledos
 
-    integer :: nbl, ii
-    type(z_DNS) :: work1
+    integer :: nbl, ii, nrows, start
+    type(z_DNS) :: Gn_dns, work1
     type(z_CSR) :: ESH_tot
     complex(dp) :: Ec
+    complex(dp), dimension(:), allocatable :: diag
 
     nbl = negf%str%num_PLs
 
-    if (size(curr_mat) .ne. nbl-1) then
-       call error_msg('ERROR: curr_mat with wrong size in iterative_layer_current')
+    if (size(ecurr) .ne. nbl-1) then
+       call error_msg('ERROR: ecurr with wrong size in iterative_layer_current')
     end if
 
     Ec=cmplx(E,0.0_dp,dp)
@@ -453,22 +454,21 @@ CONTAINS
     do ii = 1, nbl-1
       call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
       call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
-      curr_mat(ii) = real(i_unit*trace(work1))
+      ecurr(ii) = real(i_unit*trace(work1))
       call destroy(work1)
-      if (present(ldos_mat)) then
-        ldos_mat(ii) = trace(Gn(ii,ii))
-      end if  
     end do
-    call blk2dns(Gn, negf%str, Gn_dns)
-    call log_allocate(diag, size(ldos_mat, 1))
-    call getdiag(Gn_dns, diag)
-    call destroy(Gn_dns)
-
-    ! Not exactly ldos, more like a spectral carrier density
-    ldos_mat = real(diag/(2*pi))
-
-    call log_deallocate(diag)
-    ! ldos_mat(nbl) = trace(Gn(nbl,nbl))
+    if (present(ledos)) then
+      start = 0
+      do ii = 1, nbl
+        nrows = Gn(ii,ii)%nrow
+        call log_allocate(diag, nrows)
+        call getdiag(Gn(ii,ii), diag)
+        ! Not exactly ldos, more like a spectral carrier density
+        ledos(start+1:start+nrows) = real(diag(:)/(2*pi))
+        call log_deallocate(diag)
+        start = start + nrows
+      end do
+    end if
 
     call destroy_all_blk(negf)
 
@@ -886,14 +886,14 @@ CONTAINS
         call destroy_tridiag_blk(Gr,"Gr")
         call deallocate_blk_dns(Gr)
       end if
-    else  
+    else
 #:if defined("GPU")
       call delete_trid_fromGPU(Gr)
 #:endif
     end if
 
     if (negf%tDestroyGn) then
-      if (allocated(Gn)) then 
+      if (allocated(Gn)) then
         call destroy_tridiag_blk(Gn,"Gn")
         call deallocate_blk_dns(Gn)
       end if
@@ -949,7 +949,7 @@ CONTAINS
   subroutine destroy_blk(M, str)
     type(z_DNS), dimension(:,:), allocatable :: M
     character(len=*), intent(in), optional :: str
-    
+
     integer :: i, i1, nbl
 
     if (.not.allocated(M)) return
@@ -1741,7 +1741,7 @@ CONTAINS
 
     call allocate_blk_dns(Gr,nbl)
     ! call create
-    
+
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,1)
     call calculate_Gr_tridiag_blocks(negf,ESH,gsmr,Gr,2,nbl)
     !Computation of transmission(s) between contacts ni(:) -> nf(:)
@@ -1822,7 +1822,8 @@ CONTAINS
     !Compute LDOS on the specified intervals
     if (size(dos_proj).gt.0) then
       call log_allocate(diag, Grm%nrow)
-      call getdiag(Grm,diag)
+      call getdiag(Grm, diag)
+      ! Comment: unclear why indexes(1) starts at 0 and not 1 ?!
       if (size(dos_proj) == size(diag) .and. dos_proj(1)%indexes(1) == 0) then
           LEDOS(:) = LEDOS(:) + diag(:)
       else

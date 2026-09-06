@@ -1034,7 +1034,8 @@ module libnegf
   end subroutine destroy_ldos
 
 
-  !> Set ldos intervals
+  !> Set ldos intervals. This is fine to set contiguous ranges of dofs.
+  !>
   !! @param [in] negf: libnegf container instance
   !! @param [in] istart(nldos) array with first interval index
   !! @param [in] iend(nldos) array with first interval index
@@ -1054,7 +1055,8 @@ module libnegf
 
   end subroutine set_ldos_intervals
 
-  !> Set ldos indexes arrays for a given ldos
+  !> Set ldos indexes arrays for a given ildos.
+  !> A lot more flexible to set arbitrary indices.
   !!
   !! @param [in] negf: libnegf container instance
   !! @param [in] ildos: index of ldos

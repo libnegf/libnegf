@@ -35,8 +35,11 @@ public :: destroy_tridiag_blk
 public :: blk2dns
 public :: dns2blk
 public :: destroy_full_blk
-public :: zcsr2blk3diag
+public :: csr2blk3diag
 
+interface csr2blk3diag
+   module procedure zcsr2blk3diag
+end interface
 
 interface destroy_tridiag_blk
    module procedure destroy_tridiag_blk_2d
@@ -45,7 +48,7 @@ end interface
 
 contains
 
-subroutine destroy_tridiag_blk_2d(M,str)
+subroutine destroy_tridiag_blk_2d(M, str)
    type(z_DNS), dimension(:,:), allocatable :: M
    character(len=*), intent(in), optional :: str
 
@@ -239,7 +242,7 @@ subroutine destroy_tridiag_blk_2d(M,str)
  !------------------------------------------------------------
  !> Convert a CSR in a block dense matrix, only taking the
  !  diagonal and sub/over diag
- subroutine csr2blk3diag(Acsr,Ablk,indblk,str)
+ subroutine zcsr2blk3diag(Acsr,Ablk,indblk,str)
    integer :: i
    type(z_CSR) :: Acsr
    integer :: nbl
@@ -265,7 +268,6 @@ subroutine destroy_tridiag_blk_2d(M,str)
 
    end do
 
- end subroutine csr2blk3diag
-
+ end subroutine zcsr2blk3diag
 
 end module block_3_diag

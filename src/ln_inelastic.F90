@@ -50,14 +50,12 @@ module ln_inelastic
 
   !>  Init Sigma_r : necessary for inelastic
   subroutine abst_init_Sigma_r(this, spin)
-    import :: TInelastic
     class(TInelastic) :: this
     integer, intent(in), optional :: spin
   end subroutine abst_init_Sigma_r
 
   !>  Init Sigma_n : necessary for inelastic
   subroutine abst_init_Sigma_n(this, spin)
-    import :: TInelastic
     class(TInelastic) :: this
     integer, intent(in), optional :: spin
   end subroutine abst_init_Sigma_n

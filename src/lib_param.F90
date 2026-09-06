@@ -179,7 +179,7 @@ module lib_param
     !! Runtime variables: used internally by the library
     type(format) :: form          ! Form of file-Hamiltonian
     logical  :: dumpHS            ! Used for debug
-    logical :: dump_matrices      ! Used for debug. Dumps Gn and A = i(Gr - Ga) for each iteration of the SCBA loop (in layer_currents)
+    logical :: dump_matrices      ! Dumps Gn and A = i(Gr - Ga) at each iteration of the SCBA loop
     real(dp) :: muref             ! reference elec.chem potential
     real(dp) :: E                 ! Holding variable
     real(dp) :: dos               ! Holding variable

@@ -228,7 +228,6 @@ contains
     Npoints = size(negf%en_grid)
 
     call log_allocate(negf%ldos_mat, Npoints, negf%ndos_proj)
-    negf%ldos_mat(:,:)=0.0_dp
 
     do i = 1, Npoints
 
@@ -1193,7 +1192,7 @@ contains
   ! Real axis integral with inelastic scattering
   !-----------------------------------------------------------------------
   !    g     /
-  ! ------   | Gn(E) dE   .OR.   Gp(E) dE  (depending on negf%particle) 
+  ! ------   | Gn(E) dE   .OR.   Gp(E) dE  (depending on negf%particle)
   ! 2*pi*j   /
   !
   ! Notes:
@@ -1347,7 +1346,7 @@ contains
       call compute_Sigmas_inelastic(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      ! Integrate energy-resolved currents 
+      ! Integrate energy-resolved currents
       call electron_current_meir_wingreen(negf)
 
 #:if defined("MPI")
@@ -1370,11 +1369,11 @@ contains
       scba_iter = scba_iter + 1
 
     end do scba
-      
+
     if (id0.and.negf%verbose.gt.30) then
       do j1 = 1, nbl-1
          write(*,*) "J(",j1,",",j1+1,")=",negf%currents(j1)
-      end do        
+      end do
     end if
 
     call destroy(TmpMt)
@@ -1873,7 +1872,7 @@ contains
     negf%readOldSGF = negf%readOldT_SGFs
     outer = 0
 
-    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat) 
+    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat)
     call log_allocate(negf%curr_mat,Npoints,ncont)
     call log_allocate(curr_mat, ncont)
 
@@ -2071,12 +2070,14 @@ contains
     integer :: scba_niter_inela
     real(dp) :: Er, scba_elastic_tol, scba_elastic_error
     real(dp) :: scba_inelastic_error
-    real(dp), dimension(:), allocatable :: curr_mat, ldos_mat, frm
+    real(dp), dimension(:), allocatable :: curr_mat, frm
     complex(dp) :: Ec
-    type(z_CSR) :: G
-    type(z_CSR) :: Gr, A                                  ! DEBUG variable
-    complex(dp), dimension(:), allocatable :: diag        ! DEBUG variable
-    complex(dp), dimension(:,:), allocatable :: A_diags   ! DEBUG variable
+    type(z_CSR) :: Gn
+    type(z_CSR) :: Gr, A                               ! DEBUG variable
+    complex(dp), dimension(:), allocatable :: diag     ! DEBUG variable
+    real(dp), dimension(:,:), allocatable :: A_diags   ! DEBUG variable
+    real(dp), dimension(:,:), allocatable :: ldos_mat  ! DEBUG variable
+    real(dp), dimension(:), allocatable :: ledos       ! DEBUG variable
 
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
@@ -2087,16 +2088,22 @@ contains
     ! Sanity check that nbl>1
     if (nbl < 2) then
       call error_msg('ERROR: nbl < 2 is not allowed in layer_current')
-    end if    
+    end if
     ! Allocating curr_mat to nbl-1 so we compute L->L+1 currents
-    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat) 
+    if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat)
     call log_allocate(negf%curr_mat, Npoints, nbl-1)
     call log_allocate(curr_mat, nbl-1)
 
-    ! Allocating ldos_mat to nbl
-    if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat) 
-    call log_allocate(negf%ldos_mat, Npoints, nbl)
-    call log_allocate(ldos_mat, negf%str%central_dim)
+    ! Just to be sure. PDOS is computed only in case of dump_matrices
+    if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat)
+
+    !DEBUG routine
+    if (negf%dump_matrices) then
+      call log_allocate(A_diags, Npoints, negf%str%central_dim)
+      call log_allocate(ldos_mat, Npoints, negf%str%central_dim)
+      call log_allocate(ledos, negf%str%central_dim)
+    end if
+
 
     ! Clean up caches of G_r and G_n
     call negf%G_r%destroy()
@@ -2134,12 +2141,6 @@ contains
 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
-      !DEBUG routine
-      if (negf%dump_matrices) then
-        call log_allocate(A_diags, Npoints, negf%str%central_dim)
-        A_diags = 0.0_dp
-      end if
-
       if (negf%cartComm%rank == 0) then
         call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
       end if
@@ -2176,8 +2177,7 @@ contains
 
       !DEBUG routine
       if (negf%dump_matrices) then
-        call dump_ldos_mat_and_A(negf, A_diags, scba_iter)
-        call log_deallocate(A_diags)
+        call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
       end if
 
       scba_iter = scba_iter + 1
@@ -2191,7 +2191,10 @@ contains
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(frm)
     call log_deallocate(curr_mat)
-    call log_deallocate(ldos_mat)
+    if (negf%dump_matrices) then
+       call log_deallocate(A_diags)
+       call log_deallocate(ldos_mat)
+    end if
     negf%refcont = ref_bk
 
     contains
@@ -2204,12 +2207,6 @@ contains
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
       call compute_sigmas_photon(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
-
-      !DEBUG routine
-      if (negf%dump_matrices) then
-        call log_allocate(A_diags, Npoints, negf%str%central_dim)
-        A_diags = 0.0_dp
-      end if
 
       if (negf%cartComm%rank == 0) then
         call write_info(negf%verbose, 30, ' PHOTON SCBA ITERATION')
@@ -2229,8 +2226,7 @@ contains
 
       !DEBUG routine
       if (negf%dump_matrices) then
-        call dump_ldos_mat_and_A(negf, A_diags, scba_iter)
-        call log_deallocate(A_diags)
+        call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
       end if
 
     end subroutine photon_absorption
@@ -2238,7 +2234,10 @@ contains
     subroutine EKloop()
 
       negf%curr_mat = 0.0_dp
-      negf%ldos_mat = 0.0_dp
+      if (negf%dump_matrices) then
+         A_diags = 0.0_dp
+         ldos_mat = 0.0_dp
+      end if
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
 
@@ -2270,30 +2269,36 @@ contains
           ! Avoids cleanup of block-dense Gn for layer currents (ESH is recomputed)
           negf%tDestroyGn = .false.
 
-          call compute_Gn(negf, outer, ncont, Ec, frm, G, scba_elastic_error, Gr)
-
-          !DEBUG ROUTINE
           if (negf%dump_matrices) then
+            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error, Gr)
             call zspectral(Gr, Gr, 0, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
-            A_diags(iE, :) = A_diags(iE, :) + diag(:)*negf%kwght
+            A_diags(iE, :) = A_diags(iE, :) + real(diag(:))*negf%kwght
             call log_deallocate(diag)
-            call destroy(Gr, A)
+            call destroy(Gn, Gr, A)
+          else
+            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error)
+            call destroy(Gn)
           end if
 
-          call destroy(G)
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
-          call iterative_layer_current(negf, Er, curr_mat, ldos_mat)
+          if (negf%dump_matrices) then
+            call iterative_layer_current(negf, Er, curr_mat, ledos)
+          else
+            call iterative_layer_current(negf, Er, curr_mat)
+          end if
           if (id0.and.negf%verbose.gt.VBT) call write_clock
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
-          negf%ldos_mat(iE,:) = negf%ldos_mat(iE,:) + ldos_mat(:) * negf%kwght
+          if (negf%dump_matrices) then
+            ldos_mat(iE,:) = ldos_mat(iE,:) + ledos(:) * negf%kwght
+          end if
 
         end do enloop
 
@@ -2314,8 +2319,8 @@ contains
     real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
 
     if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
-    
-    ! Work around because of MPI error with TiberCAD 
+
+    ! Work around because of MPI error with TiberCAD
     ! (MPI_IN_PLACE flag is not recognized ?!)
     if (allocated(negf%currents)) then
       allocate(tmp_currents, mold=negf%currents)
@@ -2339,7 +2344,7 @@ contains
       deallocate(tmp_ldos_mat)
     end if
 
-    if (id0.and.negf%verbose.gt.VBT) call write_clock    
+    if (id0.and.negf%verbose.gt.VBT) call write_clock
   end subroutine gather_currents
 #:endif
 
@@ -3463,16 +3468,15 @@ contains
 
   end subroutine quasiEq_int_p
 
-  subroutine dump_ldos_mat_and_A(negf, A, iter)
-    type(TNegf) :: negf
-    complex(dp), dimension(:,:) :: A
+  subroutine dump_ldos_mat_and_A(ldos, A, iter)
+    real(dp), dimension(:,:), intent(in) :: ldos
+    real(dp), dimension(:,:), intent(in) :: A
     integer :: iter
 
     integer :: iE, ix, nE, nx
     character(200) :: filename1, filename2
 
     if (id0) then
-      associate(ldos => negf%ldos_mat)
 
       nE = size(ldos, 1)
       nx = size(ldos, 2)
@@ -3490,8 +3494,8 @@ contains
           else
             write(10, '(E15.8)', advance='no') 0.0_dp
           end if
-          if (real(A(iE,ix))>0.0_dp) then
-            write(20, '(E15.8)', advance='no') real(A(iE, ix))
+          if (A(iE,ix)>0.0_dp) then
+            write(20, '(E15.8)', advance='no') A(iE, ix)
           else
             write(20, '(E15.8)', advance='no') 0.0_dp
           end if
@@ -3505,7 +3509,6 @@ contains
         write(20, *) ! newline
       end do
 
-      end associate
       close(10)
       close(20)
     end if

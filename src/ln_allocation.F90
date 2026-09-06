@@ -290,7 +290,7 @@ contains
        endif
     endif
   end subroutine allocate_d1
-  
+
   subroutine allocate_s1(array,length)
     real(kind=sp), DIMENSION(:), ALLOCATABLE :: array
     integer :: length,ierr
@@ -388,10 +388,10 @@ contains
              peak_mem = alloc_mem
           endif
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Allocated "//trim(tag), size(array, kind=long)*4," Bytes"  
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=long)*4," Bytes"
           else
-            print*,"Allocated ", size(array, kind=long)*4," Bytes" 
+            print*,"Allocated ", size(array, kind=long)*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -422,10 +422,10 @@ contains
              peak_mem = alloc_mem
           endif
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Allocated "//trim(tag), size(array, kind=long)*8," Bytes"  
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=long)*8," Bytes"
           else
-            print*,"Allocated ", size(array, kind=long)*8," Bytes" 
+            print*,"Allocated ", size(array, kind=long)*8," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -456,10 +456,10 @@ contains
              peak_mem = alloc_mem
           endif
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Allocated "//trim(tag), size(array, kind=long)*4," Bytes"  
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=long)*4," Bytes"
           else
-            print*,"Allocated ", size(array, kind=long)*4," Bytes" 
+            print*,"Allocated ", size(array, kind=long)*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -490,10 +490,10 @@ contains
              peak_mem = alloc_mem
           endif
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Allocated "//trim(tag), size(array, kind=long)*2*8," Bytes"  
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=long)*2*8," Bytes"
           else
-            print*,"Allocated ", size(array, kind=long)*2*8," Bytes" 
+            print*,"Allocated ", size(array, kind=long)*2*8," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -524,10 +524,10 @@ contains
              peak_mem = alloc_mem
           endif
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Allocated "//trim(tag), size(array, kind=long)*2*4," Bytes"  
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=long)*2*4," Bytes"
           else
-            print*,"Allocated ", size(array, kind=long)*2*4," Bytes" 
+            print*,"Allocated ", size(array, kind=long)*2*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -537,9 +537,10 @@ contains
     endif
   end subroutine allocate_c2
 
-  subroutine allocate_s3(array,row,col,np)
+  subroutine allocate_s3(array,row,col,np,tag)
     real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
     integer :: row,col,np,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -555,6 +556,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*4," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*4," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -562,9 +570,10 @@ contains
     endif
   end subroutine allocate_s3
 
-  subroutine allocate_c3(array,row,col,np)
+  subroutine allocate_c3(array,row,col,np,tag)
     complex(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
     integer :: row,col,np,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -580,6 +589,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*2*4," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*2*4," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -590,9 +606,10 @@ contains
   !---------------------------------------------------------------
   !---------------------------------------------------------------
 
-  subroutine allocate_i3(array,row,col,dep)
+  subroutine allocate_i3(array,row,col,dep,tag)
     integer, DIMENSION(:,:,:), ALLOCATABLE :: array
     integer :: row,col,dep,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -608,6 +625,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*4," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*4," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -615,9 +639,10 @@ contains
     endif
   end subroutine allocate_i3
 
-  subroutine allocate_d3(array,row,col,dep)
+  subroutine allocate_d3(array,row,col,dep,tag)
     real(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
     integer :: row,col,dep,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -633,6 +658,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*8," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*8," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -640,9 +672,10 @@ contains
     endif
   end subroutine allocate_d3
 
-  subroutine allocate_z3(array,row,col,dep)
+  subroutine allocate_z3(array,row,col,dep,tag)
     complex(kind=dp), DIMENSION(:,:,:), ALLOCATABLE :: array
     integer :: row,col,dep,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -658,6 +691,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*2*8," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*2*8," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -665,9 +705,10 @@ contains
     endif
   end subroutine allocate_z3
 
-  subroutine allocate_d4(array,row,col,dep,qep)
+  subroutine allocate_d4(array,row,col,dep,qep,tag)
     real(kind=dp), DIMENSION(:,:,:,:), ALLOCATABLE :: array
     integer :: row,col,dep,qep,ierr
+    character(len=*), optional :: tag
 
     !Allocation control: if array is already allocated STOP and write error statement
     if (allocated(array)) then
@@ -683,6 +724,13 @@ contains
           if (alloc_mem.gt.peak_mem) then
              peak_mem = alloc_mem
           endif
+#:if defined("ARRAYLOG")
+          if (present(tag)) then
+            print*,"Allocated "//trim(tag), size(array, kind=c_int64_t)*8," Bytes"
+          else
+            print*,"Allocated ", size(array, kind=c_int64_t)*8," Bytes"
+          end if
+#:endif
 #:if defined("MEMLOG")
           call writeMemLog
 #:endif
@@ -903,10 +951,10 @@ contains
        alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Dellocated "//trim(tag), size(array, kind=long)*4," Bytes"  
+          if (present(tag)) then
+            print*,"Dellocated "//trim(tag), size(array, kind=long)*4," Bytes"
           else
-            print*,"Dellocated ", size(array, kind=long)*4," Bytes" 
+            print*,"Dellocated ", size(array, kind=long)*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -925,10 +973,10 @@ contains
        alloc_mem= alloc_mem - size(array, kind=c_int64_t)*8
        deallocate(array)
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Dellocated "//trim(tag), size(array, kind=long)*8," Bytes"  
+          if (present(tag)) then
+            print*,"Dellocated "//trim(tag), size(array, kind=long)*8," Bytes"
           else
-            print*,"Dellocated ", size(array, kind=long)*8," Bytes" 
+            print*,"Dellocated ", size(array, kind=long)*8," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -947,10 +995,10 @@ contains
        alloc_mem= alloc_mem - size(array, kind=c_int64_t)*4
        deallocate(array)
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Dellocated "//trim(tag), size(array, kind=long)*4," Bytes"  
+          if (present(tag)) then
+            print*,"Dellocated "//trim(tag), size(array, kind=long)*4," Bytes"
           else
-            print*,"Dellocated ", size(array, kind=long)*4," Bytes" 
+            print*,"Dellocated ", size(array, kind=long)*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -969,10 +1017,10 @@ contains
        alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*8
        deallocate(array)
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Dellocated "//trim(tag), size(array, kind=long)*2*8," Bytes"  
+          if (present(tag)) then
+            print*,"Dellocated "//trim(tag), size(array, kind=long)*2*8," Bytes"
           else
-            print*,"Dellocated ", size(array, kind=long)*2*8," Bytes" 
+            print*,"Dellocated ", size(array, kind=long)*2*8," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -991,10 +1039,10 @@ contains
        alloc_mem= alloc_mem - size(array, kind=c_int64_t)*2*4
        deallocate(array)
 #:if defined("ARRAYLOG")
-          if (present(tag)) then   
-            print*,"Dellocated "//trim(tag), size(array, kind=long)*2*4," Bytes"  
+          if (present(tag)) then
+            print*,"Dellocated "//trim(tag), size(array, kind=long)*2*4," Bytes"
           else
-            print*,"Dellocated ", size(array, kind=long)*2*4," Bytes" 
+            print*,"Dellocated ", size(array, kind=long)*2*4," Bytes"
           end if
 #:endif
 #:if defined("MEMLOG")
@@ -1047,7 +1095,7 @@ contains
        write(*,*) 'Warning in deallocation: array is not allocated'
     endif
   end subroutine deallocate_d3
-  
+
   subroutine deallocate_s3(array)
     real(kind=sp), DIMENSION(:,:,:), ALLOCATABLE :: array
 
