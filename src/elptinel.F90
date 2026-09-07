@@ -41,7 +41,6 @@ module elptinel
   use iso_c_binding
   use mpi_f08, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
   use mpi_globals
-  use self_energy, only: TMatPointer
   use clock
   use ln_messages, only : error_msg
   implicit none
