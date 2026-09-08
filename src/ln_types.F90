@@ -19,6 +19,7 @@
 !!--------------------------------------------------------------------------!
 
 module ln_types
+  use iso_c_binding, only : c_ptr
   use ln_precision, only : dp, sp
   use mat_def, only : z_CSR
   implicit none

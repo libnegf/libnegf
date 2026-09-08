@@ -63,8 +63,9 @@ module lib_param
   public :: set_elphoton
   integer, public, parameter :: MAXNCONT=10
   integer, public, parameter :: MAXNLAYERS=10000
-
-
+#:if defined("GPU")
+  public :: cublasHandle, cusolverDnHandle
+#:endif
   !-----------------------------------------------------------------------------
   ! Buttiker probe dephasing
   type :: Tdeph_bp

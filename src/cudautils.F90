@@ -562,7 +562,7 @@ end interface
        src_addr = transfer(c_loc(A%val(1,1)), src_addr)
        dst_addr = transfer(A%d_addr, dst_addr)
        write(msg,*) 'COPY ERROR: ',src_addr, 'TO ', dst_addr, bytecount
-       call error_message(trim(msg))
+       call error_msg(trim(msg))
      end if
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
@@ -582,7 +582,7 @@ end interface
        src_addr = transfer(c_loc(A%val(1,1)), src_addr)
        dst_addr = transfer(A%d_addr, dst_addr)
        write(msg,*) 'COPY ERROR: ',src_addr, 'TO ', dst_addr, bytecount
-       call error_message(trim(msg))
+       call error_msg(trim(msg))
      end if
    end subroutine copyToGPU_async_${KIND}$
 #:enddef copyToGPU_async_template
