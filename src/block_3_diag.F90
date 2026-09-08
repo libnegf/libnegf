@@ -28,7 +28,7 @@ Module block_3_diag
   use mpi_globals
   use sparsekit_drv, only: extract
 #:if defined("GPU")
-  use cudautils, only: createAll
+  use cudautils, only: createAll, destroyAll
 #:endif
   implicit none
   private
