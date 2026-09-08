@@ -27,9 +27,9 @@
 module cudautils
    use ln_precision
    use mat_def
-   use lib_param
+   use ln_types, only : cublasHandle, cusolverDnHandle
    use iso_c_binding, only : c_int, c_int32_t, c_int64_t, c_size_t, &
-                           & c_loc, c_null_ptr, c_ptr, c_bool
+                           & c_loc, c_null_ptr, c_ptr, c_bool, c_intptr_t
    use, intrinsic :: ieee_arithmetic
    use ln_messages
    implicit none
@@ -554,11 +554,15 @@ end interface
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
      integer(c_size_t) :: bytecount
+     character(256) :: msg
+     integer(c_intptr_t) :: src_addr, dst_addr
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
      err = cu_copyMatH2D(c_loc(A%val(1,1)), A%d_addr, bytecount)
      if (err /= 0) then
-       print*, 'COPY ',c_loc(A%val(1,1)), 'TO ', A%d_addr, bytecount
-       error stop 'COPY ERROR !!'
+       src_addr = transfer(c_loc(A%val(1,1)), src_addr)
+       dst_addr = transfer(A%d_addr, dst_addr)
+       write(msg,*) 'COPY ERROR: ',src_addr, 'TO ', dst_addr, bytecount
+       call error_message(trim(msg))
      end if
    end subroutine copyToGPU_${KIND}$
 #:enddef copyToGPU_template
@@ -570,11 +574,15 @@ end interface
      type(${MTYPE}$), intent(in), target :: A
      integer :: err
      integer(c_size_t) :: bytecount
+     character(256) :: msg
+     integer(c_intptr_t) :: src_addr, dst_addr
      bytecount = size(A%val,kind=c_size_t)*${CUDATYPE}$
      err = cu_copyMatH2D_async(c_loc(A%val(1,1)), A%d_addr, bytecount)
      if (err /= 0) then
-       print*, 'COPY ',c_loc(A%val(1,1)), 'TO ', A%d_addr, bytecount
-       error stop 'COPY ERROR !!'
+       src_addr = transfer(c_loc(A%val(1,1)), src_addr)
+       dst_addr = transfer(A%d_addr, dst_addr)
+       write(msg,*) 'COPY ERROR: ',src_addr, 'TO ', dst_addr, bytecount
+       call error_message(trim(msg))
      end if
    end subroutine copyToGPU_async_${KIND}$
 #:enddef copyToGPU_async_template
@@ -950,9 +958,10 @@ end interface
 #:enddef checksum_template
 
 #:def decimation_gpu_template(KIND, CTYPE)
-  subroutine decimation_gpu_${KIND}$(negf, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, accuracy, loginfo)
+  subroutine decimation_gpu_${KIND}$(hh, hhsol, Go_out, Ao_in, Bo_in, Co_in, n, ncyc, accuracy, loginfo)
     implicit none
-    type(Tnegf), intent(in) :: negf
+    type(cublasHandle), intent(in) :: hh
+    type(cusolverDnHandle), intent(in) :: hhsol
     integer, intent(in) :: n
     complex(${KIND}$), dimension(n,n), intent(out), target :: Go_out
     complex(${KIND}$), dimension(n,n), intent(in), target :: Ao_in, Bo_in, Co_in
@@ -961,11 +970,6 @@ end interface
     logical, intent(in) :: loginfo
 
     integer :: istat
-    type(cublasHandle) :: hh
-    type(cusolverDnHandle) :: hhsol
-
-    hh = negf%hcublas
-    hhsol = negf%hcusolver
 
     block
       integer(c_int32_t) :: nrows

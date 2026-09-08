@@ -27,6 +27,10 @@ module ln_types
   public ::  TEnGrid
   public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
+#:if defined("GPU")
+  public :: cusolverDnHandle
+  public :: cublasHandle
+#:endif
 
   type intArray
     integer, dimension(:), allocatable :: indexes
@@ -77,6 +81,18 @@ module ln_types
   end type TEnGrid
 
   !-----------------------------------------------------------------------------
+
+#:if defined("GPU")
+  !Type definition of cublas and cusolver handles (no module defs?)
+  type, bind(C) :: cublasHandle
+    type(c_ptr) :: ptr
+  end type cublasHandle
+
+  type, bind(C) :: cusolverDnHandle
+    type(c_ptr) :: ptr
+  end type cusolverDnHandle
+#:endif
+
 
 end module ln_types
 
