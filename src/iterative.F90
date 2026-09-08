@@ -143,7 +143,7 @@ CONTAINS
     call copy_trid_toHOST(Gr)
 #:endif
 
-    call destroy_tridiag_blk(ESH,"ESH")
+    call destroy_tridiag_blk(ESH)
     call deallocate_blk_dns(ESH)
 
     call destroy_gsm(gsmr)
@@ -158,7 +158,7 @@ CONTAINS
 
     call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
 
-    call destroy_tridiag_blk(Gr,"Gr")
+    call destroy_tridiag_blk(Gr)
     DEALLOCATE(Gr)
 
   end subroutine calculate_Gr
@@ -869,6 +869,18 @@ CONTAINS
   !------------------------------------------------------------------------------!
 
   !---------------------------------------------------------------------
+
+  !**********************************************************************
+  ! Wrapper code that conditionally deallocates block-arrays
+  ! depending on negf%tDestroyTAG   TAG = Gn, Gr, ESH
+  !
+  ! NOTE: We always remove from GPU
+  ! destroy_tridiag_blk: destroy only from CPU
+  ! delete_trid_fromGPU: destroy only from GPU
+  ! detroy_blk: destroy from both CPU and GPU
+  ! deallocate_blk_dns: deallocation wrapper with error checking
+  !
+  !**********************************************************************
   subroutine destroy_all_blk(negf)
     type(Tnegf), intent(in) :: negf
 
@@ -876,14 +888,14 @@ CONTAINS
     !       => we do not delete from GPU
     if (negf%tDestroyESH) then
       if (allocated(ESH)) then
-        call destroy_tridiag_blk(ESH,"ESH")
+        call destroy_tridiag_blk(ESH)
         call deallocate_blk_dns(ESH)
       end if
     end if
 
     if (negf%tDestroyGr) then
       if (allocated(Gr)) then
-        call destroy_tridiag_blk(Gr,"Gr")
+        call destroy_tridiag_blk(Gr)
         call deallocate_blk_dns(Gr)
       end if
     else
@@ -894,7 +906,7 @@ CONTAINS
 
     if (negf%tDestroyGn) then
       if (allocated(Gn)) then
-        call destroy_tridiag_blk(Gn,"Gn")
+        call destroy_tridiag_blk(Gn)
         call deallocate_blk_dns(Gn)
       end if
     else
@@ -945,34 +957,6 @@ CONTAINS
 #:endif
   end subroutine destroy_gsm
 
-  !**********************************************************************
-  subroutine destroy_blk(M, str)
-    type(z_DNS), dimension(:,:), allocatable :: M
-    character(len=*), intent(in), optional :: str
-
-    integer :: i, i1, nbl
-
-    if (.not.allocated(M)) return
-
-    nbl=size(M,1)
-#:if defined("GPU")
-    do i=1,nbl
-       do i1=1,nbl
-          if (ALLOCATED(M(i1,i)%val)) THEN
-             call destroyAll(M(i1,i))
-          end if
-       end do
-    end do
-#:else
-    do i=1,nbl
-       do i1=1,nbl
-          if (ALLOCATED(M(i1,i)%val)) THEN
-             call destroy(M(i1,i))
-          end if
-       end do
-    end do
-#:endif
-  end subroutine destroy_blk
 
   !***********************************************************************
   !
@@ -1663,10 +1647,10 @@ CONTAINS
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
 
-    call destroy_tridiag_blk(Gr,"Gr")
+    call destroy_tridiag_blk(Gr)
     call deallocate_blk_dns(Gr)
 
-    call destroy_tridiag_blk(ESH,"ESH")
+    call destroy_tridiag_blk(ESH)
     call deallocate_blk_dns(ESH)
 
   end subroutine calculate_transmissions
@@ -1772,7 +1756,7 @@ CONTAINS
     !Deallocate energy-dependent matrices
     call destroy_gsm(gsmr)
     call deallocate_gsm(gsmr)
-    call destroy_tridiag_blk(ESH,"ESH")
+    call destroy_tridiag_blk(ESH)
     call deallocate_blk_dns(ESH)
 
     ! Destroy only off-diagonal blocks

@@ -37,7 +37,6 @@ public :: init_tridiag_blk
 public :: destroy_tridiag_blk
 public :: blk2dns
 public :: dns2blk
-public :: destroy_full_blk
 public :: csr2blk3diag
 
 interface csr2blk3diag
@@ -51,29 +50,46 @@ end interface
 
 contains
 
-subroutine destroy_tridiag_blk_2d(M, str)
-   type(z_DNS), dimension(:,:), allocatable :: M
-   character(len=*), intent(in), optional :: str
+ !**********************************************************************
+ subroutine destroy_tridiag_blk_2d(M, str)
+    type(z_DNS), dimension(:,:), allocatable :: M
+    character(len=*), intent(in), optional :: str
 
-   integer :: i, nbl
+    integer :: i, nbl
 
-   if (.not.allocated(M)) return
+    if (.not.allocated(M)) return
 
-   nbl=size(M,1)
+    nbl=size(M,1)
 
-   do i=1,nbl
-     if (allocated(M(i,i)%val)) then
-       call destroy(M(i,i))
-     end if
-   end do
-   do i=2,nbl
-     if (allocated(M(i-1,i)%val)) then
-       call destroy(M(i-1,i))
-     end if
-     if (allocated(M(i,i-1)%val)) then
-       call destroy(M(i,i-1))
-     end if
-   end do
+#:if defined("GPU")
+    do i=1,nbl
+      if (allocated(M(i,i)%val)) then
+        call destroyAll(M(i,i))
+      end if
+    end do
+    do i=2,nbl
+      if (allocated(M(i-1,i)%val)) then
+        call destroyAll(M(i-1,i))
+      end if
+      if (allocated(M(i,i-1)%val)) then
+        call destroyAll(M(i,i-1))
+      end if
+    end do
+#:else
+    do i=1,nbl
+      if (allocated(M(i,i)%val)) then
+        call destroy(M(i,i))
+      end if
+    end do
+    do i=2,nbl
+      if (allocated(M(i-1,i)%val)) then
+        call destroy(M(i-1,i))
+      end if
+      if (allocated(M(i,i-1)%val)) then
+        call destroy(M(i,i-1))
+      end if
+    end do
+#:endif
 
  end subroutine destroy_tridiag_blk_2d
 
@@ -105,26 +121,6 @@ subroutine destroy_tridiag_blk_2d(M, str)
    end do
 
  end subroutine destroy_tridiag_blk_3d
-
- subroutine destroy_full_blk(M, str)
-   type(z_DNS), dimension(:,:), allocatable :: M
-   character(len=*), intent(in), optional :: str
-
-   integer :: i, j, nbl
-
-   if (.not.allocated(M)) return
-
-   nbl=size(M,1)
-
-   do i=1,nbl
-     do j=1,nbl
-       if (allocated(M(i,j)%val)) then
-         call destroy(M(i,j))
-       end if
-     end do
-   end do
-
- end subroutine destroy_full_blk
 
  subroutine init_tridiag_blk(Matrix,S)
    type(z_DNS), dimension(:,:) :: Matrix,S
