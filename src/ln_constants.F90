@@ -19,18 +19,18 @@
 !!--------------------------------------------------------------------------!
 
 module ln_constants
-  
+
   use ln_precision
-  
+
   complex(dp), parameter ::  j = (0.0_dp,1.0_dp)     ! CMPX unity
-  complex(dp), parameter :: one = (1.0_dp,0.0_dp)        ! some 
+  complex(dp), parameter :: one = (1.0_dp,0.0_dp)        ! some
   complex(dp), parameter :: minusone = (-1.0_dp,0.0_dp)  ! shortcuts
   complex(dp), parameter :: zero = (0.0_dp,0.0_dp)       !
-  
+
   real(dp), parameter    :: pi = 3.1415926535897932384_dp ! Greek p real
   real(dp), parameter    :: hh = 4.135667525931100d-15  ! eV s
   real(dp), parameter    :: hbar = hh/(2*pi)            ! eV s
-  real(dp), parameter    :: ee = 1.60217656d-19         ! C  
+  real(dp), parameter    :: ee = 1.60217656d-19         ! C
   real(dp), parameter    :: a0 = 0.529177249_dp         ! Ang
   real(dp), parameter    :: c = 299792458               ! m/s
   real(dp), parameter    :: eps0 = 8.854187871e-12      ! C^2 J^-1 m^-1
@@ -43,22 +43,24 @@ module ln_constants
  !real(dp), parameter    :: eovh= 3.874045846176399d-5  ! A/eV
  !real(dp), parameter    :: Kb = 8.617332411853536d-5   ! eV/K
  !real(dp), parameter    :: oneovh = 3.8740458461764d-5 ! W/eV^2
+  real(dp), parameter    :: alpha = 1.0_dp/137.035999   ! 1/(H*bohr)
+  real(dp), parameter    :: hbar2c2 = 1.0_dp/alpha**2   ! H^2 bohr^2
 
   ! conversion factors
   real(dp), parameter    :: HAR = 27.21138506_dp        ! H/eV
   real(dp), parameter    :: ATU = a0                    ! a.u./Ang
   real(dp), parameter    :: AA_Bohr = 1.0_dp/ATU        ! Ang/Bohr
   real(dp), parameter    :: e2 = HAR*ATU                ! eV * Ang
-  real(dp), parameter    :: J_eV = 1.0_dp/ee            ! J/eV 
+  real(dp), parameter    :: J_eV = 1.0_dp/ee            ! J/eV
 
-  ! Heat conductance quantum:  
+  ! Heat conductance quantum:
   ! Note, g0= 9.464309602837370d-013 W/K^2*T with these units
   ! This contrast literature: g0 = 9.456d-13 W/K^2 T
   real(dp), parameter    :: g0= (pi**2)*Kb*Kb/(3.0_dp*hh) *ee ! W/K^2*T
 
-  ! electric conductance quantum:  
-  real(dp), parameter    :: Go= 2*ee/hh                   ! A/V 
- 
+  ! electric conductance quantum:
+  real(dp), parameter    :: Go= 2*ee/hh                   ! A/V
+
   integer, parameter :: DELTA_SQ = 0
   integer, parameter :: DELTA_W = 1
   integer, parameter :: DELTA_MINGO = 2
@@ -68,7 +70,7 @@ module ln_constants
     character(8) :: name = "unknown "
     real(dp) :: value = 1.0_dp
   end type units
-   
+
 
   !!* Length units ---------------------------------------------
   integer, parameter :: nLengthunits = 10
@@ -86,9 +88,9 @@ module ln_constants
       &units("m       ", 1.0e10_dp/ATU) &
       /)
 
-  
+
   !!* Energy units ---------------------------------------------
-  integer, parameter :: nEnergyUnits = 9 
+  integer, parameter :: nEnergyUnits = 9
 
   type(units), parameter :: energyUnits(nEnergyUnits) = (/ &
       &units("unknown ", 1.0_dp), &
@@ -101,8 +103,8 @@ module ln_constants
       &units("cm^-1   ", 1.239841930e-4_dp/HAR), &
       &units("J       ", J_eV/HAR) &
       &/)
-  
-   ! Internally current is computed in e/h * Energy 
+
+   ! Internally current is computed in e/h * Energy
    integer, parameter :: nCurrentUnits = 4
    type(units), parameter :: currentUnits(4) = (/ &
       &units("unknown ", 1.0_dp), &
@@ -110,7 +112,7 @@ module ln_constants
       &units("mA      ", 1.0e-3_dp), &
       &units("nA      ", 1.0e-9_dp) &
       &/)
-     
+
    ! Heat current is computed in 1/h * Energy^2
    integer, parameter :: nHeatCurrentUnits = 4
    type(units), parameter :: heatCurrentUnits(4) = (/ &
@@ -129,21 +131,21 @@ module ln_constants
       &units("nW/K    ", 1.0e-9_dp) &
       &/)
 
-contains 
- 
+contains
+
   subroutine convertUnits(unitsin,unitsout)
     type(units), intent(in) :: unitsin
     type(units),intent(inout) :: unitsout
 
     integer :: ii, jj
-    
+
     do ii = 1, nEnergyUnits
       if (unitsin%name .eq. energyUnits(ii)%name) then
         do jj = 1, nEnergyUnits
           if (unitsout%name .eq. energyUnits(jj)%name) then
              unitsout%value = unitsin%value * &
                &  energyUnits(ii)%value / energyUnits(jj)%value
-             return 
+             return
           endif
         end do
       end if
@@ -155,7 +157,7 @@ contains
           if (unitsout%name .eq. lengthUnits(jj)%name) then
              unitsout%value = unitsin%value * &
                &  lengthUnits(ii)%value / lengthUnits(jj)%value
-             return 
+             return
           endif
         end do
       end if
@@ -164,8 +166,8 @@ contains
     unitsout%name="unknown "
 
   end subroutine
- 
-  
+
+
   ! Compute conversion factor of current unitss
   ! [j] = e/h * [Energy]
   ! Current output is converted to Amp
@@ -176,7 +178,7 @@ contains
     real(dp) :: curr
 
     integer :: ii
-    
+
     if (unitsOfH%name .eq. "unknown ") then
       curr = 1.0_dp
       return
@@ -187,7 +189,7 @@ contains
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then
          ! Current is transformed to Ampere
-         curr = eovh * energyUnits(ii)%value   
+         curr = eovh * energyUnits(ii)%value
       end if
     end do
     do ii = 1, nCurrentUnits
@@ -205,7 +207,7 @@ contains
     real(dp) :: curr
 
     integer :: ii
-    
+
     if (unitsOfH%name .eq. "unknown ") then
       curr = 1.0_dp
       return
@@ -216,7 +218,7 @@ contains
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then
          ! Heat Current is transformed to W
-         curr = oneovh * (energyUnits(ii)%value)**2   
+         curr = oneovh * (energyUnits(ii)%value)**2
       end if
     end do
     do ii = 1, nHeatCurrentUnits
@@ -234,7 +236,7 @@ contains
     real(dp) :: cond
 
     integer :: ii
-  
+
     if (unitsOfH%name .eq. "unknown ") then
       cond = 1.0_dp
       return
@@ -245,7 +247,7 @@ contains
     do ii = 1, nEnergyUnits
       if (unitsOfH%name .eq. energyUnits(ii)%name) then
          ! Thermal Conductance is transformed into W/K
-         cond = kb*oneovh * energyUnits(ii)%value   
+         cond = kb*oneovh * energyUnits(ii)%value
       end if
     end do
 
