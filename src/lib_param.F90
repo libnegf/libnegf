@@ -446,8 +446,8 @@ contains
 
   end subroutine set_elph_s_dephasing
 
-  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
-              & tridiag)
+  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, cell_vol, &
+              & a0, model2D, sigma, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     real(dp), intent(in) :: wq
@@ -456,7 +456,10 @@ contains
     real(dp), intent(in) :: eps0
     real(dp), intent(in) :: eps_inf
     real(dp), intent(in) :: q0
-    real(dp), intent(in) :: area
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
+    logical, intent(in) :: model2D
+    real(dp), intent(in) :: sigma
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -467,7 +470,7 @@ contains
     type is(ElPhonPolarOptical)
 #:if defined("MPI")
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
-          &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
+          &  wq, Temp, dz, eps0, eps_inf, q0, cell_vol, a0, model2D, sigma, niter, tridiag)
 #:else
       call error_msg( "Inelastic scattering requires MPI")
 #:endif
@@ -477,15 +480,17 @@ contains
 
   end subroutine set_elph_polaroptical
 
-  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, area, niter, &
-              & tridiag)
+  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, Mcell, cell_vol, &
+            & a0, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), allocatable, intent(in) :: coupling
     real(dp), intent(in) :: wq
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
     real(dp), intent(in) :: D0
-    real(dp), intent(in) :: area
+    real(dp), intent(in) :: Mcell
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -496,7 +501,7 @@ contains
     type is(ElPhonNonPolarOptical)
 #:if defined("MPI")
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
-            &  wq, Temp, dz, D0, area, niter, tridiag)
+            &  wq, Temp, dz, D0, Mcell, cell_vol, a0, niter, tridiag)
 #:else
       call error_msg( "Inelastic scattering requires MPI")
 #:endif

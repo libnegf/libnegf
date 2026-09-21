@@ -400,7 +400,7 @@ subroutine negf_create_hs(handler, nHk) bind(C)
   type(NEGFpointers) :: LIB
 
   LIB = transfer(handler, LIB)
-  call create_HS(LIB%pNEGF, nHk) 
+  call create_HS(LIB%pNEGF, nHk)
 
 end subroutine negf_create_hs
 
@@ -1093,9 +1093,9 @@ end subroutine negf_set_kpoint
 !!         eqv_points: global matrix that contains the kpoints needed to reconstruct the Brillouin Zone, starting from
 !!                     the irreducible wedge (IW)
 !!         m_eq: number of eqv_points, needed to reconstruct the matrix from the 1D array passed from C++
-!!         equiv_mult: the array containing, for each kpoint in `kpoints`, the multiplicity of equivalent points. 
+!!         equiv_mult: the array containing, for each kpoint in `kpoints`, the multiplicity of equivalent points.
 !!                     Necessary to unpack `eqv_points` and assign them to the corrispective IW kpoint
-!!  
+!!
 !!         set_eq_pts: flag to determine whether the full BZ has been passed, or if eqiuvalent points have to be set together
 !!                     with the reduced BZ
 !!
@@ -1165,7 +1165,7 @@ subroutine negf_init_basis(handler, coords, n_atoms, dims, matrix_indices, latti
   LIB = transfer(handler, LIB)
 
   call init_basis(LIB%pNEGF, coords, n_atoms, matrix_indices, lattice_vecs, trans_dir)
-    
+
 end subroutine negf_init_basis
 
 
@@ -1378,8 +1378,8 @@ subroutine negf_set_elph_s_dephasing(handler, coupling, coupling_size, orbsperat
 end subroutine negf_set_elph_s_dephasing
 
 
-subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz, eps_r, eps_inf, q0, cell_area, scba_niter, trid)&
-  & bind(c)
+subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz, eps_r, eps_inf, &
+           & q0, cell_area, scba_niter, trid) bind(c)
   use iso_c_binding, only : c_int, c_double, c_bool ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
@@ -1402,20 +1402,30 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
   type(NEGFpointers) :: LIB
   real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
+  logical :: model2D=.false.  ! C++ passes logical(1) but we need logical(4)
+  real(dp) :: a0
+  real(dp) :: cell_vol
+  real(dp) :: sigma
+
+  a0 = 5.0_dp ! hardcoded but must passed as input !
+  cell_vol = cell_area * a0
+  sigma = 0.0_dp
 
   LIB = transfer(handler, LIB)
   allocate(coupling_tmp(coup_size))
   coupling_tmp(:) = coup(1:coup_size)
   trid_tmp = logical(trid)
 
-  call set_elph_polaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, eps_r, eps_inf, q0, cell_area, scba_niter, trid_tmp)
+  call set_elph_polaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, eps_r, eps_inf, q0, &
+        & cell_vol, a0, model2D, sigma, scba_niter, trid_tmp)
 
   deallocate(coupling_tmp)
 
 end subroutine negf_set_elph_polaroptical
 
 
-subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, deltaz, D0, cell_area, scba_niter, trid) bind(c)
+subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, deltaz, D0, &
+            & cell_area, scba_niter, trid) bind(c)
   use iso_c_binding, only : c_int, c_double, c_bool ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
@@ -1436,13 +1446,19 @@ subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, 
   type(NEGFpointers) :: LIB
   real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
+  real(dp) :: a0, cell_vol, Mcell
+
+  Mcell = 0.0_dp
+  a0 = 5.0_dp ! hardcoded but must passed as input !
+  cell_vol = cell_area * a0
 
   LIB = transfer(handler, LIB)
   allocate(coupling_tmp(coup_size))
   coupling_tmp(:) = coupling(1:coup_size)
   trid_tmp = logical(trid)
 
-  call set_elph_nonpolaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, D0, cell_area, scba_niter, trid_tmp)
+  call set_elph_nonpolaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, D0, Mcell, &
+        & cell_vol, a0, scba_niter, trid_tmp)
 
   deallocate(coupling_tmp)
 

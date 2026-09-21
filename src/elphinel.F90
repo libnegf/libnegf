@@ -28,7 +28,7 @@ module elphinel
   use mat_def, only : c_DNS, z_DNS
   use mat_def, only : x_DNS => z_DNS, create, destroy, assignment(=)
   use ln_math, only : cross_product, volume
-  use ln_constants, only : pi
+  use ln_constants, only : pi, hbar2c2
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
   use ln_allocation, only : log_allocate, log_deallocate, writeMemInfo
@@ -49,7 +49,7 @@ module elphinel
   public :: ElPhonInel, ElPhonPolarOptical, ElPhonNonPolarOptical
   public :: ElPhonPO_create, ElPhonNonPO_create
   public :: ElPhonPO_init, ElPhonNonPO_init
-  
+
   type, public :: TMatPointer
     type(x_DNS), pointer :: pMat
   end type TMatPointer
@@ -93,6 +93,12 @@ module elphinel
     real(dp) :: dz
     !> Supercell area for integrations
     real(dp) :: cell_area
+    !> Cell length along transport
+    real(dp) :: a0
+    !> Specific model for 2D PO phonons
+    logical :: model2D
+    !> Parameter for the model
+    real(dp) :: sigma
 
   contains
 
@@ -128,10 +134,14 @@ module elphinel
   type, extends(ElPhonInel) :: ElPhonPolarOptical
     private
     !> Parameters for Polar-optical K-function
-    real(dp) :: Ce
+    !> Dielectric screening at low frequency
     real(dp) :: eps0
+    !> Dielectric screening at optical frequencies
     real(dp) :: eps_inf
+    !> Inverse screening length
     real(dp) :: q0
+    !> Internal use
+    real(dp) :: Ce
     contains
     procedure :: prepare => prepare_POKmat
   end type ElPhonPolarOptical
@@ -139,7 +149,12 @@ module elphinel
   type, extends(ElPhonInel) :: ElPhonNonPolarOptical
     private
     !> Parameters for Non-polar-optical K-function
+    !> Deformation potential
     real(dp) :: D0
+    !> Mass of the cell
+    real(dp) :: Mcell
+    !> Internal use
+    real(dp) :: Ce
     contains
     procedure :: prepare => prepare_NonPOKmat
   end type ElPhonNonPolarOptical
@@ -163,7 +178,7 @@ contains
   ! @param wq: phonon frequence
   ! @param niter: fixed number of scba iterations
   subroutine ElPhonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
-             & dz, eps0, eps_inf, q0, cell_area, niter, tridiag)
+             & dz, eps0, eps_inf, q0, cell_vol, a0, model2D, sigma, niter, tridiag)
     type(ElPhonPolarOptical) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
@@ -175,12 +190,20 @@ contains
     real(dp), intent(in) :: eps0
     real(dp), intent(in) :: eps_inf
     real(dp), intent(in) :: q0
-    real(dp), intent(in) :: cell_area
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
+    logical, intent(in) :: model2D
+    real(dp), intent(in) :: sigma
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
-    this%descriptor = &
+    if (model2D) then
+      this%descriptor = &
+        & "Electron-Phonon inelastic 2D polar-optical phonons"
+    else
+      this%descriptor = &
         & "Electron-Phonon inelastic model for polar-optical phonons"
+    end if
 
     this%cart_comm = comm
     this%scba_niter = niter
@@ -193,9 +216,12 @@ contains
     this%eps0 = eps0
     this%eps_inf = eps_inf
     this%q0 = q0
-    this%cell_area = cell_area
+    this%a0 = a0
+    this%cell_area = cell_vol/a0
     this%coupling = coupling(1)
     this%tTridiagonal = tridiag
+    this%model2D = model2D
+    this%sigma = sigma
 
     call set_reciprocal_vectors(basis, this%recVecs2p)
 
@@ -227,7 +253,7 @@ contains
   ! @param wq: phonon frequence
   ! @param niter: fixed number of scba iterations
   subroutine ElPhonNonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
-             & dz, D0, cell_area, niter, tridiag)
+             & dz, D0, Mcell, cell_vol, a0, niter, tridiag)
     type(ElPhonNonPolarOptical) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
@@ -237,7 +263,9 @@ contains
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
     real(dp), intent(in) :: D0
-    real(dp), intent(in) :: cell_area
+    real(dp), intent(in) :: Mcell
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -254,7 +282,9 @@ contains
     this%coupling = coupling(1)
     this%dz = dz
     this%D0 = D0
-    this%cell_area = cell_area
+    this%Mcell = Mcell
+    this%a0 = a0
+    this%cell_area = cell_vol/a0
     this%tTridiagonal = tridiag
 
     call set_reciprocal_vectors(basis, this%recVecs2p)
@@ -262,12 +292,20 @@ contains
     if (associated(this%sigma_r)) then
       call error_msg('Initialization of non-PO Phonon called twice')
     end if
-    allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
+    allocate(TMatrixCacheMem::this%sigma_r)
+    select type(p => this%sigma_r)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_r'
+    end select
 
     if (associated(this%sigma_n)) then
       call error_msg('Initialization of non-PO Phonon called twice')
     end if
-    allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
+    allocate(TMatrixCacheMem::this%sigma_n)
+    select type(p => this%sigma_n)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_n'
+    end select
 
   end subroutine ElPhonNonPO_init
   !--------------------------------------------------------------------------
@@ -324,42 +362,161 @@ contains
   !--------------------------------------------------------------------------
   ! PO phonons: see also derivation slides:
   !
-  ! Sigma_mn(k,E) = Sum_qt',G Sum_qz |U(Q+G)|^2 e^(i*qz*|zm - zn|) * Gmn(kt-qt', E-E')*D(E')
-  ! kt-qt' in the BZ  => kt-qt'+G' with G' that does the appropriate folding into the BZ
-  ! |U(q)|^2 = C*q^2/(q^2 + q0^2)^2
+  ! Sigma_mn(kt,E) = Sum_{qt' in BZ} w(qt') *
+  !                        Sum_qz |U(q)|^2 e^(i*qz*|zm - zn|) * Gmn(~[kt-qt'], E-E')*D(E')
+  !
+  ! |U(q)|^2 = Ce * q^2/(q^2 + q0^2)^2  screened Frolich coupling
   ! q = qt' + qz z^  (q is a 3D wave-vector, qt' is 2D)
-  ! Set qt=kt-qt'+G'  =>  qt'=kt-qt+G' => q^2 = kt^2 + (qt-G)^2 - 2kt*(qt-G) + qz^2
-  ! The sum over G absorbs G' (contains G'). Also note that Sum_{G} == Sum_{-G}
+  ! ~[kt-qt'] means folded in the BZ
+  ! Set qt = kt-qt'  =>  qt'=kt-qt = Q
   !
-  ! First perform F = Sum_qz  (Q^2 + qz^2)/[ Q^2 + q0^2 + qz^2 ] exp(i*qz*|zm-zn|)  Q=k-q+G
-  ! F = F(|zm-zn|, Q^2) = K(|zm-zn|, k, q+G)
+  ! First perform F = Sum_qz (Q^2 + qz^2)/[ Q^2 + q0^2 + qz^2 ] exp(i*qz*|zm-zn|)
+  ! then
+  ! K(|zm-zn|, kt, qt) = F(|zm-zn|, Q^2) * Ce * w(~[kt-qt])
   !
-  ! Sigma_mn(k,E) = Sum_q Sum_G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
+  ! Sigma_mn(kt,E) = Sum_qt K(|zm-zn|, kt, qt) [B(-)*Gmn(qt,E-wq) + B(+)*Gmn(qt,E+wq)]
   !
   ! k <-> -k   symmetry:
-  ! H(k)=H(-k) => G(q)=G(-q)  Since F depends on Q^2, F(Q)=F(-Q)
-  ! => K(k,q)=K(-k,-q)  and  K(k,-q) = K(-k, q)
+  ! H(k)=H(-k), G(q,E)=G(-q,E) => Since F depends on Q^2, F(Q)=F(-Q)
+  ! => K(dz, k,q)=K(dz, -k,-q)  and  K(dz, k, -q) = K(dz, -k, q)
   ! Sigma(+k) = Sum_{q\2} K(k,q) G(q) + Sum_{-q\2} K(k,-q) G(q)
   !                       =                          =
   ! Sigma(-k) = Sum_{-q\2} K(-k,-q) G(q) + Sum_{q\2} K(-k,q) G(q)
   !
-  ! => Define:  K(|zm-zn|, k, q)  = Sum_G [F(|zm-zn|, (k-q+G)^2) + F(|zm-zn|, (k+q+G)^2)]
-  ! ^
+  ! Implementation:
+  !
+  ! The sum over qt can be re-written,
+  !
+  ! Sigma_mn(kt,E) = Sum_{qt in IBZ} Sum_{qe~qt}
+  !                 K(|zm-zn|, kt, qe) [B(-)*Gmn(qe,E-wq) + B(+)*Gmn(qe,E+wq)]
+  !
+  ! IMPORTANT ISSUES:
+  ! 1. Since we reconstruct all kpoints, the weights should not carry the 2x factors.
+  ! 2. Any calling code will typically pass weights with 2x factors. Since we need to recompute
+  !    the original weights and since we avoid to search w(~[kt-qt]) we assume a homogeneus sampling:
+  !
   ! |o o x x|   4x4 k-sampling on the [0..1] x [0..1]
   ! |o o x x|   The x are what DFTB+ removes for symmetry. Notice it is NOT k->-k symmetry
   ! |o o x x|   The BZ does not extend -Pi/2..Pi/2 but [0..Pi]
   ! |o o x x|
   ! ---------->
   ! 0       1
-  !--------------------------------------------------------------------------
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Model PO phonons in 2D materials like MoS2 [PHYSICAL REVIEW B 85, 115317 (2012)]
+  !
+  ! g_LO(q) = g0*erfc(q*s/2)   where s is an effective layer thickness, X(z)~exp(-z^2/2s^2)
+  !
+  ! since we need |g|^2, we have to approximate erfc^2(x) ~ sum_i=1,3 cc(i)*exp(-aa(i)*x^2)
+  ! Then we have:
+  !  s/A Sum_qt w(qt) Int_-inf^+inf dQz/2pi exp(-aa(i)*s^2*Qz^2/4) * exp(-i Qz dz)
+  !
+  !----------------------------------------------------------------------------------------------
   subroutine prepare_POKmat(this)
     class(ElPhonPolarOptical) :: this
 
     integer :: iZ, iQ, eQ, iK, nDeltaZ, nCentralAtoms, n_eq
-    real(dp) :: kq(3), dk(3), QQ(3), Q2, bb, z_mn, Kf
-    real(dp) :: zmin, zmax
-    real(dp), allocatable :: myKmat(:,:)
-    integer :: transDir, nKpoints, iG
+    real(dp) :: kq(3), dk(3), QQ(3), Q2, bb, z_mn, Kf, s2
+    real(dp) :: zmin, zmax, w_single
+    integer :: transDir, nKpoints
+    type(TEqPoint) :: eqv_points_iQ
+    real(dp), parameter :: cc(3)=[0.082343_dp, 0.341874_dp, 0.502502_dp]
+    real(dp), parameter :: aa(3)=[2.09718_dp, 3.03878_dp, 16.7786_dp]
+
+    ! Compute the matrix Kmat as lookup table
+    nCentralAtoms = this%basis%nCentralAtoms
+
+    transDir = this%basis%transportDirection
+    zmin = minval(this%basis%x(transDir,1:nCentralAtoms))
+    zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
+
+    nDeltaZ = nint((zmax - zmin)/this%dz)
+    nKpoints = size(this%kweight)
+
+    if (allocated(this%Kmat)) then
+       call log_deallocate(this%Kmat)
+    end if
+    call log_allocate(this%Kmat, nDeltaZ+1, nKpoints, nKpoints)
+
+    if (this%model2D) then
+      this%Ce = this%coupling/this%cell_area/sqrt(pi)
+      s2 = this%sigma**2
+    else
+      this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
+          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
+    end if
+
+    ! K(|zm-zn|, k, q) = [I(|zm-zn|,k+G,q)+Sum_qe I(|zm-zn|,k+G,qe)]*w(q)
+    iQloop: do iQ = 1, nKpoints
+
+       ! restoring original weights. Note assumptions above
+       if (allocated(this%equivalent_kpoints)) then
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+           n_eq = size(eqv_points_iQ%points, 2)
+           w_single = this%kweight(iQ) / real(n_eq + 1, dp)
+       else
+           n_eq = 0
+           w_single = this%kweight(iQ)
+       end if
+
+       iKloop: do iK = 1, nKpoints
+         dk(:) = this%kpoint(:,iK)-this%kpoint(:,iQ)
+         call fold_into_BZ(dk, kQ)
+         ! We now get QQ in absolute coordinates
+         QQ = matmul(this%recVecs2p, kQ)
+         Q2 = dot_product(QQ, QQ)
+         bb = sqrt(this%q0*this%q0 + Q2)
+
+         do iZ = 0, nDeltaZ
+           z_mn = iZ * this%dz
+           if (this%model2D) then
+             this%Kmat(iZ+1,iK,iQ) = &
+               & sum( cc(:)/sqrt(aa(:)) * exp(-aa(:)*s2*Q2/4.0_dp)*exp(-z_mn**2/(aa(:)*s2)) )
+           else
+             this%Kmat(iZ+1,iK,iQ) = &
+               & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+           end if
+         end do
+
+         ! Add contribution of kpoints equivalent to iQ
+         if (n_eq > 0) then
+           !Select the set of points equivalent to iQ
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+
+           do eQ = 1, n_eq
+             dk(:) = this%kpoint(:,iK)-eqv_points_iQ%points(:,eQ)
+             call fold_into_BZ(dk, kQ)
+             QQ = matmul(this%recVecs2p, kQ)
+             Q2 = dot_product(QQ, QQ)
+             bb = sqrt(this%q0*this%q0 + Q2)
+
+             do iZ = 0, nDeltaZ
+               z_mn = iZ * this%dz
+               if (this%model2D) then
+                 this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + &
+                   & sum( cc(:)/sqrt(aa(:)) * exp(-aa(:)*s2*Q2/4.0_dp)*exp(-z_mn**2/(aa(:)*s2)) )
+               else
+                 this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + &
+                   & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+               end if
+             end do
+           end do
+         end if
+       end do iKloop
+       this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) * this%Ce * w_single
+    end do iQloop
+
+  end subroutine prepare_POKmat
+
+  !--------------------------------------------------------------------------
+  ! Non PO phonons: see derivation slides:
+  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
+  subroutine prepare_NonPOKmat(this)
+    class(ElPhonNonPolarOptical) :: this
+
+    integer :: iZ, iQ, iK, nDeltaZ, nCentralAtoms, eQ, n_eq
+    real(dp) :: zmin, zmax, z_mn, w_single
+
+    integer :: transDir, nKpoints
     type(TEqPoint) :: eqv_points_iQ
 
     ! Compute the matrix Kmat as lookup table
@@ -371,178 +528,54 @@ contains
 
     nDeltaZ = nint((zmax - zmin)/this%dz)
     nKpoints = size(this%kweight)
-    print*,'DEBUG:  #kpoints', nKpoints
-    do iG = 1, nKpoints
-      print*,'K= ',this%kpoint(:,iG)
-    end do
 
     if (allocated(this%Kmat)) then
        call log_deallocate(this%Kmat)
     end if
     call log_allocate(this%Kmat, nDeltaZ+1, nKpoints, nKpoints)
-    call log_allocate(myKmat, nDeltaZ+1, nKpoints)
-    myKmat = 0.0_dp
 
-    this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
-          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
+    if (this%D0==0.0_dp .or. this%Mcell==0.0_dp) then
+      ! coupling here is energy units
+      this%Ce = this%coupling**2/pi
+    else
+      ! coupling here is just a scaling factor
+      ! D0^2 hbar^2 c^2 / (hbar wq Mcell c^2) = E^2/L^2 * E^2 L^2/(E^2) = E^2
+      this%Ce = this%coupling*this%D0**2*hbar2c2/(2.0_dp*pi*this%wq*this%Mcell)
+    end if
 
-    ! K(|zm-zn|, k, q) = Sum_G [I(|zm-zn|,k+G,q)+Sum_qe I(|zm-zn|,k+G,qe)]*w(q)
-    ! {G} = rVec2Pi * {(1,0,0),(0,1,0),(-1,0,0),(0,-1,0),(1,1,0),(1,-1,0),...}
-    ! ISSUE: The G summation does not converge, so we restrict to first BZ
     iQloop: do iQ = 1, nKpoints
+       ! restoring original weights. Note assumptions above
+       if (allocated(this%equivalent_kpoints)) then
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+           n_eq = size(eqv_points_iQ%points, 2)
+           w_single = this%kweight(iQ) / real(n_eq + 1, dp)
+       else
+           n_eq = 0
+           w_single = this%kweight(iQ)
+       end if
+
        iKloop: do iK = 1, nKpoints
-         dk(:) = this%kpoint(:,iK)-this%kpoint(:,iQ)
-         call fold_into_BZ(dk, kQ)
-         ! We now get QQ in absolute coordinates
-         QQ = matmul(this%recVecs2p, kQ)
-         Q2 = dot_product(QQ, QQ)
-         bb = sqrt(this%q0*this%q0 + Q2)
-         if (id0) print*,'iK, bb:',iK,bb
+
          do iZ = 0, nDeltaZ
            z_mn = iZ * this%dz
-           myKmat(iZ+1,iK) = myKmat(iZ+1,iK) + & 
-                 & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
-           !Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
-           !this%Kmat(iZ+1,iK,iQ) = this%Ce * this%kweight(iQ) * Kf
+           this%Kmat(iZ+1,iK,iQ) = exp(-z_mn/this%a0)
          end do
 
          ! Add contribution of kpoints equivalent to iQ
-         if (allocated(this%equivalent_kpoints)) then
+         if (n_eq > 0) then
            !Select the set of points equivalent to iQ
            eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
-           n_eq = size(eqv_points_iQ%points, 2)
 
            do eQ = 1, n_eq
-             dk(:) = this%kpoint(:,iK)-eqv_points_iQ%points(:,eQ)
-             call fold_into_BZ(dk, kQ)
-             QQ = matmul(this%recVecs2p, kQ)
-             Q2 = dot_product(QQ, QQ)
-             bb = sqrt(this%q0*this%q0 + Q2)
              do iZ = 0, nDeltaZ
                z_mn = iZ * this%dz
-               myKmat(iZ+1,iK) = myKmat(iZ+1,iK) + & 
-                  & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+               this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + exp(-z_mn/this%a0)
              end do
            end do
          end if
-       end do iKloop 
-       this%Kmat(:,:,iQ) = myKmat(:,:) * this%Ce * this%kweight(iQ)
+       end do iKloop
+       this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) * this%Ce * w_single
     end do iQloop
-
-    call log_deallocate(myKmat)
-
-  end subroutine prepare_POKmat
-
-  !--------------------------------------------------------------------------
-  ! Non PO phonons: see derivation slides:
-  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
-  subroutine prepare_NonPOKmat(this)
-    class(ElPhonNonPolarOptical) :: this
-
-    integer :: iZ, iQ, iK, nDeltaZ, nCentralAtoms, eQ, n_eq
-    real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf, ekp(3), ekp2
-    real(dp) :: zmin, zmax
-    real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
-
-    integer :: transDir
-    type(TEqPoint) :: eqv_points_iQ
-
-    ! Compute the matrix Kmat as lookup table
-    nCentralAtoms = this%basis%nCentralAtoms
-
-    transDir = this%basis%transportDirection
-    zmin = minval(this%basis%x(transDir,1:nCentralAtoms))
-    zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
-
-    nDeltaZ = nint((zmax - zmin)/this%dz)
-    if (allocated(this%Kmat)) then
-       call log_deallocate(this%Kmat)
-    end if
-    call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
-
-    !compute the absolute k-points
-    allocate(kpoint(3,size(this%kweight)))
-    if (all(this%basis%lattVecs == 0.0_dp)) then
-       kpoint = 0.0_dp
-    else
-       kpoint = matmul(this%recVecs2p, this%kpoint)
-    end if
-
-    iQloop: do iQ = 1, size(this%kweight)
-      kq = kpoint(:, iQ)
-      kq2 = dot_product(kq,kq)
-      if (kq2==0.0_dp) then
-         this%Kmat(:,:,iQ) = 0.0_dp
-         cycle
-      end if
-      do iK = 1, size(this%kweight)
-        kk = kpoint(:, iK)
-        kk2 = dot_product(kk,kk)
-        if (kk2==0.0_dp) then
-           this%Kmat(:,iK,iQ) = 0.0_dp
-           cycle
-        end if
-        QQ = dot_product(kk, kq)
-        Q2 = QQ*QQ
-        do iZ = 0, nDeltaZ
-          z_mn = iZ * this%dz
-          Kf = this%D0*Q2*exp(-sqrt(kq2)*z_mn)/(2.0_dp*kq2*kk2)
-          !if (isNan(Kf)) then
-          !   print*,kq2,kk2,QQ
-          !   stop
-          !end if
-          this%Kmat(iZ+1,iK,iQ) = this%coupling * this%kweight(iQ) * Kf
-        end do
-      end do
-
-      ! Add contribution of kpoints equivalent to iQ
-      if (allocated(this%equivalent_kpoints)) then
-        !Select the set of points equivalent to iQ
-        eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
-        n_eq = size(eqv_points_iQ%points, 2)
-        !Compute the absolute k-points
-        call log_allocate(ekpoints, 3, n_eq)
-        ekpoints = matmul(this%recVecs2p, eqv_points_iQ%points)
-
-        do eQ = 1, n_eq
-          ekp = ekpoints(:,eQ)
-          ekp2 = dot_product(ekp,ekp)
-          if (ekp2==0.0_dp) then
-            this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) + 0.0_dp
-            cycle
-         end if
-
-         do iK = 1, size(this%kweight)
-          kk = kpoint(:, iK)
-          kk2 = dot_product(kk,kk)
-          if (kk2==0.0_dp) then
-             this%Kmat(:,iK,iQ) = this%Kmat(:,iK,iQ) + 0.0_dp
-             cycle
-          end if
-          QQ = dot_product(kk, ekp)
-          Q2 = QQ*QQ
-          do iZ = 0, nDeltaZ
-            z_mn = iZ * this%dz
-            Kf = this%D0*Q2*exp(-sqrt(ekp2)*z_mn)/(2.0_dp*ekp2*kk2)
-
-            this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + this%coupling * this%kweight(iQ) * Kf
-          end do
-         end do
-
-        end do
-        call log_deallocate(ekpoints)
-      endif
-
-    end do iQloop
-    !if (any(isNan(this%Kmat))) then
-    !  print*,'Kmat= NaN'
-    !  stop
-    !end if
-    !open(newunit=fu, file='Kmat.dat')
-    !do iZ = 0, nDeltaZ
-    !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
-    !end do
-    !close(fu)
 
   end subroutine prepare_NonPOKmat
 
@@ -636,20 +669,32 @@ contains
   end subroutine set_shell_G
 
   !--------------------------------------------------------------------------
-  ! Folds a kpoint into the first BZ [-pi/2..pi/2] x [-pi/2..pi/2]
+  ! Folds a kpoint into the first BZ [-1/2..1/2] x [-1/2..1/2]
   !
+  ! Note: the Subroutine assumes kpoint is in [-1..1] x [-1..1]
   subroutine fold_into_BZ(kpoint, kpoint_fold)
     real(dp), intent(in) :: kpoint(3)
     real(dp), intent(out) :: kpoint_fold(3)
 
-    if (kpoint(1) > pi/2) then
-      kpoint_fold(1) = kpoint(1) - pi
+    kpoint_fold = kpoint
+
+    if (kpoint(1) > 0.5_dp) then
+      kpoint_fold(1) = kpoint(1) - 1.0_dp
     end if
-    if (kpoint(2) > pi/2) then
-      kpoint_fold(2) = kpoint(2) - pi
+    if (kpoint(1) < -0.5_dp) then
+      kpoint_fold(1) = kpoint(1) + 1.0_dp
     end if
-    if (kpoint(3) > pi/2) then
-      kpoint_fold(3) = kpoint(3) - pi
+    if (kpoint(2) > 0.5_dp) then
+      kpoint_fold(2) = kpoint(2) - 1.0_dp
+    end if
+    if (kpoint(2) < -0.5_dp) then
+      kpoint_fold(2) = kpoint(2) + 1.0_dp
+    end if
+    if (kpoint(3) > 0.5_dp) then
+      kpoint_fold(3) = kpoint(3) - 1.0_dp
+    end if
+    if (kpoint(3) < -0.5_dp) then
+      kpoint_fold(3) = kpoint(3) + 1.0_dp
     end if
 
   end subroutine fold_into_BZ
@@ -1422,7 +1467,6 @@ contains
     latt_vec1 = basis%lattVecs(:, 1)
     latt_vec2 = basis%lattVecs(:, 2)
     latt_vec3 = basis%lattVecs(:, 3)
-
     vol = volume(latt_vec1, latt_vec2, latt_vec3)
 
     if (vol > 0.0_dp) then
@@ -1432,14 +1476,14 @@ contains
       rec_vec2 = (2.0_dp*pi*cross_prod) / vol
       call cross_product(latt_vec1, latt_vec2, cross_prod)
       rec_vec3 = (2.0_dp*pi*cross_prod) / vol
- 
+
       reciprocal_mat(:, 1) = rec_vec1
       reciprocal_mat(:, 2) = rec_vec2
       reciprocal_mat(:, 3) = rec_vec3
    else
       reciprocal_mat = 0.0_dp
-   end if   
-  
+   end if
+
   end subroutine set_reciprocal_vectors
 
   !> Integral over qz of the electron-phonon polar optical couping.
@@ -1676,16 +1720,12 @@ contains
           iKglo = kindices_map(iK,coords(1))-1
           pSigma => Sigma(iE, iK)%pMat
 
-          !$OMP PARALLEL private (nu, KKbuf)
-          allocate(KKbuf(Np))
-          !$OMP DO
+          !$OMP PARALLEL DO private (nu)
           do nu = 1, Mp
-            KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo)
-            pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * sbuffK%val(:,nu)
+            pSigma%val(1:Np,nu) = pSigma%val(1:Np,nu) + &
+                  & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo) * sbuffK%val(1:Np,nu)
           end do
-          !$OMP END DO
-          deallocate(KKbuf)
-          !$OMP END PARALLEL
+          !$OMP END PARALLEL DO
         end do
 
 
@@ -1729,16 +1769,12 @@ contains
             do iK = 0, NKloc-1
               iKglo = kindices_map(iK,coords(1))-1
               pSigma => Sigma(iE, iK)%pMat
-              !$OMP PARALLEL private (nu, KKbuf)
-              allocate(KKbuf(Np))
-              !$OMP DO
+              !$OMP PARALLEL DO private (nu)
               do nu = 1, Mp
-                KKbuf(:) = KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2)
-                pSigma%val(:,nu) = pSigma%val(:,nu) + KKbuf(:) * rbuffK%val(:,nu)
+                pSigma%val(1:Np,nu) = pSigma%val(1:Np,nu) + &
+                   & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2) * sbuffK%val(1:Np,nu)
               end do
-              !$OMP END DO
-              deallocate(KKbuf)
-              !$OMP END PARALLEL
+              !$OMP END PARALLEL DO
             end do
 
             call MPI_Wait(rqK1, statK(1), ierr)

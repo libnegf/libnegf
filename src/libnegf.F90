@@ -671,10 +671,11 @@ module libnegf
   !> subroutine used to setup kpoints
   !  k-point sampling must be expressed in reduced coordinates, i.e.
   !  either [-0.5..+0.5]x[-0.5..+0.5] (Gamma-centered) or [0..1]x[0..1] (I quadrant)
-  !  kpoints(:)  kweights(:)  are the global vectors
+  !  kpoints(:)  kweights(:)  are the GLOBAL vectors
   !  local_kindex(:) is a array of local indices pointing to the global vectors
   !  kSamplingType: 0 = Gamma-centered, no inversion
   !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
+  !                 2 = Shifted in the I quadrant (0..1)x(0..1), with inversion symmetry
   subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType, equiv_kpoints, equiv_mult)
     type(Tnegf) :: negf
     real(dp), intent(in) :: kpoints(:,:)
@@ -685,7 +686,8 @@ module libnegf
     integer, intent(in), optional :: equiv_mult(:)
 
     integer :: ii, jj
-    real(dp) :: shift(3)
+    real(dp), allocatable :: equiv_by_inv(:,:)
+    integer, allocatable :: equiv_mult_inv(:)
 
     if (size(kpoints,2) /= size(kweights)) then
        call error_msg( 'Error: size of kpoints do not match')
@@ -697,21 +699,19 @@ module libnegf
     call log_allocate(negf%kpoints,3,size(kweights))
     if (kSamplingType == 0) then
       negf%kpoints = kpoints
-    else if (kSamplingType == 1) then
-      ! Try to guess if the system is 2D or 3D
-      ! If all k-components are 0 along x or y
-      shift = [-0.5_dp, -0.5_dp, 0.0_dp]
-      if (all(kpoints(1,:)==0.0_dp)) then
-         shift(1) = 0.0_dp
-      end if
-      if (all(kpoints(2,:)==0.0_dp)) then
-         shift(2) = 0.0_dp
-      end if
+    else if (kSamplingType == 1 .or. kSamplingType == 2) then
+      ! Fold into (-1/2..1/2)
       do ii = 1, size(kweights)
-        negf%kpoints(:,ii) = kpoints(:,ii) + shift
+        negf%kpoints(:,ii) = kpoints(:,ii)
+        if (kpoints(1,ii) > 0.5_dp) negf%kpoints(1,ii) = kpoints(1,ii) - 1.0_dp
+        if (kpoints(2,ii) > 0.5_dp) negf%kpoints(2,ii) = kpoints(2,ii) - 1.0_dp
+        if (kpoints(3,ii) > 0.5_dp) negf%kpoints(3,ii) = kpoints(3,ii) - 1.0_dp
+        if (id0) then
+          write(*,'(I3,F10.5,F10.5,F10.5,":")') ii, negf%kpoints(:, ii)
+        end if
       end do
     else
-      call error_msg( "kSamplingType must be either 0 or 1")
+      call error_msg( "kSamplingType must be either 0, 1 or 2")
     end if
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
@@ -724,32 +724,33 @@ module libnegf
     call log_allocate(negf%local_k_index,size(local_kindex))
     negf%local_k_index = local_kindex
 
-    !if (id0) then
-    !  write(*,*) 'k-points used in NEGF:'
-    !  do ii = 1, size(local_kindex)
-    !    write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
-    !  end do
-    !end if
-
     if (present(equiv_kpoints)) then
       if (.not. present(equiv_mult)) then
         call error_msg( "ERROR: equivalent k-points were passed without multiplicity array equiv_mult")
       endif
       call set(negf%equivalent_kpoints, equiv_kpoints, size(kweights), equiv_mult)
-
-      if (id0) then
-        write(*,*) 'Equivalent k-points used in NEGF:'
-        do ii = 1, size(kweights)
-          write(*,*) "For kpoint: ", negf%kpoints(:, ii), ":"
-          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
-            write(*,*) "   ", negf%equivalent_kpoints%EqPoints(ii)%points(:, jj)
-          end do
-        end do
-      end if
-
+    else if (kSamplingType == 2) then
+      allocate(equiv_by_inv, mold=negf%kpoints)
+      equiv_by_inv = -negf%kpoints
+      allocate(equiv_mult_inv(size(kweights)))
+      equiv_mult_inv=1
+      call set(negf%equivalent_kpoints, equiv_by_inv, size(kweights), equiv_mult_inv)
     else
       call destroy(negf%equivalent_kpoints)
     endif
+
+    if (present(equiv_kpoints).or.kSamplingType==2) then
+      if (id0) then
+        write(*,*) 'Equivalent k-points used in NEGF:'
+        do ii = 1, size(kweights)
+          write(*,'("For kpoint:",F10.5,F10.5,F10.5,":")') negf%kpoints(:, ii)
+          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
+          write(*,'("   ",F10.5,F10.5,F10.5)') negf%equivalent_kpoints%EqPoints(ii)%points(:,jj)
+          end do
+        end do
+      end if
+    end if
+
   end subroutine set_kpoints
 
 
