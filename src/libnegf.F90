@@ -941,8 +941,12 @@ module libnegf
     type(Tnegf) :: negf
     real(dp), intent(in) :: elastic_tol
     real(dp), intent(in) :: inelastic_tol
-    negf%scba_elastic_tol = elastic_tol
-    negf%scba_inelastic_tol = inelastic_tol
+    if (negf%scba_elastic_tol > elastic_tol) then
+       negf%scba_elastic_tol = elastic_tol
+    end if
+    if (negf%scba_inelastic_tol > inelastic_tol) then
+       negf%scba_inelastic_tol = inelastic_tol
+    end if
   end subroutine set_scba_tolerances
   !----------------------------------------------------------
   subroutine get_scba_tolerances(negf, elastic_tol, inelastic_tol)

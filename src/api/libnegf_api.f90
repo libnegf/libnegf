@@ -1299,15 +1299,10 @@ subroutine negf_set_elph_dephasing(handler, coupling, coupling_size, scba_niter)
   integer(c_int), intent(in), value :: scba_niter ! if:var:in
 
   type(NEGFpointers) :: LIB
-  real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
 
   LIB = transfer(handler, LIB)
-  allocate(coupling_tmp(coupling_size))
-  coupling_tmp(:) = coupling(1:coupling_size)
 
-  call set_elph_dephasing(LIB%pNEGF, coupling_tmp, scba_niter)
-
-  deallocate(coupling_tmp)
+  call set_elph_dephasing(LIB%pNEGF, coupling, scba_niter)
 
 end subroutine negf_set_elph_dephasing
 
@@ -1328,19 +1323,10 @@ subroutine negf_set_elph_block_dephasing(handler, coupling, coupling_size, orbsp
   integer(c_int), intent(in), value :: scba_niter             ! if:var:in
 
   type(NEGFpointers) :: LIB
-  real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
-  integer, allocatable :: orbsperatm_tmp(:)
 
   LIB = transfer(handler, LIB)
-  allocate(coupling_tmp(coupling_size))
-  allocate(orbsperatm_tmp(orbsperatm_size))
-  coupling_tmp(:) = coupling(1:coupling_size)
-  orbsperatm_tmp(:) = orbsperatm(1:orbsperatm_size)
 
-  call set_elph_block_dephasing(LIB%pNEGF, coupling_tmp, orbsperatm_tmp, scba_niter)
-
-  deallocate(coupling_tmp)
-  deallocate(orbsperatm_tmp)
+  call set_elph_block_dephasing(LIB%pNEGF, coupling, orbsperatm, scba_niter)
 
 end subroutine negf_set_elph_block_dephasing
 
@@ -1361,24 +1347,15 @@ subroutine negf_set_elph_s_dephasing(handler, coupling, coupling_size, orbsperat
   integer(c_int), intent(in), value :: scba_niter             ! if:var:in
 
   type(NEGFpointers) :: LIB
-  real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
-  integer, allocatable :: orbsperatm_tmp(:)
 
   LIB = transfer(handler, LIB)
-  allocate(coupling_tmp(coupling_size))
-  allocate(orbsperatm_tmp(orbsperatm_size))
-  coupling_tmp(:) = coupling(1:coupling_size)
-  orbsperatm_tmp(:) = orbsperatm(1:orbsperatm_size)
 
-  call set_elph_s_dephasing(LIB%pNEGF, coupling_tmp, orbsperatm_tmp, scba_niter)
-
-  deallocate(coupling_tmp)
-  deallocate(orbsperatm_tmp)
+  call set_elph_s_dephasing(LIB%pNEGF, coupling, orbsperatm, scba_niter)
 
 end subroutine negf_set_elph_s_dephasing
 
 
-subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz, eps_r, eps_inf, &
+subroutine negf_set_elph_polaroptical(handler, coupling, coup_size, wq, kbT, deltaz, eps_r, eps_inf, &
            & q0, cell_area, scba_niter, trid) bind(c)
   use iso_c_binding, only : c_int, c_double, c_bool ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
@@ -1388,7 +1365,7 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
   implicit none
   integer(c_int) :: handler(DAC_handlerSize)          ! if:var:in
   integer(c_int), intent(in), value :: coup_size      ! if:var:in
-  real(c_double), intent(in) :: coup(coup_size)       ! if:var:in
+  real(c_double), intent(in) :: coupling(coup_size)   ! if:var:in
   real(c_double), intent(in), value :: wq             ! if:var:in
   real(c_double), intent(in), value :: kbT            ! if:var:in
   real(c_double), intent(in), value :: deltaz         ! if:var:in
@@ -1400,7 +1377,6 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
   logical(c_bool), intent(in) :: trid                 ! if:var:in
 
   type(NEGFpointers) :: LIB
-  real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
   logical :: model2D=.false.  ! C++ passes logical(1) but we need logical(4)
   real(dp) :: a0
@@ -1412,14 +1388,10 @@ subroutine negf_set_elph_polaroptical(handler, coup, coup_size, wq, kbT, deltaz,
   sigma = 0.0_dp
 
   LIB = transfer(handler, LIB)
-  allocate(coupling_tmp(coup_size))
-  coupling_tmp(:) = coup(1:coup_size)
   trid_tmp = logical(trid)
 
-  call set_elph_polaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, eps_r, eps_inf, q0, &
+  call set_elph_polaroptical(LIB%pNEGF, coupling, wq, kbT, deltaz, eps_r, eps_inf, q0, &
         & cell_vol, a0, model2D, sigma, scba_niter, trid_tmp)
-
-  deallocate(coupling_tmp)
 
 end subroutine negf_set_elph_polaroptical
 
@@ -1444,7 +1416,6 @@ subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, 
   logical(c_bool), intent(in) :: trid                         ! if:var:in
 
   type(NEGFpointers) :: LIB
-  real(dp), allocatable :: coupling_tmp(:)  ! We define another array because it must be allocatable in the called subroutine
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
   real(dp) :: a0, cell_vol, Mcell
 
@@ -1453,14 +1424,10 @@ subroutine negf_set_elph_nonpolaroptical(handler, coupling, coup_size, wq, kbT, 
   cell_vol = cell_area * a0
 
   LIB = transfer(handler, LIB)
-  allocate(coupling_tmp(coup_size))
-  coupling_tmp(:) = coupling(1:coup_size)
   trid_tmp = logical(trid)
 
-  call set_elph_nonpolaroptical(LIB%pNEGF, coupling_tmp, wq, kbT, deltaz, D0, Mcell, &
+  call set_elph_nonpolaroptical(LIB%pNEGF, coupling, wq, kbT, deltaz, D0, Mcell, &
         & cell_vol, a0, scba_niter, trid_tmp)
-
-  deallocate(coupling_tmp)
 
 end subroutine negf_set_elph_nonpolaroptical
 
@@ -1506,7 +1473,7 @@ subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, in
     call set_CSR(nrow, P(iK,:), JP(iK,:), IP(iK,:), Pcsr(iK))
   end do
 
-  call set_elphoton(LIB%pNEGF, coupling(1), cell_vol, nr, Ephot, intens, poldir, &
+  call set_elphoton(LIB%pNEGF, coupling, cell_vol, nr, Ephot, intens, poldir, &
                       & scba_niter, trid_tmp, deb_id, Pcsr)
 
   do iK = 1,nK

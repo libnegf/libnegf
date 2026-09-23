@@ -389,7 +389,7 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -409,8 +409,8 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
-    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    real(dp),  dimension(:), intent(in) :: coupling
+    integer,  dimension(:), intent(in) :: orbsperatom
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -430,8 +430,8 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
-    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    real(dp),  dimension(:), intent(in) :: coupling
+    integer,  dimension(:), intent(in) :: orbsperatom
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -449,7 +449,7 @@ contains
   subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, cell_vol, &
               & a0, model2D, sigma, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: wq
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
@@ -483,7 +483,7 @@ contains
   subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, Mcell, cell_vol, &
             & a0, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: wq
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
@@ -513,9 +513,9 @@ contains
 
   ! Setup electron-photon interactions
   subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir,&
-    & niter, tridiag, deb_id, Pcsr)
+    & niter, tridiag, debug_flag, Pcsr)
     type(Tnegf), intent(inout) :: negf
-    real(dp), intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: cell_volume
     real(dp), intent(in) :: nr
     real(dp), intent(in) :: Ephot
@@ -523,7 +523,7 @@ contains
     integer, intent(in) :: poldir
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
-    integer, intent(in) :: deb_id
+    integer, intent(in) :: debug_flag
     type(z_CSR), intent(in), allocatable, optional :: Pcsr(:)
 
     type(TInteractionNode), pointer :: node
@@ -534,7 +534,7 @@ contains
 #:if defined("MPI")
     negf%tPhotonAbs = .true.
     call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
-       &  nr, Ephot, intens, poldir, niter, tridiag, deb_id)
+       &  nr, Ephot, intens, poldir, niter, tridiag, debug_flag)
     if (present(Pcsr)) then
        call set_Pmat(pInter, Pcsr)
     end if
@@ -642,8 +642,8 @@ contains
      negf%dump_matrices = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
-     negf%scba_elastic_tol = 1.d-7
-     negf%scba_inelastic_tol = 1.d-7
+     negf%scba_elastic_tol = 1.d-3
+     negf%scba_inelastic_tol = 1.d-3
      negf%ndos_proj = 0
      negf%particle = 1       ! Used for setting correct fermi function in real_axis_int.
                              ! 1: electrons

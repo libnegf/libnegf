@@ -29,7 +29,7 @@ module elptinel
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use ln_math, only : cross_product, volume
-  use sparsekit_drv, only : prealloc_mult, zdagger, getdiag
+  use sparsekit_drv, only : prealloc_mult, zspectral, getdiag
   use ln_constants, only : c, esq_ov_eps0
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
@@ -68,16 +68,16 @@ module elptinel
     type(TBasisCenters) :: basis
 
     !> Number of photons
-    real(dp) :: Nq
+    real(lp) :: Nq
 
     !> A general scalar coupling
-    real(dp) :: coupling
+    real(lp) :: coupling
 
     !> The refraction index
-    real(dp) :: nr
+    real(lp) :: nr
 
     !> Supercell volume for integrations in units of nm
-    real(dp) :: cell_volume
+    real(lp) :: cell_volume
 
     !> The first dimension of Pbkl and total number of Kpoints
     integer :: nK
@@ -100,11 +100,11 @@ module elptinel
     !> Energy grid. Local num of energy points
     integer :: nE_local
     !> Energy grid spacing
-    real(dp) :: dE
+    real(lp) :: dE
 
     integer :: count_iter
 
-    integer :: debug_id
+    integer :: debug_flag
 
   contains
 
@@ -142,23 +142,23 @@ contains
   ! Factory for el-phot inelastic model
   ! @param coupling: coupling (energy units)
   subroutine ElPhoton_init(this, comm, basis, coupling, cell_vol, nr, Ephoton, &
-              & intensity, poldir, niter, tridiag, deb_id)
+              & intensity, poldir, niter, tridiag, debug_flag)
     type(ElPhoton) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TBasisCenters), intent(in) :: basis
-    real(dp), intent(in) :: coupling
-    real(dp), intent(in) :: cell_vol
-    real(dp), intent(in) :: nr
-    real(dp), intent(in) :: Ephoton
-    real(dp), intent(in) :: intensity
+    real(lp), dimension(:), intent(in) :: coupling
+    real(lp), intent(in) :: cell_vol
+    real(lp), intent(in) :: nr
+    real(lp), intent(in) :: Ephoton
+    real(lp), intent(in) :: intensity
     integer, intent(in) :: poldir
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
-    integer, intent(in) :: deb_id
+    integer, intent(in) :: debug_flag
 
     integer :: i
 
-    this%debug_id = deb_id
+    this%debug_flag = debug_flag
     this%count_iter = 0
 
     this%descriptor = &
@@ -170,18 +170,18 @@ contains
     this%basis = basis
 
     ! Formula is Nq = I*V/(E*c)
-    ! [I] = J/(s*m^2); [V] = nm^3
+    ! [I] = W/m^2; [V] = nm^3
     ! [E] = eV; [c] = m/s
     ! We need to convert V to m^3 and E to J: [V] = 1e-27 m^3; [E] = 1.60217656d-19 J
     ! -> [V]/[E] = (1/1.60217656) * 1e^-8
-    this%Nq = intensity * cell_vol / (Ephoton * c) * (1/1.60217656_dp) * 1e-8
+    this%Nq = intensity * cell_vol / (Ephoton * c) * (1/1.60217656_lp) * 1e-8
     this%nr = nr
 
     this%wq = Ephoton
     this%cell_volume = cell_vol
 
     this%poldir = poldir
-    this%coupling = coupling
+    this%coupling = coupling(1)
     this%tTridiagonal = tridiag
 
     ! Initialize the cache space
@@ -203,12 +203,16 @@ contains
       p%tagname = 'Sigma_n'
     end select
 
+    if (debug_flag == 1) then
+       call create_debug_Pmat(this)
+    end if
+
   end subroutine ElPhoton_init
 
   !--------------------------------------------------------------------------
   subroutine set_EnGrid(this, deltaE, nE_global, nE_local)
     class(ElPhoton) :: this
-    real(dp), intent(in) :: deltaE
+    real(lp), intent(in) :: deltaE
     integer, intent(in) :: nE_global
     integer, intent(in) :: nE_local
 
@@ -285,20 +289,13 @@ contains
         !  end do
       end if
       this%Pcsr(iK) = matHS(iK)%H
-      this%Pcsr(iK)%nzval = (0.0_dp, 0.0_dp)
       ! Remove diagonal elements
       associate(Pcsr => this%Pcsr(iK))
       do ir = 1, Pcsr%nrow
          do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
-            if (Pcsr%colind(ic) == ir+1) then
-               Pcsr%nzval(ic) = (0.0_dp, 1.0_dp) * 2e-2 !matHS(iK)%H%nzval(ic)
+            if (Pcsr%colind(ic) == ir) then
+               Pcsr%nzval(ic) = (0.0_lp, 0.0_lp)
             end if
-            if (Pcsr%colind(ic) == ir-1) then
-               Pcsr%nzval(ic) = -(0.0_dp, 1.0_dp) * 2e-2 !matHS(iK)%H%nzval(ic)
-            end if
-            !if (Pcsr%colind(ic) == ir) then
-            !   Pcsr%nzval(ic) = (0.0_dp, 0.0_dp)
-            !end if
          end do
       end do
       end associate
@@ -309,6 +306,38 @@ contains
     this%tPcsr_set = .true.
 
   end subroutine set_Pmat_struct
+
+  !--------------------------------------------------------------------------
+  subroutine create_debug_Pmat(this)
+    type(ElPhoton) :: this
+    integer :: ir, ic
+
+    this%nk = 1
+    if (.not.allocated(this%Pcsr)) then
+      allocate(this%Pcsr(this%nk))
+    else
+      if (size(this%Pcsr) .ne. this%nk) then
+         deallocate(this%Pcsr)
+         allocate(this%Pcsr(this%nk))
+      end if
+    end if
+
+    this%Pcsr(1)%nzval = (0.0_lp, 0.0_lp)
+    associate(Pcsr => this%Pcsr(1))
+    do ir = 1, Pcsr%nrow
+       do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
+          if (Pcsr%colind(ic) == ir+1) then
+             Pcsr%nzval(ic) = (0.0_lp, 1.0_lp) * this%coupling
+          end if
+          if (Pcsr%colind(ic) == ir-1) then
+             Pcsr%nzval(ic) = -(0.0_lp, 1.0_lp) * this%coupling
+          end if
+       end do
+    end do
+    end associate
+    this%tPcsr_set = .true.
+
+  end subroutine create_debug_Pmat
 
   !--------------------------------------------------------------------------
   function is_Pmat_set(this) result(is_set)
@@ -330,7 +359,7 @@ contains
     !
 
     this%prefactor = this%coupling * &
-          & esq_ov_eps0/(2.0_dp*this%cell_volume * this%nr * this%wq)
+          & esq_ov_eps0/(2.0_lp*this%cell_volume * this%nr * this%wq)
 
     if (id0) print*, "DEBUG: inside prepare Kmat"
     if (id0) print*, "DEBUG: prefactor = ", this%prefactor
@@ -603,7 +632,7 @@ contains
           label%col_block = ibl
           if (.not.Sigma_r%is_cached(label)) then
             call create(tmp,Np,Np)
-            tmp%val = (0.0_dp, 0.0_dp)
+            tmp%val = (0.0_lp, 0.0_lp)
             call Sigma_r%add(tmp, label)
             call destroy(tmp)
           end if
@@ -617,7 +646,7 @@ contains
             label%col_block = ibl + 1
             if (.not.Sigma_r%is_cached(label)) then
               call create(tmp,Np,Mp)
-              tmp%val = (0.0_dp, 0.0_dp)
+              tmp%val = (0.0_lp, 0.0_lp)
               call Sigma_r%add(tmp, label)
               call destroy(tmp)
             end if
@@ -627,7 +656,7 @@ contains
             label%col_block = ibl
             if (.not.Sigma_r%is_cached(label)) then
               call create(tmp,Mp,Np)
-              tmp%val = (0.0_dp, 0.0_dp)
+              tmp%val = (0.0_lp, 0.0_lp)
               call Sigma_r%add(tmp, label)
               call destroy(tmp)
             end if
@@ -685,7 +714,7 @@ contains
           label%col_block = ibl
           if (.not.Sigma_n%is_cached(label)) then
             call create(tmp,Np,Np)
-            tmp%val = (0.0_dp, 0.0_dp)
+            tmp%val = (0.0_lp, 0.0_lp)
             call Sigma_n%add(tmp, label)
             call destroy(tmp)
           end if
@@ -699,7 +728,7 @@ contains
             label%col_block = ibl + 1
             if (.not.Sigma_n%is_cached(label)) then
               call create(tmp,Np,Mp)
-              tmp%val = (0.0_dp, 0.0_dp)
+              tmp%val = (0.0_lp, 0.0_lp)
               call Sigma_n%add(tmp, label)
               call destroy(tmp)
             end if
@@ -709,7 +738,7 @@ contains
             label%col_block = ibl
             if (.not.Sigma_n%is_cached(label)) then
               call create(tmp,Mp,Np)
-              tmp%val = (0.0_dp, 0.0_dp)
+              tmp%val = (0.0_lp, 0.0_lp)
               call Sigma_n%add(tmp, label)
               call destroy(tmp)
             end if
@@ -735,7 +764,7 @@ contains
     integer :: ibl, nbl, NE, NKloc, NEloc, iEshift
     integer :: iKK, PL_start, ir, ic
     complex(lp) :: fac_min, fac_plus
-    type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
+    type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:), pAA(:,:)
     type(x_DNS), dimension(:,:), allocatable :: Pblk
     type(TMatLabel) :: label
 
@@ -750,6 +779,7 @@ contains
     end if
 
     allocate(pGG(NEloc,NKloc))
+    allocate(pAA(NEloc,NKloc))
     allocate(pSigma(NEloc,NKloc))
     allocate(Pblk(nbl,nbl))
 
@@ -783,98 +813,86 @@ contains
     !> Generic subroutine performs the product between blocks:
     !         P(iM,jM) * G(i,j) * P(iMdag, jMdag)
     ! The correct pointers for Gr(iE,iK,i,j) are set so the final calculation is
-    ! the full Sigma_r expression
+    ! the full Sigma^r expression:
+    !
+    ! Sigma^r = -i/2 (Sigma^n + Sigma^p)
+    ! Sigma^r = -i/2 P ( Nq A(+) + (Nq+1) A(-) - G^n(-) + G^n(+) ) P*
+
     subroutine perform_block_product(iM, jM, iG, jG, iMdag, jMdag)
       integer, intent(in) :: iM, jM, iG, jG, iMdag, jMdag
 
-      label%row_block = iG
-      label%col_block = jG
-      call setup_pointers_Gr()
+      if (maxval(abs(Pblk(iM,jM)%val)) > 0.0_lp .and. &
+        & maxval(abs(Pblk(IMdag,jMdag)%val)) > 0.0_lp) then
 
-      fac_min = cmplx(this%Nq + 1.0, 0.0, dp)
-      fac_plus = cmplx(this%Nq, 0.0, dp)
+        call setup_pointers_A(iG, jG)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
+        fac_min = cmplx(0.0, -0.5*(this%Nq + 1.0), lp)
+        fac_plus = cmplx(0.0, -0.5 * this%Nq, lp)
+
+        call selfenergy(this%cart_comm, pAA, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
             & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
 
-      call setup_pointers_Gn()
+        call setup_pointers_Gn(iG, jG)
 
-      fac_min = (0.0_dp, 0.5_dp)
-      fac_plus = (0.0_dp, -0.5_dp)
+        fac_min = (0.0_lp, 0.5_dp)
+        fac_plus = (0.0_lp, -0.5_dp)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
             & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+
+      end if
 
     end subroutine perform_block_product
 
     subroutine compute_diagonal_contributions()
-      integer :: Np
 
-      PL_start = this%struct%mat_PL_start(ibl)
-      Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-
-      label%row_block = ibl
-      label%col_block = ibl
-
-      call setup_pointers_Sigma_r(Np,Np)
+      call setup_pointers_Sigma_r(ibl,ibl)
 
       ! M(i,i)G(i,i)M(i,i)
-      !call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl)
+      call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl)
 
       if (ibl .ne. nbl) then
         ! M(i,i+1) G(i+1,i+1) M(i+1,i)
-        !call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl)
+        call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl)
         ! M(i,i) G(i,i+1) M(i+1,i)
-        !call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl)
+        call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl)
         ! M(i,i+1) G(i+1,i) M(i,i)
-        !call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl)
+        call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl)
       end if
 
       if (ibl .ne. 1) then
         ! M(i,i-1) G(i-1,i-1) M(i-1,i)
-        !call perform_block_product(ibl,ibl-1, ibl-1,ibl-1, ibl-1,ibl)
+        call perform_block_product(ibl,ibl-1, ibl-1,ibl-1, ibl-1,ibl)
         ! M(i,i) G(i,i-1) M(i-1,i)
-        !call perform_block_product(ibl,ibl, ibl,ibl-1, ibl-1,ibl)
+        call perform_block_product(ibl,ibl, ibl,ibl-1, ibl-1,ibl)
         ! M(i,i-1) G(i-1,i) M(i,i)
-        !call perform_block_product(ibl,ibl-1, ibl-1,ibl, ibl,ibl)
+        call perform_block_product(ibl,ibl-1, ibl-1,ibl, ibl,ibl)
       end if
 
     end subroutine compute_diagonal_contributions
 
     !> blocks for Sigma(ibl, ibl+1)
     subroutine compute_supradiagonal_contributions()
-      integer :: Mp, Np
 
-      PL_start = this%struct%mat_PL_start(ibl)
-      Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-      PL_start = this%struct%mat_PL_start(ibl+1)
-      Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
-
-      label%row_block = ibl
-      label%col_block = ibl + 1
-
-      call setup_pointers_Sigma_r(Np,Mp)
+      call setup_pointers_Sigma_r(ibl, ibl+1)
 
       ! M(i,i) G(i,i) M(i,i+1)
-      !call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl+1)
-
+      call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl+1)
       ! M(i,i+1) G(i+1,i+1) M(i+1,i+1)
-      !call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl+1)
-
+      call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl+1)
       ! M(i,i) G(i,i+1) M(i+1,i+1)
-      !call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl+1)
-
+      call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl+1)
       ! M(i,i+1) G(i+1,i) M(i,i+1)
-      !call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl+1)
+      call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl+1)
 
       if (ibl > 1) then
         ! M(i,i-1) G(i-1,i) M(i,i+1)
-        !call perform_block_product(ibl,ibl-1, ibl-1,ibl, ibl,ibl+1)
+        call perform_block_product(ibl,ibl-1, ibl-1,ibl, ibl,ibl+1)
       end if
 
       if (ibl < nbl-1) then
         ! M(i,i+1) G(i+1,i+2) M(i+2,i+1)
-        !call perform_block_product(ibl,ibl+1, ibl+1,ibl+2, ibl+2,ibl+1)
+        call perform_block_product(ibl,ibl+1, ibl+1,ibl+2, ibl+2,ibl+1)
       end if
 
 
@@ -882,46 +900,40 @@ contains
 
     !> blocks for Sigma(ibl+1, ibl)
     subroutine compute_subdiagonal_contributions()
-      integer :: Mp, Np
 
-      PL_start = this%struct%mat_PL_start(ibl)
-      Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-      PL_start = this%struct%mat_PL_start(ibl+1)
-      Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
-
-      label%row_block = ibl + 1
-      label%col_block = ibl
-
-      call setup_pointers_Sigma_r(Mp,Np)
+      call setup_pointers_Sigma_r(ibl+1,ibl)
 
       ! M(i+1,i)G(i,i)M(i,i)
-      !call perform_block_product(ibl+1,ibl, ibl,ibl, ibl,ibl)
-
+      call perform_block_product(ibl+1,ibl, ibl,ibl, ibl,ibl)
       ! M(i+1,i+1)G(i+1,i+1)M(i+1,i)
-      !call perform_block_product(ibl+1,ibl+1, ibl+1,ibl+1, ibl+1,ibl)
-
+      call perform_block_product(ibl+1,ibl+1, ibl+1,ibl+1, ibl+1,ibl)
       ! M(i+1,i+1)G(i+1,i)M(i,i)
-      !call perform_block_product(ibl+1,ibl+1, ibl+1,ibl, ibl,ibl)
-
+      call perform_block_product(ibl+1,ibl+1, ibl+1,ibl, ibl,ibl)
       ! M(i+1,i)G(i,i+1)M(i+1,i)
-      !call perform_block_product(ibl+1,ibl, ibl,ibl+1, ibl+1,ibl)
+      call perform_block_product(ibl+1,ibl, ibl,ibl+1, ibl+1,ibl)
 
       if (ibl < nbl-1) then
         ! M(i+1,i+2)G(i+2,i+1)M(i+1,i)
-        !call perform_block_product(ibl+1,ibl+2, ibl+2,ibl+1, ibl+1,ibl)
+        call perform_block_product(ibl+1,ibl+2, ibl+2,ibl+1, ibl+1,ibl)
       end if
 
       if (ibl > 1) then
         ! M(i+1,i)G(i,i-1)M(i-1,i)
-        !call perform_block_product(ibl+1,ibl, ibl,ibl-1, ibl-1,ibl)
+        call perform_block_product(ibl+1,ibl, ibl,ibl-1, ibl-1,ibl)
       end if
 
     end subroutine compute_subdiagonal_contributions
 
 
     ! setup the array of pointers to G_r and sigma_r
-    subroutine setup_pointers_Gr()
+    subroutine setup_pointers_Gr(Nr, Nc)
+      integer, intent(in) :: Nr, Nc
+
       integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
@@ -932,8 +944,14 @@ contains
     end subroutine setup_pointers_Gr
 
     ! setup the array of pointers to G_n
-    subroutine setup_pointers_Gn()
+    subroutine setup_pointers_Gn(Nr, Nc)
+      integer, intent(in) :: Nr, Nc
+
       integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
@@ -943,11 +961,34 @@ contains
       end do
     end subroutine setup_pointers_Gn
 
+    subroutine setup_pointers_A(Nr, Nc)
+      integer, intent(in) :: Nr, Nc
+
+      integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
+
+      do iK = 1, NKloc
+        do iE = 1, NEloc
+          label%kpoint = iK
+          label%energy_point = iE
+          call this%G_r%retrieve_pointer(pGG(iE,iK)%pMat, label)
+          call zspectral(pGG(iE,iK)%pMat, pGG(iE,iK)%pMat, 0, pAA(iE,iK)%pMat)
+        end do
+      end do
+    end subroutine setup_pointers_A
+
+    ! setup the array of pointers to G_n
+
     subroutine setup_pointers_Sigma_r(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
       type(x_DNS) :: tmp
       integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
 
       associate(Sigma_r => this%Sigma_r)
       do iK = 1, NKloc
@@ -962,10 +1003,12 @@ contains
     end subroutine setup_pointers_Sigma_r
 
     subroutine check_elements(Mat,arg)
-      class(TMatrixCache) :: Mat
-      character(*) :: arg
+      class(TMatrixCache), intent(in) :: Mat
+      character(*), intent(in) :: arg
+
       type(x_DNS), pointer :: pMat
       integer :: iK, iE
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
@@ -1031,7 +1074,7 @@ contains
     deallocate(pSigma)
     deallocate(Pblk)
 #:else
-    error stop "inel  astic scattering requires MPI compilation"
+    error stop "inelastic scattering requires MPI compilation"
 #:endif
 
     contains
@@ -1043,54 +1086,42 @@ contains
     subroutine perform_block_product(iM, jM, iG, jG, iMdag, jMdag)
       integer, intent(in) :: iM, jM, iG, jG, iMdag, jMdag
 
-      label%row_block = iG
-      label%col_block = jG
+      if (maxval(abs(Pblk(iM,jM)%val)) > 0.0_lp .and. &
+        & maxval(abs(Pblk(IMdag,jMdag)%val)) > 0.0_lp) then
 
-      call setup_pointers_Gn()
+        call setup_pointers_Gn(iG, jG)
 
-      fac_min = cmplx(this%Nq, 0.0, dp)
-      fac_plus = cmplx(this%Nq + 1, 0.0, dp)
+        fac_min = cmplx(this%Nq, 0.0, lp)
+        fac_plus = cmplx(this%Nq + 1, 0.0, lp)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
+        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
             & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+      end if
 
     end subroutine perform_block_product
 
     !> blocks for Sigma(ibl, ibl)
     subroutine compute_diagonal_contributions()
-      integer :: Np
 
-      PL_start = this%struct%mat_PL_start(ibl)
-      Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-
-      label%row_block = ibl
-      label%col_block = ibl
-
-      call setup_pointers_Sigma_n(Np,Np)
+      call setup_pointers_Sigma_n(ibl, ibl)
 
       ! M(i,i)G(i,i)M(i,i)
       call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl)
 
-
       if (ibl .ne. nbl) then
         ! M(i,i+1)G(i+1,i+1)M(i+1,i)
         call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl)
-
         ! M(i,i)G(i,i+1)M(i+1,i)
         call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl)
-
         ! M(i,i+1)G(i+1,i)M(i,i)
         call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl)
-
       end if
 
       if (ibl .ne. 1) then
         ! M(i,i-1)G(i-1,i-1)M(i-1,i)
         call perform_block_product(ibl,ibl-1, ibl-1,ibl-1, ibl-1,ibl)
-
         ! M(i,i)G(i,i-1)M(i-1,i)
         call perform_block_product(ibl,ibl, ibl,ibl-1, ibl-1,ibl)
-
         ! M(i,i-1)G(i-1,i)M(i,i)
         call perform_block_product(ibl,ibl-1, ibl-1,ibl, ibl,ibl)
       end if
@@ -1099,26 +1130,15 @@ contains
 
     !> blocks for Sigma(ibl, ibl+1)
     subroutine compute_supradiagonal_contributions()
-      integer :: Mp, Np
-      PL_start = this%struct%mat_PL_start(ibl)
-      Np = this%struct%mat_PL_end(ibl) - PL_start + 1
-      PL_start = this%struct%mat_PL_start(ibl+1)
-      Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
 
-      label%row_block = ibl
-      label%col_block = ibl + 1
-
-      call setup_pointers_Sigma_n(Np,Mp)
+      call setup_pointers_Sigma_n(ibl, ibl+1)
 
       ! M(i,i)G(i,i)M(i,i+1)
       call perform_block_product(ibl,ibl, ibl,ibl, ibl,ibl+1)
-
       ! M(i,i+1)G(i+1,i+1)M(i+1,i+1)
       call perform_block_product(ibl,ibl+1, ibl+1,ibl+1, ibl+1,ibl+1)
-
       ! M(i,i)G(i,i+1)M(i+1,i+1)
       call perform_block_product(ibl,ibl, ibl,ibl+1, ibl+1,ibl+1)
-
       ! M(i,i+1)G(i+1,i)M(i,i+1)
       call perform_block_product(ibl,ibl+1, ibl+1,ibl, ibl,ibl+1)
 
@@ -1134,8 +1154,14 @@ contains
 
     end subroutine compute_supradiagonal_contributions
 
-    subroutine setup_pointers_Gn()
+    subroutine setup_pointers_Gn(Nr, Nc)
+      integer, intent(in) :: Nr, Nc
+
       integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
@@ -1147,8 +1173,12 @@ contains
 
     subroutine setup_pointers_Sigma_n(Nr,Nc)
       integer, intent(in) :: Nr, Nc
+
       type(x_DNS) :: tmp
       integer :: iK, iE
+
+      label%row_block = Nr
+      label%col_block = Nc
 
       associate(Sigma_n => this%Sigma_n)
       do iK = 1, NKloc
@@ -1162,11 +1192,12 @@ contains
     end subroutine setup_pointers_Sigma_n
 
     subroutine check_elements(Mat,arg)
-      integer :: iK, iE
-      class(TMatrixCache) :: Mat
-      character(*) :: arg
+      class(TMatrixCache), intent(in) :: Mat
+      character(*), intent(in) :: arg
 
+      integer :: iK, iE
       type(x_DNS), pointer :: pMat
+
       do iK = 1, NKloc
         do iE = 1, NEloc
           label%kpoint = iK
@@ -1398,9 +1429,9 @@ contains
 
     character(len=200) :: filename
     type(z_DNS), dimension(:,:), allocatable :: blk
-    real(dp) :: real_part, imag_part
+    real(lp) :: real_part, imag_part
 
-    complex(dp), dimension(:), allocatable :: diag
+    complex(lp), dimension(:), allocatable :: diag
 
     ! Local variables
     integer :: i, j, iE, ibl, nbl, PL_start, Np
