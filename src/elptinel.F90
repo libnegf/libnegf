@@ -24,13 +24,13 @@
 module elptinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : sp, dp, lp => dp
-  use mat_def, only : z_csr, c_dns, z_dns, x_dns => z_dns, create, destroy
-  use mat_def, only : print_mat
+  use mat_def, only : c_csr, z_csr, c_dns, z_dns, x_dns => z_dns, x_csr => z_csr
+  use mat_def, only : create, destroy, print_mat
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use ln_math, only : cross_product, volume
   use sparsekit_drv, only : prealloc_mult, zspectral, getdiag
-  use ln_constants, only : c, esq_ov_eps0
+  use ln_constants, only : c, esq_ov_eps0, alpha, pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
   use ln_allocation, only : log_allocate, log_deallocate, writeMemInfo
@@ -38,6 +38,7 @@ module elptinel
   use ln_structure, only : TBasisCenters, create_TBasis, destroy_TBasis
   use ln_cache
   use ln_types, only : TMatrixArrayHS
+  use ln_enums, only : interaction_models
   use iso_c_binding
   use mpi_f08, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
   use mpi_globals
@@ -89,8 +90,8 @@ module elptinel
     real(lp) :: prefactor
 
     !> The polarization matrices (R_i - R_j) * H_ij in units of nm * ev
-    !Dimension: nK
-    type(z_CSR), allocatable, dimension(:) :: Pcsr
+    !Dimension: nK, 3 polarazations
+    type(x_CSR), allocatable, dimension(:, :) :: Pcsr
 
     !> Whether the Pcsr matrix has been set
     logical :: tPcsr_set = .false.
@@ -101,10 +102,16 @@ module elptinel
     integer :: nE_local
     !> Energy grid spacing
     real(lp) :: dE
+    !> Number of frequency points for the blackbody spectrum
+    integer :: nfreq
+    !> Blackbody temperature in energy units (eV)
+    real(lp) :: kbT
+    !> Whether spontaneous emission is included in the calculation
+    logical :: tSpontEmission
 
     integer :: count_iter
-
-    integer :: debug_flag
+    !> Model type (laser, blackbody, debug)
+    integer :: model_type
 
   contains
 
@@ -142,7 +149,7 @@ contains
   ! Factory for el-phot inelastic model
   ! @param coupling: coupling (energy units)
   subroutine ElPhoton_init(this, comm, basis, coupling, cell_vol, nr, Ephoton, &
-              & intensity, poldir, niter, tridiag, debug_flag)
+              & intensity, poldir, niter, kbT, nfreq, tSpontEmission, tridiag, modeltype)
     type(ElPhoton) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TBasisCenters), intent(in) :: basis
@@ -153,12 +160,16 @@ contains
     real(lp), intent(in) :: intensity
     integer, intent(in) :: poldir
     integer, intent(in) :: niter
+    real(lp), intent(in) :: kbT
+    integer, intent(in) :: nfreq
+    logical, intent(in) :: tSpontEmission
     logical, intent(in) :: tridiag
-    integer, intent(in) :: debug_flag
+    integer, intent(in) :: modeltype
 
     integer :: i
+    real(lp) :: c__au
 
-    this%debug_flag = debug_flag
+    this%model_type = modeltype
     this%count_iter = 0
 
     this%descriptor = &
@@ -169,20 +180,20 @@ contains
     this%scba_niter = 0 ! The way it is done currently, niter must be set to 0.
     this%basis = basis
 
-    ! Formula is Nq = I*V/(E*c)
-    ! [I] = W/m^2; [V] = nm^3
-    ! [E] = eV; [c] = m/s
-    ! We need to convert V to m^3 and E to J: [V] = 1e-27 m^3; [E] = 1.60217656d-19 J
-    ! -> [V]/[E] = (1/1.60217656) * 1e^-8
-    this%Nq = intensity * cell_vol / (Ephoton * c) * (1/1.60217656_lp) * 1e-8
+    ! Formula is Nq = I_au*Vol*nr/(Ephoton*c_au)
+    c__au = 1.0_lp / alpha
+    this%Nq = intensity * cell_vol * nr / (Ephoton * c__au)
     this%nr = nr
-
     this%wq = Ephoton
     this%cell_volume = cell_vol
+    ! Temperature of blackbody radiation in energy units (eV)
+    this%kbT = kbT
+    this%nfreq = nfreq
 
     this%poldir = poldir
     this%coupling = coupling(1)
     this%tTridiagonal = tridiag
+    this%tSpontEmission = tSpontEmission
 
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
@@ -203,9 +214,9 @@ contains
       p%tagname = 'Sigma_n'
     end select
 
-    if (debug_flag == 1) then
-       call create_debug_Pmat(this)
-    end if
+    !if (this%model_type == interaction_models%debugelpt) then
+    !   call create_debug_Pmat(this)
+    !end if
 
   end subroutine ElPhoton_init
 
@@ -225,15 +236,19 @@ contains
 
   subroutine set_Pmat_array(this, Pcsr)
     type(ElPhoton) :: this
-    type(z_CSR), intent(in) :: Pcsr(:)
+    type(z_CSR), intent(in) :: Pcsr(:,:)
 
-    this%nk = size(Pcsr)
+
+    this%nk = size(Pcsr, 1)
+    if (size(Pcsr, 2) .ne. 3) then
+      call error_msg('set_Pmat_array: Pcsr must have 3 columns for polarizations')
+    end if
     if (.not.allocated(this%Pcsr)) then
-      allocate(this%Pcsr(this%nk))
+      allocate(this%Pcsr(this%nk, 3))
     else
       if (size(this%Pcsr) .ne. this%nk) then
          deallocate(this%Pcsr)
-         allocate(this%Pcsr(this%nk))
+         allocate(this%Pcsr(this%nk, 3))
       end if
     end if
 
@@ -247,83 +262,78 @@ contains
     type(ElPhoton) :: this
     type(TMatrixArrayHS) :: matHS(:)
 
-    integer :: iK, ic, ir, nbl
-    type(x_DNS), dimension(:,:), allocatable :: Hblk
+    integer :: iK, ii, ic, ir, nbl, j_col
+
+    if (this%model_type == interaction_models%debugelpt) then
+      call create_debug_Pmat(this, matHS(1)%H)
+      return
+    end if
 
     this%nk = size(matHS)
     if (.not.allocated(this%Pcsr)) then
-      allocate(this%Pcsr(this%nk))
+      allocate(this%Pcsr(this%nk, 3))
     else
-      if (size(this%Pcsr) .ne. this%nk) then
+      if (size(this%Pcsr, 1) .ne. this%nk) then
          deallocate(this%Pcsr)
-         allocate(this%Pcsr(this%nk))
+         allocate(this%Pcsr(this%nk, 3))
       end if
     end if
+    if (.not.allocated(this%basis%matrixToBasis)) then
+      call error_msg('set_Pmat_struct: matrixToBasis not allocated')
+    end if
 
-    nbl = this%struct%num_PLs
-    allocate(Hblk(nbl,nbl))
+    do ii = 1, 3
+      do iK = 1, this%nk
+        this%Pcsr(iK, ii) = matHS(iK)%H
+      end do
+    end do
 
     do iK = 1, this%nk
-      call csr2blk3diag(matHS(iK)%H, Hblk, this%struct%mat_PL_start)
-      ! print*,"H(1,1):"
-      ! do ir = 1, Hblk(1,1)%nrow
-      !   do ic = 1, Hblk(1,1)%ncol
-      !     write(*,'(ES16.8)',advance='no') real(Hblk(1,1)%val(ir,ic))
-      !   end do
-      !   write(*,*)
-      ! end do
-      if (nbl > 1) then
-        !  print*,"H(1,2):"
-        !  do ir = 1, Hblk(1,2)%nrow
-        !    do ic = 1, Hblk(1,2)%ncol
-        !      write(*,'(ES16.8)',advance='no') real(Hblk(1,2)%val(ir,ic))
-        !    end do
-        !    write(*,*)
-        !  end do
-        !  print*,"H(2,1):"
-        !  do ir = 1, Hblk(2,1)%nrow
-        !    do ic = 1, Hblk(2,1)%ncol
-        !      write(*,'(ES16.8)',advance='no') real(Hblk(2,1)%val(ir,ic))
-        !    end do
-        !    write(*,*)
-        !  end do
-      end if
-      this%Pcsr(iK) = matHS(iK)%H
-      ! Remove diagonal elements
-      associate(Pcsr => this%Pcsr(iK))
-      do ir = 1, Pcsr%nrow
-         do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
-            if (Pcsr%colind(ic) == ir) then
-               Pcsr%nzval(ic) = (0.0_lp, 0.0_lp)
+      ! Now we compute the polarization matrix P = i (R_i - R_j) * H_ij
+      associate(Hcsr => matHS(iK)%H, coord => this%basis%x, &
+                  & matrixToBasis => this%basis%matrixToBasis)
+      do ir = 1, Hcsr%nrow
+        do ic = Hcsr%rowpnt(ir), Hcsr%rowpnt(ir+1)-1
+          if (size(this%basis%matrixToBasis) .ne. Hcsr%nrow) then
+            call error_msg('set_Pmat_struct: matrixToBasis size does not match matHS%nrow')
+          end if
+          j_col = Hcsr%colind(ic)
+          do ii = 1, 3
+            this%Pcsr(iK, ii)%nzval(ic) = (coord(ii, matrixToBasis(ir))-coord(ii, matrixToBasis(j_col))) * &
+                             &  Hcsr%nzval(ic) * (0.0_lp, 1.0_lp)
+            if (j_col == ir) then
+              this%Pcsr(iK, ii)%nzval(ic) = (0.0_lp, 0.0_lp)
             end if
-         end do
+          end do
+        end do
       end do
       end associate
     end do
-
-    call destroy_tridiag_blk(Hblk)
-    deallocate(Hblk)
     this%tPcsr_set = .true.
 
   end subroutine set_Pmat_struct
 
   !--------------------------------------------------------------------------
-  subroutine create_debug_Pmat(this)
+  subroutine create_debug_Pmat(this, Hcsr)
     type(ElPhoton) :: this
+    type(z_CSR), intent(in) :: Hcsr
+
     integer :: ir, ic
 
     this%nk = 1
     if (.not.allocated(this%Pcsr)) then
-      allocate(this%Pcsr(this%nk))
+      allocate(this%Pcsr(this%nk, 3))
     else
-      if (size(this%Pcsr) .ne. this%nk) then
+      if (size(this%Pcsr, 1) .ne. this%nk) then
          deallocate(this%Pcsr)
-         allocate(this%Pcsr(this%nk))
+         allocate(this%Pcsr(this%nk, 3))
       end if
     end if
 
-    this%Pcsr(1)%nzval = (0.0_lp, 0.0_lp)
-    associate(Pcsr => this%Pcsr(1))
+    this%Pcsr(1, 1) = Hcsr
+    this%Pcsr(1, 1)%nzval = (0.0_lp, 0.0_lp)
+
+    associate(Pcsr => this%Pcsr(1, 1))
     do ir = 1, Pcsr%nrow
        do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
           if (Pcsr%colind(ic) == ir+1) then
@@ -357,9 +367,11 @@ contains
     ! electron-photon coupling factor
     ! M_uv = i sqrt[ esq / (2 eps0 hbar w nr Vol) ] xi * (R_u - R_v) H_uv exp[i k (R_u - R_v)]
     !
-
-    this%prefactor = this%coupling * &
-          & esq_ov_eps0/(2.0_lp*this%cell_volume * this%nr * this%wq)
+    !this%prefactor = this%coupling * &
+    !      & esq_ov_eps0/(2.0_lp*this%cell_volume * this%nr * this%wq)
+    ! e^2/(4 pi eps0 hbar c) = alpha = 1/137.036
+    !
+    this%prefactor = this%coupling * 2.0_dp*pi/(this%cell_volume * this%nr * this%wq)
 
     if (id0) print*, "DEBUG: inside prepare Kmat"
     if (id0) print*, "DEBUG: prefactor = ", this%prefactor
@@ -787,7 +799,7 @@ contains
     ! k-loop for the self energy
     do iKK = 1, this%nk
 
-      call csr2blk3diag(this%Pcsr(iKK), Pblk, this%struct%mat_PL_start)
+      call csr2blk3diag(this%Pcsr(iKK,1), Pblk, this%struct%mat_PL_start)
 
       do ibl = 1, nbl
 
@@ -802,6 +814,7 @@ contains
       call destroy_tridiag_blk(Pblk)
     end do
 
+    deallocate(pAA)
     deallocate(pGG)
     deallocate(pSigma)
     deallocate(Pblk)
@@ -974,7 +987,7 @@ contains
           label%kpoint = iK
           label%energy_point = iE
           call this%G_r%retrieve_pointer(pGG(iE,iK)%pMat, label)
-          call zspectral(pGG(iE,iK)%pMat, pGG(iE,iK)%pMat, 0, pAA(iE,iK)%pMat)
+          call zspectral(pGG(iE,iK)%pMat, pAA(iE,iK)%pMat)
         end do
       end do
     end subroutine setup_pointers_A
@@ -1057,7 +1070,7 @@ contains
     ! k-loop for the self energy
     do iKK = 1, this%nk
 
-      call csr2blk3diag(this%Pcsr(iKK), Pblk, this%struct%mat_PL_start)
+      call csr2blk3diag(this%Pcsr(iKK,1), Pblk, this%struct%mat_PL_start)
 
       do ibl = 1, nbl
         call compute_diagonal_contributions()

@@ -166,7 +166,8 @@ module lib_param
     !! Runtime variables: used internally by the library
     type(format) :: form          ! Form of file-Hamiltonian
     logical  :: dumpHS            ! Used for debug
-    logical :: dump_matrices      ! Dumps Gn and A = i(Gr - Ga) at each iteration of the SCBA loop
+    logical :: dump_matrices      ! Dump internal matrices (H,S,Gr,Gn)
+    logical :: dump_pdos          ! Dumps Gn and A = i(Gr - Ga) at each iteration of the SCBA loop
     real(dp) :: muref             ! reference elec.chem potential
     real(dp) :: E                 ! Holding variable
     real(dp) :: dos               ! Holding variable
@@ -232,8 +233,9 @@ module lib_param
     type(TScbaDriverElastic) :: scbaDriverElastic
     type(TScbaDriverInelastic) :: scbaDriverInelastic
 
-    real(dp) :: scba_elastic_tol = 1.0e-7_dp
-    real(dp) :: scba_inelastic_tol = 1.0e-7_dp
+    ! Note: keep consistent with set_defaults
+    real(dp) :: scba_elastic_tol = 1.0e-3_dp
+    real(dp) :: scba_inelastic_tol = 1.0e-3_dp
 
     !! Output variables: these arrays are filled by internal subroutines to store
     !! library outputs
@@ -367,8 +369,11 @@ module lib_param
     character(kind=c_char, len=1) :: dore  ! Density or En.Density
     !> Reference contact is set to maximum or minimum Fermi level
     integer(c_int) :: min_or_max
-    logical(c_bool) :: is_s_is;
+    !> Dump internal matrices
     logical(c_bool) :: dump_matrices
+    !> Dump PDOS
+    logical(c_bool) :: dump_pdos
+
   end type lnparams
 
 contains
@@ -512,8 +517,8 @@ contains
   end subroutine set_elph_nonpolaroptical
 
   ! Setup electron-photon interactions
-  subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir,&
-    & niter, tridiag, debug_flag, Pcsr)
+  subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir, niter, &
+            & kbT, nfreq, tSpontEmission, tridiag, model, Pcsr)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: cell_volume
@@ -522,9 +527,12 @@ contains
     real(dp), intent(in) :: intens
     integer, intent(in) :: poldir
     integer, intent(in) :: niter
+    real(dp), intent(in) :: kbT
+    integer, intent(in) :: nfreq
+    logical, intent(in) :: tSpontEmission
     logical, intent(in) :: tridiag
-    integer, intent(in) :: debug_flag
-    type(z_CSR), intent(in), allocatable, optional :: Pcsr(:)
+    integer, intent(in) :: model
+    type(z_CSR), intent(in), allocatable, optional :: Pcsr(:, :)
 
     type(TInteractionNode), pointer :: node
     call negf%interactList%add(node)
@@ -532,17 +540,17 @@ contains
     select type(pInter => node%inter)
     type is(ElPhoton)
 #:if defined("MPI")
-    negf%tPhotonAbs = .true.
-    call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
-       &  nr, Ephot, intens, poldir, niter, tridiag, debug_flag)
-    if (present(Pcsr)) then
-       call set_Pmat(pInter, Pcsr)
-    end if
+      negf%tPhotonAbs = .false.
+      call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
+       &  nr, Ephot, intens, poldir, niter, kbT, nfreq, tSpontEmission, tridiag, model)
+      if (present(Pcsr)) then
+        call set_Pmat(pInter, Pcsr)
+      end if
 #:else
-    error stop "Inelastic scattering requires MPI"
+      call error_msg("Inelastic scattering requires MPI")
 #:endif
     class default
-    error stop 'ERROR: error of type downcast to ElPhonInel'
+      call error_msg("ERROR: error of type downcast to ElPhonInel")
     end select
 
   end subroutine set_elphoton
@@ -640,6 +648,7 @@ contains
      negf%outer_blocks = 2   ! Compute full D.M. L,U extra
      negf%dumpHS = .false.
      negf%dump_matrices = .false.
+     negf%dump_pdos = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
      negf%scba_elastic_tol = 1.d-3
@@ -709,6 +718,7 @@ contains
      write(io,*) 'Emin= ',negf%Emin
      write(io,*) 'Emax= ',negf%Emax
      write(io,*) 'Estep= ',negf%Estep
+     write(io,*) 'Estep_coarse= ',negf%Estep_coarse
      write(io,*) 'g_spin= ',negf%g_spin
      write(io,*) 'delta= ',negf%delta
      write(io,*) 'dos_delta= ',negf%dos_delta
@@ -731,6 +741,13 @@ contains
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'activecont= ', negf%activecont
+     write(io,*) 'integration= ', negf%integration
+     write(io,*) 'dump_matrices= ', negf%dump_matrices
+     write(io,*) 'dump_pdos= ', negf%dump_pdos
+
+     write(io,*) 'SCBA Parameters:'
+     write(io,*) 'scba_elastic_tol= ', negf%scba_elastic_tol
+     write(io,*) 'scba_inelastic_tol= ', negf%scba_inelastic_tol
      !write(io,*) 'internalDM= ', negf%internalDM
   end subroutine print_all_vars
 

@@ -1433,7 +1433,7 @@ end subroutine negf_set_elph_nonpolaroptical
 
 
 subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, intens, nK, nrow, nnz, IP, JP, P, poldir, &
-  &  scba_niter, trid, deb_id) bind(c)
+  &  scba_niter, trid, modeltype) bind(c)
   use iso_c_binding, only : c_int, c_double, c_bool, c_double_complex ! if:mod:use
   use libnegfAPICommon  ! if:mod:use
   use libnegf   ! if:mod:use
@@ -1457,27 +1457,34 @@ subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, in
   integer(c_int), intent(in), value :: poldir       ! if:var:in
   integer(c_int), intent(in), value :: scba_niter       ! if:var:in
   logical(c_bool), intent(in) :: trid                   ! if:var:in
-  integer(c_int), intent(in), value :: deb_id       ! if:var:in
+  integer(c_int), intent(in), value :: modeltype       ! if:var:in
 
   type(NEGFpointers) :: LIB
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
-  type(z_CSR), dimension(:), allocatable :: Pcsr
-  type(z_CSR) :: Pk
-  integer :: iK
-
+  logical :: tSpontEmission
+  type(z_CSR), dimension(:, :), allocatable :: Pcsr
+  integer :: iK, nfreq
+  real(dp) :: kbT
+  
   LIB = transfer(handler, LIB)
-  allocate(Pcsr(nK))
+  allocate(Pcsr(nK, 3))
   trid_tmp = logical(trid)
+  ! whether spontaneous emission is included in the calculation 
+  tSpontEmission = .true.
+  ! Setup T=5500 K for solar spectrum, but this should be passed as input
+  kbT = 5500.0_dp * 3.166811389002312d-6 ! in Hartree units
+  ! Number of frequency points for the solar spectrum, but this should be passed as input
+  nfreq = 30
 
   do iK = 1,nK
-    call set_CSR(nrow, P(iK,:), JP(iK,:), IP(iK,:), Pcsr(iK))
+    call set_CSR(nrow, P(iK,:), JP(iK,:), IP(iK,:), Pcsr(iK, 1))
   end do
 
   call set_elphoton(LIB%pNEGF, coupling, cell_vol, nr, Ephot, intens, poldir, &
-                      & scba_niter, trid_tmp, deb_id, Pcsr)
+                      & scba_niter, kbT, nfreq, tSpontEmission, trid_tmp, modeltype, Pcsr)
 
   do iK = 1,nK
-    call destroy(Pcsr(iK))
+    call destroy(Pcsr(iK, 1))
   end do
   deallocate(Pcsr)
 

@@ -51,9 +51,14 @@ module ln_enums
     integer :: dephatomblock = 2
     integer :: dephoverlap = 3
     integer :: polaroptical = 4
-    integer :: nonpolaroptical = 5
-    integer :: acousticinel = 6
-    integer :: matrixcoupling = 7
+    integer :: polaroptical2D = 5
+    integer :: nonpolaroptical = 6
+    integer :: acousticinel = 7
+    integer :: matrixcoupling = 8
+    integer :: laser = 9
+    integer :: solarspectrum = 10
+    integer :: blackbody = 11
+    integer :: debugelpt = 12
   end type TModelsEnum
 
   type(TModelsEnum), parameter :: interaction_models = TModelsEnum()

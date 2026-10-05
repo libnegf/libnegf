@@ -51,8 +51,8 @@ struct lnparams {
   int nf[MAXNLAYERS];
   char dore[1];
   int min_or_max;
-  bool is_s_is;
   bool dump_matrices;
+  bool dump_pdos;
   };
 
 #endif

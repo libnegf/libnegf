@@ -904,7 +904,7 @@ contains
 
      ! NOTE: The following assumes contour_int is called BEFORE any
      !       real-axis integration.
-     call zspectral(TmpMt,TmpMt,0,negf%rho)
+     call zspectral(TmpMt,negf%rho)
 
      call destroy(TmpMt)
 
@@ -979,7 +979,7 @@ contains
 
        enddo enloop
 
-       call zspectral(TmpMt,TmpMt,0,dm_c(iK)%rho)
+       call zspectral(TmpMt,dm_c(iK)%rho)
 
      enddo kloop
 
@@ -2094,11 +2094,10 @@ contains
     call log_allocate(negf%curr_mat, Npoints, nbl-1)
     call log_allocate(curr_mat, nbl-1)
 
-    ! Just to be sure. PDOS is computed only in case of dump_matrices
+    ! Just to be sure. PDOS is computed only in case of dump_pdos
     if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat)
 
-    !DEBUG routine
-    if (negf%dump_matrices) then
+    if (negf%dump_pdos) then
       call log_allocate(A_diags, Npoints, negf%str%central_dim)
       call log_allocate(ldos_mat, Npoints, negf%str%central_dim)
       call log_allocate(ledos, negf%str%central_dim)
@@ -2175,8 +2174,7 @@ contains
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
 
-      !DEBUG routine
-      if (negf%dump_matrices) then
+      if (negf%dump_pdos) then
         call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
       end if
 
@@ -2191,7 +2189,7 @@ contains
     call negf%scbaDriverInelastic%destroy()
     call log_deallocate(frm)
     call log_deallocate(curr_mat)
-    if (negf%dump_matrices) then
+    if (negf%dump_pdos) then
        call log_deallocate(A_diags)
        call log_deallocate(ldos_mat)
     end if
@@ -2224,8 +2222,7 @@ contains
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
 #:endif
 
-      !DEBUG routine
-      if (negf%dump_matrices) then
+      if (negf%dump_pdos) then
         call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
       end if
 
@@ -2234,7 +2231,7 @@ contains
     subroutine EKloop()
 
       negf%curr_mat = 0.0_dp
-      if (negf%dump_matrices) then
+      if (negf%dump_pdos) then
          A_diags = 0.0_dp
          ldos_mat = 0.0_dp
       end if
@@ -2269,9 +2266,9 @@ contains
           ! Avoids cleanup of block-dense Gn for layer currents (ESH is recomputed)
           negf%tDestroyGn = .false.
 
-          if (negf%dump_matrices) then
+          if (negf%dump_pdos) then
             call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error, Gr)
-            call zspectral(Gr, Gr, 0, A)
+            call zspectral(Gr, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
             A_diags(iE, :) = A_diags(iE, :) + real(diag(:))*negf%kwght
@@ -2287,7 +2284,7 @@ contains
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
-          if (negf%dump_matrices) then
+          if (negf%dump_pdos) then
             call iterative_layer_current(negf, Er, curr_mat, ledos)
           else
             call iterative_layer_current(negf, Er, curr_mat)
@@ -2296,7 +2293,7 @@ contains
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
-          if (negf%dump_matrices) then
+          if (negf%dump_pdos) then
             ldos_mat(iE,:) = ldos_mat(iE,:) + ledos(:) * negf%kwght
           end if
 
@@ -2627,7 +2624,7 @@ contains
     complex(dp) :: minusOne = (-1.0_dp, 0.0_dp)
 
     call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
-    call zspectral(Gr, Gr, 0, A)
+    call zspectral(Gr, A)
     call prealloc_sum(A, Gn, minusOne, Gp)
 
     call destroy(Gr, Gn, A)
