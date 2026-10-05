@@ -257,7 +257,7 @@ contains
       frmdiff = frm(j) - frm(ref)
       if (j.NE.ref .AND. ABS(frmdiff).GT.EPS10) THEN
         cb=struct%cblk(j) ! block corresponding to contact j
-        call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
+        call zspectral(SelfEneR(j),Gam)
         Sigma_n(cb,cb)%val = Sigma_n(cb,cb)%val + frmdiff*Gam%val
         call destroy(Gam)
       endif
@@ -432,7 +432,7 @@ contains
     call zdagger(Gr(bl1,bl1),GA)
 
     ! Computes the Gamma matrices
-    call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1_dns)
+    call zspectral(SelfEneR(ct1),GAM1_dns)
 
     ! Work to compute transmission matrix (Gamma G Gamma G)
     call prealloc_mult(GAM1_dns,Gr(bl1,bl1),work1)
@@ -539,8 +539,8 @@ contains
 
     endif
     ! Computes the Gamma matrices
-    call zspectral(SelfEneR(ct1),SelfEneR(ct1),0,GAM1_dns)
-    call zspectral(SelfEneR(ct2),SelfEneR(ct2),0,GAM2_dns)
+    call zspectral(SelfEneR(ct1),GAM1_dns)
+    call zspectral(SelfEneR(ct2),GAM2_dns)
 
          !write(*,*) '~-~-~-~-~-~-~-~-~-~-~-~-~-~-'
          !write(*,*) 'N_conts: TRS= GAM2 * Gr(bl2,bl1)* GAM1 * Gr(bl2,bl1)^+'

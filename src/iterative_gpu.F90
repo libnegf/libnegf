@@ -29,7 +29,6 @@ module iterative_gpu
   use ln_allocation
   use ln_messages
   use mat_def
-  use sparsekit_drv, only : zspectral
   use ln_structure, only : TStruct_Info
   use lib_param, only : MAXNCONT, Tnegf, intarray, cusolverDnHandle, cublasHandle
   use interactions, only : TInteraction, TInteractionList, TInteractionNode

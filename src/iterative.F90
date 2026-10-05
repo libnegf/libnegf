@@ -399,10 +399,10 @@ CONTAINS
     do ii = 1, ncont
       lead = ii
       lead_blk = negf%str%cblk(lead)
-      call zspectral(SelfEneR(lead),SelfEneR(lead), 0, Gam)
+      call zspectral(SelfEneR(lead), Gam)
       call prealloc_mult(Gam, Gn(lead_blk, lead_blk), work1)
 
-      call zspectral(Gr(lead_blk, lead_blk), Gr(lead_blk, lead_blk), 0, A)
+      call zspectral(Gr(lead_blk, lead_blk), A)
       tmp = cmplx(-frm(lead),0.0_dp, dp)
       call prealloc_mult(Gam, A, tmp, work1)
       ecurr(ii) = -real(trace(work1))
@@ -785,7 +785,7 @@ CONTAINS
 
       if (nn > NumOrbs) then
          cont = nn - NumOrbs
-         call zspectral(SelfEneR(cont),SelfEneR(cont),0,Tmp1)
+         call zspectral(SelfEneR(cont),Tmp1)
          Gam1%val(pls(cont):ple(cont),pls(cont):ple(cont)) = Tmp1%val
          call destroy(Tmp1)
       else
@@ -797,7 +797,7 @@ CONTAINS
 
         if (mm > NumOrbs) then
            cont = mm - NumOrbs
-           call zspectral(SelfEneR(cont),SelfEneR(cont),0,Tmp2)
+           call zspectral(SelfEneR(cont),Tmp2)
            Gam2%val(pls(cont):ple(cont),pls(cont):ple(cont)) = Tmp2%val
            call destroy(Tmp2)
         else
@@ -1494,7 +1494,7 @@ CONTAINS
       if ((ABS(frm(k)-frm(ref)).GT.EPS).AND.(k.NE.ref)) THEN
 
         frmdiff = cmplx(frm(ref)-frm(k),0.0_dp,dp)
-        call zspectral(gsurfR(k),gsurfR(k),0,work1)
+        call zspectral(gsurfR(k),work1)
 
         call prealloc_mult(Tlc(k),work1,work2)
         call destroy(work1)

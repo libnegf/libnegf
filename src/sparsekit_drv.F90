@@ -115,7 +115,7 @@ MODULE sparsekit_drv
   !zaplb_st(A,B,C)              ::  C = A+B  (C already allocated)
   !zcplsamub_st(A,B,s,C)        ::  C = C + s * A * B  (C already allocated)
   !ziluk_st()                   ::  incomplete LU factorization
-  !zspectral(G1,G2,fl,A)         :: computes A = j(Gr - Ga)
+  !zspectral(Gr,A)              ::  computes A = j(Gr - Ga)
   !zmask_realloc(G,M)            :: mask routine in place with reallocation
   !                                 (G masked by M)
 
@@ -2809,40 +2809,36 @@ CONTAINS
   !
   !*************************************************************************
 
-  subroutine zspectral_csr(GreenR1,GreenR2,flagR,A)
+  subroutine zspectral_csr(GreenR,A)
 
     !*************************************************************************
     !
     !Input:
-    !GreenR1: blocco della Green Retarded
-    !GreenR2: blocco della Green Retarded corrispondente alla Green Advanced
-    !         che viene calcolata all'interno della subroutine
-    !GreenR2_ncol: numero di colonne di GreenR2
-    !flag: Se il flag =  1 viene deallocata GreenR2 internamente appena e`
-    !      disponibile l'advanced corrispondente, altrimenti no
+    !GreenR: blocco della Green Retarded
     !
     !A: Spectral Density corrispondente
-    !La funzione calcola A=j*(GreenR1-dagacsr(GreenR2))
+    !La funzione calcola A=j*(GreenR-dagacsr(GreenR))
     !
     !**************************************************************************
 
     implicit none
 
-    type(z_CSR) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(z_CSR) :: GreenR
+    type(z_CSR) :: A
 
+    type(z_CSR) :: GreenA
     integer :: i
 
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagacsr(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagacsr(GreenR,GreenA)
 
     !Cambio segno a GreenA -> -GreenA
     do i=1,GreenA%nnz
       GreenA%nzval(i)=(-1.0_dp, 0.0_dp)*GreenA%nzval(i)
     enddo
 
-    !Esegue A=GreenR1-GreenA
-    call zsumcsr(GreenR1,GreenA,A)
+    !Esegue A=GreenR-GreenA
+    call zsumcsr(GreenR,GreenA,A)
 
     !A=j(GreenR-GreenA)
     do i=1,A%nnz
@@ -2851,56 +2847,46 @@ CONTAINS
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
-
   end subroutine zspectral_csr
 
   ! DNS version  **********************************************************
 
-  subroutine zspectral_dns(GreenR1,GreenR2,flagR,A)
+  subroutine zspectral_dns(GreenR,A)
     implicit none
+    type(z_DNS) :: GreenR
+    type(z_DNS) :: A
 
-    type(z_DNS) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(z_DNS) :: GreenA
 
 
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagger(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagger(GreenR,GreenA)
 
     call create(A,GreenA%nrow,GreenA%ncol)
 
-    A%val=(0.0_dp,1.0_dp)*(GreenR1%val - GreenA%val)
+    A%val=(0.0_dp,1.0_dp)*(GreenR%val - GreenA%val)
 
     call destroy(GreenA)
-
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
 
   end subroutine zspectral_dns
 
 
-  subroutine cspectral_dns(GreenR1,GreenR2,flagR,A)
+  subroutine cspectral_dns(GreenR,A)
     implicit none
+    type(c_DNS) :: GreenR
+    type(c_DNS) :: A
 
-    type(c_DNS) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(c_DNS) :: GreenA
 
-
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagger(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagger(GreenR,GreenA)
 
     call create(A,GreenA%nrow,GreenA%ncol)
 
-    A%val=(0.0_sp,1.0_sp)*(GreenR1%val - GreenA%val)
+    A%val=(0.0_sp,1.0_sp)*(GreenR%val - GreenA%val)
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
   end subroutine cspectral_dns
 
   !*************************************************************************
