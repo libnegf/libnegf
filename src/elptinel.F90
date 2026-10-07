@@ -180,9 +180,10 @@ contains
     this%scba_niter = 0 ! The way it is done currently, niter must be set to 0.
     this%basis = basis
 
-    ! Formula is Nq = I_au*Vol*nr/(Ephoton*c_au)
+    ! Nq = I_au*Vol/(Ephoton*c_au)
+    ! This is the number of photons in the volume Vol, given the intensity I_au and photon energy Ephoton
     c__au = 1.0_lp / alpha
-    this%Nq = intensity * cell_vol * nr / (Ephoton * c__au)
+    this%Nq = intensity * cell_vol / (Ephoton * c__au)
     this%nr = nr
     this%wq = Ephoton
     this%cell_volume = cell_vol
@@ -214,9 +215,28 @@ contains
       p%tagname = 'Sigma_n'
     end select
 
-    !if (this%model_type == interaction_models%debugelpt) then
-    !   call create_debug_Pmat(this)
-    !end if
+    ! electron-photon coupling factor
+    ! M_uv = i sqrt[ esq / (2 eps0 hbar w nr Vol) ] xi * (R_u - R_v) H_uv exp[i k (R_u - R_v)]
+    !
+    ! We later define P_uv = i (R_u - R_v) H_uv, and the prefactor is then
+    !
+    ! this%prefactor = esq_ov_eps0/(2.0 * cell_volume * nr * hbar wq)
+    ! In atomic units, esq/4 pi eps0 = 1.0, wq is already in a.u.
+    !
+    this%prefactor = this%coupling * 2.0_dp*pi/(this%cell_volume * this%nr * this%wq)
+
+    if (id0) then
+      print*, "DEBUG: Initializing ElPhoton inelastic model"
+      print*, "DEBUG: coupling = ", this%coupling
+      print*, "DEBUG: I = ", intensity
+      print*, "DEBUG: prefactor = ", this%prefactor
+      print*, "DEBUG: Ephoton = ", this%wq
+      print*, "DEBUG: Volume = ", this%cell_volume
+      print*, "DEBUG: Nq = ", this%Nq
+      !print*, "DEBUG: Nk = ", this%nk
+      !print*, "DEBUG: Nbl = ", nbl
+      print*, "DEBUG: tridiag = ", this%tTridiagonal
+    end if
 
   end subroutine ElPhoton_init
 
@@ -336,11 +356,15 @@ contains
     associate(Pcsr => this%Pcsr(1, 1))
     do ir = 1, Pcsr%nrow
        do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
-          if (Pcsr%colind(ic) == ir+1) then
-             Pcsr%nzval(ic) = (0.0_lp, 1.0_lp) * this%coupling
+          if (mod(ir, 2) /= 0) then
+            if (Pcsr%colind(ic) == ir+1) then
+              Pcsr%nzval(ic) = (0.0_lp, 1.0_lp) * this%coupling
+            end if
           end if
-          if (Pcsr%colind(ic) == ir-1) then
-             Pcsr%nzval(ic) = -(0.0_lp, 1.0_lp) * this%coupling
+          if (mod(ir, 2) == 0) then
+            if (Pcsr%colind(ic) == ir-1) then
+              Pcsr%nzval(ic) = -(0.0_lp, 1.0_lp) * this%coupling
+            end if
           end if
        end do
     end do
@@ -362,24 +386,6 @@ contains
 
     integer :: nbl, k, ii, ir
 
-    nbl = this%struct%num_PLs
-
-    ! electron-photon coupling factor
-    ! M_uv = i sqrt[ esq / (2 eps0 hbar w nr Vol) ] xi * (R_u - R_v) H_uv exp[i k (R_u - R_v)]
-    !
-    !this%prefactor = this%coupling * &
-    !      & esq_ov_eps0/(2.0_lp*this%cell_volume * this%nr * this%wq)
-    ! e^2/(4 pi eps0 hbar c) = alpha = 1/137.036
-    !
-    this%prefactor = this%coupling * 2.0_dp*pi/(this%cell_volume * this%nr * this%wq)
-
-    if (id0) print*, "DEBUG: inside prepare Kmat"
-    if (id0) print*, "DEBUG: prefactor = ", this%prefactor
-    if (id0) print*, "DEBUG: Nq = ", this%Nq
-    if (id0) print*, "DEBUG: Nk = ", this%nk
-    if (id0) print*, "DEBUG: Nbl = ", nbl
-    if (id0) print*, "DEBUG: tridiag = ", this%tTridiagonal
-    !if (id0) print*, "DEBUG: PL_start = ", this%struct%mat_PL_start
 
   end subroutine prepare_Kmat
 
@@ -795,14 +801,12 @@ contains
     allocate(pSigma(NEloc,NKloc))
     allocate(Pblk(nbl,nbl))
 
-
     ! k-loop for the self energy
     do iKK = 1, this%nk
 
       call csr2blk3diag(this%Pcsr(iKK,1), Pblk, this%struct%mat_PL_start)
 
       do ibl = 1, nbl
-
         call compute_diagonal_contributions()
 
         if (this%tTridiagonal .and. ibl < nbl) then
@@ -839,11 +843,13 @@ contains
 
         call setup_pointers_A(iG, jG)
 
-        fac_min = cmplx(0.0, -0.5*(this%Nq + 1.0), lp)
-        fac_plus = cmplx(0.0, -0.5 * this%Nq, lp)
+        fac_min = cmplx(0.0, -0.5*(this%Nq+1.0), lp)
+        fac_plus = cmplx(0.0, -0.5*this%Nq, lp)
 
         call selfenergy(this%cart_comm, pAA, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
             & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+
+        call release_pointers_A()
 
         call setup_pointers_Gn(iG, jG)
 
@@ -987,10 +993,22 @@ contains
           label%kpoint = iK
           label%energy_point = iE
           call this%G_r%retrieve_pointer(pGG(iE,iK)%pMat, label)
+          allocate(pAA(iE,iK)%pMat)
           call zspectral(pGG(iE,iK)%pMat, pAA(iE,iK)%pMat)
         end do
       end do
     end subroutine setup_pointers_A
+
+    subroutine release_pointers_A()
+      integer :: iK, iE
+
+      do iK = 1, NKloc
+        do iE = 1, NEloc
+          call destroy(pAA(iE,iK)%pMat)
+          deallocate(pAA(iE,iK)%pMat)
+        end do
+      end do
+    end subroutine release_pointers_A
 
     ! setup the array of pointers to G_n
 
@@ -1065,7 +1083,6 @@ contains
     allocate(pGG(NEloc,NKloc))
     allocate(pSigma(NEloc,NKloc))
     allocate(Pblk(nbl,nbl))
-
 
     ! k-loop for the self energy
     do iKK = 1, this%nk

@@ -819,6 +819,7 @@ module libnegf
     params%min_or_max = negf%min_or_max
     params%SGFcache = get_surface_green_cache_type(negf)
     params%dump_matrices = negf%dump_matrices
+    params%dump_pdos = negf%dump_pdos
 
   end subroutine get_params
 
@@ -897,7 +898,8 @@ module libnegf
     negf%ikpoint = params%ikpoint
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
-
+    negf%dump_matrices = params%dump_matrices
+    negf%dump_pdos = params%dump_pdos
     !! Some internal variables in libnegf are set internally
     !! after parameters are available
     call set_ref_cont(negf)

@@ -540,7 +540,7 @@ contains
     select type(pInter => node%inter)
     type is(ElPhoton)
 #:if defined("MPI")
-      negf%tPhotonAbs = .false.
+      negf%tPhotonAbs = .true.
       call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
        &  nr, Ephot, intens, poldir, niter, kbT, nfreq, tSpontEmission, tridiag, model)
       if (present(Pcsr)) then

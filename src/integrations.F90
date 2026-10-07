@@ -1343,7 +1343,7 @@ contains
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      call compute_Sigmas_inelastic(negf)
+      call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
       ! Integrate energy-resolved currents
@@ -1918,7 +1918,7 @@ contains
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      call compute_Sigmas_inelastic(negf)
+      call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
       call electron_current_meir_wingreen(negf)
@@ -2075,9 +2075,9 @@ contains
     type(z_CSR) :: Gn
     type(z_CSR) :: Gr, A                               ! DEBUG variable
     complex(dp), dimension(:), allocatable :: diag     ! DEBUG variable
-    real(dp), dimension(:,:), allocatable :: A_diags   ! DEBUG variable
-    real(dp), dimension(:,:), allocatable :: ldos_mat  ! DEBUG variable
-    real(dp), dimension(:), allocatable :: ledos       ! DEBUG variable
+    real(dp), dimension(:,:), allocatable :: A_mat     ! DEBUG variable
+    real(dp), dimension(:,:), allocatable :: Gn_mat   ! DEBUG variable
+    real(dp), dimension(:), allocatable :: Gn_diag     ! DEBUG variable
 
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
@@ -2098,11 +2098,10 @@ contains
     if (allocated(negf%ldos_mat)) call log_deallocate(negf%ldos_mat)
 
     if (negf%dump_pdos) then
-      call log_allocate(A_diags, Npoints, negf%str%central_dim)
-      call log_allocate(ldos_mat, Npoints, negf%str%central_dim)
-      call log_allocate(ledos, negf%str%central_dim)
+      call log_allocate(A_mat, Npoints, negf%str%central_dim)
+      call log_allocate(Gn_mat, Npoints, negf%str%central_dim)
+      call log_allocate(Gn_diag, Npoints)
     end if
-
 
     ! Clean up caches of G_r and G_n
     call negf%G_r%destroy()
@@ -2135,6 +2134,8 @@ contains
     if (negf%cartComm%rank == 0) then
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
+      print*, 'DUMP PDOS: ', negf%dump_pdos
+      print*, 'PHOTON ABSORPTION AFTER SCBA: ', negf%tPhotonAbs
     end if
     scba_iter = 0
 
@@ -2152,7 +2153,7 @@ contains
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
-      call compute_Sigmas_inelastic(negf)
+      call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
       call electron_current_meir_wingreen(negf)
@@ -2175,7 +2176,7 @@ contains
 #:endif
 
       if (negf%dump_pdos) then
-        call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
+        call dump_Gn_mat_and_A(Gn_mat, A_mat, scba_iter)
       end if
 
       scba_iter = scba_iter + 1
@@ -2190,25 +2191,28 @@ contains
     call log_deallocate(frm)
     call log_deallocate(curr_mat)
     if (negf%dump_pdos) then
-       call log_deallocate(A_diags)
-       call log_deallocate(ldos_mat)
+       call log_deallocate(A_mat)
+       call log_deallocate(Gn_mat)
+       call log_deallocate(Gn_diag)
     end if
     negf%refcont = ref_bk
 
     contains
 
+    ! ---------------------------------------------------------------------
+    ! COMPUTE ELECTRON-PHOTON INTERACTION
+    ! ---------------------------------------------------------------------
     subroutine photon_absorption()
 
-      ! ---------------------------------------------------------------------
-      ! COMPUTE PHOTON SELF-ENERGY
-      ! ---------------------------------------------------------------------
+      if (negf%cartComm%rank == 0) then
+        call write_info(negf%verbose, 30, ' PHOTON ABSORPTION ')
+      end if
+
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
       call compute_sigmas_photon(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      if (negf%cartComm%rank == 0) then
-        call write_info(negf%verbose, 30, ' PHOTON SCBA ITERATION')
-      end if
+      call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
       ! Call E-k loop to update Gn after photon absorption
       call EKloop()
@@ -2223,7 +2227,7 @@ contains
 #:endif
 
       if (negf%dump_pdos) then
-        call dump_ldos_mat_and_A(ldos_mat, A_diags, scba_iter)
+        call dump_Gn_mat_and_A(Gn_mat, A_mat, scba_iter)
       end if
 
     end subroutine photon_absorption
@@ -2232,8 +2236,8 @@ contains
 
       negf%curr_mat = 0.0_dp
       if (negf%dump_pdos) then
-         A_diags = 0.0_dp
-         ldos_mat = 0.0_dp
+         A_mat = 0.0_dp
+         Gn_mat = 0.0_dp
       end if
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
@@ -2271,7 +2275,7 @@ contains
             call zspectral(Gr, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
-            A_diags(iE, :) = A_diags(iE, :) + real(diag(:))*negf%kwght
+            A_mat(iE, :) = A_mat(iE, :) + real(diag(:))*negf%kwght
             call log_deallocate(diag)
             call destroy(Gn, Gr, A)
           else
@@ -2285,7 +2289,7 @@ contains
           negf%tDestroyGn = .true.
           if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
           if (negf%dump_pdos) then
-            call iterative_layer_current(negf, Er, curr_mat, ledos)
+            call iterative_layer_current(negf, Er, curr_mat, Gn_diag)
           else
             call iterative_layer_current(negf, Er, curr_mat)
           end if
@@ -2294,7 +2298,7 @@ contains
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
           if (negf%dump_pdos) then
-            ldos_mat(iE,:) = ldos_mat(iE,:) + ledos(:) * negf%kwght
+            Gn_mat(iE,:) = Gn_mat(iE,:) + Gn_diag(:) * negf%kwght
           end if
 
         end do enloop
@@ -2381,7 +2385,9 @@ contains
   end subroutine interaction_prepare
 
   !---------------------------------------------------------------------------
-  subroutine compute_sigmas_inelastic(negf)
+  ! This routine adds the inelastic electron-phonon self-energies
+  !---------------------------------------------------------------------------
+  subroutine compute_sigmas_elphinel(negf)
     type(TNegf) :: negf
 
     type(TInteractionNode), pointer :: it
@@ -2389,7 +2395,7 @@ contains
 
     do while (associated(it))
       select type(pInter => it%inter)
-      class is (TInelastic)
+      class is (ElPhonInel)
 
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
@@ -2407,8 +2413,11 @@ contains
       end select
       it => it%next
     end do
-  end subroutine compute_sigmas_inelastic
+  end subroutine compute_sigmas_elphinel
 
+  !---------------------------------------------------------------------------
+  ! This routine adds the inelastic electron-photon self-energy
+  !---------------------------------------------------------------------------
   subroutine compute_sigmas_photon(negf)
     type(TNegf) :: negf
 
@@ -2423,11 +2432,11 @@ contains
         call pInter%compute_Sigma_n(spin=negf%spin)
         call pInter%destroy_Sigma_r()
         call pInter%init_Sigma_r(spin=negf%spin)
-        ! We don't compute Sigma_r
-
+        call pInter%compute_Sigma_r(spin=negf%spin)
       end select
       it => it%next
     end do
+
   end subroutine compute_sigmas_photon
 
   !---------------------------------------------------------------------------
@@ -3465,8 +3474,8 @@ contains
 
   end subroutine quasiEq_int_p
 
-  subroutine dump_ldos_mat_and_A(ldos, A, iter)
-    real(dp), dimension(:,:), intent(in) :: ldos
+  subroutine dump_Gn_mat_and_A(Gn, A, iter)
+    real(dp), dimension(:,:), intent(in) :: Gn
     real(dp), dimension(:,:), intent(in) :: A
     integer :: iter
 
@@ -3475,19 +3484,19 @@ contains
 
     if (id0) then
 
-      nE = size(ldos, 1)
-      nx = size(ldos, 2)
+      nE = size(Gn, 1)
+      nx = size(Gn, 2)
 
       ! Open the file for writing
       write(filename1, '("Gn_it_",I0,".dat")') iter
-      write(filename2, '("LDOS_it_",I0,".dat")') iter
+      write(filename2, '("A_it_",I0,".dat")') iter
       open(unit=10, file=trim(filename1), status='replace')
       open(unit=20, file=trim(filename2), status='replace')
 
       do iE = 1,nE
         do ix = 1,nx
-          if (ldos(iE,ix)>0.0_dp) then
-            write(10, '(E15.8)', advance='no') ldos(iE, ix)
+          if (Gn(iE,ix)>0.0_dp) then
+            write(10, '(E15.8)', advance='no') Gn(iE, ix)
           else
             write(10, '(E15.8)', advance='no') 0.0_dp
           end if
@@ -3510,7 +3519,7 @@ contains
       close(20)
     end if
 
-  end subroutine dump_ldos_mat_and_A
+  end subroutine dump_Gn_mat_and_A
 
 end module integrations
 
