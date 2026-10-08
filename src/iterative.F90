@@ -24,7 +24,7 @@ module iterative
   use ln_constants, only : pi, i_unit => j, minusOne
   use ln_allocation
   use ln_messages
-  use mat_def, only : z_DNS, z_CSR, r_CSR, create, destroy
+  use mat_def, only : z_DNS, z_CSR, r_CSR, create, destroy, assignment(=)
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use sparsekit_drv
@@ -476,7 +476,7 @@ CONTAINS
 
 
   !--------------------------------------------------------------------------
-  ! Add all Self-enrgies to the Hamiltonian
+  ! Add all Self-energies to the Hamiltonian
   subroutine add_sigma_r(negf, ESH)
     class(TNegf) :: negf
     type(z_DNS) :: ESH(:,:)
@@ -491,7 +491,7 @@ CONTAINS
   end subroutine add_sigma_r
 
   !--------------------------------------------------------------------------
-  ! Add all Self-enrgies to Sigma_n
+  ! Add all Self-energies to Sigma_n
   subroutine add_sigma_n(negf, sigma_n)
     class(TNegf) :: negf
     type(z_DNS) :: sigma_n(:,:)

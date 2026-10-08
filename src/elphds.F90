@@ -28,7 +28,7 @@ module elphds
   use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
-  use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy
+  use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy, assignment(=)
   use sparsekit_drv, only : extract, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
   use block_3_diag, only : csr2blk3diag
