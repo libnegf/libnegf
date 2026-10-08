@@ -54,6 +54,7 @@ module ln_cache
     procedure(abst_retrieve_matrix_pointer), deferred :: retrieve_pointer
     procedure(abst_retrieve_matrix_loc), deferred :: retrieve_loc
     procedure(abst_destroy_matrix), deferred :: destroy
+    procedure(abst_clear_matrix), deferred :: clear
     procedure(abst_is_cached), deferred :: is_cached
     procedure(abst_list_cache), deferred :: list_cache
   end type TMatrixCache
@@ -85,7 +86,7 @@ module ln_cache
       type(z_DNS) :: matrix
       type(TMatLabel) :: label
     end subroutine
-    
+
     subroutine abst_retrieve_matrix_sp(this, matrix, label)
       import :: TMatrixCache
       import :: c_DNS
@@ -102,7 +103,7 @@ module ln_cache
       class(TMatrixCache) :: this
       type(x_DNS), pointer :: pmatrix
       type(TMatLabel) :: label
-    end subroutine 
+    end subroutine
 
     function abst_retrieve_matrix_loc(this, label) result(pmatrix)
       use iso_c_binding
@@ -134,6 +135,11 @@ module ln_cache
       import :: TMatrixCache
       class(TMatrixCache) :: this
     end subroutine
+
+    subroutine abst_clear_matrix(this)
+      import :: TMatrixCache
+      class(TMatrixCache) :: this
+    end subroutine
   end interface
 
   !> Linked list to store matrix in memory
@@ -142,15 +148,15 @@ module ln_cache
   !  type(z_DNS),  pointer :: matrix => null()
   !  type(TMatLabel) :: mat_label
   !end type
-  
-  !> element to store matrix in memory - single or double 
+
+  !> element to store matrix in memory - single or double
   type :: TMatrixCacheEntry
     type(x_DNS),  pointer :: matrix => null()
   end type
 
   !> Mem derived class
   !> Internal storage within an array. Blocks stored per diagonals.
-  !> Diagonal, Superdiagonal, Subdiagonal. 
+  !> Diagonal, Superdiagonal, Subdiagonal.
   type, extends(TMatrixCache) :: TMatrixCacheMem
     type(TMatrixCacheEntry), allocatable :: MatArray(:,:,:,:)
     integer :: Nblocks = 0
@@ -161,11 +167,12 @@ module ln_cache
     procedure :: checks
     procedure :: add_sp => mem_add_sp
     procedure :: add_dp => mem_add_dp
-    procedure :: retrieve_sp => mem_retrieve_sp 
+    procedure :: retrieve_sp => mem_retrieve_sp
     procedure :: retrieve_dp => mem_retrieve_dp
     procedure :: retrieve_pointer => mem_retrieve_pointer
     procedure :: retrieve_loc => mem_retrieve_loc
     procedure :: destroy => mem_destroy
+    procedure :: clear => mem_clear
     procedure :: is_cached => mem_is_cached
     procedure :: list_cache => mem_list_cache
   end type
@@ -181,6 +188,7 @@ module ln_cache
     procedure :: retrieve_pointer => disk_retrieve_pointer
     procedure :: retrieve_loc => disk_retrieve_loc
     procedure :: destroy => disk_destroy
+    procedure :: clear => disk_clear
     procedure :: is_cached => disk_is_cached
     procedure :: list_cache => disk_list_cache
   end type
@@ -195,6 +203,7 @@ module ln_cache
     procedure :: retrieve_pointer => dummy_retrieve_pointer
     procedure :: retrieve_loc => dummy_retrieve_loc
     procedure :: destroy => dummy_destroy
+    procedure :: clear => dummy_clear
     procedure :: is_cached => dummy_is_cached
     procedure :: list_cache => dummy_list_cache
   end type
@@ -217,17 +226,17 @@ contains
     integer :: ierr
 
     if (allocated(this%MatArray)) then
-      if (size(this%MatArray) /= NE*Nk*NPL*Ndiag*Nspin) then   
+      if (size(this%MatArray) /= NE*Nk*NPL*Ndiag*Nspin) then
         call this%destroy()
-      end if  
-    end if  
+      end if
+    end if
     if (.not.allocated(this%MatArray)) then
       allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr)
-      if (ierr /= 0) then    
+      if (ierr /= 0) then
         call error_msg( "Allocation error of MatArray in init "//trim(this%tagname))
-      end if   
+      end if
     end if
-    this%Nblocks = NPL    
+    this%Nblocks = NPL
     this%isInitialized = .true.
   end subroutine init
 
@@ -242,12 +251,12 @@ contains
       call error_msg( "MatArray not allocated for "//trim(this%tagname))
     end if
     if (label%energy_point < 1 .or. label%energy_point > size(this%MatArray,1)) then
-       print*,trim(this%tagname)   
+       print*,trim(this%tagname)
        call print_label(label)
        call error_msg( "energy_point out of range")
     end if
     if (label%kpoint < 1 .or. label%kpoint > size(this%MatArray,2)) then
-       print*,trim(this%tagname)   
+       print*,trim(this%tagname)
        call print_label(label)
        call error_msg( "k_point out of range")
     end if
@@ -256,7 +265,7 @@ contains
        call print_label(label)
        call error_msg( "spin out of range")
     end if
-        
+
     r = label%row_block
     c = label%col_block
     if (c >= r) then
@@ -279,10 +288,10 @@ contains
 
     integer :: b
 
-    ! blocks r,r first. r,r+1 after. r+1,r 
+    ! blocks r,r first. r,r+1 after. r+1,r
     ! 11, 22, 33, 44, 12, 23, 34, 21, 32, 43
-    !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12  
-    call checks(this, label, b) 
+    !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
          call destroy(p%matrix)
@@ -293,7 +302,7 @@ contains
     end associate
 
   end subroutine mem_add_dp
-  
+
   subroutine mem_add_sp(this, matrix, label)
     class(TMatrixCacheMem) :: this
     type(c_DNS):: matrix
@@ -301,10 +310,10 @@ contains
 
     integer :: b
 
-    ! blocks r,r first. r,r+1 after. r+1,r 
+    ! blocks r,r first. r,r+1 after. r+1,r
     ! 11, 22, 33, 44, 12, 23, 34, 21, 32, 43
-    !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12  
-    call checks(this, label, b) 
+    !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
          call destroy(p%matrix)
@@ -324,8 +333,8 @@ contains
     type(TMatLabel) :: label
 
     integer :: b
-    
-    call checks(this, label, b) 
+
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
         call destroy(matrix)
@@ -336,9 +345,9 @@ contains
         call error_msg( "Cannot retrieve matrix")
       end if
     end associate
-    
+
   end subroutine mem_retrieve_dp
-  
+
   !> Retrieve with copy - single precision output
   subroutine mem_retrieve_sp(this, matrix, label)
     class(TMatrixCacheMem) :: this
@@ -346,8 +355,8 @@ contains
     type(TMatLabel) :: label
 
     integer :: b
-    
-    call checks(this, label, b) 
+
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
         call destroy(matrix)
@@ -358,10 +367,10 @@ contains
         call error_msg( "Cannot retrieve matrix")
       end if
     end associate
-    
+
   end subroutine mem_retrieve_sp
 
-  
+
   !> Retrieve memory pointer - single precision output
   subroutine mem_retrieve_pointer(this, pmatrix, label)
     class(TMatrixCacheMem) :: this
@@ -369,8 +378,8 @@ contains
     type(x_DNS), pointer :: pmatrix
 
     integer :: b
-    
-    call checks(this, label, b) 
+
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
         pmatrix => p%matrix
@@ -390,8 +399,8 @@ contains
     type(C_PTR) :: pmatrix
 
     integer :: b
-    
-    call checks(this, label, b) 
+
+    call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
         pmatrix = c_loc(p%matrix%val)
@@ -410,7 +419,7 @@ contains
     logical :: val
 
     integer :: b
-    
+
     call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
@@ -419,7 +428,7 @@ contains
          val = .false.
       end if
     end associate
-  
+
   end function mem_is_cached
 
   subroutine mem_list_cache(this)
@@ -432,26 +441,54 @@ contains
   !               p%next   =>  p%next    =>  p%next
   subroutine mem_destroy(this)
     class(TMatrixCacheMem) :: this
+    integer :: ii, jj, kk, ll, total_size
 
-    integer :: ii, jj, kk, ll
-    
     if (allocated(this%MatArray)) then
-      do ii = 1, size(this%MatArray,1)
-        do jj = 1, size(this%MatArray,2)
-          do kk = 1, size(this%MatArray,3)
-            do ll = 1, size(this%MatArray,4)
-               if (associated(this%MatArray(ii,jj,kk,ll)%matrix)) then
+       total_size = size(this%MatArray)
+
+       do ll = 1, size(this%MatArray,4)
+         do kk = 1, size(this%MatArray,3)
+           do jj = 1, size(this%MatArray,2)
+             do ii = 1, size(this%MatArray,1)
+                if (associated(this%MatArray(ii,jj,kk,ll)%matrix)) then
                   call destroy(this%MatArray(ii,jj,kk,ll)%matrix)
-               end if
-            end do
-          end do 
-        end do
-      end do
-      deallocate(this%MatArray)
-      this%isInitialized = .false.
+                end if
+             end do
+           end do
+         end do
+       end do
+       deallocate(this%MatArray)
+       this%isInitialized = .false.
     end if
   end subroutine mem_destroy
-   
+
+
+  subroutine mem_clear(this)
+    class(TMatrixCacheMem) :: this
+    integer :: ii, jj, kk, ll, total_size
+
+    if (allocated(this%MatArray)) then
+       total_size = size(this%MatArray)
+
+       !$omp parallel do private(ii,jj,kk,ll) collapse(4) if(total_size > 1000)
+       do ll = 1, size(this%MatArray,4)
+         do kk = 1, size(this%MatArray,3)
+           do jj = 1, size(this%MatArray,2)
+             do ii = 1, size(this%MatArray,1)
+
+                if (associated(this%MatArray(ii,jj,kk,ll)%matrix)) then
+                   ! Azzeramento generico senza dipendenze da _dp o _lp
+                   this%MatArray(ii,jj,kk,ll)%matrix%val = &
+                      cmplx(0.0, 0.0, kind=kind(this%MatArray(ii,jj,kk,ll)%matrix%val))
+                end if
+
+             end do
+           end do
+         end do
+       end do
+       !$omp end parallel do
+    end if
+  end subroutine mem_clear
 
   !! Definitions for TMatrixCacheDisk
 
@@ -469,7 +506,7 @@ contains
     close (file_unit)
 
   end subroutine
-  
+
   subroutine disk_add_sp(this, matrix, label)
     class(TMatrixCacheDisk) :: this
     type(c_DNS):: matrix
@@ -509,7 +546,7 @@ contains
     close (file_unit)
 
   end subroutine disk_retrieve_dp
-  
+
   subroutine disk_retrieve_sp(this, matrix, label)
     class(TMatrixCacheDisk) :: this
     !> Input matrix to be retrieved: It needs to be already allocated with
@@ -572,6 +609,11 @@ contains
     ! Empty. Defined only for interface.
   end subroutine
 
+  subroutine disk_clear(this)
+    class(TMatrixCacheDisk) :: this
+    ! Empty. Defined only for interface.
+  end subroutine
+
   subroutine disk_indices_to_filename(filename, label)
     character(LST), intent(out) :: filename
     type(TMatLabel) :: label
@@ -617,7 +659,7 @@ contains
     type(TMatLabel) :: label
 
   end subroutine
-  
+
   subroutine dummy_retrieve_sp(this, matrix, label)
     class(TMatrixCacheDummy) :: this
     !> Input matrix to be retrieved: It needs to be already allocated with
@@ -664,6 +706,12 @@ contains
   subroutine dummy_destroy(this)
     class(TMatrixCacheDummy) :: this
   end subroutine
+
+  subroutine dummy_clear(this)
+    class(TMatrixCacheDummy) :: this
+    ! Empty. Defined only for interface.
+  end subroutine
+
 
   ! utility to obtain a 0-padded integer label
   subroutine get_string_label(int_label, str_label)

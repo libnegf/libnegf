@@ -25,7 +25,7 @@ module elptinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : sp, dp, lp => dp
   use mat_def, only : c_csr, z_csr, c_dns, z_dns, x_dns => z_dns, x_csr => z_csr
-  use mat_def, only : create, destroy, print_mat
+  use mat_def, only : create, destroy, print_mat, assignment(=)
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use ln_math, only : cross_product, volume
@@ -130,6 +130,8 @@ module elptinel
     procedure :: compute_sigma_n
     procedure :: destroy_sigma_r
     procedure :: destroy_sigma_n
+    procedure :: clear_sigma_r
+    procedure :: clear_sigma_n
     procedure :: set_EnGrid
     !procedure :: set_Pmat => set_Pmat_i
     procedure :: is_Pmat_set
@@ -176,8 +178,7 @@ contains
         & "Electron-Photon inelastic model"
 
     this%cart_comm = comm
-    !this%scba_niter = niter
-    this%scba_niter = 0 ! The way it is done currently, niter must be set to 0.
+    this%scba_niter = niter
     this%basis = basis
 
     ! Nq = I_au*Vol/(Ephoton*c_au)
@@ -358,12 +359,12 @@ contains
        do ic = Pcsr%rowpnt(ir), Pcsr%rowpnt(ir+1)-1
           if (mod(ir, 2) /= 0) then
             if (Pcsr%colind(ic) == ir+1) then
-              Pcsr%nzval(ic) = (0.0_lp, 1.0_lp) * this%coupling
+              Pcsr%nzval(ic) = (0.0_lp, 1.0_lp)
             end if
           end if
           if (mod(ir, 2) == 0) then
             if (Pcsr%colind(ic) == ir-1) then
-              Pcsr%nzval(ic) = -(0.0_lp, 1.0_lp) * this%coupling
+              Pcsr%nzval(ic) = -(0.0_lp, 1.0_lp)
             end if
           end if
        end do
@@ -807,6 +808,8 @@ contains
       call csr2blk3diag(this%Pcsr(iKK,1), Pblk, this%struct%mat_PL_start)
 
       do ibl = 1, nbl
+        !print*, "Debug Pblk", ibl
+        !print*, Pblk(ibl,ibl)%val
         call compute_diagonal_contributions()
 
         if (this%tTridiagonal .and. ibl < nbl) then
@@ -1441,11 +1444,37 @@ contains
     end if
   end subroutine destroy_Sigma_n
 
+    !> Zero-out Sigma_r
+  subroutine clear_Sigma_r(this)
+    class(ElPhoton) :: this
+    if (associated(this%sigma_r)) then
+      call this%sigma_r%clear()
+    end if
+  end subroutine clear_Sigma_r
+
+  !> Zero-out Sigma_n
+  subroutine clear_Sigma_n(this)
+    class(ElPhoton) :: this
+    if (associated(this%sigma_n)) then
+      call this%sigma_n%clear()
+    end if
+  end subroutine clear_Sigma_n
+
   subroutine destroy_elphot(this)
     class(ElPhoton) :: this
 
-    integer :: ii
+    integer :: iK, ix
 
+    if (allocated(this%Pcsr)) then
+      do iK = 1, size(this%Pcsr,1)
+        do ix = 1, size(this%Pcsr,2)
+           if (allocated(this%Pcsr(iK,ix)%nzval)) then
+              call destroy(this%Pcsr(iK,ix))
+           end if
+        end do
+      end do
+      deallocate(this%Pcsr)
+    end if
     call this%destroy_sigma_r()
     call this%destroy_sigma_n()
 

@@ -1263,6 +1263,11 @@ contains
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
 
+      ! Setting the scba_iter to 0 for elphoton excludes it form the DM
+      if (.not.negf%tPhotonSCC) then
+         call set_scba_iter_elphoton(0, negf%interactList)
+      end if
+
       negf%curr_mat = 0.0_dp
       ! Loop over local k-points
       kloop: do iK = 1, size(negf%local_k_index)
@@ -1342,9 +1347,14 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
       call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
+      if (negf%tPhotonSCC) then
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energies ')
+        call compute_Sigmas_elphoton(negf)
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+      end if
 
       ! Integrate energy-resolved currents
       call electron_current_meir_wingreen(negf)
@@ -1911,15 +1921,24 @@ contains
       end if
 
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
+      ! Setting the scba_iter to 0 for elphoton excludes it form the SCBA loop
+      if (.not.negf%tPhotonSCC) then
+         call set_scba_iter_elphoton(0, negf%interactList)
+      end if
 
       call EKloop()
 
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
       call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
+      if (negf%tPhotonSCC) then
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+        call compute_Sigmas_elphoton(negf)
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+      end if
 
       call electron_current_meir_wingreen(negf)
 
@@ -1942,7 +1961,7 @@ contains
 
     end do scba
 
-    if (negf%tPhotonAbs) then
+    if (.not.negf%tPhotonSCC) then
       call photon_absorption()
     end if
 
@@ -1956,16 +1975,19 @@ contains
 
     subroutine photon_absorption()
 
+
       ! ---------------------------------------------------------------------
       ! COMPUTE PHOTON SELF-ENERGY
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
-      call compute_sigmas_photon(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
-
       if (negf%cartComm%rank == 0) then
-        call write_info(negf%verbose, 30, ' PHOTON SCBA ITERATION')
+        call write_info(negf%verbose, 30, ' PHOTON ABSORPTION ')
       end if
+
+      call set_scba_iter_elphoton(0, negf%interactList)
+
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+      call compute_Sigmas_elphoton(negf)
+      if (id0.and.negf%verbose.gt.VBT) call write_clock
 
       ! Call E-k loop to update Gn after photon absorption
       call EKloop()
@@ -2134,8 +2156,6 @@ contains
     if (negf%cartComm%rank == 0) then
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
-      print*, 'DUMP PDOS: ', negf%dump_pdos
-      print*, 'PHOTON ABSORPTION AFTER SCBA: ', negf%tPhotonAbs
     end if
     scba_iter = 0
 
@@ -2145,16 +2165,26 @@ contains
         call write_info(negf%verbose, 30, ' INELASTIC SCBA ITERATION', scba_iter)
       end if
 
+      ! set the scba_iter to all inelastic interactions
       call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
+      ! Setting the scba_iter to 0 for elphoton excludes it form the SCBA loop
+      if (.not.negf%tPhotonSCC) then
+         call set_scba_iter_elphoton(0, negf%interactList)
+      end if
 
       call EKloop()
 
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute self-energies ')
+      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
       call compute_Sigmas_elphinel(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
+      if (negf%tPhotonSCC) then
+        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+        call compute_Sigmas_elphoton(negf)
+        if (id0.and.negf%verbose.gt.VBT) call write_clock
+      end if
 
       call electron_current_meir_wingreen(negf)
 
@@ -2183,7 +2213,7 @@ contains
 
     end do scba
 
-    if (negf%tPhotonAbs) then
+    if (.not.negf%tPhotonSCC) then
       call photon_absorption()
     end if
 
@@ -2208,11 +2238,13 @@ contains
         call write_info(negf%verbose, 30, ' PHOTON ABSORPTION ')
       end if
 
+      call set_scba_iter_elphoton(0, negf%interactList)
+
       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
-      call compute_sigmas_photon(negf)
+      call compute_Sigmas_elphoton(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
-      call negf%scbaDriverInelastic%set_scba_iter(scba_iter, negf%interactList)
+      call set_scba_iter_elphoton(1, negf%interactList)
 
       ! Call E-k loop to update Gn after photon absorption
       call EKloop()
@@ -2385,6 +2417,26 @@ contains
   end subroutine interaction_prepare
 
   !---------------------------------------------------------------------------
+  ! This subroutine is used to reset the internal iteration of el-photon
+  ! Essentially it is a temporary trick to avoid inclusion of the interaction
+  ! in the calculation of the DM
+  !---------------------------------------------------------------------------
+  subroutine set_scba_iter_elphoton(iter, interactList)
+    integer, intent(in) :: iter
+    type(TInteractionList) :: interactList
+
+    type(TInteractionNode), pointer :: it
+    it => interactList%first
+    do while (associated(it))
+      select type(pInter => it%inter)
+      class is (ElPhoton)
+        call pInter%set_scba_iter(iter)
+      end select
+      it => it%next
+    end do
+  end subroutine set_scba_iter_elphoton
+
+  !---------------------------------------------------------------------------
   ! This routine adds the inelastic electron-phonon self-energies
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_elphinel(negf)
@@ -2396,20 +2448,22 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhonInel)
-
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)
-
-        else if (pInter%scba_iter < pInter%scba_niter) then
+        else if (pInter%scba_iter == 0) then
           call pInter%destroy_Sigma_n()
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%compute_Sigma_n(spin=negf%spin)
           call pInter%destroy_Sigma_r()
           call pInter%init_Sigma_r(spin=negf%spin)
           call pInter%compute_Sigma_r(spin=negf%spin)
+        else if (pInter%scba_iter < pInter%scba_niter) then
+          call pInter%clear_Sigma_n()
+          call pInter%compute_Sigma_n(spin=negf%spin)
+          call pInter%clear_Sigma_r()
+          call pInter%compute_Sigma_r(spin=negf%spin)
         end if
-
       end select
       it => it%next
     end do
@@ -2418,7 +2472,7 @@ contains
   !---------------------------------------------------------------------------
   ! This routine adds the inelastic electron-photon self-energy
   !---------------------------------------------------------------------------
-  subroutine compute_sigmas_photon(negf)
+  subroutine compute_Sigmas_elphoton(negf)
     type(TNegf) :: negf
 
     type(TInteractionNode), pointer :: it
@@ -2427,17 +2481,28 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhoton)
-        call pInter%destroy_Sigma_n()
-        call pInter%init_Sigma_n(spin=negf%spin)
-        call pInter%compute_Sigma_n(spin=negf%spin)
-        call pInter%destroy_Sigma_r()
-        call pInter%init_Sigma_r(spin=negf%spin)
-        call pInter%compute_Sigma_r(spin=negf%spin)
+        print*,'iter/niter:',pInter%scba_iter, pInter%scba_niter
+        if (pInter%scba_niter .eq. 0) then
+          call pInter%init_Sigma_n(spin=negf%spin)
+          call pInter%init_Sigma_r(spin=negf%spin)
+        else if (pInter%scba_iter == 0) then
+          call pInter%destroy_Sigma_n()
+          call pInter%init_Sigma_n(spin=negf%spin)
+          call pInter%compute_Sigma_n(spin=negf%spin)
+          call pInter%destroy_Sigma_r()
+          call pInter%init_Sigma_r(spin=negf%spin)
+          call pInter%compute_Sigma_r(spin=negf%spin)
+        else if (pInter%scba_iter <= pInter%scba_niter) then
+          call pInter%clear_Sigma_n()
+          call pInter%compute_Sigma_n(spin=negf%spin)
+          call pInter%clear_Sigma_r()
+          call pInter%compute_Sigma_r(spin=negf%spin)
+        end if
       end select
       it => it%next
     end do
 
-  end subroutine compute_sigmas_photon
+  end subroutine compute_Sigmas_elphoton
 
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_elastic(negf)

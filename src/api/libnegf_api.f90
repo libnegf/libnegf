@@ -1461,7 +1461,7 @@ subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, in
 
   type(NEGFpointers) :: LIB
   logical :: trid_tmp  ! C++ passes logical(1) but we need logical(4)
-  logical :: tSpontEmission
+  logical :: tSpontEmission, tExcludeSCC
   type(z_CSR), dimension(:, :), allocatable :: Pcsr
   integer :: iK, nfreq
   real(dp) :: kbT
@@ -1471,6 +1471,7 @@ subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, in
   trid_tmp = logical(trid)
   ! whether spontaneous emission is included in the calculation 
   tSpontEmission = .true.
+  tExcludeSCC = .false.
   ! Setup T=5500 K for solar spectrum, but this should be passed as input
   kbT = 5500.0_dp * 3.166811389002312d-6 ! in Hartree units
   ! Number of frequency points for the solar spectrum, but this should be passed as input
@@ -1481,7 +1482,8 @@ subroutine negf_set_elphot(handler, coupling, coup_size, cell_vol, nr, Ephot, in
   end do
 
   call set_elphoton(LIB%pNEGF, coupling, cell_vol, nr, Ephot, intens, poldir, &
-                      & scba_niter, kbT, nfreq, tSpontEmission, trid_tmp, modeltype, Pcsr)
+                      & scba_niter, kbT, nfreq, tExcludeSCC, tSpontEmission, trid_tmp, &
+                      & modeltype, Pcsr)
 
   do iK = 1,nK
     call destroy(Pcsr(iK, 1))

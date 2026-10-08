@@ -254,7 +254,7 @@ module lib_param
     logical :: tDestroyGr = .true.
     logical :: tDestroyGn = .true.
     logical :: tDestroyESH = .true.
-    logical :: tPhotonAbs = .false.
+    logical :: tPhotonSCC = .true.
     ! Buttiker Probes dephasing
     logical :: tDephasingBP = .false.
     logical :: tDephasingVE = .false.
@@ -473,12 +473,8 @@ contains
     call elphonpo_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonPolarOptical)
-#:if defined("MPI")
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
           &  wq, Temp, dz, eps0, eps_inf, q0, cell_vol, a0, model2D, sigma, niter, tridiag)
-#:else
-      call error_msg( "Inelastic scattering requires MPI")
-#:endif
     class default
       call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
@@ -504,12 +500,8 @@ contains
     call elphonnonpo_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonNonPolarOptical)
-#:if defined("MPI")
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
             &  wq, Temp, dz, D0, Mcell, cell_vol, a0, niter, tridiag)
-#:else
-      call error_msg( "Inelastic scattering requires MPI")
-#:endif
     class default
       call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
@@ -518,7 +510,7 @@ contains
 
   ! Setup electron-photon interactions
   subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir, niter, &
-            & kbT, nfreq, tSpontEmission, tridiag, model, Pcsr)
+            & kbT, nfreq, tExcludeSCC, tSpontEmission, tridiag, model, Pcsr)
     type(Tnegf), intent(inout) :: negf
     real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: cell_volume
@@ -529,6 +521,7 @@ contains
     integer, intent(in) :: niter
     real(dp), intent(in) :: kbT
     integer, intent(in) :: nfreq
+    logical, intent(in) :: tExcludeSCC
     logical, intent(in) :: tSpontEmission
     logical, intent(in) :: tridiag
     integer, intent(in) :: model
@@ -539,18 +532,14 @@ contains
     call elphoton_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhoton)
-#:if defined("MPI")
-      negf%tPhotonAbs = .true.
+      negf%tPhotonSCC = .not.tExcludeSCC
       call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
        &  nr, Ephot, intens, poldir, niter, kbT, nfreq, tSpontEmission, tridiag, model)
       if (present(Pcsr)) then
         call set_Pmat(pInter, Pcsr)
       end if
-#:else
-      call error_msg("Inelastic scattering requires MPI")
-#:endif
     class default
-      call error_msg("ERROR: error of type downcast to ElPhonInel")
+      call error_msg("ERROR: error of type downcast to ElPhoton")
     end select
 
   end subroutine set_elphoton

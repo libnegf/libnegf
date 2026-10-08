@@ -116,6 +116,8 @@ module elphinel
     procedure :: compute_sigma_n
     procedure :: destroy_sigma_r
     procedure :: destroy_sigma_n
+    procedure :: clear_sigma_r
+    procedure :: clear_sigma_n
     procedure :: set_kpoints
     procedure :: set_EnGrid
     procedure(abstract_prepare), deferred :: prepare
@@ -1455,6 +1457,23 @@ contains
       call this%sigma_n%destroy()
     end if
   end subroutine destroy_Sigma_n
+
+  !> Zero-out Sigma_r
+  subroutine clear_Sigma_r(this)
+    class(ElPhonInel) :: this
+    if (associated(this%sigma_r)) then
+      call this%sigma_r%clear()
+    end if
+  end subroutine clear_Sigma_r
+
+  !> Zero-out Sigma_n
+  subroutine clear_Sigma_n(this)
+    class(ElPhonInel) :: this
+    if (associated(this%sigma_n)) then
+      call this%sigma_n%clear()
+    end if
+  end subroutine clear_Sigma_n
+
 
   subroutine set_reciprocal_vectors(basis, reciprocal_mat)
     type(TBasisCenters), intent(in) :: basis
