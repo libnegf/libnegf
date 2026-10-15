@@ -33,7 +33,7 @@ module iterative
   use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList
   use mpi_globals, only : id, numprocs, id0
   use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
-  use clock
+  use ln_timers
   use ln_cache
   use ln_elastic
   use ln_inelastic
@@ -222,6 +222,7 @@ CONTAINS
 
     Ec = cmplx(E,0.0_dp,dp)
 
+    call set_timer(timers%Gr, negf%verbose)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
@@ -242,8 +243,10 @@ CONTAINS
 
     !Passing Gr to interactions
     call set_Gr_ela(negf, Gr)
+    call stop_timer(timers%Gr)
 
     !Computing device G_n
+    call set_timer(timers%Gn, negf%verbose)
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 
@@ -258,6 +261,7 @@ CONTAINS
 
     !Passing G^n to interactions
     call set_Gn_ela(negf, Gn)
+    call stop_timer(timers%Gn)
 
     if (present(Glout)) then
       call blk2csr(Gn,negf%str,negf%S,Glout)

@@ -48,6 +48,7 @@ module libnegf
  use cudautils
 #:endif
  use clock
+ use ln_timers, only : reset_timers, gather_timers, write_timers
  implicit none
  private
 
@@ -62,6 +63,7 @@ module libnegf
  public :: set_elphoton
  public :: interaction_models, integration_type
  public :: set_clock, write_clock
+ public :: reset_timers, print_timers ! timers of the main calculation steps
  public :: writeMemInfo, writePeakInfo
  public :: dns2csr, csr2dns, nzdrop
 
@@ -2091,6 +2093,25 @@ module libnegf
     call destroy_contact_matrices(negf)
 
   end subroutine compute_layer_current
+
+  !-------------------------------------------------------------------------------
+  !> Gather the accumulated timers over all processes and print the summary
+  !> (min/avg/max wall time per label) on the print node.
+  !> Collective: must be called by all processes of negf%cartComm.
+  !! @param negf input/output container
+  !! @param unit optional output unit (default: stdout)
+  subroutine print_timers(negf, unit)
+    type(Tnegf) :: negf
+    integer, intent(in), optional :: unit
+
+#:if defined("MPI")
+    call gather_timers(negf%cartComm)
+#:else
+    call gather_timers()
+#:endif
+    call write_timers(unit)
+
+  end subroutine print_timers
 
   ! --------------------------------------------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate

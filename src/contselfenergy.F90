@@ -36,7 +36,7 @@ module ContSelfEnergy
  use sparsekit_drv
  use outmatrix, only : outmat_c, inmat_c
  use inversions, only : compGreen, inverse
- use clock
+ use ln_timers
  use mpi_globals
  use ln_cache, only : TMatLabel, get_string_label, TMatrixCache, TMatrixCacheMem
  use ln_messages
@@ -156,9 +156,9 @@ contains
     endif
 
     if(flag.ge.1) then
-        if (id0.and.verbose.gt.VBT) call message_clock(trim("Computing SGF "//ofpnt))
+        call set_timer(timers%SGF, verbose, trim("Computing SGF "//ofpnt))
     else         !*** load from file ***
-        if (id0.and.verbose.gt.VBT) call message_clock(trim("Loading SGF "//ofpnt))
+        call set_timer(timers%SGF, verbose, trim("Loading SGF "//ofpnt))
     endif
     call create(GS,ngs,ngs,tag="GS")
     GS%val=zero
@@ -261,7 +261,7 @@ contains
     end if !(Fict Contact or not)
 
 
-    if (id0.and.verbose.gt.VBT) call write_clock
+    call stop_timer(timers%SGF)
 
   end subroutine surface_green
 
