@@ -133,9 +133,7 @@ module libnegf
 
  integer, parameter :: VBT=70
  integer, parameter :: MAXNUMPLs = 10000
- integer, parameter, public :: READ_SGF = 0
- integer, parameter, public :: COMP_SGF = 1
- integer, parameter, public :: COMPSAVE_SGF = 2
+ public :: READ_SGF, COMP_SGF, COMPSAVE_SGF ! from lib_param
 
  !-----------------------------------------------------------------------------
   contains
@@ -1446,6 +1444,9 @@ module libnegf
 
     if (allocated(negf%surface_green_cache)) then
           call negf%surface_green_cache%destroy()
+    end if
+    if (allocated(negf%surface_green_cache_T)) then
+          call negf%surface_green_cache_T%destroy()
     end if
 
   end subroutine destroy_surface_green_cache

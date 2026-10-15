@@ -48,6 +48,13 @@ module lib_param
   private
 
   public :: Tnegf, lnParams, TInteractionList
+  public :: READ_SGF, COMP_SGF, COMPSAVE_SGF
+
+  !> Surface Green's function flags (readOldDM_SGFs, readOldT_SGFs):
+  !> read from cache (computed and stored if missing), compute, compute and store
+  integer, parameter :: READ_SGF = 0
+  integer, parameter :: COMP_SGF = 1
+  integer, parameter :: COMPSAVE_SGF = 2
   public :: TEnGrid
   public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
@@ -263,8 +270,13 @@ module lib_param
     ! internal use only
     integer :: readOldSGF
 
-    ! Work variable: surface green cache.
+    ! Work variable: surface green caches. The one of the density matrix (contour and
+    ! real axis path) can persist among calls; the one of real-axis transport
+    ! calculations (tunneling, currents, ldos) is in memory and is used within SCBA loops.
     class(TMatrixCache), allocatable :: surface_green_cache
+    class(TMatrixCache), allocatable :: surface_green_cache_T
+    ! Selects surface_green_cache_T in surface_green
+    logical :: tTransportSGF = .false.
     class(TMatrixCache), allocatable :: ESH
     ! These are pointers so they can be passed to inelastic
     class(TMatrixCache), pointer :: G_r => null()
@@ -650,7 +662,8 @@ contains
 
      negf%bulk_cont_density = .false. ! Flag to calculate the density of the bulk contacts
 
-     negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
+     negf%surface_green_cache = TMatrixCacheMem(tagname='SurfaceGF')
+     negf%surface_green_cache_T = TMatrixCacheMem(tagname='SurfaceGF_T')
 
      ! Initialize the cache space for Gr and Gn
      call init_cache_space(negf, 'G_r')

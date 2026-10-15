@@ -38,7 +38,7 @@ module ContSelfEnergy
  use inversions, only : compGreen, inverse
  use clock
  use mpi_globals
- use ln_cache, only : TMatLabel, get_string_label
+ use ln_cache, only : TMatLabel, get_string_label, TMatrixCache, TMatrixCacheMem
  use ln_messages
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
@@ -92,6 +92,7 @@ contains
 
     integer :: ii,i1,n0,n1,n2,n3,n4,nd,npl,ngs
     integer :: pnt,nfc,verbose,contdim,surfdim
+    integer :: nCacheE, nCacheK
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute
                                ! flag=2 Compute and save
@@ -105,8 +106,9 @@ contains
     label%kpoint = pnegf%ikpoint
     label%energy_point = pnt
     label%spin = pnegf%spin
+    ! Stored as the diagonal block (ii,ii) of the contact
     label%row_block = ii
-    label%col_block = 0
+    label%col_block = ii
 
     flag = pnegf%ReadOldSGF
     @:ASSERT(flag == 0 .or. flag == 1 .or. flag == 2)
@@ -123,7 +125,16 @@ contains
     ncyc=0
     nfc=0
 
-    lex = pnegf%surface_green_cache%is_cached(label)
+    call get_sgf_cache_sizes(pnegf, label, nCacheE, nCacheK)
+    if (pnegf%tTransportSGF) then
+      call prepare_sgf_cache(pnegf%surface_green_cache_T, label, nCacheE, nCacheK, &
+          & pnegf%str%num_conts)
+      lex = pnegf%surface_green_cache_T%is_cached(label)
+    else
+      call prepare_sgf_cache(pnegf%surface_green_cache, label, nCacheE, nCacheK, &
+          & pnegf%str%num_conts)
+      lex = pnegf%surface_green_cache%is_cached(label)
+    end if
 
     call get_string_label(pnt, ofpnt)
 
@@ -216,13 +227,21 @@ contains
           !*** save in file ***
           if (flag.eq.2) then
 
-            call pnegf%surface_green_cache%add(GS, label)
+            if (pnegf%tTransportSGF) then
+              call pnegf%surface_green_cache_T%add(GS, label)
+            else
+              call pnegf%surface_green_cache%add(GS, label)
+            end if
 
           endif
 
        else         !*** load from file ***
 
-         call pnegf%surface_green_cache%retrieve(GS, label)
+         if (pnegf%tTransportSGF) then
+           call pnegf%surface_green_cache_T%retrieve(GS, label)
+         else
+           call pnegf%surface_green_cache%retrieve(GS, label)
+         end if
 
        endif
 
@@ -232,6 +251,48 @@ contains
     if (id0.and.verbose.gt.VBT) call write_clock
 
   end subroutine surface_green
+
+  !---------------------------------------------------------------------------------------
+  !> Sizes of the index table of a memory SGF cache. Energy points are indexed on the
+  !> whole integration path (contour + real axis), k-points with the global index.
+  subroutine get_sgf_cache_sizes(pnegf, label, nE, nK)
+    type(Tnegf), intent(in) :: pnegf
+    type(TMatLabel), intent(in) :: label
+    integer, intent(out) :: nE, nK
+
+    nE = max(pnegf%Np_n(1) + pnegf%Np_n(2), pnegf%Np_p(1) + pnegf%Np_p(2)) &
+        & + pnegf%n_poles + pnegf%Np_real
+    if (allocated(pnegf%en_grid)) nE = max(nE, maxval(pnegf%en_grid(:)%pt_path))
+    nE = max(nE, label%energy_point)
+    nK = 1
+    if (allocated(pnegf%kpoints)) nK = size(pnegf%kpoints, 2)
+    nK = max(nK, label%kpoint)
+
+  end subroutine get_sgf_cache_sizes
+
+  !---------------------------------------------------------------------------------------
+  !> Allocate the index table of a memory cache of surface Green's functions, if not
+  !> done yet or if label falls outside of it (the cached SGFs are then dropped).
+  !> Other cache types need no preparation.
+  subroutine prepare_sgf_cache(cache, label, nE, nK, ncont)
+    class(TMatrixCache), intent(inout) :: cache
+    type(TMatLabel), intent(in) :: label
+    integer, intent(in) :: nE, nK, ncont
+
+    integer, parameter :: NSPIN = 2
+
+    select type(cache)
+    type is (TMatrixCacheMem)
+      if (cache%isInitialized) then
+        if (label%energy_point <= size(cache%MatArray, 1) .and. &
+            & label%kpoint <= size(cache%MatArray, 2) .and. &
+            & ncont <= size(cache%MatArray, 3)) return
+        call cache%destroy()
+      end if
+      call cache%init(nE, nK, ncont, 1, NSPIN)
+    end select
+
+  end subroutine prepare_sgf_cache
   !---------------------------------------------------------------------------------------
   ! --------------------------------------------------------------------
   subroutine decimation(Go,Ao,Bo,Co,n,ncyc)
