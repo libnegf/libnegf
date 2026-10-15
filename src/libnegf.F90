@@ -313,13 +313,17 @@ module libnegf
     integer, optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: nnz, i, base, ii=1, iiS=1
+    integer :: nnz, i, base, ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -370,13 +374,17 @@ module libnegf
     integer, optional :: iKS
     integer, optional :: iS
 
-    integer :: nnz, i, base, ii=1, iiS=1
+    integer :: nnz, i, base, ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -421,13 +429,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1
+    integer :: ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -461,13 +473,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, ss
+    integer :: ii, iiS, ss
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     ss = merge(size(negf%HS),0,allocated(negf%HS))
@@ -503,13 +519,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1
+    integer :: ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > size(negf%HS)) then
@@ -686,6 +706,7 @@ module libnegf
     integer, intent(in), optional :: equiv_mult(:)
 
     integer :: ii, jj
+    real(dp) :: kdiff(3)
     real(dp), allocatable :: equiv_by_inv(:,:)
     integer, allocatable :: equiv_mult_inv(:)
 
@@ -713,6 +734,22 @@ module libnegf
     else
       call error_msg( "kSamplingType must be either 0, 1 or 2")
     end if
+
+    ! With inversion symmetry -k is added as equivalent of k, hence the list must contain
+    ! only one point of each (k, -k) pair, otherwise k-points are counted twice
+    if (kSamplingType == 2 .and. .not.present(equiv_kpoints)) then
+      do ii = 1, size(kweights)
+        do jj = ii + 1, size(kweights)
+          kdiff(:) = negf%kpoints(:,ii) + negf%kpoints(:,jj)
+          if (all(abs(kdiff - nint(kdiff)) < 1.0e-6_dp)) then
+            call error_msg("set_kpoints: kSamplingType=2 (k -> -k symmetry) but the k-point list &
+                &already contains both k and -k. Pass a k-mesh reduced by inversion &
+                &or use kSamplingType=1")
+          end if
+        end do
+      end do
+    end if
+
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
     end if
@@ -1524,10 +1561,12 @@ module libnegf
     type(z_CSR), intent(inout) :: csrDens
     integer, intent(in), optional :: iKS
 
-    integer :: ii=1, s
+    integer :: ii, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
 
     if (present(iKS)) then
@@ -1569,13 +1608,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, s
+    integer :: ii, iiS, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > 1) then
@@ -1607,13 +1650,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, s
+    integer :: ii, iiS, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (present(iKS)) then

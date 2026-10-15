@@ -737,6 +737,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -781,6 +784,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -829,7 +835,7 @@ contains
 
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
     if (present(k_index)) then
       label%kpoint = k_index
     end if
@@ -869,7 +875,7 @@ contains
     label%col_block = jj
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
 
     if (present(k_index)) then
       label%kpoint = k_index

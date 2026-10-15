@@ -76,19 +76,20 @@
 
 #define LIBNEGF_CHECK_INFO(info_var) \
     do { \
-        check_info<<<1, 1>>>(__FILE__, __LINE__, info_var); \
+        check_info<<<1, 1>>>(__LINE__, info_var); \
     } while(false)
 
 
 /// Check if the preceeding BLAS-style routine terminated successfully.
-__global__ void check_info(const char* file, unsigned line, int* d_info) {
+/// Note: the file name cannot be passed as __FILE__ is a host pointer.
+__global__ void check_info(unsigned line, int* d_info) {
     if(!d_info) {
-        std::printf("%s:%u: info parameter is NULL\n", file, line);
+        std::printf("gpuroutines.cu:%u: info parameter is NULL\n", line);
         __trap();
     }
     if(d_info && *d_info != 0) {
         std::printf(
-            "%s:%u: got info=%d, expected info=0\n", file, line, *d_info
+            "gpuroutines.cu:%u: got info=%d, expected info=0\n", line, *d_info
         );
         __trap();
     }
@@ -229,7 +230,7 @@ __global__ void getdiagKernel(const Number* A, int n, Real* out,
 
     if (i < n) {
         if (mask_present == 0 || mask[i]) {
-            out[i] = A[i * n + i].x;
+            out[i] = A[static_cast<size_t>(i) * (n + 1)].x;
         } else {
             out[i] = 0;
         }
@@ -682,16 +683,20 @@ Real trace(
     int mask_present
 ) {
 
+    ENFORCE(d_A);
+    ENFORCE(h_mask || mask_present == 0);
+
     size_t n64 = static_cast<size_t>(nrow);
-    size_t num_elements = n64 * n64;
-    size_t num_blocks = (num_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    // one thread per diagonal element
+    size_t num_blocks = (n64 + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     cudaError_t cudaStatus;
 
-    bool* d_mask;
-    cudaStatus = cudaMalloc((void**)&d_mask, n64 * sizeof(bool));
-    CUDA_CHECK(cudaStatus);
-    if (h_mask) {
+    // h_mask must point to logical(c_bool) data, i.e. 1 byte per element
+    bool* d_mask = nullptr;
+    if (mask_present) {
+       cudaStatus = cudaMalloc((void**)&d_mask, n64 * sizeof(bool));
+       CUDA_CHECK(cudaStatus);
        cu_copyMatH2D(h_mask, d_mask, n64*sizeof(bool));
     }
 
@@ -701,26 +706,37 @@ Real trace(
     void *d_temp = nullptr;
     size_t temp_bytes = 0;
     cudaStatus = cudaMalloc(&d_result, sizeof(Real));
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaMemset(static_cast<void*>(d_result), 0, sizeof(Real));
     CUDA_CHECK(cudaStatus);
     cudaStatus = cudaMalloc(&d_real_diag, n64*sizeof(Real));
     CUDA_CHECK(cudaStatus);
 
     getdiagKernel<<<num_blocks, BLOCK_SIZE>>>(d_A, nrow, d_real_diag, d_mask, mask_present);
+    CUDA_CHECK(cudaGetLastError());
 
-    cub::DeviceReduce::Sum(nullptr, temp_bytes, d_real_diag, d_result, nrow);
+    cudaStatus = cub::DeviceReduce::Sum(nullptr, temp_bytes, d_real_diag, d_result, nrow);
+    CUDA_CHECK(cudaStatus);
 
     cudaStatus = cudaMalloc(&d_temp, temp_bytes);
     CUDA_CHECK(cudaStatus);
 
-    cub::DeviceReduce::Sum(d_temp, temp_bytes, d_real_diag, d_result, nrow);
+    cudaStatus = cub::DeviceReduce::Sum(d_temp, temp_bytes, d_real_diag, d_result, nrow);
+    CUDA_CHECK(cudaStatus);
 
     cudaStatus = cudaMemcpy(&h_result, d_result, sizeof(Real), cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaStatus);
 
-    cudaStatus = cudaFree(d_mask);
+    if (d_mask) {
+       cudaStatus = cudaFree(d_mask);
+       CUDA_CHECK(cudaStatus);
+    }
     cudaStatus = cudaFree(d_result);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_temp);
+    CUDA_CHECK(cudaStatus);
     cudaStatus = cudaFree(d_real_diag);
+    CUDA_CHECK(cudaStatus);
 
     return h_result;
 }
@@ -770,7 +786,8 @@ extern "C" int cu_Zmatcopy(
 }
 
 extern "C" int
-cu_Casum(void *hpblas, void* d_A, float* summ, int32_t n) {
+cu_Casum(void *hpblas, void* d_A, float* summ, size_t n) {
+    ENFORCE(n <= INT_MAX);
     cuComplex* pdA = (cuComplex*)d_A;
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -780,7 +797,8 @@ cu_Casum(void *hpblas, void* d_A, float* summ, int32_t n) {
 }
 
 extern "C" int
-cu_Zasum(void *hpblas, void* d_A, double* summ, int32_t n) {
+cu_Zasum(void *hpblas, void* d_A, double* summ, size_t n) {
+    ENFORCE(n <= INT_MAX);
     cuDoubleComplex* pdA = (cuDoubleComplex*)d_A;
 
     cublasHandle_t hcublas = static_cast<cublasHandle_t>(hpblas);
@@ -1003,6 +1021,7 @@ int decimation(
         CUDA_CHECK(cudaGetLastError());
         Real h_norm;
         cudaStatus = cudaMemcpy(&h_norm, d_norm, sizeof(Real), cudaMemcpyDeviceToHost);
+        CUDA_CHECK(cudaStatus);
         if (log){printf("loop it= %d , maxval|C1|= %g \n ", i1, h_norm);}
 
         if(h_norm <= accuracy) {

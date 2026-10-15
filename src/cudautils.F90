@@ -280,7 +280,7 @@ module cudautils
      integer(c_int) function cu_cudaGetDeviceProperties(device) &
                                           & bind(C, name='cu_cudaGetDeviceProperties')
        use iso_c_binding
-       integer(c_int) :: device
+       integer(c_int), value :: device
      end function cu_cudaGetDeviceProperties
 
      integer(c_int) function cu_cudaMallocAsync(d_A, msize) bind(C, name='cu_cudaMallocAsync')
@@ -796,6 +796,8 @@ end interface
 
       type(c_ptr) :: dummy
       integer(c_int32_t) :: nrow
+      ! C side expects 1-byte bool, default logical is 4 bytes
+      logical(c_bool), allocatable, target :: mask_c(:)
       dummy = c_null_ptr
 
       @:ASSERT(A%nrow >= 0)
@@ -804,7 +806,11 @@ end interface
       if (.not.present(tun_mask)) then
          trace = cu_${CTYPE}$trace(hcublas%ptr, A%d_addr, nrow, dummy, 0)
       else
-         trace = cu_${CTYPE}$trace(hcublas%ptr, A%d_addr, nrow, c_loc(tun_mask), 1)
+         @:ASSERT(size(tun_mask) >= nrow)
+         allocate(mask_c(size(tun_mask)))
+         mask_c = logical(tun_mask, kind=c_bool)
+         trace = cu_${CTYPE}$trace(hcublas%ptr, A%d_addr, nrow, c_loc(mask_c), 1)
+         deallocate(mask_c)
       endif
 
    end subroutine trace_gpu_${KIND}$

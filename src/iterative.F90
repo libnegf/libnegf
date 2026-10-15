@@ -304,10 +304,14 @@ CONTAINS
     type(z_CSR), intent(out), optional :: outGr
 
     logical :: tDestroyGn, tDestroyESH, tDestroyGr
-    integer :: outer = 0
+    integer :: outer
     type(z_CSR) :: csrGn
 
-    if (present(outer_blocks)) outer = outer_blocks
+    if (present(outer_blocks)) then
+      outer = outer_blocks
+    else
+      outer = 0
+    end if
 
     ! Backup cleanup flags
     tDestroyGn = negf%tDestroyGn
@@ -537,7 +541,7 @@ CONTAINS
 
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
     tTridiag = .true.
 
     if (present(k_index)) then
@@ -600,7 +604,7 @@ CONTAINS
 
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
     tTridiag = .true.
 
     if (present(k_index)) then

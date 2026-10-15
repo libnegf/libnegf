@@ -29,7 +29,7 @@ module elptinel
   use block_3_diag, only : init_tridiag_blk, destroy_tridiag_blk, blk2dns
   use block_3_diag, only : csr2blk3diag
   use ln_math, only : cross_product, volume
-  use sparsekit_drv, only : prealloc_mult, zspectral, getdiag
+  use sparsekit_drv, only : prealloc_mult, getdiag
   use ln_constants, only : c, esq_ov_eps0, alpha, pi
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
@@ -410,6 +410,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -454,6 +457,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -502,7 +508,7 @@ contains
 
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
     if (present(k_index)) then
       label%kpoint = k_index
     end if
@@ -572,7 +578,7 @@ contains
     label%col_block = jj
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
 
     if (present(k_index)) then
       label%kpoint = k_index
@@ -966,71 +972,74 @@ contains
     end subroutine setup_pointers_Gr
 
     ! setup the array of pointers to G_n
+    ! Only the current k-point iKK is set, as selfenergy uses only that column
     subroutine setup_pointers_Gn(Nr, Nc)
       integer, intent(in) :: Nr, Nc
 
-      integer :: iK, iE
+      integer :: iE
 
       label%row_block = Nr
       label%col_block = Nc
+      label%kpoint = iKK
 
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = iK
-          label%energy_point = iE
-          call this%G_n%retrieve_pointer(pGG(iE,iK)%pMat, label)
-        end do
+      do iE = 1, NEloc
+        label%energy_point = iE
+        call this%G_n%retrieve_pointer(pGG(iE,iKK)%pMat, label)
       end do
     end subroutine setup_pointers_Gn
 
+    ! Computes the spectral function blocks A(Nr,Nc) = i [G_r(Nr,Nc) - G_r(Nc,Nr)^dag]
+    ! Note: zspectral cannot be used here since it computes i [G - G^dag] from a
+    !       single block, which is correct only for diagonal blocks. For off-diagonal
+    !       blocks the advanced part must be taken from the transposed block (Nc,Nr).
+    ! Only the current k-point iKK is computed, as selfenergy uses only that column
     subroutine setup_pointers_A(Nr, Nc)
       integer, intent(in) :: Nr, Nc
 
-      integer :: iK, iE
+      integer :: iE
+      type(x_DNS), pointer :: pGji
 
-      label%row_block = Nr
-      label%col_block = Nc
+      label%kpoint = iKK
 
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = iK
-          label%energy_point = iE
-          call this%G_r%retrieve_pointer(pGG(iE,iK)%pMat, label)
-          allocate(pAA(iE,iK)%pMat)
-          call zspectral(pGG(iE,iK)%pMat, pAA(iE,iK)%pMat)
-        end do
+      do iE = 1, NEloc
+        label%energy_point = iE
+        label%row_block = Nc
+        label%col_block = Nr
+        call this%G_r%retrieve_pointer(pGji, label)
+        label%row_block = Nr
+        label%col_block = Nc
+        call this%G_r%retrieve_pointer(pGG(iE,iKK)%pMat, label)
+        allocate(pAA(iE,iKK)%pMat)
+        call create(pAA(iE,iKK)%pMat, pGG(iE,iKK)%pMat%nrow, pGG(iE,iKK)%pMat%ncol)
+        pAA(iE,iKK)%pMat%val = (0.0_lp, 1.0_lp) * &
+            & (pGG(iE,iKK)%pMat%val - conjg(transpose(pGji%val)))
       end do
     end subroutine setup_pointers_A
 
     subroutine release_pointers_A()
-      integer :: iK, iE
+      integer :: iE
 
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          call destroy(pAA(iE,iK)%pMat)
-          deallocate(pAA(iE,iK)%pMat)
-        end do
+      do iE = 1, NEloc
+        call destroy(pAA(iE,iKK)%pMat)
+        deallocate(pAA(iE,iKK)%pMat)
       end do
     end subroutine release_pointers_A
 
-    ! setup the array of pointers to G_n
-
+    ! setup the array of pointers to Sigma_r
+    ! Only the current k-point iKK is set, as selfenergy uses only that column
     subroutine setup_pointers_Sigma_r(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
-      type(x_DNS) :: tmp
-      integer :: iK, iE
+      integer :: iE
 
       label%row_block = Nr
       label%col_block = Nc
+      label%kpoint = iKK
 
       associate(Sigma_r => this%Sigma_r)
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = iK
-          label%energy_point = iE
-          call Sigma_r%retrieve_pointer(pSigma(iE,iK)%pMat, label)
-        end do
+      do iE = 1, NEloc
+        label%energy_point = iE
+        call Sigma_r%retrieve_pointer(pSigma(iE,iKK)%pMat, label)
       end do
       end associate
 
@@ -1187,39 +1196,38 @@ contains
 
     end subroutine compute_supradiagonal_contributions
 
+    ! setup the array of pointers to G_n
+    ! Only the current k-point iKK is set, as selfenergy uses only that column
     subroutine setup_pointers_Gn(Nr, Nc)
       integer, intent(in) :: Nr, Nc
 
-      integer :: iK, iE
+      integer :: iE
 
       label%row_block = Nr
       label%col_block = Nc
+      label%kpoint = iKK
 
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = iK
-          label%energy_point = iE
-          call this%G_n%retrieve_pointer(pGG(iE,iK)%pMat, label)
-        end do
+      do iE = 1, NEloc
+        label%energy_point = iE
+        call this%G_n%retrieve_pointer(pGG(iE,iKK)%pMat, label)
       end do
     end subroutine setup_pointers_Gn
 
+    ! setup the array of pointers to Sigma_n
+    ! Only the current k-point iKK is set, as selfenergy uses only that column
     subroutine setup_pointers_Sigma_n(Nr,Nc)
       integer, intent(in) :: Nr, Nc
 
-      type(x_DNS) :: tmp
-      integer :: iK, iE
+      integer :: iE
 
       label%row_block = Nr
       label%col_block = Nc
+      label%kpoint = iKK
 
       associate(Sigma_n => this%Sigma_n)
-      do iK = 1, NKloc
-        do iE = 1, NEloc
-          label%kpoint = iK
-          label%energy_point = iE
-          call Sigma_n%retrieve_pointer(pSigma(iE,iK)%pMat, label)
-        end do
+      do iE = 1, NEloc
+        label%energy_point = iE
+        call Sigma_n%retrieve_pointer(pSigma(iE,iKK)%pMat, label)
       end do
       end associate
     end subroutine setup_pointers_Sigma_n

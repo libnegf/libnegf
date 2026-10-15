@@ -1989,6 +1989,9 @@ contains
       call compute_Sigmas_elphoton(negf)
       if (id0.and.negf%verbose.gt.VBT) call write_clock
 
+      ! scba_iter > 0 is needed to add the photon self-energies in EKloop
+      call set_scba_iter_elphoton(1, negf%interactList)
+
       ! Call E-k loop to update Gn after photon absorption
       call EKloop()
 
@@ -2122,7 +2125,7 @@ contains
     if (negf%dump_pdos) then
       call log_allocate(A_mat, Npoints, negf%str%central_dim)
       call log_allocate(Gn_mat, Npoints, negf%str%central_dim)
-      call log_allocate(Gn_diag, Npoints)
+      call log_allocate(Gn_diag, negf%str%central_dim)
     end if
 
     ! Clean up caches of G_r and G_n
@@ -2206,6 +2209,10 @@ contains
 #:endif
 
       if (negf%dump_pdos) then
+#:if defined("MPI")
+        call gather_pdos(negf, A_mat)
+        call gather_pdos(negf, Gn_mat)
+#:endif
         call dump_Gn_mat_and_A(Gn_mat, A_mat, scba_iter)
       end if
 
@@ -2259,6 +2266,10 @@ contains
 #:endif
 
       if (negf%dump_pdos) then
+#:if defined("MPI")
+        call gather_pdos(negf, A_mat)
+        call gather_pdos(negf, Gn_mat)
+#:endif
         call dump_Gn_mat_and_A(Gn_mat, A_mat, scba_iter)
       end if
 
@@ -2307,7 +2318,7 @@ contains
             call zspectral(Gr, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
-            A_mat(iE, :) = A_mat(iE, :) + real(diag(:))*negf%kwght
+            A_mat(iE, :) = A_mat(iE, :) + real(diag(1:negf%str%central_dim))*negf%kwght
             call log_deallocate(diag)
             call destroy(Gn, Gr, A)
           else
@@ -2379,6 +2390,27 @@ contains
 
     if (id0.and.negf%verbose.gt.VBT) call write_clock
   end subroutine gather_currents
+
+  !---------------------------------------------------------------------------
+  ! Sum energy- and k-resolved pdos matrices (nE, norbs) on the root process
+  ! Only the root has a meaningful result after the call
+  subroutine gather_pdos(negf, pdos_mat)
+    type(Tnegf) :: negf
+    real(dp), dimension(:,:), intent(inout) :: pdos_mat
+
+    real(dp), dimension(:,:), allocatable :: tmp_mat
+
+    ! Work around because of MPI error with TiberCAD (see gather_currents)
+    allocate(tmp_mat, mold=pdos_mat)
+    tmp_mat = 0.0_dp
+    call mpifx_reduce(negf%energyComm, pdos_mat, tmp_mat, MPI_SUM)
+    pdos_mat = tmp_mat
+    tmp_mat = 0.0_dp
+    call mpifx_reduce(negf%kComm, pdos_mat, tmp_mat, MPI_SUM)
+    pdos_mat = tmp_mat
+    deallocate(tmp_mat)
+
+  end subroutine gather_pdos
 #:endif
 
   !---------------------------------------------------------------------------
@@ -2387,8 +2419,20 @@ contains
 
     real(dp) :: deltaE
     type(TInteractionNode), pointer :: it
-    it => negf%interactList%first
 
+    ! Inelastic self-energies assume a uniform grid split evenly in contiguous chunks
+    if (get_max_wq(negf%interactList) > 0.0_dp) then
+      if (size(negf%en_grid) < 2) then
+        call error_msg('Inelastic interactions require at least 2 energy points')
+      end if
+      if (mod(size(negf%en_grid), numprocs) /= 0 .or. &
+          & negf%local_en_points * numprocs /= size(negf%en_grid)) then
+        call error_msg('Inelastic interactions require energy points to be a multiple of &
+            &the number of energy processes')
+      end if
+    end if
+
+    it => negf%interactList%first
     do while (associated(it))
       call it%inter%set_structure(negf%str)
       select type(pInter => it%inter)
@@ -2458,7 +2502,7 @@ contains
           call pInter%destroy_Sigma_r()
           call pInter%init_Sigma_r(spin=negf%spin)
           call pInter%compute_Sigma_r(spin=negf%spin)
-        else if (pInter%scba_iter < pInter%scba_niter) then
+        else if (pInter%scba_iter <= pInter%scba_niter) then
           call pInter%clear_Sigma_n()
           call pInter%compute_Sigma_n(spin=negf%spin)
           call pInter%clear_Sigma_r()
@@ -2481,7 +2525,6 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhoton)
-        print*,'iter/niter:',pInter%scba_iter, pInter%scba_niter
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)

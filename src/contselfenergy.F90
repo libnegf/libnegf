@@ -247,10 +247,12 @@ contains
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
     integer :: i1
-    logical :: okCo = .false.
+    logical :: okCo
 
     call log_allocate(Ao_s, n, n)
     Ao_s=Ao;
+
+    okCo = .false.
 
     do i1 = 1, 300
       ncyc=i1
