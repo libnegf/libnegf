@@ -36,7 +36,7 @@ module integrations
  use mat_def
  use ln_extract
  use contselfenergy
- use ln_timers
+ use ln_timers, only : timers
  use energy_mesh
  use interactions
  use ln_elastic
@@ -631,7 +631,7 @@ contains
 #:if defined("MPI")
     ! Gather partial results over the energy grid
     call mpifx_barrier(negf%energyComm)
-    call set_timer(timers%MPIGather, negf%verbose, 'Gather DM over the MPI E-grid')
+    call set_timer(negf, timers%MPIGather, 'Gather DM over the MPI E-grid')
     if (inelastic) then
       do iK = 1, size(negf%local_k_index)
         call mpifx_allreduceip(negf%energyComm, negf%DM(iK)%rho%nzval, MPI_SUM)
@@ -639,7 +639,7 @@ contains
     else
       call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
     end if
-    call stop_timer(timers%MPIGather)
+    call stop_timer(negf, timers%MPIGather)
 #:endif
 
   end subroutine contour_driver
@@ -1297,10 +1297,10 @@ contains
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
-          call set_timer(timers%LayerCurrent, negf%verbose)
+          call set_timer(negf, timers%LayerCurrent)
           call iterative_layer_current(negf, Er, curr_mat)
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
-          call stop_timer(timers%LayerCurrent)
+          call stop_timer(negf, timers%LayerCurrent)
 
           zt = negf%en_grid(iE)%wght
           if (negf%DorE.eq.'E') zt = zt * Er
@@ -1331,13 +1331,13 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      call set_timer(timers%SigmaElph, negf%verbose)
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      call stop_timer(timers%SigmaElph)
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        call set_timer(timers%SigmaElpt, negf%verbose)
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        call stop_timer(timers%SigmaElpt)
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       ! Integrate energy-resolved currents
@@ -1795,19 +1795,19 @@ contains
        negf%iE = negf%en_grid(i)%pt
        negf%iE_path = negf%en_grid(i)%pt_path
 
-       call set_timer(timers%ContactSE, negf%verbose)
+       call set_timer(negf, timers%ContactSE)
        call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-       call stop_timer(timers%ContactSE)
+       call stop_timer(negf, timers%ContactSE)
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
        if (.not.do_ledos) then
-          call set_timer(timers%Transmission, negf%verbose)
+          call set_timer(negf, timers%Transmission)
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          call set_timer(timers%Transmission, negf%verbose, 'Compute Transmission and DOS')
+          call set_timer(negf, timers%Transmission, 'Compute Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec+j*negf%dos_delta, SelfEneR, GS, negf%tun_proj, &
@@ -1817,7 +1817,7 @@ contains
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
-       call stop_timer(timers%Transmission)
+       call stop_timer(negf, timers%Transmission)
 
        do icont=1,ncont
          call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1926,13 +1926,13 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      call set_timer(timers%SigmaElph, negf%verbose)
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      call stop_timer(timers%SigmaElph)
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        call set_timer(timers%SigmaElpt, negf%verbose)
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        call stop_timer(timers%SigmaElpt)
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       call electron_current_meir_wingreen(negf)
@@ -1985,9 +1985,9 @@ contains
 
       call set_scba_iter_elphoton(0, negf%interactList)
 
-      call set_timer(timers%SigmaElpt, negf%verbose)
+      call set_timer(negf, timers%SigmaElpt)
       call compute_Sigmas_elphoton(negf)
-      call stop_timer(timers%SigmaElpt)
+      call stop_timer(negf, timers%SigmaElpt)
 
       ! scba_iter > 0 is needed to add the photon self-energies in EKloop
       call set_scba_iter_elphoton(1, negf%interactList)
@@ -2037,26 +2037,26 @@ contains
           ! ---------------------------------------------------------------------
           ! Compute contact GF
           ! ---------------------------------------------------------------------
-          call set_timer(timers%ContactSE, negf%verbose)
+          call set_timer(negf, timers%ContactSE)
           call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-          call stop_timer(timers%ContactSE)
+          call stop_timer(negf, timers%ContactSE)
           call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
           ! ---------------------------------------------------------------------
           ! Compute block tri-diagonal Gr and Gn
           ! ---------------------------------------------------------------------
           negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
-          call set_timer(timers%ElasticSCBA, negf%verbose)
+          call set_timer(negf, timers%ElasticSCBA)
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
                 scba_elastic_tol, scba_elastic_iter, scba_elastic_error)
-          call stop_timer(timers%ElasticSCBA)
+          call stop_timer(negf, timers%ElasticSCBA)
 
           !call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
 
           negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
-          call set_timer(timers%MeirWingreen, negf%verbose)
+          call set_timer(negf, timers%MeirWingreen)
           call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
-          call stop_timer(timers%MeirWingreen)
+          call stop_timer(negf, timers%MeirWingreen)
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
@@ -2190,13 +2190,13 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      call set_timer(timers%SigmaElph, negf%verbose)
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      call stop_timer(timers%SigmaElph)
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        call set_timer(timers%SigmaElpt, negf%verbose)
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        call stop_timer(timers%SigmaElpt)
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       call electron_current_meir_wingreen(negf)
@@ -2262,9 +2262,9 @@ contains
 
       call set_scba_iter_elphoton(0, negf%interactList)
 
-      call set_timer(timers%SigmaElpt, negf%verbose)
+      call set_timer(negf, timers%SigmaElpt)
       call compute_Sigmas_elphoton(negf)
-      call stop_timer(timers%SigmaElpt)
+      call stop_timer(negf, timers%SigmaElpt)
 
       call set_scba_iter_elphoton(1, negf%interactList)
 
@@ -2345,13 +2345,13 @@ contains
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
-          call set_timer(timers%LayerCurrent, negf%verbose)
+          call set_timer(negf, timers%LayerCurrent)
           if (negf%dump_pdos) then
             call iterative_layer_current(negf, Er, curr_mat, Gn_diag)
           else
             call iterative_layer_current(negf, Er, curr_mat)
           end if
-          call stop_timer(timers%LayerCurrent)
+          call stop_timer(negf, timers%LayerCurrent)
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
@@ -2379,7 +2379,7 @@ contains
     real(dp), dimension(:), allocatable :: tmp_currents
     real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
 
-    call set_timer(timers%MPIGather, negf%verbose)
+    call set_timer(negf, timers%MPIGather)
 
     ! Work around because of MPI error with TiberCAD
     ! (MPI_IN_PLACE flag is not recognized ?!)
@@ -2405,7 +2405,7 @@ contains
       deallocate(tmp_ldos_mat)
     end if
 
-    call stop_timer(timers%MPIGather)
+    call stop_timer(negf, timers%MPIGather)
   end subroutine gather_currents
 
   !---------------------------------------------------------------------------
@@ -2417,7 +2417,7 @@ contains
 
     real(dp), dimension(:,:), allocatable :: tmp_mat
 
-    call set_timer(timers%MPIGather, negf%verbose, 'Gather pdos')
+    call set_timer(negf, timers%MPIGather, 'Gather pdos')
 
     ! Work around because of MPI error with TiberCAD (see gather_currents)
     allocate(tmp_mat, mold=pdos_mat)
@@ -2429,7 +2429,7 @@ contains
     pdos_mat = tmp_mat
     deallocate(tmp_mat)
 
-    call stop_timer(timers%MPIGather)
+    call stop_timer(negf, timers%MPIGather)
 
   end subroutine gather_pdos
 #:endif
@@ -2693,9 +2693,9 @@ contains
 
       if (allocated(Gr%nzval)) call destroy(Gr)
 
-      call set_timer(timers%Gr, negf%verbose)
+      call set_timer(negf, timers%Gr)
       call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
-      call stop_timer(timers%Gr)
+      call stop_timer(negf, timers%Gr)
 
       call negf%scbaDriverElastic%check_Mat_convergence(Gr)
 
@@ -2747,18 +2747,18 @@ contains
     ! ---------------------------------------------------------------------
     ! Compute contact GF
     ! ---------------------------------------------------------------------
-    call set_timer(timers%ContactSE, negf%verbose)
+    call set_timer(negf, timers%ContactSE)
     call compute_contacts(Ec, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-    call stop_timer(timers%ContactSE)
+    call stop_timer(negf, timers%ContactSE)
     call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
     ! ---------------------------------------------------------------------
     ! Compute block tri-diagonal Gn and optionally Gr
     ! ---------------------------------------------------------------------
-    call set_timer(timers%ElasticSCBA, negf%verbose)
+    call set_timer(negf, timers%ElasticSCBA)
     call calculate_elastic_scba(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, scba_niter_ela, &
                  & scba_elastic_tol, scba_elastic_iter, scba_elastic_error, outer, Gn, Gr)
-    call stop_timer(timers%ElasticSCBA)
+    call stop_timer(negf, timers%ElasticSCBA)
 
     if (negf%cartComm%rank == 0 .and. negf%interactList%counter /= 0) then
       call write_int_info(negf%verbose, VBT, 'scba elastic iterations',scba_elastic_iter)
@@ -2998,20 +2998,20 @@ contains
          call error_msg("unreachable case libnegf delta")
        end select
 
-       call set_timer(timers%ContactSE, negf%verbose)
+       call set_timer(negf, timers%ContactSE)
        call compute_contacts(Ec+j*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-       call stop_timer(timers%ContactSE)
+       call stop_timer(negf, timers%ContactSE)
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
 
        if (.not.do_ledos) then
-          call set_timer(timers%Transmission, negf%verbose, 'Compute Phonon Transmission')
+          call set_timer(negf, timers%Transmission, 'Compute Phonon Transmission')
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          call set_timer(timers%Transmission, negf%verbose, 'Compute Phonon Transmission and DOS')
+          call set_timer(negf, timers%Transmission, 'Compute Phonon Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
@@ -3021,7 +3021,7 @@ contains
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
-       call stop_timer(timers%Transmission)
+       call stop_timer(negf, timers%Transmission)
 
        do icont=1,ncont
          call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))

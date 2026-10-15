@@ -30,10 +30,10 @@ module iterative
   use sparsekit_drv
   use inversions
   use ln_structure, only : TStruct_Info
-  use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList
+  use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList, set_timer, stop_timer
   use mpi_globals, only : id, numprocs, id0
   use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
-  use ln_timers
+  use ln_timers, only : timers
   use ln_cache
   use ln_elastic
   use ln_inelastic
@@ -222,7 +222,7 @@ CONTAINS
 
     Ec = cmplx(E,0.0_dp,dp)
 
-    call set_timer(timers%Gr, negf%verbose)
+    call set_timer(negf, timers%Gr)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
@@ -243,10 +243,10 @@ CONTAINS
 
     !Passing Gr to interactions
     call set_Gr_ela(negf, Gr)
-    call stop_timer(timers%Gr)
+    call stop_timer(negf, timers%Gr)
 
     !Computing device G_n
-    call set_timer(timers%Gn, negf%verbose)
+    call set_timer(negf, timers%Gn)
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 
@@ -261,7 +261,7 @@ CONTAINS
 
     !Passing G^n to interactions
     call set_Gn_ela(negf, Gn)
-    call stop_timer(timers%Gn)
+    call stop_timer(negf, timers%Gn)
 
     if (present(Glout)) then
       call blk2csr(Gn,negf%str,negf%S,Glout)

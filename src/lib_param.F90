@@ -41,6 +41,7 @@ module lib_param
   use scba
   use ln_cache
   use ln_enums, only : integration_type
+  use ln_timers, only : TTimerSet, timer_start, timer_stop
 #:if defined("MPI")
   use libmpifx_module, only : mpifx_comm
 #:endif
@@ -59,6 +60,7 @@ module lib_param
   public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
+  public :: set_timer, stop_timer
   public :: destroy_interactions
   public :: init_cache_space, destroy_cache_space
   public :: init_sgf_mem_cache
@@ -213,7 +215,7 @@ module lib_param
     type(TBasisCenters) :: basis  ! local basis centers
     type(TNeighbourMap), dimension(:), allocatable :: neighbour_map
     integer :: iE                 ! Currently processed En point (global index)
-    integer :: iE_path            ! Currently processed En point (on path)
+    integer :: iE_path = 0        ! Currently processed En point (on path)
     integer :: iEloc              ! Currently processed En point (local index)
     complex(dp) :: Epnt           ! Currently processed En point (value)
     real(dp) :: kwght             ! currently processed k-point weight
@@ -282,6 +284,9 @@ module lib_param
     ! These are pointers so they can be passed to inelastic
     class(TMatrixCache), pointer :: G_r => null()
     class(TMatrixCache), pointer :: G_n => null()
+
+    ! Timers of the main calculation steps
+    type(TTimerSet) :: timerset
 
     contains
 
@@ -557,6 +562,27 @@ contains
 
   end subroutine set_elphoton
 
+
+  !> Start a timer of negf. The current (iE_path, iKpoint) is attached to the call
+  !> and a progress line is printed depending on negf%verbose.
+  subroutine set_timer(negf, itimer, message)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: itimer
+    character(*), intent(in), optional :: message
+
+    call timer_start(negf%timerset, itimer, [negf%iE_path, negf%iKpoint], negf%verbose, &
+        & message)
+
+  end subroutine set_timer
+
+  !> Stop a timer of negf
+  subroutine stop_timer(negf, itimer)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: itimer
+
+    call timer_stop(negf%timerset, itimer)
+
+  end subroutine stop_timer
 
   !> clean interactions objects
   subroutine destroy_interactions(negf)
