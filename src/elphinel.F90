@@ -1797,7 +1797,7 @@ contains
               !$OMP PARALLEL DO private (nu)
               do nu = 1, Mp
                 pSigma%val(1:Np,nu) = pSigma%val(1:Np,nu) + &
-                   & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2) * sbuffK%val(1:Np,nu)
+                   & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2) * rbuffK%val(1:Np,nu)
               end do
               !$OMP END PARALLEL DO
             end do
