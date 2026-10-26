@@ -18,6 +18,9 @@ module ln_messages
          write(*,*) str_msg
        end if  
     end if
+#:if defined("MPI")
+    call negf_mpi_abort()
+#:endif
     error stop 1
   end subroutine error_msg
 

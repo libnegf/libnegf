@@ -581,6 +581,9 @@ contains
       negf%en_grid(ioffs+i)%wght = zt
     enddo
 
+    ! Hole points are indexed after all electron points of the DM path (SGF cache)
+    negf%en_grid(:)%pt_path = negf%en_grid(:)%pt_path + get_dm_hole_offset(negf)
+
     ! *******************************************************************************
     ! Distribution of Energy grid
     ! pts 1 2 3 4 5 6 7 8 9 ...
@@ -715,6 +718,8 @@ contains
        mumin = mumin - nkT - wqmax
        Lambda = 0.0_dp
        nPoles = 0
+       ! No poles with inelastic scattering: also used for the real-axis offset
+       negf%n_poles = 0
      else
        mumin = muref - nkT
        nPoles = negf%n_poles
@@ -1014,14 +1019,12 @@ contains
     ncont = negf%str%num_conts
     Npoints = negf%Np_real
 
-    ! With inelastic scattering equalize the energy points/process
-    if (negf%interactList%counter /= 0) then
-      if (mod(Npoints,numprocs) .ne. 0) then
-        do while (mod(Npoints,numprocs) .ne. 0)
-          Npoints = Npoints + 1
-        end do
-        negf%Np_real = Npoints
-      end if
+    ! Balance N points over the energy grid
+    if (mod(Npoints,numprocs) .ne. 0) then
+      do while (mod(Npoints,numprocs) .ne. 0)
+        Npoints = Npoints + 1
+      end do
+      negf%Np_real = Npoints
     end if
 
     ! Get maximum wq for inelastic interactions
@@ -1037,13 +1040,6 @@ contains
        mumin=negf%muref
        mumax=negf%muref
     endif
-
-    ! Balance N points over the energy grid
-    if (mod(Npoints,numprocs) .ne. 0) then
-      do while (mod(Npoints,numprocs) .ne. 0)
-        Npoints = Npoints + 1
-      end do
-    end if
 
     !! destroy en_grid from previous calculation, if any
     call destroy_en_grid(negf%en_grid)
@@ -1488,7 +1484,8 @@ contains
 
 
     ncont = negf%str%num_conts
-    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    ! Offset due to the hole contour integration (for contact storage)
+    ioffset = get_dm_hole_offset(negf) + negf%Np_p(1) + negf%Np_p(2) + negf%n_poles
     kbT = maxval(negf%cont(:)%kbT_dm)
     Omega = negf%n_kt * kbT
     muref = negf%muref
@@ -1701,6 +1698,8 @@ contains
 
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Npoints))
+    ! SGFs cached for a previous transport grid are no longer valid
+    call negf%surface_green_cache_T%destroy()
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -3412,7 +3411,8 @@ contains
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
-    call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
+    ! The energy points depend on Ec and are not indexed on the DM path: SGFs not cached
+    call set_sgf_mode(negf, COMP_SGF, transport=.false.)
     outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then
@@ -3541,7 +3541,8 @@ contains
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
-    call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
+    ! The energy points depend on Ec and are not indexed on the DM path: SGFs not cached
+    call set_sgf_mode(negf, COMP_SGF, transport=.false.)
     outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then

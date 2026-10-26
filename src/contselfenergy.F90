@@ -57,6 +57,8 @@ module ContSelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
   public :: decimation
+  public :: get_dm_real_points
+  public :: get_dm_hole_offset
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
@@ -109,6 +111,13 @@ contains
     ! Stored as the diagonal block (ii,ii) of the contact
     label%row_block = ii
     label%col_block = ii
+    ! Actual point, so that SGFs cached at a different energy or k are not reused
+    label%energy = E
+    if (allocated(pnegf%kpoints)) then
+      if (pnegf%ikpoint >= 1 .and. pnegf%ikpoint <= size(pnegf%kpoints, 2)) then
+        label%kvec = pnegf%kpoints(:, pnegf%ikpoint)
+      end if
+    end if
 
     flag = pnegf%ReadOldSGF
     @:ASSERT(flag == 0 .or. flag == 1 .or. flag == 2)
@@ -125,15 +134,19 @@ contains
     ncyc=0
     nfc=0
 
-    call get_sgf_cache_sizes(pnegf, label, nCacheE, nCacheK)
-    if (pnegf%tTransportSGF) then
-      call prepare_sgf_cache(pnegf%surface_green_cache_T, label, nCacheE, nCacheK, &
-          & pnegf%str%num_conts)
-      lex = pnegf%surface_green_cache_T%is_cached(label)
-    else
-      call prepare_sgf_cache(pnegf%surface_green_cache, label, nCacheE, nCacheK, &
-          & pnegf%str%num_conts)
-      lex = pnegf%surface_green_cache%is_cached(label)
+    ! The cache is not used when the SGFs are only computed
+    lex = .false.
+    if (flag /= 1) then
+      call get_sgf_cache_sizes(pnegf, label, nCacheE, nCacheK)
+      if (pnegf%tTransportSGF) then
+        call prepare_sgf_cache(pnegf%surface_green_cache_T, label, nCacheE, nCacheK, &
+            & pnegf%str%num_conts)
+        lex = pnegf%surface_green_cache_T%is_cached(label)
+      else
+        call prepare_sgf_cache(pnegf%surface_green_cache, label, nCacheE, nCacheK, &
+            & pnegf%str%num_conts)
+        lex = pnegf%surface_green_cache%is_cached(label)
+      end if
     end if
 
     call get_string_label(pnt, ofpnt)
@@ -253,22 +266,50 @@ contains
   end subroutine surface_green
 
   !---------------------------------------------------------------------------------------
-  !> Sizes of the index table of a memory SGF cache. Energy points are indexed on the
-  !> whole integration path (contour + real axis), k-points with the global index.
+  !> Sizes of the index table of a memory SGF cache. k-points are indexed with the global
+  !> index. Energy points of the transport cache are those of the tunneling grid; those of
+  !> the DM cache follow the whole DM path: electron contour, poles and real axis, then the
+  !> same for holes (see get_dm_hole_offset).
   subroutine get_sgf_cache_sizes(pnegf, label, nE, nK)
     type(Tnegf), intent(in) :: pnegf
     type(TMatLabel), intent(in) :: label
     integer, intent(out) :: nE, nK
 
-    nE = max(pnegf%Np_n(1) + pnegf%Np_n(2), pnegf%Np_p(1) + pnegf%Np_p(2)) &
-        & + pnegf%n_poles + pnegf%Np_real
-    if (allocated(pnegf%en_grid)) nE = max(nE, maxval(pnegf%en_grid(:)%pt_path))
+    if (pnegf%tTransportSGF) then
+      nE = 0
+      if (allocated(pnegf%en_grid)) nE = size(pnegf%en_grid)
+    else
+      nE = get_dm_hole_offset(pnegf) + pnegf%Np_p(1) + pnegf%Np_p(2) + pnegf%n_poles &
+          & + get_dm_real_points(pnegf)
+    end if
     nE = max(nE, label%energy_point)
     nK = 1
     if (allocated(pnegf%kpoints)) nK = size(pnegf%kpoints, 2)
     nK = max(nK, label%kpoint)
 
   end subroutine get_sgf_cache_sizes
+
+  !---------------------------------------------------------------------------------------
+  !> Number of real-axis points of the DM path, padded to a multiple of the number of
+  !> processes as done in real_axis_int_def
+  function get_dm_real_points(pnegf) result(nReal)
+    type(Tnegf), intent(in) :: pnegf
+    integer :: nReal
+
+    nReal = numprocs * ((pnegf%Np_real + numprocs - 1) / numprocs)
+
+  end function get_dm_real_points
+
+  !---------------------------------------------------------------------------------------
+  !> Offset of the hole points in the DM path: the holes are indexed after all the
+  !> electron points (contour, poles and real axis)
+  function get_dm_hole_offset(pnegf) result(offset)
+    type(Tnegf), intent(in) :: pnegf
+    integer :: offset
+
+    offset = pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles + get_dm_real_points(pnegf)
+
+  end function get_dm_hole_offset
 
   !---------------------------------------------------------------------------------------
   !> Allocate the index table of a memory cache of surface Green's functions, if not

@@ -833,6 +833,7 @@ module libnegf
       params%kbT_dm(1) = negf%kbT
     end if
     params%Np_n = negf%Np_n
+    params%Np_p = negf%Np_p
     params%Np_real = negf%Np_real
     params%n_kt = negf%n_kt
     params%n_poles = negf%n_poles
@@ -843,6 +844,7 @@ module libnegf
     params%Emin = negf%Emin
     params%Emax = negf%Emax
     params%Estep = negf%Estep
+    params%Estep_coarse = negf%Estep_coarse
     nn = size(negf%ni)
     params%ni=0; params%ni(1:nn) = negf%ni(1:nn)
     params%nf=0; params%nf(1:nn) = negf%nf(1:nn)
@@ -955,11 +957,7 @@ module libnegf
       end if
     case(1)
       if (tmp .ne. 1) then
-        if (allocated(negf%surface_green_cache)) then
-           call negf%surface_green_cache%destroy()
-           deallocate(negf%surface_green_cache)
-        end if
-        negf%surface_green_cache = TMatrixCacheMem(tagname='SurfaceGF')
+        call init_sgf_mem_cache(negf%surface_green_cache, 'SurfaceGF')
       end if
     case(2)
       if (tmp .ne. 2) then
@@ -1771,6 +1769,9 @@ module libnegf
 
     !! Did anyone passed externally allocated DM? If not, create it
     if (.not.associated(negf%rho)) allocate(negf%rho)
+
+    ! No electron-hole separation in DFT: no hole contour points
+    negf%Np_p = 0
 
     ! Reference contact for contour/real axis separation (depends on min_or_max)
     call set_ref_cont(negf)
