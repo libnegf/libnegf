@@ -43,8 +43,8 @@ module ln_timers
   use iso_fortran_env, only : int64
   use mpi_globals, only : id0
 #:if defined("MPI")
-  use libmpifx_module, only : mpifx_comm, mpifx_reduce, mpifx_gather
-  use mpi_f08, only : MPI_SUM, MPI_MIN, MPI_MAX
+  ! mpifx takes the integer reduction ops of the mpi module (not the mpi_f08 MPI_Op)
+  use libmpifx_module, only : mpifx_comm, mpifx_reduce, mpifx_gather, MPI_SUM, MPI_MIN, MPI_MAX
 #:endif
 
   implicit none
@@ -280,7 +280,11 @@ contains
   subroutine reset_timers(ts)
     type(TTimerSet), intent(inout) :: ts
 
-    ts = TTimerSet()
+    ! Default-initialized on each call. TTimerSet() is rejected by ifort, as the array
+    ! components have no explicit initialization (only their types have)
+    type(TTimerSet) :: fresh
+
+    ts = fresh
 
   end subroutine reset_timers
 
