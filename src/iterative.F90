@@ -125,7 +125,9 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
 
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, E, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     !! Add interaction self energy contribution, if any
     ! Alex: temporarily commented out because of the big problem of
@@ -154,9 +156,11 @@ CONTAINS
     !       S.E. E-point offsets between contour and real-axis
     !call set_Gr_ela(negf, Gr)
 
+    call set_timer(negf, timers%GtoCSR)
     call blk2csr(Gr,negf%str,negf%S,Grout)
 
     call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
+    call stop_timer(negf, timers%GtoCSR)
 
     call destroy_tridiag_blk(Gr)
     DEALLOCATE(Gr)
@@ -174,7 +178,7 @@ CONTAINS
   ! NOTE: Setting reference to ncont+1 removes the reference part
   !****************************************************************************
 
-  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks,Grout)
+  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outblocks,Gnout,Grout)
 
     !****************************************************************************
     !
@@ -205,8 +209,8 @@ CONTAINS
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
     real(dp), dimension(:), intent(in)  :: frm
-    type(z_CSR), intent(inout), optional  :: Glout, Grout
     integer, intent(in), optional  :: outblocks
+    type(z_CSR), intent(inout), optional  :: Gnout, Grout
 
     !Work
     integer :: ref
@@ -223,10 +227,12 @@ CONTAINS
     Ec = cmplx(E,0.0_dp,dp)
 
     call set_timer(negf, timers%Gr)
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
     call add_sigma_r(negf, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
@@ -263,8 +269,9 @@ CONTAINS
     call set_Gn_ela(negf, Gn)
     call stop_timer(negf, timers%Gn)
 
-    if (present(Glout)) then
-      call blk2csr(Gn,negf%str,negf%S,Glout)
+    call set_timer(negf, timers%GtoCSR)
+    if (present(Gnout)) then
+      call blk2csr(Gn,negf%str,negf%S,Gnout)
     end if
 
     if (present(Grout)) then
@@ -274,13 +281,14 @@ CONTAINS
 
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
-    if (present(Glout)) then
-      call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,outblocks,Glout)
+    if (present(Gnout)) then
+      call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,outblocks,Gnout)
     end if
 
     if (present(Grout)) then
       call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outblocks,Grout)
     end if
+    call stop_timer(negf, timers%GtoCSR)
 
     call destroy_all_blk(negf)
   end subroutine calculate_Gn_neq_components
@@ -345,11 +353,14 @@ CONTAINS
       negf%tDestroyGr = .false.
       negf%tDestroyESH = .false.
 
-      if (present(outGn)) then
-        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outGn,outer,outGr)
+      if (scba_niter == 0) then
+        ! No elastic SCBA: single pass, CSR output only if requested
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,outGn,outGr)
+      else if (present(outGn)) then
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,outGn,outGr)
         call negf%scbaDriverElastic%check_Mat_convergence(outGn)
       else
-        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,csrGn,outer,outGr)
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,csrGn,outGr)
         call negf%scbaDriverElastic%check_Mat_convergence(csrGn)
         call destroy(csrGn)
       end if
@@ -358,8 +369,10 @@ CONTAINS
 
     enddo
 
+    call set_timer(negf, timers%CacheG)
     call set_Gr_inel(negf, Gr)
     call set_Gn_inel(negf, Gn)
+    call stop_timer(negf, timers%CacheG)
 
     ! Compared to previous code, this is trivially equivalent
     negf%tDestroyGn = tDestroyGn
@@ -1571,7 +1584,9 @@ CONTAINS
     end if
 
     !With this method H and S have to be passed through negf. negf is also necessary for GPU handlers
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     nit=negf%ni(1)
     nft=negf%nf(1)
@@ -1726,7 +1741,9 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     Im = 'I'
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)

@@ -69,45 +69,57 @@ module ln_timers
   type :: TTimerEnum
     !> Whole calculation phase, started by the driver routines
     integer :: Total = 1
-    integer :: ContactSE = 2
     !> Surface Green function computed (SGF) or retrieved from the cache (SGFLoad)
-    integer :: SGF = 3
-    integer :: SGFLoad = 4
+    integer :: SGF = 2
+    integer :: SGFLoad = 3
+    integer :: ContactSE = 4
     integer :: Gr = 5
     integer :: Gn = 6
-    integer :: ElasticSCBA = 7
-    integer :: Transmission = 8
-    integer :: MeirWingreen = 9
-    integer :: LayerCurrent = 10
-    integer :: SigmaElph = 11
-    integer :: SigmaElpt = 12
+    !> Sub-steps of Gr, Gn and of the elastic SCBA: assembly of the block-dense ES-H-Sigma
+    !> from the CSR H, S (child of Gr), conversion of the block-dense Gr/Gn back to CSR
+    !> including the outer (device/contact) blocks, and copy of Gr/Gn into the cache of
+    !> the inelastic models
+    integer :: BuildESH = 7
+    integer :: GtoCSR = 8
+    integer :: CacheG = 9
+    integer :: ElasticSCBA = 10
+    integer :: Transmission = 11
+    integer :: MeirWingreen = 12
+    integer :: LayerCurrent = 13
     !> Barriers before the reductions over processes (start of the inelastic
     !> self-energies, DM gather): they absorb the load imbalance of the (E, k) loop
-    integer :: MPIBarrier = 13
+    integer :: MPIBarrier = 14
+    !> Inelastic self-energies; their exclusive time is the computation, as the
+    !> barrier and the exchanges inside them are timed separately
+    integer :: SigmaElph = 15
+    integer :: SigmaElpt = 16
     !> Point-to-point exchanges of G (Isend/Irecv/Wait) in the inelastic self-energies
-    integer :: SigmaComm = 14
-    integer :: MPIGather = 15
+    integer :: SigmaComm = 17
+    integer :: MPIGather = 18
   end type TTimerEnum
 
   type(TTimerEnum), parameter :: timers = TTimerEnum()
 
-  integer, parameter :: NTIMERS = 15
+  integer, parameter :: NTIMERS = 18
 
   !> Labels used in the summary and as default progress message
   character(len=*), parameter :: timer_names(NTIMERS) = [character(len=24) :: &
       & 'Total', &
-      & 'Contact self-energy', &
       & 'SGF compute', &
       & 'SGF load', &
+      & 'Contact self-energy', &
       & 'Green function Gr', &
       & 'Correlation function Gn', &
+      & 'Build ES-H', &
+      & 'G block to CSR', &
+      & 'Cache Gr/Gn', &
       & 'Elastic SCBA', &
       & 'Transmission', &
       & 'Meir-Wingreen current', &
       & 'Layer currents', &
+      & 'MPI barrier (wait)', &
       & 'El-phonon self-energy', &
       & 'El-photon self-energy', &
-      & 'MPI barrier (wait)', &
       & 'Sigma MPI comm', &
       & 'MPI collectives']
 
@@ -115,7 +127,7 @@ module ln_timers
   !> all the local points (self-energies, MPI reductions) and carry no point.
   logical, parameter :: point_resolved(NTIMERS) = [ &
       & .false., &
-      & .true., .true., .true., .true., .true., .true., &
+      & .true., .true., .true., .true., .true., .true., .true., .true., .true., &
       & .true., .true., .true., &
       & .false., .false., .false., .false., .false.]
 
@@ -518,13 +530,14 @@ contains
 
       ! Exclusive times: the averages add up to the average Total (Total excl. = Other)
       ttot = summary%tavg(timers%Total, ip)
-      write(iu, '(1x,a)') 'Exclusive totals per process:'
+      write(iu, '(/,1x,a)') 'Exclusive totals per process:'
       write(iu, '(1x,a24,3a12,a10)') 'Label', 'Min', 'Avg', 'Max', '% Avg'
       write(iu, '(1x,78("-"))')
       do ii = 1, NTIMERS
         if (summary%callsMax(ii, ip) == 0) cycle
         label = timer_names(ii)
         if (ii == timers%Total) label = 'Other (untimed)'
+        if (ii == timers%ElasticSCBA) label = 'Elastic SCBA (remainder)'
         if (ttot > 0.0_dp) then
           write(iu, '(1x,a24,3f12.3,f10.1)') label, summary%emin(ii, ip), &
               & summary%eavg(ii, ip), summary%emax(ii, ip), 100.0_dp * summary%eavg(ii, ip) / ttot

@@ -1136,9 +1136,9 @@ contains
       enddo
 
       if (particle == 1) then
-        call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_error)
+        call compute_Gn(negf, outer, ncont, Ec, frm_f, scba_error, G)
       else
-        call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_error)
+        call compute_Gp(negf, outer, ncont, Ec, frm_f, scba_error, G)
       endif
 
       zt = negf%en_grid(iE)%wght !!* negf%kwght
@@ -1291,9 +1291,9 @@ contains
           ! Avoids cleanup of block-dense Gn for layer currents
           negf%tDestroyGn = .false.
           if (particle == 1) then
-            call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+            call compute_Gn(negf, outer, ncont, Ec, frm_f, scba_elastic_error, G)
           else
-            call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+            call compute_Gp(negf, outer, ncont, Ec, frm_f, scba_elastic_error, G)
           endif
 
           ! ---------------------------------------------------------------------
@@ -2340,7 +2340,7 @@ contains
           negf%tDestroyGn = .false.
 
           if (negf%dump_pdos) then
-            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error, Gr)
+            call compute_Gn(negf, outer, ncont, Ec, frm, scba_elastic_error, Gn, Gr)
             call zspectral(Gr, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
@@ -2348,8 +2348,8 @@ contains
             call log_deallocate(diag)
             call destroy(Gn, Gr, A)
           else
-            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error)
-            call destroy(Gn)
+            ! Only the block-dense Gn is needed by the layer currents
+            call compute_Gn(negf, outer, ncont, Ec, frm, scba_elastic_error)
           end if
 
           ! ---------------------------------------------------------------------
@@ -2743,13 +2743,13 @@ contains
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
+  subroutine compute_Gn(negf, outer, ncont, Ec, frm, scba_error, Gn, Gr)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
-    Type(z_CSR), intent(out) :: Gn
     real(dp), intent(out) :: scba_error
+    Type(z_CSR), intent(out), optional :: Gn
     Type(z_CSR), intent(out), optional :: Gr
 
     integer :: i1
@@ -2798,18 +2798,18 @@ contains
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gp(negf, outer, ncont, Ec, frm, Gp, scba_error)
+  subroutine compute_Gp(negf, outer, ncont, Ec, frm, scba_error, Gp)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
-    Type(z_CSR), intent(out) :: Gp
     real(dp), intent(out) :: scba_error
+    Type(z_CSR), intent(out) :: Gp
 
     Type(z_CSR) :: Gr, Gn, A
     complex(dp) :: minusOne = (-1.0_dp, 0.0_dp)
 
-    call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
+    call compute_Gn(negf, outer, ncont, Ec, frm, scba_error, Gn, Gr)
     call zspectral(Gr, A)
     call prealloc_sum(A, Gn, minusOne, Gp)
 
