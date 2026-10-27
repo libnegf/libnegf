@@ -52,7 +52,14 @@ set(INSTALL_MOD_DIR "${INSTALL_INCLUDE_DIR}/modfiles" CACHE PATH
 #set(MPIEXEC_PREFLAGS "" CACHE STRING "Define prepend flags")
 #set(MPIEXEC_POSTFLAGS "" CACHE STRING "Define postpend flags")
 
-set(TEST_NUM_PROCS ${MPIEXEC_MAX_NUMPROCS} CACHE STRING "Define number of tasks for tests")
+# MPIEXEC_MAX_NUMPROCS is only known here if given on the command line (find_package(MPI)
+# runs later): fall back to 2 tasks. A -DTEST_NUM_PROCS=<n> always takes precedence.
+if(MPIEXEC_MAX_NUMPROCS)
+  set(_test_num_procs ${MPIEXEC_MAX_NUMPROCS})
+else()
+  set(_test_num_procs 2)
+endif()
+set(TEST_NUM_PROCS ${_test_num_procs} CACHE STRING "Define number of tasks for tests")
 set(TEST_NUM_THREADS "1" CACHE STRING "Define OMP_NUM_THREADS for tests")
 
 #######################################################################################
