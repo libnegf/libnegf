@@ -1334,6 +1334,12 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
       call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
       call stop_timer(negf, timers%SigmaElph)
@@ -1931,6 +1937,12 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
       call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
       call stop_timer(negf, timers%SigmaElph)
@@ -2197,6 +2209,12 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
       call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
       call stop_timer(negf, timers%SigmaElph)

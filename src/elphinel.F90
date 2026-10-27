@@ -1578,9 +1578,9 @@ contains
     call MPI_comm_rank(comm2d, myid, ierr)
     call MPI_cart_coords(comm2d, myid, ndims, coords, ierr)
     ! Waits for the slowest process of the (E, k) loop: timed apart from the communications
-    call timer_start_if(ts, timers%MPIBarrier)
+    call timer_start_if(ts, timers%SigmaBarrier)
     call MPI_barrier(comm2d, ierr)
-    call timer_stop_if(ts, timers%MPIBarrier)
+    call timer_stop_if(ts, timers%SigmaBarrier)
 
     Np = size(GG(0,0)%pMat%val,1)
     Mp = size(GG(0,0)%pMat%val,2)

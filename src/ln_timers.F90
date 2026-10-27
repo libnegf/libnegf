@@ -86,8 +86,8 @@ module ln_timers
     integer :: Transmission = 11
     integer :: MeirWingreen = 12
     integer :: LayerCurrent = 13
-    !> Barriers before the reductions over processes (start of the inelastic
-    !> self-energies, DM gather): they absorb the load imbalance of the (E, k) loop
+    !> Barriers at the end of the (E, k) loop (before the inelastic self-energies and
+    !> the DM gather): they absorb the load imbalance of the (E, k) points
     integer :: MPIBarrier = 14
     !> Inelastic self-energies; their exclusive time is the computation, as the
     !> barrier and the exchanges inside them are timed separately
@@ -95,12 +95,15 @@ module ln_timers
     integer :: SigmaElpt = 16
     !> Point-to-point exchanges of G (Isend/Irecv/Wait) in the inelastic self-energies
     integer :: SigmaComm = 17
-    integer :: MPIGather = 18
+    !> Barriers before each block of the inelastic self-energies: all processes work on
+    !> the same block, they absorb the block-to-block delays
+    integer :: SigmaBarrier = 18
+    integer :: MPIGather = 19
   end type TTimerEnum
 
   type(TTimerEnum), parameter :: timers = TTimerEnum()
 
-  integer, parameter :: NTIMERS = 18
+  integer, parameter :: NTIMERS = 19
 
   !> Labels used in the summary and as default progress message
   character(len=*), parameter :: timer_names(NTIMERS) = [character(len=24) :: &
@@ -117,10 +120,11 @@ module ln_timers
       & 'Transmission', &
       & 'Meir-Wingreen current', &
       & 'Layer currents', &
-      & 'MPI barrier (wait)', &
+      & 'MPI barrier (E-k loop)', &
       & 'El-phonon self-energy', &
       & 'El-photon self-energy', &
       & 'Sigma MPI comm', &
+      & 'MPI barriers (SE blocks)', &
       & 'MPI collectives']
 
   !> Whether a call of the timer refers to a single (E, k) point. The others run over
@@ -129,7 +133,11 @@ module ln_timers
       & .false., &
       & .true., .true., .true., .true., .true., .true., .true., .true., .true., &
       & .true., .true., .true., &
-      & .false., .false., .false., .false., .false.]
+      & .false., .false., .false., .false., .false., .false.]
+
+  !> MPI timers: their exclusive time is excluded from the useful (computation) time
+  integer, parameter :: mpi_timers(*) = [timers%MPIBarrier, timers%SigmaComm, &
+      & timers%SigmaBarrier, timers%MPIGather]
 
   !> Enumeration of the calculation phases
   type :: TPhaseEnum
@@ -220,6 +228,11 @@ module ln_timers
     !> (iE_path, iK) of the fastest and slowest call
     integer :: pointMin(2, NTIMERS, NPHASES) = 0
     integer :: pointMax(2, NTIMERS, NPHASES) = 0
+    !> Per-process useful time (Total minus the exclusive time of the MPI timers):
+    !> min, average and max over the processes
+    real(dp) :: umin(NPHASES) = 0.0_dp
+    real(dp) :: uavg(NPHASES) = 0.0_dp
+    real(dp) :: umax(NPHASES) = 0.0_dp
   end type TTimerSummary
 
 contains
@@ -436,10 +449,13 @@ contains
     ! The indices are stored as reals (exact) to need a single gather.
     real(dp) :: ext(6, NTIMERS, NPHASES)
     real(dp), allocatable :: extAll(:,:,:,:)
+    real(dp) :: uloc(NPHASES), usum(NPHASES)
 
     call local_stats(ts, tloc, eloc, cloc, ext, hloc)
+    uloc = useful_time(eloc)
     tsum = 0.0_dp
     esum = 0.0_dp
+    usum = 0.0_dp
     hsum = 0
 
     call mpifx_reduce(comm, tloc, summary%tmin, MPI_MIN)
@@ -450,9 +466,13 @@ contains
     call mpifx_reduce(comm, eloc, esum, MPI_SUM)
     call mpifx_reduce(comm, cloc, summary%callsMax, MPI_MAX)
     call mpifx_reduce(comm, hloc, hsum, MPI_SUM)
+    call mpifx_reduce(comm, uloc, summary%umin, MPI_MIN)
+    call mpifx_reduce(comm, uloc, summary%umax, MPI_MAX)
+    call mpifx_reduce(comm, uloc, usum, MPI_SUM)
     summary%nprocs = comm%size
     summary%tavg = tsum / real(summary%nprocs, dp)
     summary%eavg = esum / real(summary%nprocs, dp)
+    summary%uavg = usum / real(summary%nprocs, dp)
 
     if (comm%lead) then
       allocate(extAll(6, NTIMERS, NPHASES, comm%size))
@@ -486,6 +506,9 @@ contains
     summary%emin = eloc
     summary%eavg = eloc
     summary%emax = eloc
+    summary%umin = useful_time(eloc)
+    summary%uavg = summary%umin
+    summary%umax = summary%umin
     summary%callsMax = cloc
     extAll(:,:,:,1) = ext
     call select_extremes(extAll, hloc, summary)
@@ -549,6 +572,7 @@ contains
       write(iu, '(1x,78("-"))')
       write(iu, '(1x,a24,12x,f12.3)') 'Sum of exclusive', sum(summary%eavg(:, ip))
       write(iu, '(1x,a24,12x,f12.3)') 'Total', ttot
+      call write_efficiencies(iu, summary, ip)
 
       write(iu, '(1x,a)') 'Single call; (iE,iK) = energy point on path and k-point:'
       write(iu, '(1x,a24,a10,2a6,a10,a10,2a6)') 'Label', 'Min', 'iE', 'iK', 'Mode', 'Max', &
@@ -573,6 +597,9 @@ contains
     write(iu, '(1x,a)') 'Calls: maximum over processes.'
     write(iu, '(1x,a)') 'Inclusive: nested timers are included in their parents.'
     write(iu, '(1x,a)') 'Exclusive: own time only, nested timers subtracted; adds up to Total.'
+    write(iu, '(1x,a)') 'Useful: Total minus the MPI timers (barriers, comm, collectives).'
+    write(iu, '(1x,a)') 'Efficiencies (POP metrics): PE = avg(Useful)/Total = LB x CommE,'
+    write(iu, '(1x,a)') '  LB = avg(Useful)/max(Useful), CommE = max(Useful)/Total.'
     write(iu, '(1x,a,i0,a)') 'Mode: centre of the most populated bin (', BINS_PER_DECADE, &
         & ' bins per decade).'
     flush(iu)
@@ -615,6 +642,39 @@ contains
     end do
 
   end subroutine local_stats
+
+  !> Per-phase useful time of the process: the exclusive times of all the timers but the
+  !> MPI ones (the exclusive Total, i.e. the untimed part, is counted as useful)
+  function useful_time(eloc) result(uloc)
+    real(dp), intent(in) :: eloc(:,:)
+    real(dp) :: uloc(NPHASES)
+
+    uloc = sum(eloc, dim=1) - sum(eloc(mpi_timers, :), dim=1)
+
+  end function useful_time
+
+  !> Write the useful time and the POP efficiencies (parallel efficiency, load balance,
+  !> communication efficiency) of a phase
+  subroutine write_efficiencies(iu, summary, ip)
+    integer, intent(in) :: iu
+    type(TTimerSummary), intent(in) :: summary
+    integer, intent(in) :: ip
+
+    real(dp) :: ttot, pe, lb, comme
+
+    ttot = summary%tavg(timers%Total, ip)
+    if (ttot <= 0.0_dp .or. summary%umax(ip) <= 0.0_dp) return
+    pe = summary%uavg(ip) / ttot
+    lb = summary%uavg(ip) / summary%umax(ip)
+    comme = summary%umax(ip) / ttot
+
+    write(iu, '(1x,a24,3f12.3,f10.1)') 'Useful (non-MPI)', summary%umin(ip), &
+        & summary%uavg(ip), summary%umax(ip), 100.0_dp * pe
+    write(iu, '(1x,a24,f12.3)') 'Parallel efficiency PE', pe
+    write(iu, '(1x,a24,f12.3)') 'Load balance LB', lb
+    write(iu, '(1x,a24,f12.3)') 'Communication eff. CommE', comme
+
+  end subroutine write_efficiencies
 
   !> Select the overall per-call extremes among the processes and the mode
   subroutine select_extremes(extAll, hist, summary)
