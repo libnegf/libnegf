@@ -630,7 +630,10 @@ contains
 
 #:if defined("MPI")
     ! Gather partial results over the energy grid
+    ! Waits for the slowest process of the E-grid: timed apart from the reduction
+    call set_timer(negf, timers%MPIBarrier)
     call mpifx_barrier(negf%energyComm)
+    call stop_timer(negf, timers%MPIBarrier)
     call set_timer(negf, timers%MPIGather, 'Gather DM over the MPI E-grid')
     if (inelastic) then
       do iK = 1, size(negf%local_k_index)
@@ -1357,7 +1360,9 @@ contains
 
 #:if defined("MPI")
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       scba_iter = scba_iter + 1
@@ -1949,7 +1954,9 @@ contains
         call write_real_info(negf%verbose, VBT, 'scba inelastic error',scba_inelastic_error)
       end if
 #:if defined("MPI")
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       scba_iter = scba_iter + 1
@@ -2215,7 +2222,9 @@ contains
 
 #:if defined("MPI")
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       if (negf%dump_pdos) then
@@ -2277,7 +2286,9 @@ contains
       call gather_currents(negf)
 
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       if (negf%dump_pdos) then
@@ -2538,7 +2549,8 @@ contains
   ! This routine adds the inelastic electron-phonon self-energies
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_elphinel(negf)
-    type(TNegf) :: negf
+    !> target: the interactions point to negf%timerset during the call
+    type(TNegf), target :: negf
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
@@ -2546,6 +2558,7 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhonInel)
+        pInter%timerset => negf%timerset
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)
@@ -2562,6 +2575,7 @@ contains
           call pInter%clear_Sigma_r()
           call pInter%compute_Sigma_r(spin=negf%spin)
         end if
+        nullify(pInter%timerset)
       end select
       it => it%next
     end do
@@ -2571,7 +2585,8 @@ contains
   ! This routine adds the inelastic electron-photon self-energy
   !---------------------------------------------------------------------------
   subroutine compute_Sigmas_elphoton(negf)
-    type(TNegf) :: negf
+    !> target: the interactions point to negf%timerset during the call
+    type(TNegf), target :: negf
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
@@ -2579,6 +2594,7 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhoton)
+        pInter%timerset => negf%timerset
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)
@@ -2595,6 +2611,7 @@ contains
           call pInter%clear_Sigma_r()
           call pInter%compute_Sigma_r(spin=negf%spin)
         end if
+        nullify(pInter%timerset)
       end select
       it => it%next
     end do

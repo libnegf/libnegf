@@ -28,8 +28,15 @@
 !> current, ldos, ...), selected with set_timer_phase() by the driver routines, so that
 !> times of different calculations are not mixed.
 !>
-!> For every timer and phase two kinds of statistics are collected:
-!>  - per-process totals, whose min/avg/max over processes measure the load balance;
+!> For every timer and phase three kinds of statistics are collected:
+!>  - per-process inclusive totals, whose min/avg/max over processes measure the load
+!>    balance;
+!>  - per-process exclusive totals: the time of the timer minus the time of the timers
+!>    started inside it (its children). Exclusive times do not overlap, so on each process
+!>    they add up to the Total timer, whose exclusive part is the untimed remainder.
+!>    The Total timers of all processes end at the same collective, hence the averages over
+!>    processes add up to the wall time as well, without barriers: the load imbalance shows
+!>    up as waiting time inside the MPI timers;
 !>  - per-call min, max and mode. Min and max carry the (iE_path, iK) point where they
 !>    occurred; the mode is obtained from a log-spaced histogram of the call times.
 !>
@@ -54,49 +61,63 @@ module ln_timers
   public :: timers, NTIMERS, timer_names
   public :: timer_phases, NPHASES, phase_names
   public :: timer_start, timer_stop, set_timer_phase, reset_timers
+  public :: timer_start_if, timer_stop_if
   public :: gather_timers, write_timers
   public :: get_timer_elapsed, get_timer_calls
 
   !> Enumeration of the timers
   type :: TTimerEnum
-    integer :: ContactSE = 1
-    integer :: SGF = 2
-    integer :: Gr = 3
-    integer :: Gn = 4
-    integer :: ElasticSCBA = 5
-    integer :: SigmaElph = 6
-    integer :: SigmaElpt = 7
+    !> Whole calculation phase, started by the driver routines
+    integer :: Total = 1
+    integer :: ContactSE = 2
+    !> Surface Green function computed (SGF) or retrieved from the cache (SGFLoad)
+    integer :: SGF = 3
+    integer :: SGFLoad = 4
+    integer :: Gr = 5
+    integer :: Gn = 6
+    integer :: ElasticSCBA = 7
     integer :: Transmission = 8
     integer :: MeirWingreen = 9
     integer :: LayerCurrent = 10
-    integer :: MPIGather = 11
+    integer :: SigmaElph = 11
+    integer :: SigmaElpt = 12
+    !> Barriers before the reductions over processes (start of the inelastic
+    !> self-energies, DM gather): they absorb the load imbalance of the (E, k) loop
+    integer :: MPIBarrier = 13
+    !> Point-to-point exchanges of G (Isend/Irecv/Wait) in the inelastic self-energies
+    integer :: SigmaComm = 14
+    integer :: MPIGather = 15
   end type TTimerEnum
 
   type(TTimerEnum), parameter :: timers = TTimerEnum()
 
-  integer, parameter :: NTIMERS = 11
+  integer, parameter :: NTIMERS = 15
 
   !> Labels used in the summary and as default progress message
   character(len=*), parameter :: timer_names(NTIMERS) = [character(len=24) :: &
+      & 'Total', &
       & 'Contact self-energy', &
-      & 'Surface Green function', &
+      & 'SGF compute', &
+      & 'SGF load', &
       & 'Green function Gr', &
       & 'Correlation function Gn', &
       & 'Elastic SCBA', &
-      & 'El-phonon self-energy', &
-      & 'El-photon self-energy', &
       & 'Transmission', &
       & 'Meir-Wingreen current', &
       & 'Layer currents', &
-      & 'MPI gather']
+      & 'El-phonon self-energy', &
+      & 'El-photon self-energy', &
+      & 'MPI barrier (wait)', &
+      & 'Sigma MPI comm', &
+      & 'MPI collectives']
 
   !> Whether a call of the timer refers to a single (E, k) point. The others run over
   !> all the local points (self-energies, MPI reductions) and carry no point.
   logical, parameter :: point_resolved(NTIMERS) = [ &
-      & .true., .true., .true., .true., .true., &
-      & .false., .false., &
+      & .false., &
+      & .true., .true., .true., .true., .true., .true., &
       & .true., .true., .true., &
-      & .false.]
+      & .false., .false., .false., .false., .false.]
 
   !> Enumeration of the calculation phases
   type :: TPhaseEnum
@@ -130,6 +151,8 @@ module ln_timers
   !> State of a running timer
   type :: TTimerRun
     integer(int64) :: tstart = 0
+    !> Time spent in the timers started inside this one (clock counts)
+    integer(int64) :: tchild = 0
     integer :: depth = 0
     integer :: phase = 1
     integer :: point(2) = 0
@@ -139,7 +162,9 @@ module ln_timers
 
   !> Accumulated statistics of one timer in one phase
   type :: TTimerStat
+    !> Inclusive and exclusive accumulated time (clock counts)
     integer(int64) :: counts = 0
+    integer(int64) :: exclCounts = 0
     integer :: ncalls = 0
     real(dp) :: tcallMin = huge(1.0_dp)
     real(dp) :: tcallMax = 0.0_dp
@@ -156,16 +181,24 @@ module ln_timers
     integer :: phase = 1
     !> Timer whose progress line is currently open (0 if none)
     integer :: openLine = 0
+    !> Running timers, innermost last. A timer appears at most once (nested calls of the
+    !> same timer are not pushed)
+    integer :: stack(NTIMERS) = 0
+    integer :: nstack = 0
   end type TTimerSet
 
   !> Statistics reduced over the processes, as produced by gather_timers().
   !> Meaningful on the root of the communicator.
   type :: TTimerSummary
     integer :: nprocs = 1
-    !> Per-process totals: min, average and max over the processes
+    !> Per-process inclusive totals: min, average and max over the processes
     real(dp) :: tmin(NTIMERS, NPHASES) = 0.0_dp
     real(dp) :: tavg(NTIMERS, NPHASES) = 0.0_dp
     real(dp) :: tmax(NTIMERS, NPHASES) = 0.0_dp
+    !> Per-process exclusive totals: min, average and max over the processes
+    real(dp) :: emin(NTIMERS, NPHASES) = 0.0_dp
+    real(dp) :: eavg(NTIMERS, NPHASES) = 0.0_dp
+    real(dp) :: emax(NTIMERS, NPHASES) = 0.0_dp
     !> Maximum number of calls over the processes
     integer :: callsMax(NTIMERS, NPHASES) = 0
     !> Per-call min, mode and max over all calls of all processes
@@ -197,6 +230,9 @@ contains
       if (tr%depth > 1) return
 
       tr%phase = ts%phase
+      tr%tchild = 0
+      ts%nstack = ts%nstack + 1
+      ts%stack(ts%nstack) = itimer
       if (point_resolved(itimer)) then
         tr%point = point
       else
@@ -227,7 +263,7 @@ contains
 
     integer(int64) :: tstop, rate
     real(dp) :: elapsed
-    integer :: ib
+    integer :: ib, is
 
     if (.not. valid(itimer)) return
 
@@ -243,8 +279,22 @@ contains
       call system_clock(tstop, rate)
       elapsed = real(tstop - tr%tstart, dp) / real(rate, dp)
 
+      ! Remove the timer from the stack (normally the innermost) and charge its time to
+      ! the enclosing one
+      is = findloc(ts%stack(1:ts%nstack), itimer, dim=1, back=.true.)
+      if (is > 0) then
+        ts%stack(is:ts%nstack-1) = ts%stack(is+1:ts%nstack)
+        ts%nstack = ts%nstack - 1
+        if (is > 1) then
+          associate(parent => ts%run(ts%stack(is-1)))
+            parent%tchild = parent%tchild + (tstop - tr%tstart)
+          end associate
+        end if
+      end if
+
       associate(st => ts%stat(itimer, tr%phase))
         st%counts = st%counts + (tstop - tr%tstart)
+        st%exclCounts = st%exclCounts + (tstop - tr%tstart - tr%tchild)
         st%ncalls = st%ncalls + 1
         if (elapsed < st%tcallMin) then
           st%tcallMin = elapsed
@@ -276,6 +326,25 @@ contains
 
   end subroutine set_timer_phase
 
+  !> As timer_start (no point, no progress line), for a timer set that may not be
+  !> associated: used where the timer set is only reachable through a pointer
+  subroutine timer_start_if(ts, itimer)
+    type(TTimerSet), pointer, intent(in) :: ts
+    integer, intent(in) :: itimer
+
+    if (associated(ts)) call timer_start(ts, itimer, [0, 0])
+
+  end subroutine timer_start_if
+
+  !> As timer_stop, for a timer set that may not be associated
+  subroutine timer_stop_if(ts, itimer)
+    type(TTimerSet), pointer, intent(in) :: ts
+    integer, intent(in) :: itimer
+
+    if (associated(ts)) call timer_stop(ts, itimer)
+
+  end subroutine timer_stop_if
+
   !> Reset all timers
   subroutine reset_timers(ts)
     type(TTimerSet), intent(inout) :: ts
@@ -288,23 +357,37 @@ contains
 
   end subroutine reset_timers
 
-  !> Local accumulated time of a timer in seconds (in phase, or summed over all phases)
-  function get_timer_elapsed(ts, itimer, phase) result(elapsed)
+  !> Local accumulated time of a timer in seconds (in phase, or summed over all phases).
+  !> Inclusive by default, exclusive of the nested timers if exclusive = .true.
+  function get_timer_elapsed(ts, itimer, phase, exclusive) result(elapsed)
     type(TTimerSet), intent(in) :: ts
     integer, intent(in) :: itimer
     integer, intent(in), optional :: phase
+    logical, intent(in), optional :: exclusive
     real(dp) :: elapsed
 
-    integer(int64) :: tdummy, rate
+    integer(int64) :: tdummy, rate, counts
+    logical :: excl
 
     elapsed = 0.0_dp
     if (.not. valid(itimer)) return
+    excl = .false.
+    if (present(exclusive)) excl = exclusive
     call system_clock(tdummy, rate)
     if (present(phase)) then
-      elapsed = real(ts%stat(itimer, phase)%counts, dp) / real(rate, dp)
+      if (excl) then
+        counts = ts%stat(itimer, phase)%exclCounts
+      else
+        counts = ts%stat(itimer, phase)%counts
+      end if
     else
-      elapsed = real(sum(ts%stat(itimer, :)%counts), dp) / real(rate, dp)
+      if (excl) then
+        counts = sum(ts%stat(itimer, :)%exclCounts)
+      else
+        counts = sum(ts%stat(itimer, :)%counts)
+      end if
     end if
+    elapsed = real(counts, dp) / real(rate, dp)
 
   end function get_timer_elapsed
 
@@ -334,6 +417,7 @@ contains
     type(mpifx_comm), intent(in) :: comm
 
     real(dp) :: tloc(NTIMERS, NPHASES), tsum(NTIMERS, NPHASES)
+    real(dp) :: eloc(NTIMERS, NPHASES), esum(NTIMERS, NPHASES)
     integer :: cloc(NTIMERS, NPHASES)
     integer :: hloc(NBINS, NTIMERS, NPHASES), hsum(NBINS, NTIMERS, NPHASES)
     ! Per-process extremes: tcallMin, iEmin, iKmin, tcallMax, iEmax, iKmax.
@@ -341,17 +425,22 @@ contains
     real(dp) :: ext(6, NTIMERS, NPHASES)
     real(dp), allocatable :: extAll(:,:,:,:)
 
-    call local_stats(ts, tloc, cloc, ext, hloc)
+    call local_stats(ts, tloc, eloc, cloc, ext, hloc)
     tsum = 0.0_dp
+    esum = 0.0_dp
     hsum = 0
 
     call mpifx_reduce(comm, tloc, summary%tmin, MPI_MIN)
     call mpifx_reduce(comm, tloc, summary%tmax, MPI_MAX)
     call mpifx_reduce(comm, tloc, tsum, MPI_SUM)
+    call mpifx_reduce(comm, eloc, summary%emin, MPI_MIN)
+    call mpifx_reduce(comm, eloc, summary%emax, MPI_MAX)
+    call mpifx_reduce(comm, eloc, esum, MPI_SUM)
     call mpifx_reduce(comm, cloc, summary%callsMax, MPI_MAX)
     call mpifx_reduce(comm, hloc, hsum, MPI_SUM)
     summary%nprocs = comm%size
     summary%tavg = tsum / real(summary%nprocs, dp)
+    summary%eavg = esum / real(summary%nprocs, dp)
 
     if (comm%lead) then
       allocate(extAll(6, NTIMERS, NPHASES, comm%size))
@@ -371,17 +460,20 @@ contains
     type(TTimerSet), intent(in) :: ts
     type(TTimerSummary), intent(out) :: summary
 
-    real(dp) :: tloc(NTIMERS, NPHASES)
+    real(dp) :: tloc(NTIMERS, NPHASES), eloc(NTIMERS, NPHASES)
     integer :: cloc(NTIMERS, NPHASES)
     integer :: hloc(NBINS, NTIMERS, NPHASES)
     real(dp) :: ext(6, NTIMERS, NPHASES)
     real(dp) :: extAll(6, NTIMERS, NPHASES, 1)
 
-    call local_stats(ts, tloc, cloc, ext, hloc)
+    call local_stats(ts, tloc, eloc, cloc, ext, hloc)
     summary%nprocs = 1
     summary%tmin = tloc
     summary%tavg = tloc
     summary%tmax = tloc
+    summary%emin = eloc
+    summary%eavg = eloc
+    summary%emax = eloc
     summary%callsMax = cloc
     extAll(:,:,:,1) = ext
     call select_extremes(extAll, hloc, summary)
@@ -396,7 +488,8 @@ contains
     integer, intent(in), optional :: unit
 
     integer :: iu, ii, ip
-    real(dp) :: imbalance
+    real(dp) :: imbalance, ttot
+    character(len=24) :: label
 
     if (.not. id0) return
     iu = 6
@@ -409,7 +502,7 @@ contains
       if (all(summary%callsMax(:, ip) == 0)) cycle
 
       write(iu, '(/,1x,a)') trim(phase_names(ip))
-      write(iu, '(1x,a)') 'Totals per process:'
+      write(iu, '(1x,a)') 'Inclusive totals per process:'
       write(iu, '(1x,a24,a10,3a12,a10)') 'Label', 'Calls', 'Min', 'Avg', 'Max', 'Max/Avg'
       write(iu, '(1x,78("-"))')
       do ii = 1, NTIMERS
@@ -422,6 +515,27 @@ contains
         write(iu, '(1x,a24,i10,3f12.3,f10.2)') timer_names(ii), summary%callsMax(ii, ip), &
             & summary%tmin(ii, ip), summary%tavg(ii, ip), summary%tmax(ii, ip), imbalance
       end do
+
+      ! Exclusive times: the averages add up to the average Total (Total excl. = Other)
+      ttot = summary%tavg(timers%Total, ip)
+      write(iu, '(1x,a)') 'Exclusive totals per process:'
+      write(iu, '(1x,a24,3a12,a10)') 'Label', 'Min', 'Avg', 'Max', '% Avg'
+      write(iu, '(1x,78("-"))')
+      do ii = 1, NTIMERS
+        if (summary%callsMax(ii, ip) == 0) cycle
+        label = timer_names(ii)
+        if (ii == timers%Total) label = 'Other (untimed)'
+        if (ttot > 0.0_dp) then
+          write(iu, '(1x,a24,3f12.3,f10.1)') label, summary%emin(ii, ip), &
+              & summary%eavg(ii, ip), summary%emax(ii, ip), 100.0_dp * summary%eavg(ii, ip) / ttot
+        else
+          write(iu, '(1x,a24,3f12.3)') label, summary%emin(ii, ip), summary%eavg(ii, ip), &
+              & summary%emax(ii, ip)
+        end if
+      end do
+      write(iu, '(1x,78("-"))')
+      write(iu, '(1x,a24,12x,f12.3)') 'Sum of exclusive', sum(summary%eavg(:, ip))
+      write(iu, '(1x,a24,12x,f12.3)') 'Total', ttot
 
       write(iu, '(1x,a)') 'Single call; (iE,iK) = energy point on path and k-point:'
       write(iu, '(1x,a24,a10,2a6,a10,a10,2a6)') 'Label', 'Min', 'iE', 'iK', 'Mode', 'Max', &
@@ -443,7 +557,9 @@ contains
       write(iu, '(1x,78("-"))')
     end do
 
-    write(iu, '(1x,a)') 'Calls: maximum over processes. Nested timers are included in their parents.'
+    write(iu, '(1x,a)') 'Calls: maximum over processes.'
+    write(iu, '(1x,a)') 'Inclusive: nested timers are included in their parents.'
+    write(iu, '(1x,a)') 'Exclusive: own time only, nested timers subtracted; adds up to Total.'
     write(iu, '(1x,a,i0,a)') 'Mode: centre of the most populated bin (', BINS_PER_DECADE, &
         & ' bins per decade).'
     flush(iu)
@@ -460,9 +576,10 @@ contains
   end function valid
 
   !> Local totals, calls, extremes and histograms
-  subroutine local_stats(ts, tloc, cloc, ext, hloc)
+  subroutine local_stats(ts, tloc, eloc, cloc, ext, hloc)
     type(TTimerSet), intent(in) :: ts
     real(dp), intent(out) :: tloc(:,:)
+    real(dp), intent(out) :: eloc(:,:)
     integer, intent(out) :: cloc(:,:)
     real(dp), intent(out) :: ext(:,:,:)
     integer, intent(out) :: hloc(:,:,:)
@@ -473,6 +590,7 @@ contains
       do ii = 1, NTIMERS
         associate(st => ts%stat(ii, ip))
           tloc(ii, ip) = get_timer_elapsed(ts, ii, ip)
+          eloc(ii, ip) = get_timer_elapsed(ts, ii, ip, exclusive=.true.)
           cloc(ii, ip) = st%ncalls
           ext(1, ii, ip) = st%tcallMin
           ext(2:3, ii, ip) = real(st%pointMin, dp)
@@ -503,7 +621,9 @@ contains
         ir = maxloc(extAll(4, ii, ip, :), dim=1)
         summary%tcallMax(ii, ip) = extAll(4, ii, ip, ir)
         summary%pointMax(:, ii, ip) = nint(extAll(5:6, ii, ip, ir))
-        summary%tcallMode(ii, ip) = mode_from_hist(hist(:, ii, ip))
+        ! The bin centre can fall outside the observed range (e.g. a single call)
+        summary%tcallMode(ii, ip) = min(max(mode_from_hist(hist(:, ii, ip)), &
+            & summary%tcallMin(ii, ip)), summary%tcallMax(ii, ip))
       end do
     end do
 

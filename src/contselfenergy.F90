@@ -95,6 +95,7 @@ contains
     integer :: ii,i1,n0,n1,n2,n3,n4,nd,npl,ngs
     integer :: pnt,nfc,verbose,contdim,surfdim
     integer :: nCacheE, nCacheK
+    integer :: isgf            ! timer: SGF computed or loaded
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute
                                ! flag=2 Compute and save
@@ -156,9 +157,11 @@ contains
     endif
 
     if(flag.ge.1) then
-        call set_timer(pnegf, timers%SGF, trim("Computing SGF "//ofpnt))
+        isgf = timers%SGF
+        call set_timer(pnegf, isgf, trim("Computing SGF "//ofpnt))
     else         !*** load from file ***
-        call set_timer(pnegf, timers%SGF, trim("Loading SGF "//ofpnt))
+        isgf = timers%SGFLoad
+        call set_timer(pnegf, isgf, trim("Loading SGF "//ofpnt))
     endif
     call create(GS,ngs,ngs,tag="GS")
     GS%val=zero
@@ -261,7 +264,7 @@ contains
     end if !(Fict Contact or not)
 
 
-    call stop_timer(pnegf, timers%SGF)
+    call stop_timer(pnegf, isgf)
 
   end subroutine surface_green
 
