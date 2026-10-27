@@ -347,11 +347,8 @@ contains
     !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12
     call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
-      if (associated(p%matrix)) then
-         call destroy(p%matrix)
-      else
-         allocate(p%matrix)
-      end if
+      ! The assignment reuses the cached storage if the shape is unchanged
+      if (.not.associated(p%matrix)) allocate(p%matrix)
       p%matrix = matrix
       p%energy = label%energy
       p%kvec = label%kvec
@@ -371,11 +368,8 @@ contains
     !  1,  2,  3,  4,  6,  7,  8, 10, 11, 12
     call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
-      if (associated(p%matrix)) then
-         call destroy(p%matrix)
-      else
-         allocate(p%matrix)
-      end if
+      ! The assignment reuses the cached storage if the shape is unchanged
+      if (.not.associated(p%matrix)) allocate(p%matrix)
       p%matrix = matrix
       p%energy = label%energy
       p%kvec = label%kvec
@@ -395,7 +389,6 @@ contains
     call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        call destroy(matrix)
         matrix = p%matrix
       else
         print*, 'Retrieve matrix for '//trim(this%tagname)
@@ -417,7 +410,6 @@ contains
     call checks(this, label, b)
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
       if (associated(p%matrix)) then
-        call destroy(matrix)
         matrix = p%matrix
       else
         print*, 'Retrieve matrix for '//trim(this%tagname)
