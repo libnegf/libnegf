@@ -455,7 +455,6 @@ CONTAINS
     real(dp), dimension(:), intent(inout), optional :: ledos
 
     integer :: nbl, ii, nrows, start
-    type(z_DNS) :: Gn_dns, work1
     type(z_CSR) :: ESH_tot
     complex(dp) :: Ec
     complex(dp), dimension(:), allocatable :: diag
@@ -466,17 +465,20 @@ CONTAINS
        call error_msg('ERROR: ecurr with wrong size in iterative_layer_current')
     end if
 
+    ! ES-H without self-energies
     Ec=cmplx(E,0.0_dp,dp)
+    call set_timer(negf, timers%BuildESH)
     call prealloc_sum(negf%H, negf%S, minusOne, Ec, ESH_tot)
     call allocate_blk_dns(ESH,nbl)
     call csr2blk3diag(ESH_tot, ESH, negf%str%mat_PL_start)
     call destroy(ESH_tot)
+    call stop_timer(negf, timers%BuildESH)
 
+    ! J(ii) = Re{ i Tr[ESH(ii,ii+1) Gn(ii+1,ii) - Gn(ii,ii+1) ESH(ii+1,ii)] }
+    ! Only the traces are needed: O(n^2), no matrix products
     do ii = 1, nbl-1
-      call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
-      call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
-      ecurr(ii) = real(i_unit*trace(work1))
-      call destroy(work1)
+      ecurr(ii) = real(i_unit * (trace_prod(ESH(ii,ii+1), Gn(ii+1,ii)) &
+          & - trace_prod(Gn(ii,ii+1), ESH(ii+1,ii))))
     end do
     if (present(ledos)) then
       start = 0
@@ -494,6 +496,25 @@ CONTAINS
     call destroy_all_blk(negf)
 
   end subroutine iterative_layer_current
+
+  !> Tr[A B] = sum_ij A(i,j) B(j,i), without forming the product
+  function trace_prod(A, B) result(tr)
+    type(z_DNS), intent(in) :: A, B
+    complex(dp) :: tr
+
+    integer :: i, j
+
+    if (A%nrow /= B%ncol .or. A%ncol /= B%nrow) then
+      call error_msg('ERROR: trace_prod with incompatible matrices')
+    end if
+    tr = (0.0_dp, 0.0_dp)
+    do j = 1, A%ncol
+      do i = 1, A%nrow
+        tr = tr + A%val(i,j) * B%val(j,i)
+      end do
+    end do
+
+  end function trace_prod
 
 
   !--------------------------------------------------------------------------
