@@ -28,7 +28,7 @@ module elphdb
   use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
-  use mat_def, only : c_dns, z_dns, create, destroy
+  use mat_def, only : c_dns, z_dns, create, destroy, assignment(=)
   use ln_messages, only : error_msg
   
   implicit none

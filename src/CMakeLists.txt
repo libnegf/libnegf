@@ -5,7 +5,9 @@ set(sources-fpp
     ln_cache.F90
     lib_param.F90
     ln_enums.F90
+    ln_types.F90
     ln_precision.F90
+    ln_math.F90
     mpi_globals.F90
     ln_messages.F90
     contselfenergy.F90
@@ -22,6 +24,7 @@ set(sources-fpp
     iterative.F90
     ln_constants.F90
     mat_def.F90
+    block_3_diag.F90
     population.F90
     energy_mesh.F90
     equiv_kpoints.F90
@@ -32,7 +35,7 @@ set(sources-fpp
     elphdb.F90
     elphds.F90
     elphinel.F90
-    self_energy.F90
+    elptinel.F90
     scba.F90
     sparskit/skit_blassm.F90
     sparskit/skit_formats.F90

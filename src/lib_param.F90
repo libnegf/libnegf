@@ -25,6 +25,7 @@ module lib_param
   use ln_precision, only : dp, EPS15, set_drop
   use globals
   use mat_def
+  use ln_types
   use ln_structure, only : TStruct_info, TBasisCenters, TNeighbourMap
   use ln_messages
   use input_output
@@ -35,6 +36,7 @@ module lib_param
   use elphds, only : ElPhonDephS, ElPhonDephS_create, ElPhonDephS_init
   use elphinel, only : ElPhonPolarOptical, ElPhonPO_create, ElPhonPO_init
   use elphinel, only : ElPhonNonPolarOptical, ElPhonNonPO_create, ElPhonNonPO_init
+  use elptinel, only : ElPhoton, ElPhoton_create, ElPhoton_init, set_Pmat
   use equiv_kpoints, only : TEqPointsArray
   use scba
   use ln_cache
@@ -45,7 +47,9 @@ module lib_param
   implicit none
   private
 
-  public :: Tnegf, lnParams, intArray, complArray, realArray, TEnGrid, TInteractionList
+  public :: Tnegf, lnParams, TInteractionList
+  public :: TEnGrid
+  public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
   public :: destroy_interactions
@@ -56,71 +60,12 @@ module lib_param
   public :: set_elph_s_dephasing
   public :: set_elph_polaroptical
   public :: set_elph_nonpolaroptical
+  public :: set_elphoton
   integer, public, parameter :: MAXNCONT=10
   integer, public, parameter :: MAXNLAYERS=10000
-
-  type intArray
-    integer, dimension(:), allocatable :: indexes
-  end type intArray
-
-  type complArray
-    complex(dp), dimension(:), allocatable :: array
-  end type complArray
-
-  type realArray
-    real(dp), dimension(:), allocatable :: array
-  end type realArray
-
-  ! Array used to store the k-dependent matrices
-  type TMatrixArrayHS
-    type(z_CSR), pointer :: H => null()    ! Points to externally allocated H
-    type(z_CSR), pointer :: S => null()
-    integer    :: iS = 1                   ! spin-index (global)
-    logical    :: isSid = .false.          ! True if overlap S == Id
-    logical    :: internalHS = .true.      ! tells HS are internally allocated
-  end type TMatrixArrayHS
-
-  ! Array used to store the k-dependent matrices
-  type TMatrixArrayDM
-    type(z_CSR), pointer :: rho => null()  ! Holding output Matrix
-    integer    :: iS = 1                   ! spin-index (global)
-    logical    :: internalDM = .true.      ! tells DM is internally allocated
-  end type TMatrixArrayDM
-
 #:if defined("GPU")
-  !Type definition of cublas and cusolver handles (no module defs?)
-  type, bind(C) :: cublasHandle
-    type(c_ptr) :: ptr
-  end type cublasHandle
-
-  type, bind(C) :: cusolverDnHandle
-    type(c_ptr) :: ptr
-  end type cusolverDnHandle
-
-  public :: cusolverDnHandle
-  public :: cublasHandle
+  public :: cublasHandle, cusolverDnHandle
 #:endif
-
-  !! Structure used to define energy points for the integration
-  !! For every point we define
-  !!     path (1,2 or 3): the energy point belongs to a real axis
-  !!     integration (1), a complex plane integration (2) or a
-  !!     pole summation (3)
-  !!     pt_path: relative point number within a single path
-  !!     pt: absolute point number along the whole integration path
-  !!     cpu: cpu assigned to the calculation of the given energy point
-  !!     Ec: energy value
-  !!     wght: a weight used in final summation to evaluate integrals
-  type TEnGrid
-     integer :: path
-     integer :: pt_path
-     integer :: pt
-     integer :: pt_cpu
-     integer :: cpu
-     complex(dp) :: Ec
-     complex(dp) :: wght
-  end type TEnGrid
-
   !-----------------------------------------------------------------------------
   ! Buttiker probe dephasing
   type :: Tdeph_bp
@@ -221,6 +166,8 @@ module lib_param
     !! Runtime variables: used internally by the library
     type(format) :: form          ! Form of file-Hamiltonian
     logical  :: dumpHS            ! Used for debug
+    logical :: dump_matrices      ! Dump internal matrices (H,S,Gr,Gn)
+    logical :: dump_pdos          ! Dumps Gn and A = i(Gr - Ga) at each iteration of the SCBA loop
     real(dp) :: muref             ! reference elec.chem potential
     real(dp) :: E                 ! Holding variable
     real(dp) :: dos               ! Holding variable
@@ -286,8 +233,9 @@ module lib_param
     type(TScbaDriverElastic) :: scbaDriverElastic
     type(TScbaDriverInelastic) :: scbaDriverInelastic
 
-    real(dp) :: scba_elastic_tol = 1.0e-7_dp
-    real(dp) :: scba_inelastic_tol = 1.0e-7_dp
+    ! Note: keep consistent with set_defaults
+    real(dp) :: scba_elastic_tol = 1.0e-3_dp
+    real(dp) :: scba_inelastic_tol = 1.0e-3_dp
 
     !! Output variables: these arrays are filled by internal subroutines to store
     !! library outputs
@@ -306,6 +254,7 @@ module lib_param
     logical :: tDestroyGr = .true.
     logical :: tDestroyGn = .true.
     logical :: tDestroyESH = .true.
+    logical :: tPhotonSCC = .true.
     ! Buttiker Probes dephasing
     logical :: tDephasingBP = .false.
     logical :: tDephasingVE = .false.
@@ -420,7 +369,11 @@ module lib_param
     character(kind=c_char, len=1) :: dore  ! Density or En.Density
     !> Reference contact is set to maximum or minimum Fermi level
     integer(c_int) :: min_or_max
-    logical(c_bool) :: is_s_is;
+    !> Dump internal matrices
+    logical(c_bool) :: dump_matrices
+    !> Dump PDOS
+    logical(c_bool) :: dump_pdos
+
   end type lnparams
 
 contains
@@ -441,7 +394,7 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_dephasing(negf, coupling, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -461,8 +414,8 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_block_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
-    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    real(dp),  dimension(:), intent(in) :: coupling
+    integer,  dimension(:), intent(in) :: orbsperatom
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -482,8 +435,8 @@ contains
   !! (elastic scattering only)
   subroutine set_elph_s_dephasing(negf, coupling, orbsperatom, niter)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
-    integer,  dimension(:), allocatable, intent(in) :: orbsperatom
+    real(dp),  dimension(:), intent(in) :: coupling
+    integer,  dimension(:), intent(in) :: orbsperatom
     integer, intent(in) :: niter
 
     type(TInteractionNode), pointer :: node
@@ -498,17 +451,20 @@ contains
 
   end subroutine set_elph_s_dephasing
 
-  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, area, niter, &
-              & tridiag)
+  subroutine set_elph_polaroptical(negf, coupling, wq, Temp, dz, eps0, eps_inf, q0, cell_vol, &
+              & a0, model2D, sigma, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: wq
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
     real(dp), intent(in) :: eps0
     real(dp), intent(in) :: eps_inf
     real(dp), intent(in) :: q0
-    real(dp), intent(in) :: area
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
+    logical, intent(in) :: model2D
+    real(dp), intent(in) :: sigma
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -517,27 +473,25 @@ contains
     call elphonpo_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonPolarOptical)
-#:if defined("MPI")
       call ElPhonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
-          &  wq, Temp, dz, eps0, eps_inf, q0, area, niter, tridiag)
-#:else
-      call error_msg( "Inelastic scattering requires MPI")
-#:endif
+          &  wq, Temp, dz, eps0, eps_inf, q0, cell_vol, a0, model2D, sigma, niter, tridiag)
     class default
       call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
 
   end subroutine set_elph_polaroptical
 
-  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, area, niter, &
-              & tridiag)
+  subroutine set_elph_nonpolaroptical(negf, coupling, wq, Temp, dz, D0, Mcell, cell_vol, &
+            & a0, niter, tridiag)
     type(Tnegf), intent(inout) :: negf
-    real(dp),  dimension(:), allocatable, intent(in) :: coupling
+    real(dp),  dimension(:), intent(in) :: coupling
     real(dp), intent(in) :: wq
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
     real(dp), intent(in) :: D0
-    real(dp), intent(in) :: area
+    real(dp), intent(in) :: Mcell
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -546,17 +500,49 @@ contains
     call elphonnonpo_create(node%inter)
     select type(pInter => node%inter)
     type is(ElPhonNonPolarOptical)
-#:if defined("MPI")
     call ElPhonNonPO_init(pInter, negf%cartComm%comm, negf%str, negf%basis, coupling, &
-            &  wq, Temp, dz, D0, area, niter, tridiag)
-#:else
-      call error_msg( "Inelastic scattering requires MPI")
-#:endif
+            &  wq, Temp, dz, D0, Mcell, cell_vol, a0, niter, tridiag)
     class default
       call error_msg( 'ERROR: error of type downcast to ElPhonInel')
     end select
 
   end subroutine set_elph_nonpolaroptical
+
+  ! Setup electron-photon interactions
+  subroutine set_elphoton(negf, coupling, cell_volume, nr, Ephot, intens, poldir, niter, &
+            & kbT, nfreq, tExcludeSCC, tSpontEmission, tridiag, model, Pcsr)
+    type(Tnegf), intent(inout) :: negf
+    real(dp),  dimension(:), intent(in) :: coupling
+    real(dp), intent(in) :: cell_volume
+    real(dp), intent(in) :: nr
+    real(dp), intent(in) :: Ephot
+    real(dp), intent(in) :: intens
+    integer, intent(in) :: poldir
+    integer, intent(in) :: niter
+    real(dp), intent(in) :: kbT
+    integer, intent(in) :: nfreq
+    logical, intent(in) :: tExcludeSCC
+    logical, intent(in) :: tSpontEmission
+    logical, intent(in) :: tridiag
+    integer, intent(in) :: model
+    type(z_CSR), intent(in), allocatable, optional :: Pcsr(:, :)
+
+    type(TInteractionNode), pointer :: node
+    call negf%interactList%add(node)
+    call elphoton_create(node%inter)
+    select type(pInter => node%inter)
+    type is(ElPhoton)
+      negf%tPhotonSCC = .not.tExcludeSCC
+      call ElPhoton_init(pInter, negf%cartComm%comm, negf%basis, coupling, cell_volume,&
+       &  nr, Ephot, intens, poldir, niter, kbT, nfreq, tSpontEmission, tridiag, model)
+      if (present(Pcsr)) then
+        call set_Pmat(pInter, Pcsr)
+      end if
+    class default
+      call error_msg("ERROR: error of type downcast to ElPhoton")
+    end select
+
+  end subroutine set_elphoton
 
 
   !> clean interactions objects
@@ -650,10 +636,12 @@ contains
      negf%refcont = 1        ! call set_ref_cont()
      negf%outer_blocks = 2   ! Compute full D.M. L,U extra
      negf%dumpHS = .false.
+     negf%dump_matrices = .false.
+     negf%dump_pdos = .false.
      negf%int_acc = 1.d-3    ! Integration accuracy
                              ! Only in adaptive refinement
-     negf%scba_elastic_tol = 1.d-7
-     negf%scba_inelastic_tol = 1.d-7
+     negf%scba_elastic_tol = 1.d-3
+     negf%scba_inelastic_tol = 1.d-3
      negf%ndos_proj = 0
      negf%particle = 1       ! Used for setting correct fermi function in real_axis_int.
                              ! 1: electrons
@@ -719,6 +707,7 @@ contains
      write(io,*) 'Emin= ',negf%Emin
      write(io,*) 'Emax= ',negf%Emax
      write(io,*) 'Estep= ',negf%Estep
+     write(io,*) 'Estep_coarse= ',negf%Estep_coarse
      write(io,*) 'g_spin= ',negf%g_spin
      write(io,*) 'delta= ',negf%delta
      write(io,*) 'dos_delta= ',negf%dos_delta
@@ -741,6 +730,13 @@ contains
      write(io,*) 'DOS= ',negf%dos
      write(io,*) 'Eneconv= ',negf%eneconv
      write(io,*) 'activecont= ', negf%activecont
+     write(io,*) 'integration= ', negf%integration
+     write(io,*) 'dump_matrices= ', negf%dump_matrices
+     write(io,*) 'dump_pdos= ', negf%dump_pdos
+
+     write(io,*) 'SCBA Parameters:'
+     write(io,*) 'scba_elastic_tol= ', negf%scba_elastic_tol
+     write(io,*) 'scba_inelastic_tol= ', negf%scba_inelastic_tol
      !write(io,*) 'internalDM= ', negf%internalDM
   end subroutine print_all_vars
 

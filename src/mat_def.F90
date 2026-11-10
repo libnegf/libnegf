@@ -31,17 +31,17 @@ public :: z_CSR,z_CSC,z_MSR,z_COO,z_EXT_COO,z_DNS
 public :: r_CSR,r_CSC,r_MSR,r_COO,r_DNS, z_vec, z_RGM
 public :: c_DNS, s_CSR, c_CSR! single precision defs
 public :: r_DNS3, z_DNS3, c_DNS3 ! three indeces matrix (used for storage)
+public :: set_CSR
 
 public :: create, initialize, recreate, destroy, create_id
 public :: print_mat, read_mat, writemem
 public :: createp, destroyp
 public :: assignment(=)
 
-public :: cross_product, volume
-
 interface create
    module procedure zcreate_CSR
    module procedure rcreate_CSR
+   module procedure ccreate_CSR
    module procedure zcreate_CSC
    module procedure rcreate_CSC
    module procedure zcreate_MSR
@@ -70,6 +70,11 @@ end interface
 interface recreate
    module procedure zrecreate_CSR
    module procedure rrecreate_CSR
+end interface
+
+interface set_CSR
+   module procedure set_zCSR
+   module procedure set_cCSR
 end interface
 
 interface initialize
@@ -329,9 +334,7 @@ subroutine zcreate_pCSR(mat,nrow,ncol,nnz)
   integer :: ierr
 
   allocate(mat,stat=ierr)
-  if (ierr.ne.0) then
-    call error_msg( 'ERROR: pointer zCSR not allocated')
-  end if
+  if(ierr.ne.0) error stop 'ERROR: pointer zCSR not allocated'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -367,14 +370,31 @@ subroutine zcreate_CSR(mat,nrow,ncol,nnz)
 end subroutine zcreate_CSR
 ! ------------------------------------------------------------------
 
+subroutine ccreate_CSR(mat,nrow,ncol,nnz)
+  type(c_CSR) :: mat
+  integer :: nrow, ncol, nnz
+
+  mat%nnz=nnz
+  mat%nrow=nrow
+  mat%ncol=ncol
+  mat%sorted = .false.
+
+  if(nnz.ne.0) then
+     call log_allocate(mat%nzval,nnz)
+     call log_allocate(mat%colind,nnz)
+  endif
+
+  call log_allocate(mat%rowpnt,nrow+1)
+
+end subroutine ccreate_CSR
+! ------------------------------------------------------------------
+
 subroutine zinit_CSR(mat)
   type(z_CSR) :: mat
 
   integer :: k
 
-  if (mat%nnz.ne.mat%nrow) then
-    call error_msg( 'cannot initialize matrix (nnz != nrow)')
-  end if
+  if(mat%nnz.ne.mat%nrow) error stop 'cannot initialize matrix (nnz != nrow)'
 
   do k=1,Mat%nrow
      Mat%nzval(k)=(0.0_dp, 0.0_dp)
@@ -474,6 +494,61 @@ subroutine zrecreate_CSR(mat)
 
 end subroutine zrecreate_CSR
 ! ------------------------------------------------------------------
+!> Pass CSR vectors to create z_CSR type
+!! @param[in] nrow: number of rows
+!! @param[in] nzval: number of non zero values
+!! @param[in] colind: column indexes
+!! @param[in] rowpnt: row pointers
+!! @param[inout] mat: the z_CSR matrix
+ subroutine set_zCSR(nrow, nzval, colind, rowpnt, mat)
+  integer :: nrow
+  complex(dp) :: nzval(*)
+  integer :: colind(*)
+  integer :: rowpnt(*)
+  type(z_CSR) :: mat
+
+  integer :: nnz, i, base
+
+  base = 0
+  if (rowpnt(1) == 0) base = 1
+
+  nnz = rowpnt(nrow+1)-rowpnt(1)
+  call create(mat,nrow,nrow,nnz)
+
+  do i = 1, nnz
+    mat%nzval(i) = nzval(i)
+    mat%colind(i) = colind(i) + base
+  enddo
+  do i = 1,nrow+1
+    mat%rowpnt(i) = rowpnt(i) + base
+  enddo
+end subroutine set_zCSR
+
+subroutine set_cCSR(nrow, nzval, colind, rowpnt, mat)
+  integer :: nrow
+  complex(sp) :: nzval(*)
+  integer :: colind(*)
+  integer :: rowpnt(*)
+  type(c_CSR) :: mat
+
+  integer :: nnz, i, base
+
+  base = 0
+  if (rowpnt(1) == 0) base = 1
+
+  nnz = rowpnt(nrow+1)-rowpnt(1)
+  call create(mat,nrow,nrow,nnz)
+
+  do i = 1, nnz
+    mat%nzval(i) = nzval(i)
+    mat%colind(i) = colind(i) + base
+  enddo
+  do i = 1,nrow+1
+    mat%rowpnt(i) = rowpnt(i) + base
+  enddo
+end subroutine set_cCSR
+
+!-------------------------------------------------------------------
 subroutine zdestroy_CSR(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
 
   type(z_CSR) :: mat1
@@ -588,7 +663,7 @@ subroutine zdestroy_pCSR(mat1)
   type(z_CSR), pointer :: mat1
 
   if (.not.associated(mat1)) then
-      call error_msg( 'ERROR: zCSR pointer not associated')
+      error stop 'ERROR: zCSR pointer not associated'
   end if
 
   mat1%nnz=0
@@ -711,9 +786,7 @@ subroutine zcreate_CSC(mat,nrow,ncol,nnz)
   type(z_CSC) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_CSC) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_CSC) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -857,9 +930,7 @@ subroutine zcreate_MSR(mat,nrow,ncol,nnz)
   type(z_MSR) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_MSR) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_MSR) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -905,9 +976,7 @@ subroutine zcreate_COO(mat,nrow,ncol,nnz)
   type(z_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-     call error_msg( 'ERROR: (zcreate_COO) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1069,9 +1138,7 @@ subroutine zcreate_EXT_COO(mat,nrow,ncol,nnz)
   type(z_EXT_COO) :: mat
   integer :: nrow, ncol, nnz
 
-  if (nrow.eq.0.or.ncol.eq.0) then
-    call error_msg( 'ERROR: (zcreate_EXT_COO) nrow or ncol = 0')
-  end if
+  if(nrow.eq.0.or.ncol.eq.0) error stop 'ERROR: (zcreate_EXT_COO) nrow or ncol = 0'
 
   mat%nnz=nnz
   mat%nrow=nrow
@@ -1802,10 +1869,11 @@ end subroutine rdestroy_COO
 
 ! ------------------------------------------------------------------
 
-subroutine rcreate_DNS(mat,nrow,ncol)
+subroutine rcreate_DNS(mat,nrow,ncol,tag)
 
  type(r_DNS) :: mat
  integer :: nrow, ncol
+ character(len=*), optional :: tag
 
 
   if (nrow.eq.0.or.ncol.eq.0) then
@@ -1814,28 +1882,29 @@ subroutine rcreate_DNS(mat,nrow,ncol)
 
   mat%ncol=ncol
   mat%nrow=nrow
-  call log_allocate(mat%val,nrow,ncol)
+  call log_allocate(mat%val,nrow,ncol,tag)
 
 end subroutine rcreate_DNS
 ! ------------------------------------------------------------------
 
-subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
+subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8,tag)
 
   type(r_DNS) :: mat1
   type(r_DNS), optional :: mat2,mat3,mat4,mat5,mat6,mat7,mat8
+  character(len=*), optional :: tag
 
   mat1%nrow=0
   mat1%ncol=0
 
   if (allocated(mat1%val)) then
-     call log_deallocate(mat1%val)
+     call log_deallocate(mat1%val,tag)
   end if
 
   if (present(mat2)) then
      mat2%nrow=0
      mat2%ncol=0
      if (allocated(mat2%val)) then
-        call log_deallocate(mat2%val)
+        call log_deallocate(mat2%val,tag)
      end if
   else
      return
@@ -1845,7 +1914,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat3%nrow=0
      mat3%ncol=0
      if (allocated(mat3%val)) then
-        call log_deallocate(mat3%val)
+        call log_deallocate(mat3%val,tag)
      endif
   else
      return
@@ -1855,7 +1924,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat4%nrow=0
      mat4%ncol=0
      if (allocated(mat4%val)) then
-        call log_deallocate(mat4%val)
+        call log_deallocate(mat4%val,tag)
      end if
   else
      return
@@ -1865,7 +1934,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat5%nrow=0
      mat5%ncol=0
      if (allocated(mat5%val)) then
-        call log_deallocate(mat5%val)
+        call log_deallocate(mat5%val,tag)
      end if
   else
      return
@@ -1875,7 +1944,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat6%nrow=0
      mat6%ncol=0
      if (allocated(mat6%val)) then
-        call log_deallocate(mat6%val)
+        call log_deallocate(mat6%val,tag)
      end if
   else
      return
@@ -1885,7 +1954,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat7%nrow=0
      mat7%ncol=0
      if (allocated(mat7%val)) then
-        call log_deallocate(mat7%val)
+        call log_deallocate(mat7%val,tag)
      endif
   else
      return
@@ -1895,7 +1964,7 @@ subroutine rdestroy_DNS(mat1,mat2,mat3,mat4,mat5,mat6,mat7,mat8)
      mat8%nrow=0
      mat8%ncol=0
      if (allocated(mat8%val)) then
-        call log_deallocate(mat8%val)
+        call log_deallocate(mat8%val,tag)
      endif
   else
      return
@@ -1937,7 +2006,7 @@ subroutine rassign_CSR(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1951,7 +2020,7 @@ subroutine zassign_CSR(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%colind = M_rhs%colind
   M_lhs%rowpnt = M_rhs%rowpnt
@@ -1968,8 +2037,13 @@ subroutine rassign_DNS(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -1982,11 +2056,16 @@ subroutine zassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -1999,11 +2078,16 @@ subroutine cassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2016,11 +2100,16 @@ subroutine zcassign_DNS(M_lhs, M_rhs)
   type(c_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2035,11 +2124,16 @@ subroutine czassign_DNS(M_lhs, M_rhs)
   type(z_DNS), intent(in) :: M_rhs
 
   integer :: cc
-  
+
   if (.not.allocated(M_lhs%val)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
-  end if  
-  !$OMP PARALLEL DO 
+  else
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol) then
+       call destroy(M_lhs)
+       call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
+    end if
+  end if
+  !$OMP PARALLEL DO
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = cmplx(real(m_rhs%val(:,cc)), aimag(m_rhs%val(:,cc)), sp)
   end do
@@ -2053,7 +2147,10 @@ subroutine rassign_COO(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
@@ -2066,7 +2163,10 @@ subroutine zassign_COO(M_lhs, M_rhs)
 
   if (.not.allocated(M_lhs%nzval)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
-  end if  
+  else
+    call destroy(M_lhs)
+    call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
+  end if
   M_lhs%nzval = M_rhs%nzval
   M_lhs%index_i = M_rhs%index_i
   M_lhs%index_j = M_rhs%index_j
@@ -2104,28 +2204,5 @@ subroutine zPrint_DNS(id, A, fmt)
     enddo
   endif
 end subroutine zPrint_DNS
-
-subroutine cross_product(vec1, vec2, vec3)
-   real(dp), dimension(3), intent(in) :: vec1, vec2
-   real(dp), dimension(3), intent(out) :: vec3
-
-   vec3 = 0.0_dp
-
-   vec3(1) = vec1(2) * vec2(3) - vec1(3) * vec2(2)
-   vec3(2) = vec1(3) * vec2(1) - vec1(1) * vec2(3)
-   vec3(3) = vec1(1) * vec2(2) - vec1(2) * vec2(1)
-
-end subroutine cross_product
-
-function volume(vec1, vec2, vec3) result (vol)
-   real(dp), dimension(3), intent(in) :: vec1, vec2, vec3
-   real(dp) :: vol
-   
-   real(dp), dimension(3) :: cross_prod
-
-   call cross_product(vec2, vec3, cross_prod)
-   vol = dot_product(vec1, cross_prod)
-   
-end function volume
 
 end module mat_def

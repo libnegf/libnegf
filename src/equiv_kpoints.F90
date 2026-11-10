@@ -121,10 +121,6 @@ module equiv_kpoints
 
     !Eq. points of the first kpoint must be initialized outside the loop 
     n_eq = equiv_mult(1)
-    !mycontainer%EqPoints(1)%n_eq = n_eq
-    !if (allocated(mycontainer%EqPoints(1)%points)) then 
-    !  call log_deallocate(mycontainer%EqPoints(1)%points)
-    !endif
     call log_allocate(mycontainer%EqPoints(1)%points, 3, n_eq)
 
     begin = 1
@@ -134,18 +130,12 @@ module equiv_kpoints
     ! Now initialize all the remaining kpoints
     do i = 2, nkpoints
       n_eq = equiv_mult(i)
-      !mycontainer%EqPoints(i)%n_eq = n_eq
-      !if (allocated(mycontainer%EqPoints(i)%points)) then
-      !  call log_deallocate(mycontainer%EqPoints(i)%points)
-      !endif
       call log_allocate(mycontainer%EqPoints(i)%points, 3, n_eq)
 
       begin = last + 1
       last = begin + n_eq - 1
       mycontainer%EqPoints(i)%points(:,:) = equiv_kpoints(:, begin:last)
     enddo
-
-    !mycontainer%present = .true.
 
   end subroutine set_equivalent_points
 

@@ -457,7 +457,7 @@ contains
       frmdiff = cmplx(frm(j) - frm(ref), 0.0, ${KIND}$)
       if (j.ne.ref .and. abs(frmdiff).gt.EPS10) then
         cb=struct%cblk(j) ! block corresponding to contact j
-        call zspectral(SelfEneR(j),SelfEneR(j),0,Gam)
+        call zspectral(SelfEneR(j),Gam)
         Sigma_n(cb,cb)%val = Sigma_n(cb,cb)%val + frmdiff * Gam%val
         call destroy(Gam)
       endif

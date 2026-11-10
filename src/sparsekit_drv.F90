@@ -34,7 +34,6 @@ MODULE sparsekit_drv
   public :: prealloc_sum, prealloc_mult
   public :: check_nnz, nzdrop, getdiag, trace, getelement
   public :: check_if_hermitian
-  public :: zcsr2blk_sod
 
   public :: zsumcsr1
   public :: ramub_st
@@ -116,7 +115,7 @@ MODULE sparsekit_drv
   !zaplb_st(A,B,C)              ::  C = A+B  (C already allocated)
   !zcplsamub_st(A,B,s,C)        ::  C = C + s * A * B  (C already allocated)
   !ziluk_st()                   ::  incomplete LU factorization
-  !zspectral(G1,G2,fl,A)         :: computes A = j(Gr - Ga)
+  !zspectral(Gr,A)              ::  computes A = j(Gr - Ga)
   !zmask_realloc(G,M)            :: mask routine in place with reallocation
   !                                 (G masked by M)
 
@@ -573,7 +572,7 @@ CONTAINS
     if (ierr.ne.0) then
        call error_msg('(rsumcsrs)',OUTOFBOUND)
     end if
-    
+
     call log_deallocate(iw)
 
     ENDIF
@@ -737,22 +736,15 @@ CONTAINS
     IMPLICIT NONE
 
     TYPE(z_CSR) :: sp_in,sp_out
-    INTEGER :: i
 
     CALL create(sp_out,sp_in%nrow,sp_in%ncol,sp_in%nnz)
 
     IF (sp_in%nnz.NE.0) THEN
-
-       DO i=1,sp_in%nnz
-          sp_out%nzval(i) = sp_in%nzval(i)
-          sp_out%colind(i) = sp_in%colind(i)
-       ENDDO
-
+      sp_out%nzval = sp_in%nzval
+      sp_out%colind = sp_in%colind
     ENDIF
 
-    DO i=1,sp_in%nrow+1
-       sp_out%rowpnt(i) = sp_in%rowpnt(i)
-    ENDDO
+    sp_out%rowpnt = sp_in%rowpnt
 
   END SUBROUTINE zclone_st
 
@@ -1817,7 +1809,7 @@ CONTAINS
     IF (A_csr%ncol.NE.B_csr%nrow) THEN
         call error_msg('(zmultccsr)',MISMATCH)
     ENDIF
-        
+
     !Comment: routine "bandwidth()" does not longer accept argument bndav as integer, so it has been defined as real(dp)
 
     IF ((A_csr%nnz.EQ.0).OR.(B_csr%nnz.EQ.0).OR.(ABS(s).EQ.0)) THEN
@@ -2164,10 +2156,10 @@ CONTAINS
 
     if (A_csr%nrow.ne.B_csr%nrow) then
        call messages_error_msg('Error in aplb subroutine: nrow differ')
-    end if   
+    end if
     if (A_csr%ncol.ne.B_csr%ncol) then
        call messages_error_msg('Error in aplb subroutine: ncol differ')
-    end if   
+    end if
 
     IF ((A_csr%nnz.EQ.0).AND.(B_csr%nnz.EQ.0)) THEN
        CALL  create(C_csr,A_csr%nrow,A_csr%ncol,0)
@@ -2496,8 +2488,8 @@ CONTAINS
        print*, 'Indices Rows',i1,i2,'Cols',j1,j2
        call error_msg('',0)
     ENDIF
- 
-    call create(A_dns,(i2-i1+1),(j2-j1+1),tag=str)
+
+    call create(A_dns,(i2-i1+1),(j2-j1+1),str)
     A_dns%val=(0.0_dp,0.0_dp)
 
     do i = i1, i2
@@ -2817,40 +2809,36 @@ CONTAINS
   !
   !*************************************************************************
 
-  subroutine zspectral_csr(GreenR1,GreenR2,flagR,A)
+  subroutine zspectral_csr(GreenR,A)
 
     !*************************************************************************
     !
     !Input:
-    !GreenR1: blocco della Green Retarded
-    !GreenR2: blocco della Green Retarded corrispondente alla Green Advanced
-    !         che viene calcolata all'interno della subroutine
-    !GreenR2_ncol: numero di colonne di GreenR2
-    !flag: Se il flag =  1 viene deallocata GreenR2 internamente appena e`
-    !      disponibile l'advanced corrispondente, altrimenti no
+    !GreenR: blocco della Green Retarded
     !
     !A: Spectral Density corrispondente
-    !La funzione calcola A=j*(GreenR1-dagacsr(GreenR2))
+    !La funzione calcola A=j*(GreenR-dagacsr(GreenR))
     !
     !**************************************************************************
 
     implicit none
 
-    type(z_CSR) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(z_CSR) :: GreenR
+    type(z_CSR) :: A
 
+    type(z_CSR) :: GreenA
     integer :: i
 
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagacsr(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagacsr(GreenR,GreenA)
 
     !Cambio segno a GreenA -> -GreenA
     do i=1,GreenA%nnz
       GreenA%nzval(i)=(-1.0_dp, 0.0_dp)*GreenA%nzval(i)
     enddo
 
-    !Esegue A=GreenR1-GreenA
-    call zsumcsr(GreenR1,GreenA,A)
+    !Esegue A=GreenR-GreenA
+    call zsumcsr(GreenR,GreenA,A)
 
     !A=j(GreenR-GreenA)
     do i=1,A%nnz
@@ -2859,56 +2847,46 @@ CONTAINS
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
-
   end subroutine zspectral_csr
 
   ! DNS version  **********************************************************
 
-  subroutine zspectral_dns(GreenR1,GreenR2,flagR,A)
+  subroutine zspectral_dns(GreenR,A)
     implicit none
+    type(z_DNS) :: GreenR
+    type(z_DNS) :: A
 
-    type(z_DNS) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(z_DNS) :: GreenA
 
 
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagger(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagger(GreenR,GreenA)
 
     call create(A,GreenA%nrow,GreenA%ncol)
 
-    A%val=(0.0_dp,1.0_dp)*(GreenR1%val - GreenA%val)
+    A%val=(0.0_dp,1.0_dp)*(GreenR%val - GreenA%val)
 
     call destroy(GreenA)
-
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
 
   end subroutine zspectral_dns
-  
-  
-  subroutine cspectral_dns(GreenR1,GreenR2,flagR,A)
+
+
+  subroutine cspectral_dns(GreenR,A)
     implicit none
+    type(c_DNS) :: GreenR
+    type(c_DNS) :: A
 
-    type(c_DNS) :: GreenR1, GreenR2, GreenA, A
-    integer :: flagR
+    type(c_DNS) :: GreenA
 
-
-    !Hermitiano di GreenR2 passato in GreenA
-    call zdagger(GreenR2,GreenA)
+    !Hermitiano di GreenR passato in GreenA
+    call zdagger(GreenR,GreenA)
 
     call create(A,GreenA%nrow,GreenA%ncol)
 
-    A%val=(0.0_sp,1.0_sp)*(GreenR1%val - GreenA%val)
+    A%val=(0.0_sp,1.0_sp)*(GreenR%val - GreenA%val)
 
     call destroy(GreenA)
 
-    if (flagR.eq.1) then
-       call destroy(GreenR2)
-    endif
   end subroutine cspectral_dns
 
   !*************************************************************************
@@ -3398,42 +3376,10 @@ CONTAINS
     case(CONVERR)
        call messages_error_msg('ERROR '//trim(string)//' conversion error')
     case default
-       call messages_error_msg(trim(string))     
+       call messages_error_msg(trim(string))
     end select
 
   end subroutine error_msg
-
-  !------------------------------------------------------------
-  !> Convert a CSR in a block dense matrix, only taking the
-  !  diagonal and sub/over diag
-  subroutine zcsr2blk_sod(Acsr,Ablk,indblk,str)
-    INTEGER :: i
-    TYPE(z_CSR) :: Acsr
-    INTEGER :: nbl
-    TYPE(z_DNS), DIMENSION(:,:) :: Ablk
-    INTEGER, DIMENSION(:) :: indblk
-    character(len=*),intent(in),optional :: str
-
-    character(1) :: si1, si2
-    nbl = size(Ablk,1)
-
-    DO i=1,nbl
-      write(si1,'(I1)') i
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i),indblk(i+1)-1,Ablk(i,i),str//"("//si1//","//si1//")")
-
-    END DO
-
-    DO i=2,nbl
-
-      write(si1,'(I1)') i
-      write(si2,'(I1)') i-1
-      CALL extract(Acsr,indblk(i-1),indblk(i)-1,indblk(i),indblk(i+1)-1,Ablk(i-1,i),str//"("//si2//","//si1//")")
-      CALL extract(Acsr,indblk(i),indblk(i+1)-1,indblk(i-1),indblk(i)-1,Ablk(i,i-1),str//"("//si1//","//si2//")")
-
-    END DO
-
-
-  end subroutine zcsr2blk_sod
 
 
 end module sparsekit_drv

@@ -174,7 +174,8 @@ contains
           Co=conjg(E)*SC%val(n1:n2,n3:n4)-HC%val(n1:n2,n3:n4)
           Co=conjg(transpose(Co))
 #:if defined("GPU")
-          call decimation_gpu(pnegf,Go,Ao,Bo,Co,npl,ncyc,SGFACC,loginfo=.false.)
+          call decimation_gpu(pnegf%hcublas, pnegf%hcusolver,Go,Ao,Bo,Co,npl,ncyc,&
+                            & SGFACC,loginfo=.false.)
 #:else
           call decimation(Go,Ao,Bo,Co,npl,ncyc)
 #:endif
@@ -246,10 +247,12 @@ contains
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXCo
     complex(dp), ALLOCATABLE, DIMENSION(:,:) :: GoXBo, Self
     integer :: i1
-    logical :: okCo = .false.
+    logical :: okCo
 
     call log_allocate(Ao_s, n, n)
     Ao_s=Ao;
+
+    okCo = .false.
 
     do i1 = 1, 300
       ncyc=i1

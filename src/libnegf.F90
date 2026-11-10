@@ -59,6 +59,7 @@ module libnegf
  public :: set_bp_dephasing
  public :: set_elph_dephasing, set_elph_block_dephasing, set_elph_s_dephasing
  public :: set_elph_polaroptical, set_elph_nonpolaroptical, destroy_interactions
+ public :: set_elphoton
  public :: interaction_models, integration_type
  public :: set_clock, write_clock
  public :: writeMemInfo, writePeakInfo
@@ -77,7 +78,8 @@ module libnegf
  public :: lnParams
  public :: init_negf, destroy_negf
  public :: init_contacts, init_structure, init_basis
- public :: get_params, set_params, set_scratch, set_outpath, create_scratch, set_scba_tolerances
+ public :: get_params, set_params, set_scratch, set_outpath, create_scratch
+ public :: get_scba_tolerances, set_scba_tolerances
  public :: init_ldos, set_ldos_intervals, set_ldos_indexes, set_tun_indexes
 
  public :: create_HS, destroy_HS, set_H, set_S, set_S_id, read_HS, pass_HS, copy_HS
@@ -311,13 +313,17 @@ module libnegf
     integer, optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: nnz, i, base, ii=1, iiS=1
+    integer :: nnz, i, base, ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -368,13 +374,17 @@ module libnegf
     integer, optional :: iKS
     integer, optional :: iS
 
-    integer :: nnz, i, base, ii=1, iiS=1
+    integer :: nnz, i, base, ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -419,13 +429,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1
+    integer :: ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > merge(size(negf%HS),0,allocated(negf%HS))) then
@@ -459,13 +473,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, ss
+    integer :: ii, iiS, ss
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     ss = merge(size(negf%HS),0,allocated(negf%HS))
@@ -501,13 +519,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1
+    integer :: ii, iiS
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > size(negf%HS)) then
@@ -669,10 +691,11 @@ module libnegf
   !> subroutine used to setup kpoints
   !  k-point sampling must be expressed in reduced coordinates, i.e.
   !  either [-0.5..+0.5]x[-0.5..+0.5] (Gamma-centered) or [0..1]x[0..1] (I quadrant)
-  !  kpoints(:)  kweights(:)  are the global vectors
+  !  kpoints(:)  kweights(:)  are the GLOBAL vectors
   !  local_kindex(:) is a array of local indices pointing to the global vectors
   !  kSamplingType: 0 = Gamma-centered, no inversion
   !                 1 = Shifted in the I quadrant (0..1)x(0..1), no inversion
+  !                 2 = Shifted in the I quadrant (0..1)x(0..1), with inversion symmetry
   subroutine set_kpoints(negf, kpoints, kweights, local_kindex, kSamplingType, equiv_kpoints, equiv_mult)
     type(Tnegf) :: negf
     real(dp), intent(in) :: kpoints(:,:)
@@ -683,7 +706,9 @@ module libnegf
     integer, intent(in), optional :: equiv_mult(:)
 
     integer :: ii, jj
-    real(dp) :: shift(3)
+    real(dp) :: kdiff(3)
+    real(dp), allocatable :: equiv_by_inv(:,:)
+    integer, allocatable :: equiv_mult_inv(:)
 
     if (size(kpoints,2) /= size(kweights)) then
        call error_msg( 'Error: size of kpoints do not match')
@@ -695,22 +720,36 @@ module libnegf
     call log_allocate(negf%kpoints,3,size(kweights))
     if (kSamplingType == 0) then
       negf%kpoints = kpoints
-    else if (kSamplingType == 1) then
-      ! Try to guess if the system is 2D or 3D
-      ! If all k-components are 0 along x or y
-      shift = [-0.5_dp, -0.5_dp, 0.0_dp]
-      if (all(kpoints(1,:)==0.0_dp)) then
-         shift(1) = 0.0_dp
-      end if
-      if (all(kpoints(2,:)==0.0_dp)) then
-         shift(2) = 0.0_dp
-      end if
+    else if (kSamplingType == 1 .or. kSamplingType == 2) then
+      ! Fold into (-1/2..1/2)
       do ii = 1, size(kweights)
-        negf%kpoints(:,ii) = kpoints(:,ii) + shift
+        negf%kpoints(:,ii) = kpoints(:,ii)
+        if (kpoints(1,ii) > 0.5_dp) negf%kpoints(1,ii) = kpoints(1,ii) - 1.0_dp
+        if (kpoints(2,ii) > 0.5_dp) negf%kpoints(2,ii) = kpoints(2,ii) - 1.0_dp
+        if (kpoints(3,ii) > 0.5_dp) negf%kpoints(3,ii) = kpoints(3,ii) - 1.0_dp
+        if (id0) then
+          write(*,'(I3,F10.5,F10.5,F10.5,":")') ii, negf%kpoints(:, ii)
+        end if
       end do
     else
-      call error_msg( "kSamplingType must be either 0 or 1")
+      call error_msg( "kSamplingType must be either 0, 1 or 2")
     end if
+
+    ! With inversion symmetry -k is added as equivalent of k, hence the list must contain
+    ! only one point of each (k, -k) pair, otherwise k-points are counted twice
+    if (kSamplingType == 2 .and. .not.present(equiv_kpoints)) then
+      do ii = 1, size(kweights)
+        do jj = ii + 1, size(kweights)
+          kdiff(:) = negf%kpoints(:,ii) + negf%kpoints(:,jj)
+          if (all(abs(kdiff - nint(kdiff)) < 1.0e-6_dp)) then
+            call error_msg("set_kpoints: kSamplingType=2 (k -> -k symmetry) but the k-point list &
+                &already contains both k and -k. Pass a k-mesh reduced by inversion &
+                &or use kSamplingType=1")
+          end if
+        end do
+      end do
+    end if
+
     if (allocated(negf%kweights)) then
        call log_deallocate(negf%kweights)
     end if
@@ -722,32 +761,33 @@ module libnegf
     call log_allocate(negf%local_k_index,size(local_kindex))
     negf%local_k_index = local_kindex
 
-    !if (id0) then
-    !  write(*,*) 'k-points used in NEGF:'
-    !  do ii = 1, size(local_kindex)
-    !    write(*,*) ii,local_kindex(ii),negf%kpoints(:,local_kindex(ii))
-    !  end do
-    !end if
-
     if (present(equiv_kpoints)) then
       if (.not. present(equiv_mult)) then
         call error_msg( "ERROR: equivalent k-points were passed without multiplicity array equiv_mult")
       endif
       call set(negf%equivalent_kpoints, equiv_kpoints, size(kweights), equiv_mult)
-
-      if (id0) then
-        write(*,*) 'Equivalent k-points used in NEGF:'
-        do ii = 1, size(kweights)
-          write(*,*) "For kpoint: ", negf%kpoints(:, ii), ":"
-          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
-            write(*,*) "   ", negf%equivalent_kpoints%EqPoints(ii)%points(:, jj)
-          end do
-        end do
-      end if
-
+    else if (kSamplingType == 2) then
+      allocate(equiv_by_inv, mold=negf%kpoints)
+      equiv_by_inv = -negf%kpoints
+      allocate(equiv_mult_inv(size(kweights)))
+      equiv_mult_inv=1
+      call set(negf%equivalent_kpoints, equiv_by_inv, size(kweights), equiv_mult_inv)
     else
       call destroy(negf%equivalent_kpoints)
     endif
+
+    if (present(equiv_kpoints).or.kSamplingType==2) then
+      if (id0) then
+        write(*,*) 'Equivalent k-points used in NEGF:'
+        do ii = 1, size(kweights)
+          write(*,'("For kpoint:",F10.5,F10.5,F10.5,":")') negf%kpoints(:, ii)
+          do jj = 1, size(negf%equivalent_kpoints%EqPoints(ii)%points, 2)
+          write(*,'("   ",F10.5,F10.5,F10.5)') negf%equivalent_kpoints%EqPoints(ii)%points(:,jj)
+          end do
+        end do
+      end if
+    end if
+
   end subroutine set_kpoints
 
 
@@ -815,6 +855,8 @@ module libnegf
     params%DorE = negf%DorE
     params%min_or_max = negf%min_or_max
     params%SGFcache = get_surface_green_cache_type(negf)
+    params%dump_matrices = negf%dump_matrices
+    params%dump_pdos = negf%dump_pdos
 
   end subroutine get_params
 
@@ -878,6 +920,7 @@ module libnegf
     negf%Emax = params%Emax
     negf%Estep = params%Estep
     negf%Estep_coarse = params%Estep_coarse
+    negf%dump_matrices = params%dump_matrices
     if (allocated(negf%ni)) deallocate(negf%ni)
     nn = count(params%ni .ne. 0)
     allocate(negf%ni(nn))
@@ -892,7 +935,8 @@ module libnegf
     negf%ikpoint = params%ikpoint
     negf%DorE = params%DorE
     negf%min_or_max = params%min_or_max
-
+    negf%dump_matrices = params%dump_matrices
+    negf%dump_pdos = params%dump_pdos
     !! Some internal variables in libnegf are set internally
     !! after parameters are available
     call set_ref_cont(negf)
@@ -939,6 +983,14 @@ module libnegf
     negf%scba_elastic_tol = elastic_tol
     negf%scba_inelastic_tol = inelastic_tol
   end subroutine set_scba_tolerances
+  !----------------------------------------------------------
+  subroutine get_scba_tolerances(negf, elastic_tol, inelastic_tol)
+    type(Tnegf) :: negf
+    real(dp), intent(out) :: elastic_tol
+    real(dp), intent(out) :: inelastic_tol
+    elastic_tol = negf%scba_elastic_tol
+    inelastic_tol = negf%scba_inelastic_tol
+  end subroutine get_scba_tolerances
   !----------------------------------------------------------
   subroutine set_scratch(negf, scratchpath)
     type(Tnegf) :: negf
@@ -1022,7 +1074,8 @@ module libnegf
   end subroutine destroy_ldos
 
 
-  !> Set ldos intervals
+  !> Set ldos intervals. This is fine to set contiguous ranges of dofs.
+  !>
   !! @param [in] negf: libnegf container instance
   !! @param [in] istart(nldos) array with first interval index
   !! @param [in] iend(nldos) array with first interval index
@@ -1042,7 +1095,8 @@ module libnegf
 
   end subroutine set_ldos_intervals
 
-  !> Set ldos indexes arrays for a given ldos
+  !> Set ldos indexes arrays for a given ildos.
+  !> A lot more flexible to set arbitrary indices.
   !!
   !! @param [in] negf: libnegf container instance
   !! @param [in] ildos: index of ldos
@@ -1507,10 +1561,12 @@ module libnegf
     type(z_CSR), intent(inout) :: csrDens
     integer, intent(in), optional :: iKS
 
-    integer :: ii=1, s
+    integer :: ii, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
 
     if (present(iKS)) then
@@ -1552,13 +1608,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, s
+    integer :: ii, iiS, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (ii > 1) then
@@ -1590,13 +1650,17 @@ module libnegf
     integer, intent(in), optional :: iKS
     integer, intent(in), optional :: iS
 
-    integer :: ii=1, iiS=1, s
+    integer :: ii, iiS, s
 
     if (present(iKS)) then
       ii = iKS
+    else
+      ii = 1
     end if
     if (present(iS)) then
       iiS = iS
+    else
+      iiS = 1
     end if
 
     if (present(iKS)) then
@@ -2331,35 +2395,34 @@ module libnegf
 
  end subroutine aggregate_vec
 
-!-------------------------------------------------------------------
-!> Pass CSR vectors to create z_CSR type
-!! @param[in] nrow: number of rows
-!! @param[in] nzval: number of non zero values
-!! @param[in] colind: column indexes
-!! @param[in] rowpnt: row pointers
-!! @param[inout] mat: the z_CSR matrix
- subroutine get_CSR_matrix(nrow, nzval, colind, rowpnt, mat)
-  integer :: nrow
-  complex(dp) :: nzval(*)
-  integer :: colind(*)
-  integer :: rowpnt(*)
-  type(z_CSR) :: mat
 
-  integer :: nnz, i, base
+subroutine write_matrix_to_file(matrix, rows, cols, filename)
+  implicit none
+  ! Arguments
+  integer, intent(in) :: rows, cols
+  complex(dp), intent(in) :: matrix(rows, cols)
+  character(len=*), intent(in) :: filename
 
-  base = 0
-  if (rowpnt(1) == 0) base = 1
+  integer :: i, j
+  integer :: unit_number
 
-  nnz = rowpnt(nrow+1)-rowpnt(1)
-  call create(mat,nrow,nrow,nnz)
+  ! Open the file for writing
+  unit_number = 10 ! Assign a file unit number (can be any number not in use)
+  open(unit=unit_number, file=filename, status='replace')
 
-  do i = 1, nnz
-    mat%nzval(i) = nzval(i)
-    mat%colind(i) = colind(i) + base
-  enddo
-  do i = 1,nrow+1
-    mat%rowpnt(i) = rowpnt(i) + base
-  enddo
-end subroutine get_CSR_matrix
+  ! Write the matrix to the file
+  do i = 1, rows
+      do j = 1, cols
+          write(unit_number, '(F8.4)', advance='no') matrix(i, j)
+          if (j < cols) then
+              write(unit_number, '(A)', advance='no') ' ' ! Space between columns
+          endif
+      end do
+      write(unit_number, *) ! New line after each row
+  end do
+
+  ! Close the file
+  close(unit_number)
+end subroutine write_matrix_to_file
 
 end module libnegf

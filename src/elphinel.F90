@@ -25,8 +25,10 @@
 module elphinel
   use ieee_arithmetic, only : isnan => ieee_is_nan
   use ln_precision, only : sp, dp, lp => dp
-  use mat_def, only : z_csr, c_dns, z_dns, x_dns => z_dns, create, destroy, cross_product, volume
-  use ln_constants, only : pi
+  use mat_def, only : c_DNS, z_DNS
+  use mat_def, only : x_DNS => z_DNS, create, destroy, assignment(=)
+  use ln_math, only : cross_product, volume
+  use ln_constants, only : pi, hbar2c2
   use interactions, only : TInteraction
   use ln_inelastic, only : TInelastic
   use ln_allocation, only : log_allocate, log_deallocate, writeMemInfo
@@ -35,10 +37,9 @@ module elphinel
   use distributions, only : bose
   use ln_cache
   use iso_c_binding
-  use mpi_f08
+  use mpi_f08, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
   use mpi_globals
   use inversions, only : inverse
-  use self_energy, only: TMatPointer, selfenergy
   use equiv_kpoints, only : TEqPoint, TEqPointsArray, create, destroy
   use clock
   use ln_messages, only : error_msg
@@ -48,6 +49,11 @@ module elphinel
   public :: ElPhonInel, ElPhonPolarOptical, ElPhonNonPolarOptical
   public :: ElPhonPO_create, ElPhonNonPO_create
   public :: ElPhonPO_init, ElPhonNonPO_init
+
+  type, public :: TMatPointer
+    type(x_DNS), pointer :: pMat
+  end type TMatPointer
+
 
   type, abstract, extends(TInelastic) :: ElPhonInel
     private
@@ -87,6 +93,12 @@ module elphinel
     real(dp) :: dz
     !> Supercell area for integrations
     real(dp) :: cell_area
+    !> Cell length along transport
+    real(dp) :: a0
+    !> Specific model for 2D PO phonons
+    logical :: model2D
+    !> Parameter for the model
+    real(dp) :: sigma
 
   contains
 
@@ -98,10 +110,14 @@ module elphinel
     procedure :: get_sigma_n_mat
     procedure :: set_Gr
     procedure :: set_Gn
+    procedure :: init_sigma_r
+    procedure :: init_sigma_n
     procedure :: compute_sigma_r
     procedure :: compute_sigma_n
     procedure :: destroy_sigma_r
     procedure :: destroy_sigma_n
+    procedure :: clear_sigma_r
+    procedure :: clear_sigma_n
     procedure :: set_kpoints
     procedure :: set_EnGrid
     procedure(abstract_prepare), deferred :: prepare
@@ -120,10 +136,14 @@ module elphinel
   type, extends(ElPhonInel) :: ElPhonPolarOptical
     private
     !> Parameters for Polar-optical K-function
-    real(dp) :: Ce
+    !> Dielectric screening at low frequency
     real(dp) :: eps0
+    !> Dielectric screening at optical frequencies
     real(dp) :: eps_inf
+    !> Inverse screening length
     real(dp) :: q0
+    !> Internal use
+    real(dp) :: Ce
     contains
     procedure :: prepare => prepare_POKmat
   end type ElPhonPolarOptical
@@ -131,7 +151,12 @@ module elphinel
   type, extends(ElPhonInel) :: ElPhonNonPolarOptical
     private
     !> Parameters for Non-polar-optical K-function
+    !> Deformation potential
     real(dp) :: D0
+    !> Mass of the cell
+    real(dp) :: Mcell
+    !> Internal use
+    real(dp) :: Ce
     contains
     procedure :: prepare => prepare_NonPOKmat
   end type ElPhonNonPolarOptical
@@ -155,7 +180,7 @@ contains
   ! @param wq: phonon frequence
   ! @param niter: fixed number of scba iterations
   subroutine ElPhonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
-             & dz, eps0, eps_inf, q0, cell_area, niter, tridiag)
+             & dz, eps0, eps_inf, q0, cell_vol, a0, model2D, sigma, niter, tridiag)
     type(ElPhonPolarOptical) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
@@ -167,12 +192,20 @@ contains
     real(dp), intent(in) :: eps0
     real(dp), intent(in) :: eps_inf
     real(dp), intent(in) :: q0
-    real(dp), intent(in) :: cell_area
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
+    logical, intent(in) :: model2D
+    real(dp), intent(in) :: sigma
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
-    this%descriptor = &
+    if (model2D) then
+      this%descriptor = &
+        & "Electron-Phonon inelastic 2D polar-optical phonons"
+    else
+      this%descriptor = &
         & "Electron-Phonon inelastic model for polar-optical phonons"
+    end if
 
     this%cart_comm = comm
     this%scba_niter = niter
@@ -185,30 +218,33 @@ contains
     this%eps0 = eps0
     this%eps_inf = eps_inf
     this%q0 = q0
-    this%cell_area = cell_area
+    this%a0 = a0
+    this%cell_area = cell_vol/a0
     this%coupling = coupling(1)
     this%tTridiagonal = tridiag
+    this%model2D = model2D
+    this%sigma = sigma
 
     call set_reciprocal_vectors(basis, this%recVecs2p)
 
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
-      call error_msg('Initialization of PO Phonon called twice') 
+      call error_msg('Initialization of PO Phonon called twice')
     end if
     allocate(TMatrixCacheMem::this%sigma_r)
     select type(p => this%sigma_r)
     type is(TMatrixCacheMem)
       p%tagname = 'Sigma_r'
-    end select   
+    end select
 
     if (associated(this%sigma_n)) then
-      call error_msg('Initialization of PO Phonon called twice') 
+      call error_msg('Initialization of PO Phonon called twice')
     end if
     allocate(TMatrixCacheMem::this%sigma_n)
     select type(p => this%sigma_n)
     type is(TMatrixCacheMem)
       p%tagname = 'Sigma_n'
-    end select   
+    end select
 
   end subroutine ElPhonPO_init
 
@@ -219,7 +255,7 @@ contains
   ! @param wq: phonon frequence
   ! @param niter: fixed number of scba iterations
   subroutine ElPhonNonPO_init(this, comm, struct, basis, coupling, wq, Temp, &
-             & dz, D0, cell_area, niter, tridiag)
+             & dz, D0, Mcell, cell_vol, a0, niter, tridiag)
     type(ElPhonNonPolarOptical) :: this
     type(MPI_Comm), intent(in) :: comm
     type(TStruct_Info), intent(in) :: struct
@@ -229,7 +265,9 @@ contains
     real(dp), intent(in) :: Temp
     real(dp), intent(in) :: dz
     real(dp), intent(in) :: D0
-    real(dp), intent(in) :: cell_area
+    real(dp), intent(in) :: Mcell
+    real(dp), intent(in) :: cell_vol
+    real(dp), intent(in) :: a0
     integer, intent(in) :: niter
     logical, intent(in) :: tridiag
 
@@ -246,19 +284,30 @@ contains
     this%coupling = coupling(1)
     this%dz = dz
     this%D0 = D0
-    this%cell_area = cell_area
+    this%Mcell = Mcell
+    this%a0 = a0
+    this%cell_area = cell_vol/a0
     this%tTridiagonal = tridiag
 
+    call set_reciprocal_vectors(basis, this%recVecs2p)
     ! Initialize the cache space
     if (associated(this%sigma_r)) then
-      call error_msg('Initialization of non-PO Phonon called twice') 
+      call error_msg('Initialization of non-PO Phonon called twice')
     end if
-    allocate(this%sigma_r, source=TMatrixCacheMem(tagname='Sigma_r'))
-    
+    allocate(TMatrixCacheMem::this%sigma_r)
+    select type(p => this%sigma_r)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_r'
+    end select
+
     if (associated(this%sigma_n)) then
-      call error_msg('Initialization of non-PO Phonon called twice') 
+      call error_msg('Initialization of non-PO Phonon called twice')
     end if
-    allocate(this%sigma_n, source=TMatrixCacheMem(tagname='Sigma_n'))
+    allocate(TMatrixCacheMem::this%sigma_n)
+    select type(p => this%sigma_n)
+    type is(TMatrixCacheMem)
+      p%tagname = 'Sigma_n'
+    end select
 
   end subroutine ElPhonNonPO_init
   !--------------------------------------------------------------------------
@@ -313,18 +362,67 @@ contains
   end subroutine set_EnGrid
 
   !--------------------------------------------------------------------------
-  ! PO phonons: see derivation slides:
-  ! Sigma_mn(k,E) = Sum_q,G K(|zm - zn|, k, q+G) [B(-)*Gmn(q,E-wq) + B(+)*Gmn(q,E+wq)]
+  ! PO phonons: see also derivation slides:
+  !
+  ! Sigma_mn(kt,E) = Sum_{qt' in BZ} w(qt') *
+  !                        Sum_qz |U(q)|^2 e^(i*qz*|zm - zn|) * Gmn(~[kt-qt'], E-E')*D(E')
+  !
+  ! |U(q)|^2 = Ce * q^2/(q^2 + q0^2)^2  screened Frolich coupling
+  ! q = qt' + qz z^  (q is a 3D wave-vector, qt' is 2D)
+  ! ~[kt-qt'] means folded in the BZ
+  ! Set qt = kt-qt'  =>  qt'=kt-qt = Q
+  !
+  ! First perform F = Sum_qz (Q^2 + qz^2)/[ Q^2 + q0^2 + qz^2 ] exp(i*qz*|zm-zn|)
+  ! then
+  ! K(|zm-zn|, kt, qt) = F(|zm-zn|, Q^2) * Ce * w(~[kt-qt])
+  !
+  ! Sigma_mn(kt,E) = Sum_qt K(|zm-zn|, kt, qt) [B(-)*Gmn(qt,E-wq) + B(+)*Gmn(qt,E+wq)]
+  !
+  ! k <-> -k   symmetry:
+  ! H(k)=H(-k), G(q,E)=G(-q,E) => Since F depends on Q^2, F(Q)=F(-Q)
+  ! => K(dz, k,q)=K(dz, -k,-q)  and  K(dz, k, -q) = K(dz, -k, q)
+  ! Sigma(+k) = Sum_{q\2} K(k,q) G(q) + Sum_{-q\2} K(k,-q) G(q)
+  !                       =                          =
+  ! Sigma(-k) = Sum_{-q\2} K(-k,-q) G(q) + Sum_{q\2} K(-k,q) G(q)
+  !
+  ! Implementation:
+  !
+  ! The sum over qt can be re-written,
+  !
+  ! Sigma_mn(kt,E) = Sum_{qt in IBZ} Sum_{qe~qt}
+  !                 K(|zm-zn|, kt, qe) [B(-)*Gmn(qe,E-wq) + B(+)*Gmn(qe,E+wq)]
+  !
+  ! IMPORTANT ISSUES:
+  ! 1. Since we reconstruct all kpoints, the weights should not carry the 2x factors.
+  ! 2. Any calling code will typically pass weights with 2x factors. Since we need to recompute
+  !    the original weights and since we avoid to search w(~[kt-qt]) we assume a homogeneus sampling:
+  !
+  ! |o o x x|   4x4 k-sampling on the [0..1] x [0..1]
+  ! |o o x x|   The x are what DFTB+ removes for symmetry. Notice it is NOT k->-k symmetry
+  ! |o o x x|   The BZ does not extend -Pi/2..Pi/2 but [0..Pi]
+  ! |o o x x|
+  ! ---------->
+  ! 0       1
+  ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  ! Model PO phonons in 2D materials like MoS2 [PHYSICAL REVIEW B 85, 115317 (2012)]
+  !
+  ! g_LO(q) = g0*erfc(q*s/2)   where s is an effective layer thickness, X(z)~exp(-z^2/2s^2)
+  !
+  ! since we need |g|^2, we have to approximate erfc^2(x) ~ sum_i=1,3 cc(i)*exp(-aa(i)*x^2)
+  ! Then we have:
+  !  s/A Sum_qt w(qt) Int_-inf^+inf dQz/2pi exp(-aa(i)*s^2*Qz^2/4) * exp(-i Qz dz)
+  !
+  !----------------------------------------------------------------------------------------------
   subroutine prepare_POKmat(this)
     class(ElPhonPolarOptical) :: this
 
     integer :: iZ, iQ, eQ, iK, nDeltaZ, nCentralAtoms, n_eq
-    real(dp) :: kq(3), kk(3), ekp(3), QQ(3), Q2, bb, z_mn, Kf
-    real(dp) :: zmin, zmax
-    real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
-
-    integer :: transDir
+    real(dp) :: kq(3), dk(3), QQ(3), Q2, bb, z_mn, Kf, s2
+    real(dp) :: zmin, zmax, w_single
+    integer :: transDir, nKpoints
     type(TEqPoint) :: eqv_points_iQ
+    real(dp), parameter :: cc(3)=[0.082343_dp, 0.341874_dp, 0.502502_dp]
+    real(dp), parameter :: aa(3)=[2.09718_dp, 3.03878_dp, 16.7786_dp]
 
     ! Compute the matrix Kmat as lookup table
     nCentralAtoms = this%basis%nCentralAtoms
@@ -334,74 +432,80 @@ contains
     zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
 
     nDeltaZ = nint((zmax - zmin)/this%dz)
+    nKpoints = size(this%kweight)
+
     if (allocated(this%Kmat)) then
        call log_deallocate(this%Kmat)
     end if
-    call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
+    call log_allocate(this%Kmat, nDeltaZ+1, nKpoints, nKpoints)
 
-    this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
-          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
-
-    !compute the absolute k-points
-    allocate(kpoint(3,size(this%kweight)))
-    if (all(this%basis%lattVecs == 0.0_dp)) then
-       kpoint = 0.0_dp
+    if (this%model2D) then
+      this%Ce = this%coupling/this%cell_area/sqrt(pi)
+      s2 = this%sigma**2
     else
-       kpoint = matmul(this%recVecs2p, this%kpoint)
+      this%Ce = this%coupling*this%wq/2.0_dp/this%cell_area* &
+          & (1.0_dp/this%eps_inf - 1.0_dp/this%eps0)
     end if
 
-    iQloop: do iQ = 1, size(this%kweight)
-      kq = kpoint(:, iQ)
-      do iK = 1, size(this%kweight)
-        kk = kpoint(:, iK)
-        QQ = kk - kq
-        Q2 = dot_product(QQ, QQ)
-        bb = sqrt(this%q0*this%q0 + Q2)
-        !print*,"QQ=",kk-kq
-        !print*,"bb=",bb
-        do iZ = 0, nDeltaZ
-          z_mn = iZ * this%dz
-          Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
-          this%Kmat(iZ+1,iK,iQ) = this%Ce * this%kweight(iQ) * Kf
-        end do
-      end do
+    ! K(|zm-zn|, k, q) = [I(|zm-zn|,k+G,q)+Sum_qe I(|zm-zn|,k+G,qe)]*w(q)
+    iQloop: do iQ = 1, nKpoints
 
-      ! Add contribution of kpoints equivalent to iQ
-      if (allocated(this%equivalent_kpoints)) then
-        !Select the set of points equivalent to iQ
-        eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
-        n_eq = size(eqv_points_iQ%points, 2)
-        !Compute the absolute k-points
-        call log_allocate(ekpoints, 3, n_eq)
-        ekpoints = matmul(this%recVecs2p, eqv_points_iQ%points)
+       ! restoring original weights. Note assumptions above
+       if (allocated(this%equivalent_kpoints)) then
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+           n_eq = size(eqv_points_iQ%points, 2)
+           w_single = this%kweight(iQ) / real(n_eq + 1, dp)
+       else
+           n_eq = 0
+           w_single = this%kweight(iQ)
+       end if
 
-        do eQ = 1, n_eq
-          ekp = ekpoints(:,eQ)
-          do iK = 1, size(this%kweight)
-            kk = kpoint(:, iK)
-            QQ = kk - ekp
-            Q2 = dot_product(QQ, QQ)
-            bb = sqrt(this%q0*this%q0 + Q2)
+       iKloop: do iK = 1, nKpoints
+         dk(:) = this%kpoint(:,iK)-this%kpoint(:,iQ)
+         call fold_into_BZ(dk, kQ)
+         ! We now get QQ in absolute coordinates
+         QQ = matmul(this%recVecs2p, kQ)
+         Q2 = dot_product(QQ, QQ)
+         bb = sqrt(this%q0*this%q0 + Q2)
 
-            do iZ = 0, nDeltaZ
-              z_mn = iZ * this%dz
-              Kf = (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
-              this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + this%Ce * this%kweight(iQ) * Kf
-            end do
-          end do
-        enddo
-        call log_deallocate(ekpoints)
-      endif
+         do iZ = 0, nDeltaZ
+           z_mn = iZ * this%dz
+           if (this%model2D) then
+             this%Kmat(iZ+1,iK,iQ) = &
+               & sum( cc(:)/sqrt(aa(:)) * exp(-aa(:)*s2*Q2/4.0_dp)*exp(-z_mn**2/(aa(:)*s2)) )
+           else
+             this%Kmat(iZ+1,iK,iQ) = &
+               & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+           end if
+         end do
 
+         ! Add contribution of kpoints equivalent to iQ
+         if (n_eq > 0) then
+           !Select the set of points equivalent to iQ
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+
+           do eQ = 1, n_eq
+             dk(:) = this%kpoint(:,iK)-eqv_points_iQ%points(:,eQ)
+             call fold_into_BZ(dk, kQ)
+             QQ = matmul(this%recVecs2p, kQ)
+             Q2 = dot_product(QQ, QQ)
+             bb = sqrt(this%q0*this%q0 + Q2)
+
+             do iZ = 0, nDeltaZ
+               z_mn = iZ * this%dz
+               if (this%model2D) then
+                 this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + &
+                   & sum( cc(:)/sqrt(aa(:)) * exp(-aa(:)*s2*Q2/4.0_dp)*exp(-z_mn**2/(aa(:)*s2)) )
+               else
+                 this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + &
+                   & (2.0_dp*Q2 + this%q0*this%q0*(1.0_dp-bb*z_mn))*exp(-bb*z_mn)/ (4.0_dp*bb**3)
+               end if
+             end do
+           end do
+         end if
+       end do iKloop
+       this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) * this%Ce * w_single
     end do iQloop
-
-    deallocate(kpoint)
-    !print*,'debug print Kmat'
-    !open(newunit=fu, file='Kmat.dat')
-    !do iZ = 0, nDeltaZ
-    !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
-    !end do
-    !close(fu)
 
   end subroutine prepare_POKmat
 
@@ -412,11 +516,9 @@ contains
     class(ElPhonNonPolarOptical) :: this
 
     integer :: iZ, iQ, iK, nDeltaZ, nCentralAtoms, eQ, n_eq
-    real(dp) :: kq(3), kk(3), QQ, Q2, kq2, kk2, z_mn, Kf, ekp(3), ekp2
-    real(dp) :: zmin, zmax
-    real(dp), allocatable :: kpoint(:,:), ekpoints(:,:)
+    real(dp) :: zmin, zmax, z_mn, w_single
 
-    integer :: transDir
+    integer :: transDir, nKpoints
     type(TEqPoint) :: eqv_points_iQ
 
     ! Compute the matrix Kmat as lookup table
@@ -427,97 +529,177 @@ contains
     zmax = maxval(this%basis%x(transDir,1:nCentralAtoms))
 
     nDeltaZ = nint((zmax - zmin)/this%dz)
+    nKpoints = size(this%kweight)
+
     if (allocated(this%Kmat)) then
        call log_deallocate(this%Kmat)
     end if
-    call log_allocate(this%Kmat, nDeltaZ+1, size(this%kweight), size(this%kweight))
+    call log_allocate(this%Kmat, nDeltaZ+1, nKpoints, nKpoints)
 
-    !compute the absolute k-points
-    allocate(kpoint(3,size(this%kweight)))
-    if (all(this%basis%lattVecs == 0.0_dp)) then
-       kpoint = 0.0_dp
+    if (this%D0==0.0_dp .or. this%Mcell==0.0_dp) then
+      ! coupling here is energy units
+      this%Ce = this%coupling**2/pi
     else
-       kpoint = matmul(this%recVecs2p, this%kpoint)
+      ! coupling here is just a scaling factor
+      ! D0^2 hbar^2 c^2 / (hbar wq Mcell c^2) = E^2/L^2 * E^2 L^2/(E^2) = E^2
+      this%Ce = this%coupling*this%D0**2*hbar2c2/(2.0_dp*pi*this%wq*this%Mcell)
     end if
 
-    iQloop: do iQ = 1, size(this%kweight)
-      kq = kpoint(:, iQ)
-      kq2 = dot_product(kq,kq)
-      if (kq2==0.0_dp) then
-         this%Kmat(:,:,iQ) = 0.0_dp
-         cycle
-      end if
-      do iK = 1, size(this%kweight)
-        kk = kpoint(:, iK)
-        kk2 = dot_product(kk,kk)
-        if (kk2==0.0_dp) then
-           this%Kmat(:,iK,iQ) = 0.0_dp
-           cycle
-        end if
-        QQ = dot_product(kk, kq)
-        Q2 = QQ*QQ
-        do iZ = 0, nDeltaZ
-          z_mn = iZ * this%dz
-          Kf = this%D0*Q2*exp(-sqrt(kq2)*z_mn)/(2.0_dp*kq2*kk2)
-          !if (isNan(Kf)) then
-          !   print*,kq2,kk2,QQ
-          !   stop
-          !end if
-          this%Kmat(iZ+1,iK,iQ) = this%coupling * this%kweight(iQ) * Kf
-        end do
-      end do
+    iQloop: do iQ = 1, nKpoints
+       ! restoring original weights. Note assumptions above
+       if (allocated(this%equivalent_kpoints)) then
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
+           n_eq = size(eqv_points_iQ%points, 2)
+           w_single = this%kweight(iQ) / real(n_eq + 1, dp)
+       else
+           n_eq = 0
+           w_single = this%kweight(iQ)
+       end if
 
-      ! Add contribution of kpoints equivalent to iQ
-      if (allocated(this%equivalent_kpoints)) then
-        !Select the set of points equivalent to iQ
-        eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
-        n_eq = size(eqv_points_iQ%points, 2)
-        !Compute the absolute k-points
-        call log_allocate(ekpoints, 3, n_eq)
-        ekpoints = matmul(this%recVecs2p, eqv_points_iQ%points)
+       iKloop: do iK = 1, nKpoints
 
-        do eQ = 1, n_eq
-          ekp = ekpoints(:,eQ)
-          ekp2 = dot_product(ekp,ekp)
-          if (ekp2==0.0_dp) then
-            this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) + 0.0_dp
-            cycle
-         end if
-
-         do iK = 1, size(this%kweight)
-          kk = kpoint(:, iK)
-          kk2 = dot_product(kk,kk)
-          if (kk2==0.0_dp) then
-             this%Kmat(:,iK,iQ) = this%Kmat(:,iK,iQ) + 0.0_dp
-             cycle
-          end if
-          QQ = dot_product(kk, ekp)
-          Q2 = QQ*QQ
-          do iZ = 0, nDeltaZ
-            z_mn = iZ * this%dz
-            Kf = this%D0*Q2*exp(-sqrt(ekp2)*z_mn)/(2.0_dp*ekp2*kk2)
-
-            this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + this%coupling * this%kweight(iQ) * Kf
-          end do
+         do iZ = 0, nDeltaZ
+           z_mn = iZ * this%dz
+           this%Kmat(iZ+1,iK,iQ) = exp(-z_mn/this%a0)
          end do
 
-        end do
-        call log_deallocate(ekpoints)
-      endif
+         ! Add contribution of kpoints equivalent to iQ
+         if (n_eq > 0) then
+           !Select the set of points equivalent to iQ
+           eqv_points_iQ = this%equivalent_kpoints%EqPoints(iQ)
 
+           do eQ = 1, n_eq
+             do iZ = 0, nDeltaZ
+               z_mn = iZ * this%dz
+               this%Kmat(iZ+1,iK,iQ) = this%Kmat(iZ+1,iK,iQ) + exp(-z_mn/this%a0)
+             end do
+           end do
+         end if
+       end do iKloop
+       this%Kmat(:,:,iQ) = this%Kmat(:,:,iQ) * this%Ce * w_single
     end do iQloop
-    !if (any(isNan(this%Kmat))) then
-    !  print*,'Kmat= NaN'
-    !  stop
-    !end if
-    !open(newunit=fu, file='Kmat.dat')
-    !do iZ = 0, nDeltaZ
-    !  write(fu,*) iZ*this%dz, this%Kmat(iZ+1,1,1)
-    !end do
-    !close(fu)
 
   end subroutine prepare_NonPOKmat
 
+  !--------------------------------------------------------------------------
+  ! This routine generates 2d integer G vectors of size r2=m**2+n**2
+  ! It does not take into account the actual ||G|| of recLatticeVecs
+  ! Potential issue: The internal predefined size of myG is 128
+  !                  which is found ok even for r2=1,000,000
+  subroutine set_shell_G(r2, transDir, GG, dummyDir)
+    integer, intent(in) :: r2
+    integer, intent(in) :: transDir
+    integer, intent(in), optional :: dummyDir
+    integer, allocatable :: GG(:,:)
+
+    integer :: mmax, iG, m, n, ortDir1, ortDir2
+    integer :: counts
+    integer :: myG(2,128)
+    real :: nr
+
+    ! Special handling of 2D system with dummy periodicity
+    ! and G-vectors in 1 dimension only:
+    if (present(dummyDir)) then
+      if (dummyDir == transDir) then
+        error stop "dummyDir == transport Dir ?"
+      end if
+      if (transDir==1 .and. dummyDir==2) ortDir1=3
+      if (transDir==1 .and. dummyDir==3) ortDir1=2
+      if (transDir==2 .and. dummyDir==1) ortDir1=3
+      if (transDir==2 .and. dummyDir==3) ortDir1=1
+      if (transDir==3 .and. dummyDir==1) ortDir1=2
+      if (transDir==3 .and. dummyDir==2) ortDir1=1
+      nr = int(sqrt(1.0*r2))
+      if (nr == 1.0*int(nr)) then
+        n = int(nr)
+        allocate(GG(3,2))
+        GG(transDir,:) = 0
+        GG(dummyDir,:) = 0
+        GG(ortDir1,1) = n
+        GG(ortDir1,2) = -n
+      end if
+      return
+    end if
+
+    select case(transDir)
+    case(1)
+      ortDir1=2; ortDir2=3
+    case(2)
+      ortDir1=3; ortDir2=1
+    case(3)
+      ortDir1=1; ortDir2=2
+    end select
+
+    if (allocated(GG)) deallocate(GG)
+
+    mmax=int(sqrt(1.0*r2))
+    counts=0
+
+    do m = 0, mmax
+      nr = sqrt(1.0*(r2-m**2))
+      if (nr == 1.0*int(nr)) then
+        n = int(nr)
+        counts = counts + 1
+        myG(1,counts) = m
+        myG(2,counts) = n
+        if (n /= 0) then
+          counts = counts + 1
+          myG(1,counts) = m
+          myG(2,counts) = -n
+        end if
+        if (m /= 0) then
+          counts = counts + 1
+          myG(1,counts) = -m
+          myG(2,counts) = n
+          if (n /= 0) then
+            counts = counts + 1
+            myG(1,counts) = -m
+            myG(2,counts) = -n
+          end if
+        end if
+      end if
+    end do
+    if (counts>0) then
+      allocate(GG(3,counts))
+      GG(transDir,:) = 0
+      do iG = 1, counts
+        GG(ortDir1,iG) = myG(1,iG)
+        GG(ortDir2,iG) = myG(2,iG)
+      end do
+    end if
+
+  end subroutine set_shell_G
+
+  !--------------------------------------------------------------------------
+  ! Folds a kpoint into the first BZ [-1/2..1/2] x [-1/2..1/2]
+  !
+  ! Note: the Subroutine assumes kpoint is in [-1..1] x [-1..1]
+  subroutine fold_into_BZ(kpoint, kpoint_fold)
+    real(dp), intent(in) :: kpoint(3)
+    real(dp), intent(out) :: kpoint_fold(3)
+
+    kpoint_fold = kpoint
+
+    if (kpoint(1) > 0.5_dp) then
+      kpoint_fold(1) = kpoint(1) - 1.0_dp
+    end if
+    if (kpoint(1) < -0.5_dp) then
+      kpoint_fold(1) = kpoint(1) + 1.0_dp
+    end if
+    if (kpoint(2) > 0.5_dp) then
+      kpoint_fold(2) = kpoint(2) - 1.0_dp
+    end if
+    if (kpoint(2) < -0.5_dp) then
+      kpoint_fold(2) = kpoint(2) + 1.0_dp
+    end if
+    if (kpoint(3) > 0.5_dp) then
+      kpoint_fold(3) = kpoint(3) - 1.0_dp
+    end if
+    if (kpoint(3) < -0.5_dp) then
+      kpoint_fold(3) = kpoint(3) + 1.0_dp
+    end if
+
+  end subroutine fold_into_BZ
 
   !--------------------------------------------------------------------------
   subroutine destroy_elph(this)
@@ -536,7 +718,7 @@ contains
 
   !--------------------------------------------------------------------------
   !> Retrieve matrix pointer from cache and add it to ESH
-#:def add_sigma_r_template(KIND,MTYPE)  
+#:def add_sigma_r_template(KIND,MTYPE)
   subroutine add_sigma_r_${KIND}$(this, esh, en_index, k_index, spin)
     class(ElPhonInel) :: this
     type(${MTYPE}$), dimension(:,:), intent(inout) :: esh
@@ -545,7 +727,7 @@ contains
     integer, intent(in), optional :: spin
 
     integer :: npl, jj
-    type(x_dns), pointer :: tmp_blk
+    type(x_DNS), pointer :: tmp_blk
     type(TMatLabel) :: label
     !print*,'inel%add_sigma_r'
     npl = this%struct%num_PLs
@@ -555,6 +737,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -577,11 +762,11 @@ contains
     end do
 
   end subroutine add_sigma_r_${KIND}$
-#:enddef add_sigma_r_template  
+#:enddef add_sigma_r_template
 
   !--------------------------------------------------------------------------
   !> Retrieve matrix pointer from cache and add it to sigma
-#:def add_sigma_n_template(KIND,MTYPE)  
+#:def add_sigma_n_template(KIND,MTYPE)
   subroutine add_sigma_n_${KIND}$(this, sigma, en_index, k_index, spin)
     class(ElPhonInel) :: this
     type(${MTYPE}$), dimension(:,:), intent(inout) :: sigma
@@ -590,7 +775,7 @@ contains
     integer, intent(in), optional :: spin
 
     integer :: npl, jj
-    type(x_dns), pointer :: tmp_blk
+    type(x_DNS), pointer :: tmp_blk
     type(TMatLabel) :: label
     npl = this%struct%num_PLs
 
@@ -599,6 +784,9 @@ contains
     label%kpoint = k_index
     label%energy_point = en_index
     label%spin = 1
+    if (present(spin)) then
+      label%spin = spin
+    end if
 
     do jj = 1, npl
       label%row_block = jj
@@ -619,14 +807,14 @@ contains
     end do
 
   end subroutine add_sigma_n_${KIND}$
-#:enddef add_sigma_n_template  
+#:enddef add_sigma_n_template
 
 #:for PREC in PRECISIONS
      #:set KIND = PREC_ABBREVS[PREC]
      #:set MTYPE = MAT_TYPES['complex'][PREC]
 
      $:add_sigma_r_template(KIND,MTYPE)
-     
+
      $:add_sigma_n_template(KIND,MTYPE)
 #:endfor
 
@@ -635,7 +823,7 @@ contains
   !
   subroutine get_sigma_n_blk(this, blk_sigma_n, en_index, k_index, spin)
     class(ElPhonInel) :: this
-    type(z_dns), dimension(:,:), intent(inout) :: blk_sigma_n
+    type(x_DNS), dimension(:,:), intent(inout) :: blk_sigma_n
     integer, intent(in), optional :: en_index
     integer, intent(in), optional :: k_index
     integer, intent(in), optional :: spin
@@ -647,7 +835,7 @@ contains
 
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
     if (present(k_index)) then
       label%kpoint = k_index
     end if
@@ -672,7 +860,7 @@ contains
   !
   subroutine get_sigma_n_mat(this, sigma_n, ii, jj, en_index, k_index, spin)
     class(ElPhonInel) :: this
-    type(z_dns), intent(inout) :: sigma_n
+    type(x_DNS), intent(inout) :: sigma_n
     integer, intent(in) :: ii
     integer, intent(in) :: jj
     integer, intent(in), optional :: en_index
@@ -687,7 +875,7 @@ contains
     label%col_block = jj
     label%kpoint = 0
     label%energy_point = 0
-    label%spin = 0
+    label%spin = 1
 
     if (present(k_index)) then
       label%kpoint = k_index
@@ -722,6 +910,169 @@ contains
     integer, intent(in), optional  :: spin
   end subroutine set_Gn
 
+  subroutine init_sigma_r(this, spin)
+    class(ElPhonInel) :: this
+    integer, intent(in), optional :: spin
+
+    integer :: nbl, nEloc, nKloc, iK, iE, ibl
+    integer :: PL_start, Np, Mp
+    type(TMatLabel) :: label
+    type(x_DNS) :: tmp
+
+    nbl = this%struct%num_PLs
+    NEloc = this%nE_local
+    NKloc = size(this%local_kindex)
+
+    label%spin = 1
+    if (present(spin)) then
+       label%spin = spin
+    end if
+
+    select type(p => this%sigma_r)
+    class is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          if (this%tTridiagonal) then
+            call p%init(nEloc, nKloc, nbl, 3, 1)
+          else
+            call p%init(nEloc, nKloc, nbl, 1, 1)
+          end if
+       end if
+    end select
+
+    ! Init blocks of Sigma_r
+    do iK = 1, NKloc
+      do iE = 1, NEloc
+        label%kpoint = iK
+        label%energy_point = iE
+
+        do ibl = 1, nbl
+          PL_start = this%struct%mat_PL_start(ibl)
+          Np = this%struct%mat_PL_end(ibl) - PL_start + 1
+          associate(Sigma_r => this%Sigma_r)
+
+          ! Diag blocks
+          label%row_block = ibl
+          label%col_block = ibl
+          if (.not.Sigma_r%is_cached(label)) then
+            call create(tmp,Np,Np)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_r%add(tmp, label)
+            call destroy(tmp)
+          end if
+
+          if (this%tTridiagonal .and. ibl < nbl) then
+            PL_start = this%struct%mat_PL_start(ibl+1)
+            Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
+
+            ! Subdiag blocks
+            label%row_block = ibl
+            label%col_block = ibl + 1
+            if (.not.Sigma_r%is_cached(label)) then
+              call create(tmp,Np,Mp)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_r%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+            ! Overdiag blocks
+            label%row_block = ibl + 1
+            label%col_block = ibl
+            if (.not.Sigma_r%is_cached(label)) then
+              call create(tmp,Mp,Np)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_r%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+          end if
+          end associate
+        end do
+      end do
+    end do
+
+  end subroutine init_sigma_r
+
+  subroutine init_sigma_n(this, spin)
+    class(ElPhonInel) :: this
+    integer, intent(in), optional :: spin
+
+    integer :: nbl, nEloc, nKloc, iK, iE, ibl
+    integer :: PL_start, Np, Mp
+    type(TMatLabel) :: label
+    type(x_DNS) :: tmp
+
+    nbl = this%struct%num_PLs
+    NEloc = this%nE_local
+    NKloc = size(this%local_kindex)
+
+    label%spin = 1
+    if (present(spin)) then
+       label%spin = spin
+    end if
+
+    select type(p => this%sigma_n)
+    class is(TMatrixCacheMem)
+       if (.not.p%isInitialized) then
+          if (this%tTridiagonal) then
+            call p%init(nEloc, nKloc, nbl, 3, 1)
+          else
+            call p%init(nEloc, nKloc, nbl, 1, 1)
+          end if
+       end if
+    end select
+
+    ! Init blocks of Sigma_n
+    do iK = 1, NKloc
+      do iE = 1, NEloc
+        label%kpoint = iK
+        label%energy_point = iE
+
+        do ibl = 1, nbl
+          PL_start = this%struct%mat_PL_start(ibl)
+          Np = this%struct%mat_PL_end(ibl) - PL_start + 1
+          associate(Sigma_n => this%Sigma_n)
+
+          ! Diag blocks
+          label%row_block = ibl
+          label%col_block = ibl
+          if (.not.Sigma_n%is_cached(label)) then
+            call create(tmp,Np,Np)
+            tmp%val = (0.0_dp, 0.0_dp)
+            call Sigma_n%add(tmp, label)
+            call destroy(tmp)
+          end if
+
+          if (this%tTridiagonal .and. ibl < nbl) then
+            PL_start = this%struct%mat_PL_start(ibl+1)
+            Mp = this%struct%mat_PL_end(ibl+1) - PL_start + 1
+
+            ! Subdiag blocks
+            label%row_block = ibl
+            label%col_block = ibl + 1
+            if (.not.Sigma_n%is_cached(label)) then
+              call create(tmp,Np,Mp)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_n%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+            ! Overdiag blocks
+            label%row_block = ibl + 1
+            label%col_block = ibl
+            if (.not.Sigma_n%is_cached(label)) then
+              call create(tmp,Mp,Np)
+              tmp%val = (0.0_dp, 0.0_dp)
+              call Sigma_n%add(tmp, label)
+              call destroy(tmp)
+            end if
+
+          end if
+          end associate
+        end do
+      end do
+    end do
+
+  end subroutine init_sigma_n
 
   !--------------------------------------------------------------------------
   !> Give the Gn at given energy point to the interaction
@@ -950,8 +1301,6 @@ contains
     integer :: iK, iE, Ndz, PL_start
     complex(lp) :: fac_min, fac_plus
     type(TMatPointer), allocatable :: pGG(:,:), pSigma(:,:)
-    !type(z_DNS), pointer :: pMat
-    !type(z_DNS) :: Sigma_n
     integer, allocatable :: izr(:), izc(:)
     type(TMatLabel) :: label
     integer :: transDir
@@ -1115,6 +1464,23 @@ contains
     end if
   end subroutine destroy_Sigma_n
 
+  !> Zero-out Sigma_r
+  subroutine clear_Sigma_r(this)
+    class(ElPhonInel) :: this
+    if (associated(this%sigma_r)) then
+      call this%sigma_r%clear()
+    end if
+  end subroutine clear_Sigma_r
+
+  !> Zero-out Sigma_n
+  subroutine clear_Sigma_n(this)
+    class(ElPhonInel) :: this
+    if (associated(this%sigma_n)) then
+      call this%sigma_n%clear()
+    end if
+  end subroutine clear_Sigma_n
+
+
   subroutine set_reciprocal_vectors(basis, reciprocal_mat)
     type(TBasisCenters), intent(in) :: basis
     real(dp), intent(inout) :: reciprocal_mat(3,3)
@@ -1126,19 +1492,22 @@ contains
     latt_vec1 = basis%lattVecs(:, 1)
     latt_vec2 = basis%lattVecs(:, 2)
     latt_vec3 = basis%lattVecs(:, 3)
-
     vol = volume(latt_vec1, latt_vec2, latt_vec3)
 
-    call cross_product(latt_vec2, latt_vec3, cross_prod)
-    rec_vec1 = (2.0_dp*pi*cross_prod) / vol
-    call cross_product(latt_vec3, latt_vec1, cross_prod)
-    rec_vec2 = (2.0_dp*pi*cross_prod) / vol
-    call cross_product(latt_vec1, latt_vec2, cross_prod)
-    rec_vec3 = (2.0_dp*pi*cross_prod) / vol
+    if (vol > 0.0_dp) then
+      call cross_product(latt_vec2, latt_vec3, cross_prod)
+      rec_vec1 = (2.0_dp*pi*cross_prod) / vol
+      call cross_product(latt_vec3, latt_vec1, cross_prod)
+      rec_vec2 = (2.0_dp*pi*cross_prod) / vol
+      call cross_product(latt_vec1, latt_vec2, cross_prod)
+      rec_vec3 = (2.0_dp*pi*cross_prod) / vol
 
-    reciprocal_mat(:, 1) = rec_vec1
-    reciprocal_mat(:, 2) = rec_vec2
-    reciprocal_mat(:, 3) = rec_vec3
+      reciprocal_mat(:, 1) = rec_vec1
+      reciprocal_mat(:, 2) = rec_vec2
+      reciprocal_mat(:, 3) = rec_vec3
+   else
+      reciprocal_mat = 0.0_dp
+   end if
 
   end subroutine set_reciprocal_vectors
 
@@ -1166,5 +1535,293 @@ contains
   ! Could place a resolution of 0.01 AA => 540 points
   ! => 65563 * 1000 * 8 ~ 500 Mb
   ! We need a mapping: matrix index(mu) -> bin(iz)
+
+  subroutine selfenergy(comm2d, GG, fac_minus, fac_plus, iEhbaromega, &
+                               &  izr, izc, KK, NK, NKloc, NE, NEloc, kindices_map, Sigma)
+    type(MPI_Comm), intent(in) :: comm2d
+    type(TMatPointer), intent(in) :: GG(0:,0:)
+    complex(lp), intent(in) :: fac_minus
+    complex(lp), intent(in) :: fac_plus
+    integer, intent(in) :: izr(:), izc(:)
+    real(lp), intent(in) :: KK(0:,0:,0:)
+    integer, intent(in) :: iEhbaromega
+    integer, intent(in) :: NK
+    integer, intent(in) :: NKloc
+    integer, intent(in) :: NE
+    integer, intent(in) :: NEloc
+    integer, intent(in) :: kindices_map(0:,0:)
+    type(TMatPointer), intent(in) :: Sigma(0:,0:)
+
+    ! locals
+    integer :: Np, Mp, iQ, iK, iQglo, iQglo2, iKglo, nu
+    integer :: iEminus, iEplus, iE, iEglo, iin
+    integer :: myid, commsize, ndims = 2
+    integer :: dims(2), coords(2), coordsH(2)
+    type(x_DNS), target :: rbuff1, rbuff2, sbuffK, rbuffK
+    type(x_DNS), pointer :: pbuff1, pbuff2, pGG1, pGG2, pSigma
+    real(lp), allocatable :: KKbuf(:)
+    integer :: ierr
+    type(MPI_Request) :: rqE1,rqE2,rqE3,rqE4, rqK1, rqK2
+    type(MPI_Status) :: statE(4), statK(2)
+
+    integer :: msource, mdest, psource, pdest
+    integer :: hsource, hdest
+    integer :: ndiff
+
+    dims(1) = NK/NKloc
+    dims(2) = NE/NEloc
+
+    call MPI_comm_size(comm2d, commsize, ierr)
+    call MPI_comm_rank(comm2d, myid, ierr)
+    call MPI_cart_coords(comm2d, myid, ndims, coords, ierr)
+    call MPI_barrier(comm2d, ierr)
+
+    Np = size(GG(0,0)%pMat%val,1)
+    Mp = size(GG(0,0)%pMat%val,2)
+
+    call create(rbuff1, Np, Mp)
+    call create(rbuff2, Np, Mp)
+    call create(sbuffK, Np, Mp)
+    call create(rbuffK, Np, Mp)
+
+    ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) *
+    !               * (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
+    qloop:do iQ = 0, NKloc-1
+      iQglo = kindices_map(iQ,coords(1))-1
+      eloop:do iE = 0, NEloc-1
+        iEglo = iE + coords(2)*NEloc
+        !////////////////////////////////////////////////////////////////////////////////////
+        !// Communications of G(k, E-hwq)
+        !////////////////////////////////////////////////////////////////////////////////////
+        !//  012345 012345 012345 012345    iE < NEloc = 6
+        !//  -------------------------------------------------------------------------------
+        !//  000000 000011 111111 112222
+        !//  012345 678901 234567 890123    iEglo = 1 + 6 = 7
+        !// |oooooo|oooooo|oooooo|oooooo|
+        !//  ^-----|-E----|--^              ihbarOmega = 7; ndiff = 1 iMinus = 0
+        !//     ^--|----E-|-----^                           ndiff = 1 iMinus = 3
+        !//       ^|------|E-----|--^                       ndiff = 2 iMinus = 5
+        !//^|------|E-----|-^                               ndiff = 1 iMinus = 0
+        !////////////////////////////////////////////////////////////////////////////////////
+        nullify(pbuff1)
+        nullify(pbuff2)
+        !// pbuff1 => G(k,E-wq)
+        !// checks if iE-iEhbaromega is on the same processor => no communication
+        !//          for E<0 take G(E<0) = 0
+        mdest = MPI_PROC_NULL
+        msource = MPI_PROC_NULL
+        iEminus = iE - iEhbaromega
+        if (iEminus >= 0) then
+          pbuff1 => GG(iEminus, iQ)%pMat
+        else !(iEminus < 0)
+          rbuff1%val=(0.0_lp, 0.0_lp)
+          pbuff1 => rbuff1
+        end if
+
+        ! -------------------------------------------------------------------------------
+        ! MPI communications.
+        ! Communications take place if (iE < iEhbaromega .and. iEglo >= iEhbaromega)
+        ! The latter is necessary to avoid 1-to-many communications
+        ! If we take G(0) for all G(E<0) it is possible that rank 0 has to send
+        ! G's to more than 1 rank, whenever ihbaromega > NEloc
+        ! Example behaviour for ihbaromega=7 and NEloc=6, for iE=0:
+        ! iEglo=0; ndiff=0 => no communication
+        ! iEglo=6; ihbaromega=7; NEloc=6 => ndiff=1; iEminus=0
+        ! => rank=0 SEND TO rank=1 GG(0,iQ)
+        ! iEglo=12; ihbaromega=7; ndiff=12/6 - 5/6 = 2 => iEminus=(18-7)%6=5
+        ! => rank=0 SEND TO rank=2 GG(5,iQ)
+        ! We have a 1 TO many communication
+        ! -------------------------------------------------------------------------------
+        if (dims(2) > 1) then
+          if (iE < iEhbaromega) then
+            if (iEglo - iEhbaromega < 0 ) then
+              rbuff1%val=(0.0_lp, 0.0_lp)
+              pbuff1 => rbuff1
+              ! takes care of the negative side where -1 turns into 0
+              ! so +1 is added at the end if (mod(iEhbaromega-iEglo, NEloc) /= 0)
+              !  ______________________
+              !  333333222222221111111100000000111111112222222233333333
+              ! --ooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo----------
+              !   345670123456701234567012345670123456701234567012345670
+              !        ^-------------------^
+              ! -----------------------------------------------------------------------------
+              !rank=           0 iE           4 iEglo           4 iEminus         -16     -16
+              !ndiff = (ihwq-iEglo)/NEloc + iEglo/NEloc = 16/8 + 0 = 2
+              !rank=           2 iE           4 iEglo          20 iEminus         -16      0
+              !ndiff = iEglo/NEloc - (iEglo-ihwq)/NEloc = 20/8 - (0) = 2
+              ! -----------------------------------------------------------------------------
+              !rank=           0 iE           5 iEglo           5 iEminus         -15     -15
+              !ndiff = (ihwq-iEglo)/NEloc + iEglo/NEloc + 1 = 15/8 + 0 + 1 = 2
+              !rank=           2 iE           5 iEglo          21 iEminus         -15      1
+              !ndiff = iEglo/NEloc - (iEglo-ihwq)/NEloc = 21/8 - 1/8  = 2
+              ! -----------------------------------------------------------------------------
+              ndiff = (iEhbaromega-iEglo)/NEloc + iEglo/NEloc
+              if (mod(iEhbaromega-iEglo, NEloc) /= 0) then
+                ndiff = ndiff + 1
+              end if
+            else
+              ! get processor distance between iEglo and iEglo-ihbarOmega
+              ndiff = iEglo/NEloc - (iEglo-iEhbaromega)/NEloc
+            end if
+
+            iEminus = mod(iE + (ndiff+1)*NEloc - iEhbaromega, NEloc)
+
+            call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
+
+            if (mdest /= MPI_PROC_NULL) then
+               pGG1 => GG(iEminus, iQ)%pMat
+               call MPI_Isend(pGG1%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
+            end if
+
+            if (msource /= MPI_PROC_NULL) then
+               call MPI_Irecv(rbuff1%val, Mp*Np, MPI_XX_COMPLEX, msource, 41, comm2d, rqE2, ierr)
+               pbuff1 => rbuff1
+            end if
+
+            ! Wait for complete communications
+            if (mdest/=MPI_PROC_NULL) call MPI_Wait(rqE1, statE(1), ierr);
+            if (msource/=MPI_PROC_NULL) call MPI_Wait(rqE2, statE(2), ierr);
+
+          end if
+        end if
+
+        !////////////////////////////////////////////////////////////////////////////////////
+        !// Communications of G(k, E+hwq)
+        !////////////////////////////////////////////////////////////////////////////////////
+        !// checks if iE+iEhbaromega is on the same processor => no communication
+        !// pbuff2 => G(k,E+wq)
+        pdest = MPI_PROC_NULL
+        psource = MPI_PROC_NULL
+        iEplus = iE + iEhbaromega
+        if (iEplus < NEloc) then
+          pbuff2 => GG(iEplus, iQ)%pMat
+        else
+          rbuff2%val=(0.0_lp, 0.0_lp)
+          pbuff2 => rbuff2
+        end if
+
+        if (dims(2) > 1) then
+          if (iE + iEhbaromega >= NEloc) then
+            if (iEglo + iEhbaromega >= NE ) then
+              rbuff2%val=(0.0_lp, 0.0_lp)
+              pbuff2 => rbuff2
+            end if
+
+            ! get processor distance between iEglo+ihbarOmega and iEglo
+            ndiff = (iEglo+iEhbaromega)/NEloc - iEglo/NEloc
+            iEplus = mod(iEglo + iEhbaromega, NEloc)
+
+            call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
+
+            if (pdest /= MPI_PROC_NULL) then
+               pGG2 => GG(iEplus, iQ)%pMat
+               call MPI_Isend(pGG2%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
+            end if
+
+            if (psource /= MPI_PROC_NULL) then
+               call MPI_Irecv(rbuff2%val, Mp*Np, MPI_XX_COMPLEX, psource, 42, comm2d, rqE4, ierr)
+               pbuff2 => rbuff2
+            end if
+
+            if(pdest/=MPI_PROC_NULL) call MPI_Wait(rqE3, statE(3), ierr);
+            if(psource/=MPI_PROC_NULL) call MPI_Wait(rqE4, statE(4), ierr);
+
+          end if
+        end if
+
+        !//   Compute:
+        !//   sbuffK_ij(iQ) = (fac_minus * GG_ij(iQ, E-wq) + fac_plus * GG_ij(iQ, E+wq))
+
+        !$OMP PARALLEL DO private (nu)
+        do nu = 1, Mp
+          sbuffK%val(:,nu) = (fac_minus*pbuff1%val(:,nu) + fac_plus*pbuff2%val(:,nu))
+        end do
+        !$OMP END PARALLEL DO
+
+        !// The Outer loop performs the summation over iQ
+        !// This Inner loop updates Sigma(iK):
+        !// Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ) * sbuffK_ij(iQ)
+        do iK = 0, NKloc-1
+          iKglo = kindices_map(iK,coords(1))-1
+          pSigma => Sigma(iE, iK)%pMat
+
+          !$OMP PARALLEL DO private (nu)
+          do nu = 1, Mp
+            pSigma%val(1:Np,nu) = pSigma%val(1:Np,nu) + &
+                  & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo) * sbuffK%val(1:Np,nu)
+          end do
+          !$OMP END PARALLEL DO
+        end do
+
+
+        !////////////////////////////////////////////////////////////////////////////////////
+        !// Communications over the k-grid (Note k-grid is periodic)
+        !// Suppose iQglo = 0, 1, 2, 3, 4, 5
+        !// dims(1) == 3 =>
+        !// cpu#0: iQ = 0, 1; coords(1)=0 => iQglo = 0, 1
+        !// cpu#1: iQ = 0, 1; coords(1)=1 => iQglo = 2, 3
+        !// cpu#2: iQ = 0, 1; coords(1)=2 => iQglo = 4, 5
+        !//
+        !// ii = 1: #0->#1, #1->#2,  #2->#0
+        !// cpu#0: (recv sbuffK(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#1: (recv sbuffK(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !// cpu#2: (recv sbuffK(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// ii = 2: #0->#2, #1->#0,  #2->#1
+        !// cpu#0: (recv sbuffK(iQglo=2,3) from cpu#1  coordsH(1)=1) => iQglo2 = 2,3  ()
+        !// cpu#1: (recv sbuffK(iQglo=4,5) from cpu#2  coordsH(1)=2) => iQglo2 = 4,5  ()
+        !// cpu#2: (recv sbuffK(iQglo=0,1) from cpu#0  coordsH(1)=0) => iQglo2 = 0,1  ()
+        !////////////////////////////////////////////////////////////////////////////////////
+        if (dims(1) > 1) then
+          do iin = 1, dims(1)-1
+            ! Compute the communication points applying a shift in dimension 0 (k-grid)
+            ! NOTE: this means a communication of 1->2,3,4,5... 2->3,4,5,6...
+            !       maybe a nearest-neighbours communication 1->2->3->4 ...
+            !       is more efficient ? => sbuff = rbuff and send to neighbour
+            ! First shift used to compute iQglo2:
+            call MPI_Cart_shift(comm2d, 0, iin, hsource, hdest, ierr)
+            call MPI_Cart_coords(comm2d, hsource, ndims, coordsH, ierr)
+            iQglo2 = kindices_map(iQ,coordsH(1))-1
+
+            ! Actual shift used in send/recv:
+            call MPI_Cart_shift(comm2d, 0, 1, hsource, hdest, ierr)
+
+            call MPI_Isend(sbuffK%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqK1, ierr)
+            call MPI_Irecv(rbuffK%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqK2, ierr)
+
+            call MPI_Wait(rqK2, statK(2), ierr)
+
+            ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffK_ij(iQ2)
+            do iK = 0, NKloc-1
+              iKglo = kindices_map(iK,coords(1))-1
+              pSigma => Sigma(iE, iK)%pMat
+              !$OMP PARALLEL DO private (nu)
+              do nu = 1, Mp
+                pSigma%val(1:Np,nu) = pSigma%val(1:Np,nu) + &
+                   & KK(abs(izr(1:Np)-izc(nu)), iKglo, iQglo2) * rbuffK%val(1:Np,nu)
+              end do
+              !$OMP END PARALLEL DO
+            end do
+
+            call MPI_Wait(rqK1, statK(1), ierr)
+
+            !$OMP PARALLEL DO
+            do nu = 1, Mp
+              sbuffK%val(:,nu) = rbuffK%val(:,nu)
+            end do
+            !$OMP END PARALLEL DO
+
+          end do
+        end if
+
+      end do eloop
+    end do qloop
+
+    call destroy(rbuff1)
+    call destroy(rbuff2)
+    call destroy(sbuffK)
+    call destroy(rbuffK)
+
+
+  end subroutine selfenergy
 
 end module elphinel

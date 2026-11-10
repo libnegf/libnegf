@@ -28,9 +28,10 @@ module elphds
   use ln_elastic, only : TElastic
   use ln_allocation, only : log_allocate, log_deallocate
   use ln_structure, only : TStruct_info
-  use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy
-  use sparsekit_drv, only : extract, zcsr2blk_sod, nzdrop, &
+  use mat_def, only : c_csr, c_dns, z_csr, z_dns, create, destroy, assignment(=)
+  use sparsekit_drv, only : extract, nzdrop, &
       & prealloc_mult, dns2csr, csr2dns, prealloc_sum
+  use block_3_diag, only : csr2blk3diag
   use ln_messages, only : error_msg
 
   implicit none
@@ -136,7 +137,7 @@ contains
     allocate(this%sigma_n(this%nummodes), stat=ierr)
     if (ierr.ne.0) then
        call error_msg('ALLOCATION ERROR: could not allocate csr_sigma_n')
-    end if   
+    end if
     allocate(this%couplings(this%nummodes), stat=ierr)
     if (ierr.ne.0) then
        call error_msg('ALLOCATION ERROR: could not allocate csr_couplings')
@@ -173,7 +174,7 @@ contains
 
   !> This interface should append
   !  the retarded self energy to ESH
-#:def add_sigma_r_template(KIND,MTYPE)  
+#:def add_sigma_r_template(KIND,MTYPE)
   subroutine add_sigma_r_${KIND}$(this, esh, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(${MTYPE}$), dimension(:,:), intent(inout) :: esh
@@ -196,8 +197,8 @@ contains
     do ii = 1,this%nummodes
       if (ierr.ne.0) then
          call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
-      end if   
-      call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
+      end if
+      call csr2blk3diag(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         ESH(jj, jj)%val = ESH(jj, jj)%val - tmp_blk(jj, jj)%val
         call destroy(tmp_blk(jj,jj))
@@ -212,12 +213,12 @@ contains
     deallocate(tmp_blk)
 
   end subroutine add_sigma_r_${KIND}$
-#:enddef add_sigma_r_template  
+#:enddef add_sigma_r_template
 
   !--------------------------------------------------------------------------
   !> This interface should append
   !  sigma_n to a passed self energy, sigma
-#:def add_sigma_n_template(KIND,MTYPE)  
+#:def add_sigma_n_template(KIND,MTYPE)
   subroutine add_sigma_n_${KIND}$(this, sigma, en_index, k_index, spin)
     class(ElPhonDephS) :: this
     type(${MTYPE}$), dimension(:,:), intent(inout) :: sigma
@@ -240,8 +241,8 @@ contains
     do ii = 1,this%nummodes
       if (ierr.ne.0) then
          call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
-      end if   
-      call zcsr2blk_sod(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
+      end if
+      call csr2blk3diag(this%sigma_r(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         sigma(jj, jj)%val = sigma(jj, jj)%val + tmp_blk(jj, jj)%val
         call destroy(tmp_blk(jj,jj))
@@ -256,14 +257,14 @@ contains
     deallocate(tmp_blk)
 
   end subroutine add_sigma_n_${KIND}$
-#:enddef add_sigma_n_template  
+#:enddef add_sigma_n_template
 
 #:for PREC in PRECISIONS
      #:set KIND = PREC_ABBREVS[PREC]
      #:set MTYPE = MAT_TYPES['complex'][PREC]
 
      $:add_sigma_r_template(KIND,MTYPE)
-     
+
      $:add_sigma_n_template(KIND,MTYPE)
 #:endfor
 
@@ -298,8 +299,8 @@ contains
     do ii = 1, this%nummodes
       if (ierr.ne.0) then
          call error_msg('ALLOCATION ERROR: could not allocate block-Matrix')
-      end if   
-      call zcsr2blk_sod(this%sigma_n(ii), tmp_blk, this%struct%mat_PL_start)
+      end if
+      call csr2blk3diag(this%sigma_n(ii), tmp_blk, this%struct%mat_PL_start)
       do jj = 1,npl
         blk_sigma_n(jj, jj)%val = blk_sigma_n(jj, jj)%val + tmp_blk(jj, jj)%val
         call destroy(tmp_blk(jj,jj))
