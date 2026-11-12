@@ -20,6 +20,7 @@
 
 module ln_cache
   use iso_c_binding
+  use ln_precision, only: dp
   use mat_def, only: z_DNS, c_DNS, x_DNS => z_DNS, destroy, assignment(=)
   use globals
   use outmatrix, only: outmat_c, inmat_c
@@ -35,12 +36,24 @@ module ln_cache
   public :: print_label
   public :: get_string_label
 
+  !> Default point of labels and cache entries: callers that don't set it never match a set one
+  real(dp), parameter :: UNSET_POINT = huge(1.0_dp)
+
+  !> Tolerance to decide whether a cached matrix belongs to the requested point
+  real(dp), parameter :: EPS_POINT = 1.0e-10_dp
+
   type TMatLabel
     integer :: kpoint = -1
     integer :: energy_point = -1
     integer :: spin = -1
     integer :: row_block = -1
     integer :: col_block = -1
+    !> Energy and k-vector of the matrix, checked on lookup.
+    !> Callers that don't set them keep the defaults, which match each other.
+    !> Only the real part of energy is UNSET_POINT: with both parts set, abs() of the
+    !> difference to a set energy would overflow, while (huge - huge) is exactly zero.
+    complex(dp) :: energy = (UNSET_POINT, 0.0_dp)
+    real(dp) :: kvec(3) = UNSET_POINT
   end type TMatLabel
 
   type, abstract :: TMatrixCache
@@ -152,6 +165,9 @@ module ln_cache
   !> element to store matrix in memory - single or double
   type :: TMatrixCacheEntry
     type(x_DNS),  pointer :: matrix => null()
+    !> Point the matrix was computed at (see TMatLabel)
+    complex(dp) :: energy = (UNSET_POINT, 0.0_dp)
+    real(dp) :: kvec(3) = UNSET_POINT
   end type
 
   !> Mem derived class
@@ -165,6 +181,7 @@ module ln_cache
   contains
     procedure :: init
     procedure :: checks
+    procedure :: in_range
     procedure :: add_sp => mem_add_sp
     procedure :: add_dp => mem_add_dp
     procedure :: retrieve_sp => mem_retrieve_sp
@@ -224,6 +241,7 @@ contains
     integer, intent(in) :: Nk, NE, NPL, Ndiag, Nspin
 
     integer :: ierr
+    character(len=256) :: errmsg
 
     if (allocated(this%MatArray)) then
       if (size(this%MatArray) /= NE*Nk*NPL*Ndiag*Nspin) then
@@ -231,9 +249,10 @@ contains
       end if
     end if
     if (.not.allocated(this%MatArray)) then
-      allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr)
+      allocate(this%MatArray(NE,Nk,NPL*Ndiag,Nspin), stat=ierr, errmsg=errmsg)
       if (ierr /= 0) then
-        call error_msg( "Allocation error of MatArray in init "//trim(this%tagname))
+        call error_msg( "Allocation error of MatArray in init "//trim(this%tagname)//": "&
+            & //trim(errmsg))
       end if
     end if
     this%Nblocks = NPL
@@ -244,8 +263,6 @@ contains
     class(TMatrixCacheMem) :: this
     type(TMatLabel), intent(in) :: label
     integer, intent(out) :: bl
-
-    integer :: r, c
 
     if (.not.allocated(this%MatArray)) then
       call error_msg( "MatArray not allocated for "//trim(this%tagname))
@@ -266,13 +283,7 @@ contains
        call error_msg( "spin out of range")
     end if
 
-    r = label%row_block
-    c = label%col_block
-    if (c >= r) then
-       bl = (c-r)*this%Nblocks + c
-    else
-       bl = 2*(r-c)*this%Nblocks + r
-    end if
+    bl = block_index(this, label)
     if (bl < 1 .or. bl > size(this%MatArray,3)) then
        print*,trim(this%tagname)
        call print_label(label)
@@ -280,6 +291,49 @@ contains
        call error_msg( "block out of range")
     end if
   end subroutine checks
+
+  !> Like checks, but returns .false. instead of stopping when the slot is out of range
+  function in_range(this, label, bl) result(val)
+    class(TMatrixCacheMem) :: this
+    type(TMatLabel), intent(in) :: label
+    integer, intent(out) :: bl
+    logical :: val
+
+    bl = block_index(this, label)
+    val = allocated(this%MatArray)
+    if (.not.val) return
+    val = label%energy_point >= 1 .and. label%energy_point <= size(this%MatArray,1) &
+        & .and. label%kpoint >= 1 .and. label%kpoint <= size(this%MatArray,2) &
+        & .and. bl >= 1 .and. bl <= size(this%MatArray,3) &
+        & .and. label%spin >= 1 .and. label%spin <= size(this%MatArray,4)
+  end function in_range
+
+  !> Index of block (row_block, col_block) in the third dimension of MatArray
+  pure function block_index(this, label) result(bl)
+    class(TMatrixCacheMem), intent(in) :: this
+    type(TMatLabel), intent(in) :: label
+    integer :: bl
+
+    integer :: r, c
+
+    r = label%row_block
+    c = label%col_block
+    if (c >= r) then
+       bl = (c-r)*this%Nblocks + c
+    else
+       bl = 2*(r-c)*this%Nblocks + r
+    end if
+  end function block_index
+
+  !> Whether a matrix computed at (energy, kvec) belongs to the point of label
+  pure function same_point(energy, kvec, label) result(val)
+    complex(dp), intent(in) :: energy
+    real(dp), intent(in) :: kvec(3)
+    type(TMatLabel), intent(in) :: label
+    logical :: val
+
+    val = abs(energy - label%energy) < EPS_POINT .and. all(abs(kvec - label%kvec) < EPS_POINT)
+  end function same_point
 
   subroutine mem_add_dp(this, matrix, label)
     class(TMatrixCacheMem) :: this
@@ -299,6 +353,8 @@ contains
          allocate(p%matrix)
       end if
       p%matrix = matrix
+      p%energy = label%energy
+      p%kvec = label%kvec
     end associate
 
   end subroutine mem_add_dp
@@ -321,6 +377,8 @@ contains
          allocate(p%matrix)
       end if
       p%matrix = matrix
+      p%energy = label%energy
+      p%kvec = label%kvec
     end associate
 
   end subroutine mem_add_sp
@@ -420,13 +478,11 @@ contains
 
     integer :: b
 
-    call checks(this, label, b)
+    val = this%in_range(label, b)
+    if (.not.val) return
     associate(p => this%MatArray(label%energy_point, label%kpoint, b, label%spin))
-      if (associated(p%matrix)) then
-         val = .true.
-      else
-         val = .false.
-      end if
+      val = associated(p%matrix)
+      if (val) val = same_point(p%energy, p%kvec, label)
     end associate
 
   end function mem_is_cached
@@ -452,6 +508,7 @@ contains
              do ii = 1, size(this%MatArray,1)
                 if (associated(this%MatArray(ii,jj,kk,ll)%matrix)) then
                   call destroy(this%MatArray(ii,jj,kk,ll)%matrix)
+                  deallocate(this%MatArray(ii,jj,kk,ll)%matrix)
                 end if
              end do
            end do
@@ -502,6 +559,8 @@ contains
 
     call disk_indices_to_filename(filename, label)
     open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
+    ! Header record with the point, checked by disk_is_cached
+    write (file_unit) label%energy, label%kvec
     call outmat_c(file_unit, .false., matrix%val, matrix%nrow, matrix%ncol)
     close (file_unit)
 
@@ -542,6 +601,8 @@ contains
     end if
 
     open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED')
+    ! Skip the header record
+    read (file_unit)
     call inmat_c(file_unit, .false., matrix%val, matrix%nrow, matrix%ncol)
     close (file_unit)
 
@@ -584,15 +645,24 @@ contains
 
     character(LST) :: filename
     logical :: file_exists
+    integer :: file_unit, ierr
+    complex(dp) :: energy
+    real(dp) :: kvec(3)
 
     call disk_indices_to_filename(filename, label)
     inquire (file=trim(this%scratch_path)//filename, EXIST=file_exists)
 
-    if (file_exists) then
-      val = .true.
-    else
-      val = .false.
-    end if
+    val = .false.
+    if (.not.file_exists) return
+
+    ! Files without a valid header (e.g. from older versions) count as not cached
+    open (newunit=file_unit, file=trim(this%scratch_path)//filename, form='UNFORMATTED', &
+        & status='OLD', action='READ', iostat=ierr)
+    if (ierr /= 0) return
+    read (file_unit, iostat=ierr) energy, kvec
+    close (file_unit)
+    if (ierr /= 0) return
+    val = same_point(energy, kvec, label)
 
   end function
 

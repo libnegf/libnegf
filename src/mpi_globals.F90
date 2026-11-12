@@ -35,8 +35,10 @@ module mpi_globals
 #:if defined("MPI")
   public :: negf_mpi_init
   public :: negf_cart_init
+  public :: negf_mpi_abort
   public :: check_cart_comm
   public :: MPI_Comm
+  type(mpifx_comm), private :: negfComm 
 
   contains
 
@@ -105,6 +107,7 @@ module mpi_globals
       nE = inComm%size/nk
       dims(1)=nk; dims(2)=nE
       periods(1) = .true.
+      negfComm = inComm
 
       call MPI_CART_CREATE(inComm%comm, ndims, dims, periods, reorder, outComm, mpierr)
       call cartComm%init(outComm, mpierr)
@@ -140,6 +143,12 @@ module mpi_globals
       call MPI_Cart_coords(cartComm%comm, 0, 2, coords, mpierror)
 
     end subroutine check_cart_comm
+
+    ! Abort routine called by error message
+    subroutine negf_mpi_abort()
+      call MPI_Abort(negfComm%comm, negfComm%rank)
+    end subroutine negf_mpi_abort
+
 
    ! subroutine check_omp_mpi(comm, mpierror)
    !   type(mpifx_comm), intent(in) :: comm

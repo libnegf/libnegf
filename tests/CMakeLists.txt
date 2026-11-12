@@ -26,6 +26,7 @@ set(test-directories
     f90_transmission
     f90elph_deph
     f90read_hs
+    f90sgf_cache
     f90Si2x2
     f90Si_nin
     f90Si_nin_40pl

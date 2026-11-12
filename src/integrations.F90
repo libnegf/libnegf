@@ -224,6 +224,7 @@ contains
 
     outer = 1
     ncont = negf%str%num_conts
+    call set_sgf_mode(negf, negf%readOldT_SGFs, transport=.true.)
 
     Npoints = size(negf%en_grid)
 
@@ -580,6 +581,9 @@ contains
       negf%en_grid(ioffs+i)%wght = zt
     enddo
 
+    ! Hole points are indexed after all electron points of the DM path (SGF cache)
+    negf%en_grid(:)%pt_path = negf%en_grid(:)%pt_path + get_dm_hole_offset(negf)
+
     ! *******************************************************************************
     ! Distribution of Energy grid
     ! pts 1 2 3 4 5 6 7 8 9 ...
@@ -714,6 +718,8 @@ contains
        mumin = mumin - nkT - wqmax
        Lambda = 0.0_dp
        nPoles = 0
+       ! No poles with inelastic scattering: also used for the real-axis offset
+       negf%n_poles = 0
      else
        mumin = muref - nkT
        nPoles = negf%n_poles
@@ -866,6 +872,7 @@ contains
      logical :: real_axis, contour
 
      ncont = negf%str%num_conts
+     call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
      outer = negf%outer_blocks
      Npoints = size(negf%en_grid)
      call create(TmpMt,negf%H%nrow,negf%H%ncol,negf%H%nrow)
@@ -929,6 +936,7 @@ contains
      complex(dp) :: Ec, zt
 
      ncont = negf%str%num_conts
+     call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
      outer = negf%outer_blocks
      Npoints = size(negf%en_grid)
 
@@ -1011,14 +1019,12 @@ contains
     ncont = negf%str%num_conts
     Npoints = negf%Np_real
 
-    ! With inelastic scattering equalize the energy points/process
-    if (negf%interactList%counter /= 0) then
-      if (mod(Npoints,numprocs) .ne. 0) then
-        do while (mod(Npoints,numprocs) .ne. 0)
-          Npoints = Npoints + 1
-        end do
-        negf%Np_real = Npoints
-      end if
+    ! Balance N points over the energy grid
+    if (mod(Npoints,numprocs) .ne. 0) then
+      do while (mod(Npoints,numprocs) .ne. 0)
+        Npoints = Npoints + 1
+      end do
+      negf%Np_real = Npoints
     end if
 
     ! Get maximum wq for inelastic interactions
@@ -1034,13 +1040,6 @@ contains
        mumin=negf%muref
        mumax=negf%muref
     endif
-
-    ! Balance N points over the energy grid
-    if (mod(Npoints,numprocs) .ne. 0) then
-      do while (mod(Npoints,numprocs) .ne. 0)
-        Npoints = Npoints + 1
-      end do
-    end if
 
     !! destroy en_grid from previous calculation, if any
     call destroy_en_grid(negf%en_grid)
@@ -1126,7 +1125,7 @@ contains
     Npoints = size(negf%en_grid)
     particle = negf%particle
 
-    negf%readOldSGF = negf%readOldDM_SGFs
+    call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
 
     call log_allocate(frm_f,ncont)
 
@@ -1218,7 +1217,7 @@ contains
     Npoints = size(negf%en_grid)
     particle = negf%particle
 
-    negf%readOldSGF = negf%readOldDM_SGFs
+    call set_sgf_mode(negf, negf%readOldDM_SGFs, transport=.false.)
 
     ref_bk = negf%refcont
     negf%refcont = ncont + 1
@@ -1254,6 +1253,9 @@ contains
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
     end if
     scba_iter = 0
+
+    ! SGFs are computed and cached in the first SCBA pass, then retrieved
+    if (negf%readOldSGF == COMP_SGF) negf%readOldSGF = COMPSAVE_SGF
 
     scba: do while (.not.negf%scbaDriverInelastic%is_converged() .and. scba_iter <= scba_niter_inela)
 
@@ -1343,6 +1345,7 @@ contains
         end associate
 
       enddo kloop
+      negf%readOldSGF = READ_SGF
 
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
@@ -1481,7 +1484,8 @@ contains
 
 
     ncont = negf%str%num_conts
-    ioffset = negf%Np_n(1) + negf%Np_n(2) + negf%n_poles
+    ! Offset due to the hole contour integration (for contact storage)
+    ioffset = get_dm_hole_offset(negf) + negf%Np_p(1) + negf%Np_p(2) + negf%n_poles
     kbT = maxval(negf%cont(:)%kbT_dm)
     Omega = negf%n_kt * kbT
     muref = negf%muref
@@ -1694,6 +1698,8 @@ contains
 
     call destroy_en_grid(negf%en_grid)
     allocate(negf%en_grid(Npoints))
+    ! SGFs cached for a previous transport grid are no longer valid
+    call negf%surface_green_cache_T%destroy()
 
     do i = 1, Npoints
        negf%en_grid(i)%path = 1
@@ -1772,7 +1778,7 @@ contains
     Npoints = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
-    negf%readOldSGF = negf%readOldT_SGFs
+    call set_sgf_mode(negf, negf%readOldT_SGFs, transport=.true.)
 
     !-------------------------------------------------------
 
@@ -1870,6 +1876,8 @@ contains
     real(dp), dimension(:), optional :: fixed_occupations
 
     integer :: scba_iter, scba_niter_inela, scba_niter_ela, size_ni, ref_bk
+    integer :: sgfFlag
+    logical :: tCacheSGF, tPhotonPass
     integer :: iE, iK, j1, Npoints, outer, ncont, icont, scba_elastic_iter
     real(dp) :: ncyc, scba_elastic_tol, scba_elastic_error, scba_inelastic_error
     Type(z_DNS), dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
@@ -1879,7 +1887,7 @@ contains
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
     size_ni = size(negf%ni)
-    negf%readOldSGF = negf%readOldT_SGFs
+    call set_sgf_mode(negf, negf%readOldT_SGFs, transport=.true.)
     outer = 0
 
     if (allocated(negf%curr_mat)) call log_deallocate(negf%curr_mat)
@@ -1909,6 +1917,12 @@ contains
     call negf%scbaDriverInelastic%init(tol = negf%scba_inelastic_tol, dowrite = .true.)
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
+    ! Photon absorption needs one more E-k pass after the SCBA loop
+    tPhotonPass = (.not.negf%tPhotonSCC .and. has_elphoton(negf%interactList))
+    ! SGFs are cached when the E-k loop is run more than once
+    tCacheSGF = (scba_niter_inela > 0 .or. tPhotonPass)
+    sgfFlag = negf%readOldSGF
+    if (tCacheSGF .and. sgfFlag == COMP_SGF) negf%readOldSGF = COMPSAVE_SGF
     scba_elastic_tol = negf%scba_elastic_tol
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
     call write_info(negf%verbose, 30, 'NUMBER OF SCBA ELASTIC ITERATIONS', scba_niter_ela)
@@ -1961,7 +1975,7 @@ contains
 
     end do scba
 
-    if (.not.negf%tPhotonSCC) then
+    if (tPhotonPass) then
       call photon_absorption()
     end if
 
@@ -1970,6 +1984,11 @@ contains
     call log_deallocate(curr_mat)
     call log_deallocate(frm)
     negf%refcont = ref_bk
+    ! Release SGFs cached only for this calculation
+    if (tCacheSGF .and. sgfFlag == COMP_SGF) then
+      call negf%surface_green_cache_T%destroy()
+    end if
+    negf%readOldSGF = sgfFlag
 
     contains
 
@@ -2070,6 +2089,8 @@ contains
         call destroy_contact_matrices(negf)
 
       end do kloop
+      ! Next passes retrieve the cached SGFs
+      if (tCacheSGF) negf%readOldSGF = READ_SGF
     end subroutine EKloop
 
   end subroutine meir_wingreen
@@ -2092,6 +2113,8 @@ contains
     integer :: nbl, Npoints, outer
     integer :: iE, j1, iK, ncont, ref_bk
     integer :: scba_iter, scba_niter_ela
+    integer :: sgfFlag
+    logical :: tCacheSGF, tPhotonPass
     integer :: scba_niter_inela
     real(dp) :: Er, scba_elastic_tol, scba_elastic_error
     real(dp) :: scba_inelastic_error
@@ -2107,7 +2130,7 @@ contains
     ncont = negf%str%num_conts
     Npoints = size(negf%en_grid)
     nbl = negf%str%num_PLs
-    negf%readOldSGF = negf%readOldT_SGFs
+    call set_sgf_mode(negf, negf%readOldT_SGFs, transport=.true.)
     outer = negf%outer_blocks
 
     ! Sanity check that nbl>1
@@ -2155,6 +2178,12 @@ contains
     call negf%scbaDriverInelastic%init(negf%scba_inelastic_tol, dowrite=.false.)
     scba_niter_inela = get_max_niter_inelastic(negf%interactList)
     scba_niter_ela = get_max_niter_elastic(negf%interactList)
+    ! Photon absorption needs one more E-k pass after the SCBA loop
+    tPhotonPass = (.not.negf%tPhotonSCC .and. has_elphoton(negf%interactList))
+    ! SGFs are cached when the E-k loop is run more than once
+    tCacheSGF = (scba_niter_inela > 0 .or. tPhotonPass)
+    sgfFlag = negf%readOldSGF
+    if (tCacheSGF .and. sgfFlag == COMP_SGF) negf%readOldSGF = COMPSAVE_SGF
     scba_elastic_tol = negf%scba_elastic_tol
     if (negf%cartComm%rank == 0) then
       call write_info(negf%verbose, 30, 'NUMBER OF SCBA INELASTIC ITERATIONS', scba_niter_inela)
@@ -2220,7 +2249,7 @@ contains
 
     end do scba
 
-    if (.not.negf%tPhotonSCC) then
+    if (tPhotonPass) then
       call photon_absorption()
     end if
 
@@ -2233,6 +2262,11 @@ contains
        call log_deallocate(Gn_diag)
     end if
     negf%refcont = ref_bk
+    ! Release SGFs cached only for this calculation
+    if (tCacheSGF .and. sgfFlag == COMP_SGF) then
+      call negf%surface_green_cache_T%destroy()
+    end if
+    negf%readOldSGF = sgfFlag
 
     contains
 
@@ -2350,6 +2384,8 @@ contains
 
       end do kloop
 
+      ! Next passes retrieve the cached SGFs
+      if (tCacheSGF) negf%readOldSGF = READ_SGF
     end subroutine EKloop
 
   end subroutine layer_current
@@ -2459,6 +2495,39 @@ contains
     end do
 
   end subroutine interaction_prepare
+
+  !---------------------------------------------------------------------------
+  !> Set the flag used by surface_green and select the SGF cache:
+  !> transport = .true. for real-axis transport calculations, .false. for the DM
+  subroutine set_sgf_mode(negf, flag, transport)
+    type(Tnegf), intent(inout) :: negf
+    integer, intent(in) :: flag
+    logical, intent(in) :: transport
+
+    negf%readOldSGF = flag
+    negf%tTransportSGF = transport
+
+  end subroutine set_sgf_mode
+
+  !> Whether the interaction list contains an electron-photon interaction
+  function has_elphoton(interactList) result(found)
+    type(TInteractionList), intent(in) :: interactList
+    logical :: found
+
+    type(TInteractionNode), pointer :: it
+
+    found = .false.
+    it => interactList%first
+    do while (associated(it))
+      select type(pInter => it%inter)
+      class is (ElPhoton)
+        found = .true.
+        return
+      end select
+      it => it%next
+    end do
+
+  end function has_elphoton
 
   !---------------------------------------------------------------------------
   ! This subroutine is used to reset the internal iteration of el-photon
@@ -2622,8 +2691,6 @@ contains
     integer :: scba_iter, scba_niter, i1
     real(dp) :: ncyc
     Type(z_DNS), Dimension(MAXNCONT) :: SelfEneR, Tlc, Tcl, GS
-
-    negf%readOldSGF = negf%readOldDM_SGFs
 
     call compute_contacts(Ec,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
 
@@ -2909,7 +2976,7 @@ contains
     Npoints = size(negf%en_grid)
     ncyc=0
     size_ni = size(negf%ni)
-    negf%readOldSGF = negf%readOldT_SGFs
+    call set_sgf_mode(negf, negf%readOldT_SGFs, transport=.true.)
 
     !-------------------------------------------------------
 
@@ -3344,6 +3411,8 @@ contains
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
+    ! The energy points depend on Ec and are not indexed on the DM path: SGFs not cached
+    call set_sgf_mode(negf, COMP_SGF, transport=.false.)
     outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then
@@ -3472,6 +3541,8 @@ contains
 
     kbT = maxval(negf%cont(:)%kbT_dm)
     ncont = negf%str%num_conts
+    ! The energy points depend on Ec and are not indexed on the DM path: SGFs not cached
+    call set_sgf_mode(negf, COMP_SGF, transport=.false.)
     outer = negf%outer_blocks
 
     if (negf%n_poles.eq.0) then

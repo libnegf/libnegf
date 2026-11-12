@@ -38,7 +38,7 @@ module ContSelfEnergy
  use inversions, only : compGreen, inverse
  use clock
  use mpi_globals
- use ln_cache, only : TMatLabel, get_string_label
+ use ln_cache, only : TMatLabel, get_string_label, TMatrixCache, TMatrixCacheMem
  use ln_messages
 #:if defined("MPI")
  use libmpifx_module, only : mpifx_reduceip
@@ -57,6 +57,8 @@ module ContSelfEnergy
   public :: SelfEnergies
   public :: compute_contacts
   public :: decimation
+  public :: get_dm_real_points
+  public :: get_dm_hole_offset
 
   interface SelfEnergy
      module procedure SelfEnergy_csr
@@ -92,6 +94,7 @@ contains
 
     integer :: ii,i1,n0,n1,n2,n3,n4,nd,npl,ngs
     integer :: pnt,nfc,verbose,contdim,surfdim
+    integer :: nCacheE, nCacheK
     integer :: flag            ! flag=0 Load contact gs
                                ! flag=1 Compute
                                ! flag=2 Compute and save
@@ -105,8 +108,16 @@ contains
     label%kpoint = pnegf%ikpoint
     label%energy_point = pnt
     label%spin = pnegf%spin
+    ! Stored as the diagonal block (ii,ii) of the contact
     label%row_block = ii
-    label%col_block = 0
+    label%col_block = ii
+    ! Actual point, so that SGFs cached at a different energy or k are not reused
+    label%energy = E
+    if (allocated(pnegf%kpoints)) then
+      if (pnegf%ikpoint >= 1 .and. pnegf%ikpoint <= size(pnegf%kpoints, 2)) then
+        label%kvec = pnegf%kpoints(:, pnegf%ikpoint)
+      end if
+    end if
 
     flag = pnegf%ReadOldSGF
     @:ASSERT(flag == 0 .or. flag == 1 .or. flag == 2)
@@ -123,7 +134,20 @@ contains
     ncyc=0
     nfc=0
 
-    lex = pnegf%surface_green_cache%is_cached(label)
+    ! The cache is not used when the SGFs are only computed
+    lex = .false.
+    if (flag /= 1) then
+      call get_sgf_cache_sizes(pnegf, label, nCacheE, nCacheK)
+      if (pnegf%tTransportSGF) then
+        call prepare_sgf_cache(pnegf%surface_green_cache_T, label, nCacheE, nCacheK, &
+            & pnegf%str%num_conts)
+        lex = pnegf%surface_green_cache_T%is_cached(label)
+      else
+        call prepare_sgf_cache(pnegf%surface_green_cache, label, nCacheE, nCacheK, &
+            & pnegf%str%num_conts)
+        lex = pnegf%surface_green_cache%is_cached(label)
+      end if
+    end if
 
     call get_string_label(pnt, ofpnt)
 
@@ -216,13 +240,21 @@ contains
           !*** save in file ***
           if (flag.eq.2) then
 
-            call pnegf%surface_green_cache%add(GS, label)
+            if (pnegf%tTransportSGF) then
+              call pnegf%surface_green_cache_T%add(GS, label)
+            else
+              call pnegf%surface_green_cache%add(GS, label)
+            end if
 
           endif
 
        else         !*** load from file ***
 
-         call pnegf%surface_green_cache%retrieve(GS, label)
+         if (pnegf%tTransportSGF) then
+           call pnegf%surface_green_cache_T%retrieve(GS, label)
+         else
+           call pnegf%surface_green_cache%retrieve(GS, label)
+         end if
 
        endif
 
@@ -232,6 +264,76 @@ contains
     if (id0.and.verbose.gt.VBT) call write_clock
 
   end subroutine surface_green
+
+  !---------------------------------------------------------------------------------------
+  !> Sizes of the index table of a memory SGF cache. k-points are indexed with the global
+  !> index. Energy points of the transport cache are those of the tunneling grid; those of
+  !> the DM cache follow the whole DM path: electron contour, poles and real axis, then the
+  !> same for holes (see get_dm_hole_offset).
+  subroutine get_sgf_cache_sizes(pnegf, label, nE, nK)
+    type(Tnegf), intent(in) :: pnegf
+    type(TMatLabel), intent(in) :: label
+    integer, intent(out) :: nE, nK
+
+    if (pnegf%tTransportSGF) then
+      nE = 0
+      if (allocated(pnegf%en_grid)) nE = size(pnegf%en_grid)
+    else
+      nE = get_dm_hole_offset(pnegf) + pnegf%Np_p(1) + pnegf%Np_p(2) + pnegf%n_poles &
+          & + get_dm_real_points(pnegf)
+    end if
+    nE = max(nE, label%energy_point)
+    nK = 1
+    if (allocated(pnegf%kpoints)) nK = size(pnegf%kpoints, 2)
+    nK = max(nK, label%kpoint)
+
+  end subroutine get_sgf_cache_sizes
+
+  !---------------------------------------------------------------------------------------
+  !> Number of real-axis points of the DM path, padded to a multiple of the number of
+  !> processes as done in real_axis_int_def
+  function get_dm_real_points(pnegf) result(nReal)
+    type(Tnegf), intent(in) :: pnegf
+    integer :: nReal
+
+    nReal = numprocs * ((pnegf%Np_real + numprocs - 1) / numprocs)
+
+  end function get_dm_real_points
+
+  !---------------------------------------------------------------------------------------
+  !> Offset of the hole points in the DM path: the holes are indexed after all the
+  !> electron points (contour, poles and real axis)
+  function get_dm_hole_offset(pnegf) result(offset)
+    type(Tnegf), intent(in) :: pnegf
+    integer :: offset
+
+    offset = pnegf%Np_n(1) + pnegf%Np_n(2) + pnegf%n_poles + get_dm_real_points(pnegf)
+
+  end function get_dm_hole_offset
+
+  !---------------------------------------------------------------------------------------
+  !> Allocate the index table of a memory cache of surface Green's functions, if not
+  !> done yet or if label falls outside of it (the cached SGFs are then dropped).
+  !> Other cache types need no preparation.
+  subroutine prepare_sgf_cache(cache, label, nE, nK, ncont)
+    class(TMatrixCache), intent(inout) :: cache
+    type(TMatLabel), intent(in) :: label
+    integer, intent(in) :: nE, nK, ncont
+
+    integer, parameter :: NSPIN = 2
+
+    select type(cache)
+    type is (TMatrixCacheMem)
+      if (cache%isInitialized) then
+        if (label%energy_point <= size(cache%MatArray, 1) .and. &
+            & label%kpoint <= size(cache%MatArray, 2) .and. &
+            & ncont <= size(cache%MatArray, 3)) return
+        call cache%destroy()
+      end if
+      call cache%init(nE, nK, ncont, 1, NSPIN)
+    end select
+
+  end subroutine prepare_sgf_cache
   !---------------------------------------------------------------------------------------
   ! --------------------------------------------------------------------
   subroutine decimation(Go,Ao,Bo,Co,n,ncyc)

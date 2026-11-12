@@ -48,12 +48,20 @@ module lib_param
   private
 
   public :: Tnegf, lnParams, TInteractionList
+  public :: READ_SGF, COMP_SGF, COMPSAVE_SGF
+
+  !> Surface Green's function flags (readOldDM_SGFs, readOldT_SGFs):
+  !> read from cache (computed and stored if missing), compute, compute and store
+  integer, parameter :: READ_SGF = 0
+  integer, parameter :: COMP_SGF = 1
+  integer, parameter :: COMPSAVE_SGF = 2
   public :: TEnGrid
   public :: intArray, complArray, realArray
   public :: TMatrixArrayHS, TMatrixArrayDM
   public :: set_defaults, print_all_vars
   public :: destroy_interactions
   public :: init_cache_space, destroy_cache_space
+  public :: init_sgf_mem_cache
   public :: set_bp_dephasing
   public :: set_elph_dephasing
   public :: set_elph_block_dephasing
@@ -263,8 +271,13 @@ module lib_param
     ! internal use only
     integer :: readOldSGF
 
-    ! Work variable: surface green cache.
+    ! Work variable: surface green caches. The one of the density matrix (contour and
+    ! real axis path) can persist among calls; the one of real-axis transport
+    ! calculations (tunneling, currents, ldos) is in memory and is used within SCBA loops.
     class(TMatrixCache), allocatable :: surface_green_cache
+    class(TMatrixCache), allocatable :: surface_green_cache_T
+    ! Selects surface_green_cache_T in surface_green
+    logical :: tTransportSGF = .false.
     class(TMatrixCache), allocatable :: ESH
     ! These are pointers so they can be passed to inelastic
     class(TMatrixCache), pointer :: G_r => null()
@@ -572,6 +585,24 @@ contains
     end if
   end subroutine init_cache_space
 
+  !> (Re)create an empty memory cache for surface Green's functions.
+  !> Typed allocation as in init_cache_space: assigning a TMatrixCacheMem(...) structure
+  !> constructor can leave a stale descriptor for MatArray with ifort.
+  subroutine init_sgf_mem_cache(cache, tagname)
+    class(TMatrixCache), allocatable, intent(inout) :: cache
+    character(*), intent(in) :: tagname
+
+    if (allocated(cache)) then
+       call cache%destroy()
+       deallocate(cache)
+    end if
+    allocate(TMatrixCacheMem::cache)
+    select type(cache)
+    type is(TMatrixCacheMem)
+      cache%tagname = tagname
+    end select
+  end subroutine init_sgf_mem_cache
+
   subroutine destroy_cache_space(negf)
     type(Tnegf) :: negf
 
@@ -650,7 +681,8 @@ contains
 
      negf%bulk_cont_density = .false. ! Flag to calculate the density of the bulk contacts
 
-     negf%surface_green_cache = TMatrixCacheDisk(scratch_path=negf%scratch_path)
+     call init_sgf_mem_cache(negf%surface_green_cache, 'SurfaceGF')
+     call init_sgf_mem_cache(negf%surface_green_cache_T, 'SurfaceGF_T')
 
      ! Initialize the cache space for Gr and Gn
      call init_cache_space(negf, 'G_r')

@@ -21,6 +21,7 @@
 program main
 
   use libnegf
+  use mpi_f08
 
   implicit none
 
@@ -34,6 +35,10 @@ program main
   !integer :: nnz, nrow
   !integer, allocatable :: rowpnt(:), colind(:)
   real(kind(1.d0)), allocatable :: nzval(:) !nzval1(:), nzval2(:), nzval3(:), nzval4(:)
+  integer :: ierr
+  type(MPI_Comm) :: cartComm, kComm, enComm
+
+  call MPI_Init(ierr)
 
   surfstart = [61,81]
   surfend = [60,80]
@@ -52,6 +57,8 @@ program main
   allocate(nzval(60))
 
   call init_negf(pnegf)
+  ! libNEGF is built with MPI: the density integration reduces over the energy communicator
+  call set_cartesian_bare_comms(pnegf, MPI_COMM_WORLD, 1, cartComm, kComm, enComm)
   call init_contacts(pnegf, 2)
   call read_HS(pnegf, "H_real.dat", "H_imm.dat", 0)
   call set_S_id(pnegf, 100)
@@ -108,5 +115,7 @@ program main
   end if
 
   call destroy_negf(pnegf)
+
+  call MPI_Finalize(ierr)
 
 end program main
