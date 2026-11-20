@@ -36,7 +36,7 @@ module integrations
  use mat_def
  use ln_extract
  use contselfenergy
- use clock
+ use ln_timers, only : timers
  use energy_mesh
  use interactions
  use ln_elastic
@@ -189,25 +189,6 @@ contains
   end subroutine write_kpoint
   !-----------------------------------------------------------------------
 
-  subroutine write_message_clock(verbose,message)
-    integer, intent(in) :: verbose
-    character(*), intent(in) :: message
-
-    if (id0 .and. verbose.gt.VBT) then
-        call message_clock(message)
-    end if
-
-  end subroutine write_message_clock
-  !-----------------------------------------------------------------------
-
-  subroutine write_end_clock(verbose)
-    integer, intent(in) :: verbose
-
-    if (id0 .and. verbose.gt.VBT) call write_clock()
-
-  end subroutine write_end_clock
-
-  !-----------------------------------------------------------------------
   ! Projected DOS on atoms or obitals
   !-----------------------------------------------------------------------
   subroutine ldos_int(negf)
@@ -649,8 +630,11 @@ contains
 
 #:if defined("MPI")
     ! Gather partial results over the energy grid
+    ! Waits for the slowest process of the E-grid: timed apart from the reduction
+    call set_timer(negf, timers%MPIBarrier)
     call mpifx_barrier(negf%energyComm)
-    if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather DM over the MPI E-grid')
+    call stop_timer(negf, timers%MPIBarrier)
+    call set_timer(negf, timers%MPIGather, 'Gather DM over the MPI E-grid')
     if (inelastic) then
       do iK = 1, size(negf%local_k_index)
         call mpifx_allreduceip(negf%energyComm, negf%DM(iK)%rho%nzval, MPI_SUM)
@@ -658,7 +642,7 @@ contains
     else
       call mpifx_allreduceip(negf%energyComm, negf%rho%nzval, MPI_SUM)
     end if
-    if (id0.and.negf%verbose.gt.VBT) call write_clock
+    call stop_timer(negf, timers%MPIGather)
 #:endif
 
   end subroutine contour_driver
@@ -1152,9 +1136,9 @@ contains
       enddo
 
       if (particle == 1) then
-        call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_error)
+        call compute_Gn(negf, outer, ncont, Ec, frm_f, scba_error, G)
       else
-        call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_error)
+        call compute_Gp(negf, outer, ncont, Ec, frm_f, scba_error, G)
       endif
 
       zt = negf%en_grid(iE)%wght !!* negf%kwght
@@ -1307,19 +1291,19 @@ contains
           ! Avoids cleanup of block-dense Gn for layer currents
           negf%tDestroyGn = .false.
           if (particle == 1) then
-            call compute_Gn(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+            call compute_Gn(negf, outer, ncont, Ec, frm_f, scba_elastic_error, G)
           else
-            call compute_Gp(negf, outer, ncont, Ec, frm_f, G, scba_elastic_error)
+            call compute_Gp(negf, outer, ncont, Ec, frm_f, scba_elastic_error, G)
           endif
 
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
+          call set_timer(negf, timers%LayerCurrent)
           call iterative_layer_current(negf, Er, curr_mat)
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
+          call stop_timer(negf, timers%LayerCurrent)
 
           zt = negf%en_grid(iE)%wght
           if (negf%DorE.eq.'E') zt = zt * Er
@@ -1350,13 +1334,19 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energies ')
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        if (id0.and.negf%verbose.gt.VBT) call write_clock
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       ! Integrate energy-resolved currents
@@ -1376,7 +1366,9 @@ contains
 
 #:if defined("MPI")
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       scba_iter = scba_iter + 1
@@ -1814,19 +1806,19 @@ contains
        negf%iE = negf%en_grid(i)%pt
        negf%iE_path = negf%en_grid(i)%pt_path
 
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+       call set_timer(negf, timers%ContactSE)
        call compute_contacts(Ec+j*negf%delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       call stop_timer(negf, timers%ContactSE)
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
        if (.not.do_ledos) then
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Transmission ')
+          call set_timer(negf, timers%Transmission)
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Transmission and DOS')
+          call set_timer(negf, timers%Transmission, 'Compute Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec+j*negf%dos_delta, SelfEneR, GS, negf%tun_proj, &
@@ -1836,7 +1828,7 @@ contains
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       call stop_timer(negf, timers%Transmission)
 
        do icont=1,ncont
          call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))
@@ -1945,13 +1937,19 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        if (id0.and.negf%verbose.gt.VBT) call write_clock
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       call electron_current_meir_wingreen(negf)
@@ -1968,7 +1966,9 @@ contains
         call write_real_info(negf%verbose, VBT, 'scba inelastic error',scba_inelastic_error)
       end if
 #:if defined("MPI")
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       scba_iter = scba_iter + 1
@@ -2004,9 +2004,9 @@ contains
 
       call set_scba_iter_elphoton(0, negf%interactList)
 
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+      call set_timer(negf, timers%SigmaElpt)
       call compute_Sigmas_elphoton(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%SigmaElpt)
 
       ! scba_iter > 0 is needed to add the photon self-energies in EKloop
       call set_scba_iter_elphoton(1, negf%interactList)
@@ -2056,26 +2056,26 @@ contains
           ! ---------------------------------------------------------------------
           ! Compute contact GF
           ! ---------------------------------------------------------------------
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+          call set_timer(negf, timers%ContactSE)
           call compute_contacts(Ec+j*negf%delta, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
+          call stop_timer(negf, timers%ContactSE)
           call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
           ! ---------------------------------------------------------------------
           ! Compute block tri-diagonal Gr and Gn
           ! ---------------------------------------------------------------------
           negf%tDestroyGr = .false.; negf%tDestroyGn = .false.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
+          call set_timer(negf, timers%ElasticSCBA)
           call calculate_elastic_scba(negf,real(Ec),SelfEneR,Tlc,Tcl,GS,frm,scba_niter_ela, &
                 scba_elastic_tol, scba_elastic_iter, scba_elastic_error)
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
+          call stop_timer(negf, timers%ElasticSCBA)
 
           !call write_real_info(negf%verbose, VBT, 'scba elastic error',scba_elastic_error)
 
           negf%tDestroyGr = .true.; negf%tDestroyGn = .true.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Meir-Wingreen ')
+          call set_timer(negf, timers%MeirWingreen)
           call iterative_meir_wingreen(negf,real(Ec),SelfEneR,frm,curr_mat)
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
+          call stop_timer(negf, timers%MeirWingreen)
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
@@ -2209,13 +2209,19 @@ contains
       ! ---------------------------------------------------------------------
       ! COMPUTE SELF-ENERGIES
       ! ---------------------------------------------------------------------
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute phonon self-energies ')
+#:if defined("MPI")
+      ! Waits for the slowest process of the E-k loop: load imbalance of the (E, k) points
+      call set_timer(negf, timers%MPIBarrier)
+      call mpifx_barrier(negf%cartComm)
+      call stop_timer(negf, timers%MPIBarrier)
+#:endif
+      call set_timer(negf, timers%SigmaElph)
       call compute_Sigmas_elphinel(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%SigmaElph)
       if (negf%tPhotonSCC) then
-        if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+        call set_timer(negf, timers%SigmaElpt)
         call compute_Sigmas_elphoton(negf)
-        if (id0.and.negf%verbose.gt.VBT) call write_clock
+        call stop_timer(negf, timers%SigmaElpt)
       end if
 
       call electron_current_meir_wingreen(negf)
@@ -2234,7 +2240,9 @@ contains
 
 #:if defined("MPI")
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       if (negf%dump_pdos) then
@@ -2281,9 +2289,9 @@ contains
 
       call set_scba_iter_elphoton(0, negf%interactList)
 
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute photon self-energy ')
+      call set_timer(negf, timers%SigmaElpt)
       call compute_Sigmas_elphoton(negf)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%SigmaElpt)
 
       call set_scba_iter_elphoton(1, negf%interactList)
 
@@ -2296,7 +2304,9 @@ contains
       call gather_currents(negf)
 
       !In MPI runs only root has a meaningful result => Bcast the result
+      call set_timer(negf, timers%MPIGather)
       call mpifx_bcast(negf%cartComm, negf%scbaDriverInelastic%converged)
+      call stop_timer(negf, timers%MPIGather)
 #:endif
 
       if (negf%dump_pdos) then
@@ -2348,7 +2358,7 @@ contains
           negf%tDestroyGn = .false.
 
           if (negf%dump_pdos) then
-            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error, Gr)
+            call compute_Gn(negf, outer, ncont, Ec, frm, scba_elastic_error, Gn, Gr)
             call zspectral(Gr, A)
             call log_allocate(diag, negf%H%nrow)
             call getdiag(A, diag)
@@ -2356,21 +2366,21 @@ contains
             call log_deallocate(diag)
             call destroy(Gn, Gr, A)
           else
-            call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_elastic_error)
-            call destroy(Gn)
+            ! Only the block-dense Gn is needed by the layer currents
+            call compute_Gn(negf, outer, ncont, Ec, frm, scba_elastic_error)
           end if
 
           ! ---------------------------------------------------------------------
           ! Compute layer-to-layer currents and release memory
           ! ---------------------------------------------------------------------
           negf%tDestroyGn = .true.
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Jn,n+1 ')
+          call set_timer(negf, timers%LayerCurrent)
           if (negf%dump_pdos) then
             call iterative_layer_current(negf, Er, curr_mat, Gn_diag)
           else
             call iterative_layer_current(negf, Er, curr_mat)
           end if
-          if (id0.and.negf%verbose.gt.VBT) call write_clock
+          call stop_timer(negf, timers%LayerCurrent)
 
           ! Recursive sum adds up k-dependent partial results
           negf%curr_mat(iE,:) = negf%curr_mat(iE,:) + curr_mat(:) * negf%kwght
@@ -2398,7 +2408,7 @@ contains
     real(dp), dimension(:), allocatable :: tmp_currents
     real(dp), dimension(:,:), allocatable :: tmp_ldos_mat
 
-    if (id0.and.negf%verbose.gt.VBT) call message_clock('Gather MPI results ')
+    call set_timer(negf, timers%MPIGather)
 
     ! Work around because of MPI error with TiberCAD
     ! (MPI_IN_PLACE flag is not recognized ?!)
@@ -2424,7 +2434,7 @@ contains
       deallocate(tmp_ldos_mat)
     end if
 
-    if (id0.and.negf%verbose.gt.VBT) call write_clock
+    call stop_timer(negf, timers%MPIGather)
   end subroutine gather_currents
 
   !---------------------------------------------------------------------------
@@ -2436,6 +2446,8 @@ contains
 
     real(dp), dimension(:,:), allocatable :: tmp_mat
 
+    call set_timer(negf, timers%MPIGather, 'Gather pdos')
+
     ! Work around because of MPI error with TiberCAD (see gather_currents)
     allocate(tmp_mat, mold=pdos_mat)
     tmp_mat = 0.0_dp
@@ -2445,6 +2457,8 @@ contains
     call mpifx_reduce(negf%kComm, pdos_mat, tmp_mat, MPI_SUM)
     pdos_mat = tmp_mat
     deallocate(tmp_mat)
+
+    call stop_timer(negf, timers%MPIGather)
 
   end subroutine gather_pdos
 #:endif
@@ -2553,7 +2567,8 @@ contains
   ! This routine adds the inelastic electron-phonon self-energies
   !---------------------------------------------------------------------------
   subroutine compute_sigmas_elphinel(negf)
-    type(TNegf) :: negf
+    !> target: the interactions point to negf%timerset during the call
+    type(TNegf), target :: negf
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
@@ -2561,6 +2576,7 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhonInel)
+        pInter%timerset => negf%timerset
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)
@@ -2577,6 +2593,7 @@ contains
           call pInter%clear_Sigma_r()
           call pInter%compute_Sigma_r(spin=negf%spin)
         end if
+        nullify(pInter%timerset)
       end select
       it => it%next
     end do
@@ -2586,7 +2603,8 @@ contains
   ! This routine adds the inelastic electron-photon self-energy
   !---------------------------------------------------------------------------
   subroutine compute_Sigmas_elphoton(negf)
-    type(TNegf) :: negf
+    !> target: the interactions point to negf%timerset during the call
+    type(TNegf), target :: negf
 
     type(TInteractionNode), pointer :: it
     it => negf%interactList%first
@@ -2594,6 +2612,7 @@ contains
     do while (associated(it))
       select type(pInter => it%inter)
       class is (ElPhoton)
+        pInter%timerset => negf%timerset
         if (pInter%scba_niter .eq. 0) then
           call pInter%init_Sigma_n(spin=negf%spin)
           call pInter%init_Sigma_r(spin=negf%spin)
@@ -2610,6 +2629,7 @@ contains
           call pInter%clear_Sigma_r()
           call pInter%compute_Sigma_r(spin=negf%spin)
         end if
+        nullify(pInter%timerset)
       end select
       it => it%next
     end do
@@ -2708,9 +2728,9 @@ contains
 
       if (allocated(Gr%nzval)) call destroy(Gr)
 
-      if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Green`s funct ')
+      call set_timer(negf, timers%Gr)
       call calculate_Gr(negf,Ec,SelfEneR,Tlc,Tcl,GS,Gr,outer)
-      if (id0.and.negf%verbose.gt.VBT) call write_clock
+      call stop_timer(negf, timers%Gr)
 
       call negf%scbaDriverElastic%check_Mat_convergence(Gr)
 
@@ -2741,13 +2761,13 @@ contains
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
+  subroutine compute_Gn(negf, outer, ncont, Ec, frm, scba_error, Gn, Gr)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
-    Type(z_CSR), intent(out) :: Gn
     real(dp), intent(out) :: scba_error
+    Type(z_CSR), intent(out), optional :: Gn
     Type(z_CSR), intent(out), optional :: Gr
 
     integer :: i1
@@ -2762,18 +2782,18 @@ contains
     ! ---------------------------------------------------------------------
     ! Compute contact GF
     ! ---------------------------------------------------------------------
-    if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+    call set_timer(negf, timers%ContactSE)
     call compute_contacts(Ec, negf, ncyc, Tlc, Tcl, SelfEneR, GS)
-    if (id0.and.negf%verbose.gt.VBT) call write_clock
+    call stop_timer(negf, timers%ContactSE)
     call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
     ! ---------------------------------------------------------------------
     ! Compute block tri-diagonal Gn and optionally Gr
     ! ---------------------------------------------------------------------
-    if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute elastic SCBA ')
+    call set_timer(negf, timers%ElasticSCBA)
     call calculate_elastic_scba(negf, Er, SelfEneR, Tlc, Tcl, GS, frm, scba_niter_ela, &
                  & scba_elastic_tol, scba_elastic_iter, scba_elastic_error, outer, Gn, Gr)
-    if (id0.and.negf%verbose.gt.VBT) call write_clock
+    call stop_timer(negf, timers%ElasticSCBA)
 
     if (negf%cartComm%rank == 0 .and. negf%interactList%counter /= 0) then
       call write_int_info(negf%verbose, VBT, 'scba elastic iterations',scba_elastic_iter)
@@ -2796,18 +2816,18 @@ contains
   !  working arrays.
   !
   !-----------------------------------------------------------------------------
-  subroutine compute_Gp(negf, outer, ncont, Ec, frm, Gp, scba_error)
+  subroutine compute_Gp(negf, outer, ncont, Ec, frm, scba_error, Gp)
     type(Tnegf), intent(inout) :: negf
     integer, intent(in) :: outer, ncont
     complex(dp), intent(in) :: Ec
     real(dp), dimension(:), intent(in) :: frm
-    Type(z_CSR), intent(out) :: Gp
     real(dp), intent(out) :: scba_error
+    Type(z_CSR), intent(out) :: Gp
 
     Type(z_CSR) :: Gr, Gn, A
     complex(dp) :: minusOne = (-1.0_dp, 0.0_dp)
 
-    call compute_Gn(negf, outer, ncont, Ec, frm, Gn, scba_error, Gr)
+    call compute_Gn(negf, outer, ncont, Ec, frm, scba_error, Gn, Gr)
     call zspectral(Gr, A)
     call prealloc_sum(A, Gn, minusOne, Gp)
 
@@ -3013,20 +3033,20 @@ contains
          call error_msg("unreachable case libnegf delta")
        end select
 
-       if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Contact SE ')
+       call set_timer(negf, timers%ContactSE)
        call compute_contacts(Ec+j*delta,negf,ncyc,Tlc,Tcl,SelfEneR,GS)
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       call stop_timer(negf, timers%ContactSE)
        call write_int_info(negf%verbose, VBT, 'Average number of iterations', int(ncyc))
 
 
        if (.not.do_ledos) then
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Phonon Transmission ')
+          call set_timer(negf, timers%Transmission, 'Compute Phonon Transmission')
 
           call calculate_transmissions(negf, Ec, SelfEneR, negf%tun_proj, tun_mat)
 
           negf%tunn_mat(i,:) = tun_mat(:) * negf%kwght
        else
-          if (id0.and.negf%verbose.gt.VBT) call message_clock('Compute Phonon Transmission and DOS')
+          call set_timer(negf, timers%Transmission, 'Compute Phonon Transmission and DOS')
           ledos(:) = 0.0_dp
 
           call calculate_transmissions_and_dos(negf, Ec, SelfEneR, GS, negf%tun_proj, tun_mat, &
@@ -3036,7 +3056,7 @@ contains
           negf%ldos_mat(i,:) = ledos(:) * negf%kwght
        endif
 
-       if (id0.and.negf%verbose.gt.VBT) call write_clock
+       call stop_timer(negf, timers%Transmission)
 
        do icont=1,ncont
          call destroy(Tlc(icont),Tcl(icont),SelfEneR(icont),GS(icont))

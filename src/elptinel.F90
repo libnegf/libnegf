@@ -43,6 +43,7 @@ module elptinel
   use mpi_f08, MPI_XX_COMPLEX => MPI_DOUBLE_COMPLEX
   use mpi_globals
   use clock
+  use ln_timers, only : TTimerSet, timers, timer_start_if, timer_stop_if
   use ln_messages, only : error_msg
   implicit none
   private
@@ -855,8 +856,8 @@ contains
         fac_min = cmplx(0.0, -0.5*(this%Nq+1.0), lp)
         fac_plus = cmplx(0.0, -0.5*this%Nq, lp)
 
-        call selfenergy(this%cart_comm, pAA, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
-            & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+        call selfenergy(this%cart_comm, this%timerset, pAA, fac_min, fac_plus, iEshift, &
+            & Pblk(iM,jM), Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
 
         call release_pointers_A()
 
@@ -865,8 +866,8 @@ contains
         fac_min = (0.0_lp, 0.5_dp)
         fac_plus = (0.0_lp, -0.5_dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
-            & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
+            & Pblk(iM,jM), Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
 
       end if
 
@@ -1136,8 +1137,8 @@ contains
         fac_min = cmplx(this%Nq, 0.0, lp)
         fac_plus = cmplx(this%Nq + 1, 0.0, lp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, Pblk(iM,jM), &
-            & Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
+            & Pblk(iM,jM), Pblk(iMdag,jMdag), iKK, NE, NEloc, pSigma, this%prefactor)
       end if
 
     end subroutine perform_block_product
@@ -1253,9 +1254,11 @@ contains
 
   end subroutine compute_Sigma_n
 
-  subroutine selfenergy(comm2d, GG, fac_minus, fac_plus, iEhbaromega, PP, PP_dag, &
+  subroutine selfenergy(comm2d, ts, GG, fac_minus, fac_plus, iEhbaromega, PP, PP_dag, &
               & iK, NE, NEloc, Sigma, prefactor)
     type(MPI_Comm), intent(in) :: comm2d
+    !> Timers of the barrier and of the communications (may be unassociated)
+    type(TTimerSet), pointer, intent(in) :: ts
     type(TMatPointer), intent(in) :: GG(0:,1:)
     complex(lp), intent(in) :: fac_minus
     complex(lp), intent(in) :: fac_plus
@@ -1291,7 +1294,10 @@ contains
     call MPI_comm_size(comm2d, commsize, ierr)
     call MPI_comm_rank(comm2d, myid, ierr)
     call MPI_cart_coords(comm2d, myid, ndims, coords, ierr)
+    ! Waits for the slowest process of the (E, k) loop: timed apart from the communications
+    call timer_start_if(ts, timers%SigmaBarrier)
     call MPI_barrier(comm2d, ierr)
+    call timer_stop_if(ts, timers%SigmaBarrier)
 
     Np = size(GG(0,iK)%pMat%val,1)
     Mp = size(GG(0,iK)%pMat%val,2)
@@ -1351,6 +1357,7 @@ contains
 
             call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
 
+            call timer_start_if(ts, timers%SigmaComm)
             if (mdest /= MPI_PROC_NULL) then
                pGG1 => GG(iEminus, iK)%pMat
                call MPI_Isend(pGG1%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
@@ -1364,6 +1371,7 @@ contains
             ! Wait for complete communications
             if (mdest/=MPI_PROC_NULL) call MPI_Wait(rqE1, statE(1), ierr);
             if (msource/=MPI_PROC_NULL) call MPI_Wait(rqE2, statE(2), ierr);
+            call timer_stop_if(ts, timers%SigmaComm)
 
           end if
         end if
@@ -1396,6 +1404,7 @@ contains
 
             call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
 
+            call timer_start_if(ts, timers%SigmaComm)
             if (pdest /= MPI_PROC_NULL) then
                pGG2 => GG(iEplus, iK)%pMat
                call MPI_Isend(pGG2%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
@@ -1408,6 +1417,7 @@ contains
 
             if(pdest/=MPI_PROC_NULL) call MPI_Wait(rqE3, statE(3), ierr);
             if(psource/=MPI_PROC_NULL) call MPI_Wait(rqE4, statE(4), ierr);
+            call timer_stop_if(ts, timers%SigmaComm)
 
           end if
         end if

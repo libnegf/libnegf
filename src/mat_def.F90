@@ -2004,12 +2004,22 @@ subroutine rassign_CSR(M_lhs, M_rhs)
   type(r_CSR), intent(inout) :: M_lhs
   type(r_CSR), intent(in) :: M_rhs
 
-  if (.not.allocated(M_lhs%nzval)) then
+  ! Reuse the storage only if the sizes match (rowpnt is allocated also when nnz = 0)
+  if (allocated(M_lhs%rowpnt)) then
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol &
+        & .or. M_lhs%nnz /= M_rhs%nnz) then
+      call destroy(M_lhs)
+    end if
+  end if
+  if (.not.allocated(M_lhs%rowpnt)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
   end if
-  M_lhs%nzval = M_rhs%nzval
-  M_lhs%colind = M_rhs%colind
-  M_lhs%rowpnt = M_rhs%rowpnt
+  ! Explicit sections: no reallocation on assignment, bypassing the memory tracking
+  if (M_rhs%nnz > 0) then
+    M_lhs%nzval(1:M_rhs%nnz) = M_rhs%nzval(1:M_rhs%nnz)
+    M_lhs%colind(1:M_rhs%nnz) = M_rhs%colind(1:M_rhs%nnz)
+  end if
+  M_lhs%rowpnt(1:M_rhs%nrow+1) = M_rhs%rowpnt(1:M_rhs%nrow+1)
   M_lhs%sorted = M_rhs%sorted
 end subroutine rassign_CSR
 
@@ -2018,12 +2028,22 @@ subroutine zassign_CSR(M_lhs, M_rhs)
   type(z_CSR), intent(inout) :: M_lhs
   type(z_CSR), intent(in) :: M_rhs
 
-  if (.not.allocated(M_lhs%nzval)) then
+  ! Reuse the storage only if the sizes match (rowpnt is allocated also when nnz = 0)
+  if (allocated(M_lhs%rowpnt)) then
+    if (M_lhs%nrow /= M_rhs%nrow .or. M_lhs%ncol /= M_rhs%ncol &
+        & .or. M_lhs%nnz /= M_rhs%nnz) then
+      call destroy(M_lhs)
+    end if
+  end if
+  if (.not.allocated(M_lhs%rowpnt)) then
     call create(M_lhs, M_rhs%nrow, M_rhs%ncol, M_rhs%nnz)
   end if
-  M_lhs%nzval = M_rhs%nzval
-  M_lhs%colind = M_rhs%colind
-  M_lhs%rowpnt = M_rhs%rowpnt
+  ! Explicit sections: no reallocation on assignment, bypassing the memory tracking
+  if (M_rhs%nnz > 0) then
+    M_lhs%nzval(1:M_rhs%nnz) = M_rhs%nzval(1:M_rhs%nnz)
+    M_lhs%colind(1:M_rhs%nnz) = M_rhs%colind(1:M_rhs%nnz)
+  end if
+  M_lhs%rowpnt(1:M_rhs%nrow+1) = M_rhs%rowpnt(1:M_rhs%nrow+1)
   M_lhs%sorted = M_rhs%sorted
 end subroutine zassign_CSR
 
@@ -2043,7 +2063,7 @@ subroutine rassign_DNS(M_lhs, M_rhs)
        call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
     end if
   end if
-  !$OMP PARALLEL DO
+  !$OMP PARALLEL DO IF(M_lhs%nrow*M_lhs%ncol > 65536)
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2065,7 +2085,7 @@ subroutine zassign_DNS(M_lhs, M_rhs)
        call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
     end if
   end if
-  !$OMP PARALLEL DO
+  !$OMP PARALLEL DO IF(M_lhs%nrow*M_lhs%ncol > 65536)
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2087,7 +2107,7 @@ subroutine cassign_DNS(M_lhs, M_rhs)
        call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
     end if
   end if
-  !$OMP PARALLEL DO
+  !$OMP PARALLEL DO IF(M_lhs%nrow*M_lhs%ncol > 65536)
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2109,7 +2129,7 @@ subroutine zcassign_DNS(M_lhs, M_rhs)
        call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
     end if
   end if
-  !$OMP PARALLEL DO
+  !$OMP PARALLEL DO IF(M_lhs%nrow*M_lhs%ncol > 65536)
   do cc = 1, M_lhs%ncol
     M_lhs%val(:,cc) = M_rhs%val(:,cc)
   end do
@@ -2133,9 +2153,9 @@ subroutine czassign_DNS(M_lhs, M_rhs)
        call create(M_lhs, M_rhs%nrow, M_rhs%ncol)
     end if
   end if
-  !$OMP PARALLEL DO
+  !$OMP PARALLEL DO IF(M_lhs%nrow*M_lhs%ncol > 65536)
   do cc = 1, M_lhs%ncol
-    M_lhs%val(:,cc) = cmplx(real(m_rhs%val(:,cc)), aimag(m_rhs%val(:,cc)), sp)
+    M_lhs%val(:,cc) = cmplx(M_rhs%val(:,cc), kind=sp)
   end do
   !$OMP END PARALLEL DO
 end subroutine czassign_DNS

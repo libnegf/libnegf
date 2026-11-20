@@ -30,10 +30,10 @@ module iterative
   use sparsekit_drv
   use inversions
   use ln_structure, only : TStruct_Info
-  use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList
+  use lib_param, only : MAXNCONT, Tnegf, intarray, TInteractionList, set_timer, stop_timer
   use mpi_globals, only : id, numprocs, id0
   use outmatrix, only : outmat_c, inmat_c, direct_out_c, direct_in_c
-  use clock
+  use ln_timers, only : timers
   use ln_cache
   use ln_elastic
   use ln_inelastic
@@ -125,7 +125,9 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
 
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, E, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     !! Add interaction self energy contribution, if any
     ! Alex: temporarily commented out because of the big problem of
@@ -154,9 +156,11 @@ CONTAINS
     !       S.E. E-point offsets between contour and real-axis
     !call set_Gr_ela(negf, Gr)
 
+    call set_timer(negf, timers%GtoCSR)
     call blk2csr(Gr,negf%str,negf%S,Grout)
 
     call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outer,Grout)
+    call stop_timer(negf, timers%GtoCSR)
 
     call destroy_tridiag_blk(Gr)
     DEALLOCATE(Gr)
@@ -174,7 +178,7 @@ CONTAINS
   ! NOTE: Setting reference to ncont+1 removes the reference part
   !****************************************************************************
 
-  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,Glout,outblocks,Grout)
+  subroutine calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outblocks,Gnout,Grout)
 
     !****************************************************************************
     !
@@ -205,8 +209,8 @@ CONTAINS
     type(z_DNS), dimension(:), intent(in)  :: SelfEneR, gsurfR, Tlc, Tcl
     real(dp), intent(in)  :: E
     real(dp), dimension(:), intent(in)  :: frm
-    type(z_CSR), intent(inout), optional  :: Glout, Grout
     integer, intent(in), optional  :: outblocks
+    type(z_CSR), intent(inout), optional  :: Gnout, Grout
 
     !Work
     integer :: ref
@@ -222,10 +226,13 @@ CONTAINS
 
     Ec = cmplx(E,0.0_dp,dp)
 
+    call set_timer(negf, timers%Gr)
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
 
     ! Add interaction self energies (if any)
     call add_sigma_r(negf, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)
@@ -242,8 +249,10 @@ CONTAINS
 
     !Passing Gr to interactions
     call set_Gr_ela(negf, Gr)
+    call stop_timer(negf, timers%Gr)
 
     !Computing device G_n
+    call set_timer(negf, timers%Gn)
     call allocate_blk_dns(Gn,nbl)
     call init_tridiag_blk(Gn,ESH)
 
@@ -258,9 +267,11 @@ CONTAINS
 
     !Passing G^n to interactions
     call set_Gn_ela(negf, Gn)
+    call stop_timer(negf, timers%Gn)
 
-    if (present(Glout)) then
-      call blk2csr(Gn,negf%str,negf%S,Glout)
+    call set_timer(negf, timers%GtoCSR)
+    if (present(Gnout)) then
+      call blk2csr(Gn,negf%str,negf%S,Gnout)
     end if
 
     if (present(Grout)) then
@@ -270,13 +281,14 @@ CONTAINS
 
 
     !Computing the 'outer' blocks (device/contact overlapping elements)
-    if (present(Glout)) then
-      call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,outblocks,Glout)
+    if (present(Gnout)) then
+      call calculate_Gn_outer(Tlc,gsurfR,negf%str,frm,ref,outblocks,Gnout)
     end if
 
     if (present(Grout)) then
       call calculate_Gr_outer(Tlc,Tcl,gsurfR,negf%str,outblocks,Grout)
     end if
+    call stop_timer(negf, timers%GtoCSR)
 
     call destroy_all_blk(negf)
   end subroutine calculate_Gn_neq_components
@@ -341,11 +353,14 @@ CONTAINS
       negf%tDestroyGr = .false.
       negf%tDestroyESH = .false.
 
-      if (present(outGn)) then
-        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outGn,outer,outGr)
+      if (scba_niter == 0) then
+        ! No elastic SCBA: single pass, CSR output only if requested
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,outGn,outGr)
+      else if (present(outGn)) then
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,outGn,outGr)
         call negf%scbaDriverElastic%check_Mat_convergence(outGn)
       else
-        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,csrGn,outer,outGr)
+        call calculate_Gn_neq_components(negf,E,SelfEneR,Tlc,Tcl,gsurfR,frm,outer,csrGn,outGr)
         call negf%scbaDriverElastic%check_Mat_convergence(csrGn)
         call destroy(csrGn)
       end if
@@ -354,8 +369,10 @@ CONTAINS
 
     enddo
 
+    call set_timer(negf, timers%CacheG)
     call set_Gr_inel(negf, Gr)
     call set_Gn_inel(negf, Gn)
+    call stop_timer(negf, timers%CacheG)
 
     ! Compared to previous code, this is trivially equivalent
     negf%tDestroyGn = tDestroyGn
@@ -438,7 +455,6 @@ CONTAINS
     real(dp), dimension(:), intent(inout), optional :: ledos
 
     integer :: nbl, ii, nrows, start
-    type(z_DNS) :: Gn_dns, work1
     type(z_CSR) :: ESH_tot
     complex(dp) :: Ec
     complex(dp), dimension(:), allocatable :: diag
@@ -449,17 +465,20 @@ CONTAINS
        call error_msg('ERROR: ecurr with wrong size in iterative_layer_current')
     end if
 
+    ! ES-H without self-energies
     Ec=cmplx(E,0.0_dp,dp)
+    call set_timer(negf, timers%BuildESH)
     call prealloc_sum(negf%H, negf%S, minusOne, Ec, ESH_tot)
     call allocate_blk_dns(ESH,nbl)
     call csr2blk3diag(ESH_tot, ESH, negf%str%mat_PL_start)
     call destroy(ESH_tot)
+    call stop_timer(negf, timers%BuildESH)
 
+    ! J(ii) = Re{ i Tr[ESH(ii,ii+1) Gn(ii+1,ii) - Gn(ii,ii+1) ESH(ii+1,ii)] }
+    ! Only the traces are needed: O(n^2), no matrix products
     do ii = 1, nbl-1
-      call prealloc_mult(ESH(ii,ii+1),Gn(ii+1,ii),work1)
-      call prealloc_mult(Gn(ii,ii+1),ESH(ii+1,ii),minusOne, work1)
-      ecurr(ii) = real(i_unit*trace(work1))
-      call destroy(work1)
+      ecurr(ii) = real(i_unit * (trace_prod(ESH(ii,ii+1), Gn(ii+1,ii)) &
+          & - trace_prod(Gn(ii,ii+1), ESH(ii+1,ii))))
     end do
     if (present(ledos)) then
       start = 0
@@ -477,6 +496,25 @@ CONTAINS
     call destroy_all_blk(negf)
 
   end subroutine iterative_layer_current
+
+  !> Tr[A B] = sum_ij A(i,j) B(j,i), without forming the product
+  function trace_prod(A, B) result(tr)
+    type(z_DNS), intent(in) :: A, B
+    complex(dp) :: tr
+
+    integer :: i, j
+
+    if (A%nrow /= B%ncol .or. A%ncol /= B%nrow) then
+      call error_msg('ERROR: trace_prod with incompatible matrices')
+    end if
+    tr = (0.0_dp, 0.0_dp)
+    do j = 1, A%ncol
+      do i = 1, A%nrow
+        tr = tr + A%val(i,j) * B%val(j,i)
+      end do
+    end do
+
+  end function trace_prod
 
 
   !--------------------------------------------------------------------------
@@ -1567,7 +1605,9 @@ CONTAINS
     end if
 
     !With this method H and S have to be passed through negf. negf is also necessary for GPU handlers
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     nit=negf%ni(1)
     nft=negf%nf(1)
@@ -1722,7 +1762,9 @@ CONTAINS
     nbl = negf%str%num_PLs
     ncont = negf%str%num_conts
     Im = 'I'
+    call set_timer(negf, timers%BuildESH)
     call build_ESH(negf, Ec, SelfEneR, ncont, nbl, ESH)
+    call stop_timer(negf, timers%BuildESH)
 
     call allocate_gsm(gsmr,nbl)
     call calculate_gsmr_blocks(negf,ESH,nbl,2,gsmr)

@@ -27,6 +27,7 @@ module interactions
   use ln_precision, only : sp, dp
   use mat_def, only : c_dns, z_dns
   use ln_structure, only : TStruct_info
+  use ln_timers, only : TTimerSet
 
   implicit none
   private
@@ -49,6 +50,9 @@ module interactions
 
     !> System partitioning (as in TNEGF)
     type(TStruct_info) :: struct
+
+    !> Timers of the owning Tnegf, associated only while its self-energies are computed
+    type(TTimerSet), pointer :: timerset => null()
 
   contains
 

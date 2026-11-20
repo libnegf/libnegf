@@ -42,6 +42,7 @@ module elphinel
   use inversions, only : inverse
   use equiv_kpoints, only : TEqPoint, TEqPointsArray, create, destroy
   use clock
+  use ln_timers, only : TTimerSet, timers, timer_start_if, timer_stop_if
   use ln_messages, only : error_msg
   implicit none
   private
@@ -1142,7 +1143,7 @@ contains
       fac_min = cmplx(this%Nq + 1, 0.0, dp)
       fac_plus = cmplx(this%Nq, 0.0, dp)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+      call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
       call setup_pointers_Gn()
@@ -1150,7 +1151,7 @@ contains
       fac_min = (0.0_dp, 0.5_dp)
       fac_plus = (0.0_dp, -0.5_dp)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+      call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
       ! ==================================================================================================
@@ -1176,7 +1177,7 @@ contains
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
         call setup_pointers_Gn()
@@ -1184,7 +1185,7 @@ contains
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
         ! -------------------- subdiagonal blocks -----------------------------------------------------
@@ -1198,7 +1199,7 @@ contains
         fac_min = cmplx(this%Nq + 1, 0.0, dp)
         fac_plus = cmplx(this%Nq, 0.0, dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
         call setup_pointers_Gn()
@@ -1206,7 +1207,7 @@ contains
         fac_min = (0.0_dp, 0.5_dp)
         fac_plus = (0.0_dp, -0.5_dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izc, izr, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
         call log_deallocate(izc)
@@ -1353,7 +1354,7 @@ contains
       fac_min = cmplx(this%Nq, 0.0, dp)
       fac_plus = cmplx(this%Nq + 1, 0.0, dp)
 
-      call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+      call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izr, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
       !call check_elements(this%Sigma_n,"Sigma_n")
@@ -1380,7 +1381,7 @@ contains
         fac_min = cmplx(this%Nq, 0.0, dp)
         fac_plus = cmplx(this%Nq + 1, 0.0, dp)
 
-        call selfenergy(this%cart_comm, pGG, fac_min, fac_plus, iEshift, &
+        call selfenergy(this%cart_comm, this%timerset, pGG, fac_min, fac_plus, iEshift, &
                           & izr, izc, this%Kmat, NK, NKloc, NE, NEloc, this%kindices, pSigma)
 
         call log_deallocate(izc)
@@ -1536,9 +1537,11 @@ contains
   ! => 65563 * 1000 * 8 ~ 500 Mb
   ! We need a mapping: matrix index(mu) -> bin(iz)
 
-  subroutine selfenergy(comm2d, GG, fac_minus, fac_plus, iEhbaromega, &
+  subroutine selfenergy(comm2d, ts, GG, fac_minus, fac_plus, iEhbaromega, &
                                &  izr, izc, KK, NK, NKloc, NE, NEloc, kindices_map, Sigma)
     type(MPI_Comm), intent(in) :: comm2d
+    !> Timers of the barrier and of the communications (may be unassociated)
+    type(TTimerSet), pointer, intent(in) :: ts
     type(TMatPointer), intent(in) :: GG(0:,0:)
     complex(lp), intent(in) :: fac_minus
     complex(lp), intent(in) :: fac_plus
@@ -1574,7 +1577,10 @@ contains
     call MPI_comm_size(comm2d, commsize, ierr)
     call MPI_comm_rank(comm2d, myid, ierr)
     call MPI_cart_coords(comm2d, myid, ndims, coords, ierr)
+    ! Waits for the slowest process of the (E, k) loop: timed apart from the communications
+    call timer_start_if(ts, timers%SigmaBarrier)
     call MPI_barrier(comm2d, ierr)
+    call timer_stop_if(ts, timers%SigmaBarrier)
 
     Np = size(GG(0,0)%pMat%val,1)
     Mp = size(GG(0,0)%pMat%val,2)
@@ -1668,6 +1674,7 @@ contains
 
             call MPI_Cart_shift( comm2d, 1, ndiff, msource, mdest, ierr)
 
+            call timer_start_if(ts, timers%SigmaComm)
             if (mdest /= MPI_PROC_NULL) then
                pGG1 => GG(iEminus, iQ)%pMat
                call MPI_Isend(pGG1%val, Mp*Np, MPI_XX_COMPLEX, mdest, 41, comm2d, rqE1, ierr)
@@ -1681,6 +1688,7 @@ contains
             ! Wait for complete communications
             if (mdest/=MPI_PROC_NULL) call MPI_Wait(rqE1, statE(1), ierr);
             if (msource/=MPI_PROC_NULL) call MPI_Wait(rqE2, statE(2), ierr);
+            call timer_stop_if(ts, timers%SigmaComm)
 
           end if
         end if
@@ -1713,6 +1721,7 @@ contains
 
             call MPI_Cart_shift( comm2d, 1, -ndiff, psource, pdest, ierr)
 
+            call timer_start_if(ts, timers%SigmaComm)
             if (pdest /= MPI_PROC_NULL) then
                pGG2 => GG(iEplus, iQ)%pMat
                call MPI_Isend(pGG2%val, Mp*Np, MPI_XX_COMPLEX, pdest, 42, comm2d, rqE3, ierr)
@@ -1725,6 +1734,7 @@ contains
 
             if(pdest/=MPI_PROC_NULL) call MPI_Wait(rqE3, statE(3), ierr);
             if(psource/=MPI_PROC_NULL) call MPI_Wait(rqE4, statE(4), ierr);
+            call timer_stop_if(ts, timers%SigmaComm)
 
           end if
         end if
@@ -1785,10 +1795,12 @@ contains
             ! Actual shift used in send/recv:
             call MPI_Cart_shift(comm2d, 0, 1, hsource, hdest, ierr)
 
+            call timer_start_if(ts, timers%SigmaComm)
             call MPI_Isend(sbuffK%val, Mp*Np, MPI_XX_COMPLEX, hdest, 43, comm2d, rqK1, ierr)
             call MPI_Irecv(rbuffK%val, Mp*Np, MPI_XX_COMPLEX, hsource, 43, comm2d, rqK2, ierr)
 
             call MPI_Wait(rqK2, statK(2), ierr)
+            call timer_stop_if(ts, timers%SigmaComm)
 
             ! Sigma_ij(iK, iE) = Sum_iQ   KK(|z_i-z_j|, iK, iQ2) * rbuffK_ij(iQ2)
             do iK = 0, NKloc-1
@@ -1802,7 +1814,9 @@ contains
               !$OMP END PARALLEL DO
             end do
 
+            call timer_start_if(ts, timers%SigmaComm)
             call MPI_Wait(rqK1, statK(1), ierr)
+            call timer_stop_if(ts, timers%SigmaComm)
 
             !$OMP PARALLEL DO
             do nu = 1, Mp

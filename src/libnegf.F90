@@ -48,6 +48,9 @@ module libnegf
  use cudautils
 #:endif
  use clock
+ use ln_timers, only : TTimerSummary, timer_phases, set_timer_phase, gather_timers, write_timers
+ use ln_timers, only : timers, timer_start, timer_stop
+ use ln_timers, only : ln_reset_timers => reset_timers
  implicit none
  private
 
@@ -62,6 +65,7 @@ module libnegf
  public :: set_elphoton
  public :: interaction_models, integration_type
  public :: set_clock, write_clock
+ public :: reset_timers, print_timers ! timers of the main calculation steps
  public :: writeMemInfo, writePeakInfo
  public :: dns2csr, csr2dns, nzdrop
 
@@ -152,6 +156,7 @@ module libnegf
     integer :: local_kindex(1), ndevs
 
     call set_defaults(negf)
+    call ln_reset_timers(negf%timerset)
     negf%form%formatted = .true.
     negf%form%type = "PETSc"
     negf%form%fmt = "F"
@@ -1765,6 +1770,8 @@ module libnegf
   subroutine compute_density_dft(negf)
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Density)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call extract_cont(negf)
 
     !! Did anyone passed externally allocated DM? If not, create it
@@ -1779,6 +1786,7 @@ module libnegf
     call contour_driver(negf)
 
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_density_dft
 
@@ -1801,6 +1809,8 @@ module libnegf
 
     integer :: k
 
+    call set_timer_phase(negf%timerset, timer_phases%Density)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     if (particle /= +1 .and. particle /= -1) then
        call error_msg( "libNEGF error. In compute_density_efa, unknown particle")
     endif
@@ -1891,6 +1901,7 @@ module libnegf
     endif
 
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_density_efa
 
@@ -1911,6 +1922,8 @@ module libnegf
 
     real(dp), dimension(:), allocatable :: q_tmp
 
+    call set_timer_phase(negf%timerset, timer_phases%Density)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     if (particle /= +1 .and. particle /= -1) then
        call error_msg( "libNEGF error. In compute_density_quasiEq, unknown particle")
     endif
@@ -1930,6 +1943,7 @@ module libnegf
 
     call log_deallocate(q_tmp)
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_density_quasiEq
 
@@ -1997,10 +2011,13 @@ module libnegf
   subroutine compute_ldos(negf)
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Ldos)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call ldos_int(negf)
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_ldos
 
@@ -2008,6 +2025,8 @@ module libnegf
   subroutine compute_current(negf)
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Current)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     if ( negf%interactList%counter > 0 ) then
        if (get_max_wq(negf%interactList) == 0.0_dp) then
           call compute_dephasing_transmission(negf)
@@ -2019,6 +2038,7 @@ module libnegf
     call electron_current(negf)
 
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_current
 
@@ -2030,9 +2050,12 @@ module libnegf
 
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Current)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call extract_cont(negf)
     call tunneling_int_def(negf)
     call tunneling_and_dos(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_landauer
 
@@ -2046,6 +2069,8 @@ module libnegf
     type(Tnegf) :: negf
     real(dp), allocatable, dimension(:) :: occupations
 
+    call set_timer_phase(negf%timerset, timer_phases%Current)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     if (negf%str%num_conts .ne. 2) then
       call error_msg( "Effective transmission is only supported for 2 electrodes")
     end if
@@ -2063,6 +2088,7 @@ module libnegf
     end if
     call log_allocate(negf%tunn_mat, size(negf%curr_mat,1), 1)
     negf%tunn_mat(:,1) = negf%curr_mat(:,1)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_dephasing_transmission
 
@@ -2074,9 +2100,12 @@ module libnegf
 
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Current)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call tunneling_int_def(negf)
     call meir_wingreen(negf)
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_meir_wingreen
 
@@ -2086,11 +2115,46 @@ module libnegf
 
     type(Tnegf) :: negf
 
+    call set_timer_phase(negf%timerset, timer_phases%Current)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call tunneling_int_def(negf)
     call layer_current(negf)
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_layer_current
+
+  !-------------------------------------------------------------------------------
+  !> Gather the accumulated timers over all processes and print the summary on the
+  !> print node: one block per calculation phase (density matrix, current, ...) with the
+  !> per-process totals and the per-call min/mode/max with their (iE_path, iK) points.
+  !> Collective: must be called by all processes of negf%cartComm.
+  !! @param negf input/output container
+  !! @param unit optional output unit (default: stdout)
+  subroutine print_timers(negf, unit)
+    type(Tnegf) :: negf
+    integer, intent(in), optional :: unit
+
+    type(TTimerSummary) :: summary
+
+#:if defined("MPI")
+    call gather_timers(negf%timerset, summary, negf%cartComm)
+#:else
+    call gather_timers(negf%timerset, summary)
+#:endif
+    call write_timers(summary, unit)
+
+  end subroutine print_timers
+
+  !-------------------------------------------------------------------------------
+  !> Reset the timers of negf
+  !! @param negf input/output container
+  subroutine reset_timers(negf)
+    type(Tnegf) :: negf
+
+    call ln_reset_timers(negf%timerset)
+
+  end subroutine reset_timers
 
   ! --------------------------------------------------------------------------------
   ! GP Left in MPI version for debug purpose only. This will write a separate
@@ -2207,6 +2271,8 @@ module libnegf
     type(Tnegf) :: negf
 
 
+    call set_timer_phase(negf%timerset, timer_phases%PhononCurrent)
+    call timer_start(negf%timerset, timers%Total, [0, 0])
     call extract_cont(negf)
 
     call tunneling_int_def(negf)
@@ -2221,6 +2287,7 @@ module libnegf
     !call write_tunneling_and_dos(negf)
 
     call destroy_contact_matrices(negf)
+    call timer_stop(negf%timerset, timers%Total)
 
   end subroutine compute_phonon_current
 
